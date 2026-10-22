@@ -1,10 +1,9 @@
-// Inspector: the selected scene object's values. A field's change is one undo
-// step; a drag is one step from press to release and Escape takes it back; a name
-// or a resource is committed on Enter or on leaving the field.
+// Inspector: the selected scene object's header, its components by their descriptions and its extra keys. A name is
+// committed on Enter or on leaving the field, as one undo step; a field of a component is edited in
+// rv_editor_pane_scene_fields.cpp.
 
 #include "panes/rv_editor_panes.hpp"
 
-#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <string>
@@ -24,87 +23,17 @@ namespace
 // Field labels end this many font sizes in.
 constexpr float label_column_em = 6.0f;
 
-// The Inspector's draft: the text for the object shown, the drag being made and the values before it.
+// The Inspector's draft: the name's text for the object shown.
 struct rv_editor_inspector_draft {
     std::string shown;
     char name[identifier_field_size] = {};
-    char mesh[asset_identifier_field_size] = {};
-    char texture[asset_identifier_field_size] = {};
-    std::string editing;
-    rv_editor_vec3 before{};
-    bool cancelled = false; // Escape took the drag back; it ends when the button is let go
 };
 
 // The Inspector pane's own draft, shared by every Inspector tile.
 rv_editor_inspector_draft inspector_draft;
 
-// An edited field after its widget: Escape or a press that changed nothing takes the step back. Returns true when
-// the caller must store `value` in the object: the new value, or the old one while a drag is taken back.
-template <typename T>
-bool rv_editor_edit_settle(bool changed,
-    T &value,
-    const T &before,
-    const char *label,
-    rv_editor_scene_doc &doc,
-    rv_editor_inspector_draft &draft)
-{
-    const bool mine = draft.editing == label;
-    // ImGui lets go of the field on Escape itself, so the key is also caught as it does.
-    const bool escaped = ImGui::IsKeyPressed(ImGuiKey_Escape) && (ImGui::IsItemActive() || ImGui::IsItemDeactivated());
-    // A press that changed nothing, or Escape: the step taken at the press goes again.
-    const bool idle = ImGui::IsItemDeactivated() && !ImGui::IsItemDeactivatedAfterEdit();
-    const bool step_back = mine && !draft.cancelled && (escaped || idle);
-    if (step_back) {
-        draft.cancelled = escaped;
-        if (!doc.undo.empty()) {
-            doc.undo.pop_back();
-        }
-        if (!escaped) {
-            draft.editing.clear();
-        }
-    }
-    // Taken back: the old values hold until the button is let go.
-    const bool taken_back = mine && draft.cancelled;
-    if (taken_back) {
-        value = before;
-    }
-    const bool released = !ImGui::IsItemActive();
-    if (taken_back && released) {
-        draft.cancelled = false;
-        draft.editing.clear();
-    }
-    return taken_back || changed;
-}
-
-// Largest tint channel value.
-constexpr int tint_channel_max = 255;
-
-// Components in a 3D vector (position, rotation, scale).
-constexpr int vec3_size = 3;
-
-// Minimum tessellation value clamped in drag.
-constexpr double tess_min = 0.01;
-
-// Drag speeds for transform fields.
-constexpr float position_speed = 0.01f;
-constexpr float rotation_speed = 0.5f;
-constexpr float scale_speed = 0.01f;
-constexpr float uv_speed = 0.5f;
-constexpr float tess_speed = 0.05f;
-
-// UV drag range for coordinate edit fields.
-constexpr double uv_drag_bound = 1e6;
-
-// Undo step names for inspector fields.
+// Undo step name for the name field.
 constexpr const char *undo_name = "Name";
-constexpr const char *undo_position = "Position";
-constexpr const char *undo_rotation = "Rotation";
-constexpr const char *undo_scale = "Scale";
-constexpr const char *undo_mesh = "Mesh";
-constexpr const char *undo_texture = "Texture";
-constexpr const char *undo_uv = "UV";
-constexpr const char *undo_tint = "Tint";
-constexpr const char *undo_tess = "Tess";
 
 // A label column, then the field.
 void rv_editor_inspector_label(const char *label, const rv_editor_theme &theme)
@@ -113,123 +42,6 @@ void rv_editor_inspector_label(const char *label, const rv_editor_theme &theme)
     rv_editor_label(label, rv_editor_label_kind::normal, theme);
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
-}
-
-// Three numbers dragged or typed. The press takes one undo step and remembers the
-// values; Escape during the drag puts them back and drops that step.
-void rv_editor_inspector_vec(rv_editor_app &app,
-    rv_editor_inspector_draft &draft,
-    const char *label,
-    rv_editor_vec3 (*get)(const rv_editor_scene_object &),
-    void (*set)(rv_editor_scene_object &, const rv_editor_vec3 &),
-    float speed,
-    const std::string &id,
-    const rv_editor_theme &theme,
-    const char *display_label)
-{
-    rv_editor_scene_doc &doc = *app.scene;
-    const int at = rv_editor_scene_find(doc.scene, id);
-    if (at < 0) {
-        return;
-    }
-    rv_editor_vec3 value = get(doc.scene.objects[static_cast<size_t>(at)]);
-    rv_editor_inspector_label(display_label, theme);
-    const bool changed = ImGui::DragScalarN((std::string("##") + label).c_str(),
-        ImGuiDataType_Double,
-        value.data(),
-        vec3_size,
-        speed,
-        nullptr,
-        nullptr,
-        "%.3f");
-    if (ImGui::IsItemActivated()) {
-        rv_editor_scene_step(doc);
-        draft.editing = label;
-        draft.before = get(doc.scene.objects[static_cast<size_t>(at)]);
-    }
-    const bool write = rv_editor_edit_settle(changed, value, draft.before, label, doc, draft);
-    if (write) {
-        set(doc.scene.objects[static_cast<size_t>(at)], value);
-    }
-}
-
-// A fixed-size numeric array dragged or typed (uv, tint), the same undo and
-// Escape rule as rv_editor_inspector_vec above. `before` holds the array's own
-// type so uv (4 doubles) and tint (3 ints) each keep their own memory of it.
-template <typename Arr>
-void rv_editor_inspector_array(rv_editor_app &app,
-    rv_editor_inspector_draft &draft,
-    const char *label,
-    Arr (*get)(const rv_editor_scene_object &),
-    void (*set)(rv_editor_scene_object &, const Arr &),
-    ImGuiDataType type,
-    float speed,
-    const char *fmt,
-    const std::string &id,
-    typename Arr::value_type lo,
-    typename Arr::value_type hi,
-    const rv_editor_theme &theme,
-    const char *display_label)
-{
-    static Arr before{};
-    rv_editor_scene_doc &doc = *app.scene;
-    const int at = rv_editor_scene_find(doc.scene, id);
-    if (at < 0) {
-        return;
-    }
-    Arr value = get(doc.scene.objects[static_cast<size_t>(at)]);
-    rv_editor_inspector_label(display_label, theme);
-    const bool changed = ImGui::DragScalarN((std::string("##") + label).c_str(),
-        type,
-        value.data(),
-        static_cast<int>(value.size()),
-        speed,
-        &lo,
-        &hi,
-        fmt);
-    if (ImGui::IsItemActivated()) {
-        rv_editor_scene_step(doc);
-        draft.editing = label;
-        before = get(doc.scene.objects[static_cast<size_t>(at)]);
-    }
-    const bool write = rv_editor_edit_settle(changed, value, before, label, doc, draft);
-    if (write) {
-        set(doc.scene.objects[static_cast<size_t>(at)], value);
-    }
-}
-
-// A single number dragged or typed (tess), clamped to stay above zero.
-void rv_editor_inspector_tess(rv_editor_app &app,
-    rv_editor_inspector_draft &draft,
-    const char *label,
-    double (*get)(const rv_editor_scene_object &),
-    void (*set)(rv_editor_scene_object &, double),
-    float speed,
-    const std::string &id,
-    const rv_editor_theme &theme,
-    const char *display_label)
-{
-    static double before = 0.0;
-    rv_editor_scene_doc &doc = *app.scene;
-    const int at = rv_editor_scene_find(doc.scene, id);
-    if (at < 0) {
-        return;
-    }
-    double value = get(doc.scene.objects[static_cast<size_t>(at)]);
-    rv_editor_inspector_label(display_label, theme);
-    const double lo = tess_min;
-    const bool changed =
-        ImGui::DragScalar((std::string("##") + label).c_str(), ImGuiDataType_Double, &value, speed, &lo, nullptr, "%.3f");
-    if (ImGui::IsItemActivated()) {
-        rv_editor_scene_step(doc);
-        draft.editing = label;
-        before = get(doc.scene.objects[static_cast<size_t>(at)]);
-    }
-    double next = std::max(value, lo);
-    const bool write = rv_editor_edit_settle(changed, next, before, label, doc, draft);
-    if (write) {
-        set(doc.scene.objects[static_cast<size_t>(at)], next);
-    }
 }
 
 // A text value committed as a whole, never letter by letter.
@@ -290,12 +102,10 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
             return;
         }
         const rv_editor_scene_object o = doc.scene.objects[static_cast<size_t>(at)];
-        // The text fields follow the selection and undo; the one being typed in keeps its text.
+        // The name field follows the selection and undo; the one being typed in keeps its text.
         const bool refresh = draft.shown != o.id || !ImGui::GetIO().WantTextInput;
         if (refresh) {
             std::snprintf(draft.name, sizeof(draft.name), "%s", rv_editor_object_get_name(o).c_str());
-            std::snprintf(draft.mesh, sizeof(draft.mesh), "%s", rv_editor_object_get_mesh(o).c_str());
-            std::snprintf(draft.texture, sizeof(draft.texture), "%s", rv_editor_object_get_texture(o).c_str());
             draft.shown = o.id;
         }
         const bool read_only = !doc.scene.read_only.empty();
@@ -320,108 +130,6 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
         rv_editor_label(kind_text, rv_editor_label_kind::normal, theme);
         rv_editor_inspector_label(rv_editor_text("pane_scene_inspector.id_label"), theme);
         rv_editor_label(o.id.c_str(), rv_editor_label_kind::dim, theme);
-        rv_editor_section(rv_editor_text("pane_scene_inspector.transform_header"));
-        rv_editor_inspector_vec(app,
-            draft,
-            undo_position,
-            rv_editor_object_get_position,
-            rv_editor_object_set_position,
-            position_speed,
-            o.id,
-            theme,
-            rv_editor_text("pane_scene_inspector.position_label"));
-        rv_editor_inspector_vec(app,
-            draft,
-            undo_rotation,
-            rv_editor_object_get_rotation,
-            rv_editor_object_set_rotation,
-            rotation_speed,
-            o.id,
-            theme,
-            rv_editor_text("pane_scene_inspector.rotation_label"));
-        rv_editor_item_tooltip(rv_editor_text("pane_scene_inspector.rotation_tooltip"));
-        rv_editor_inspector_vec(app,
-            draft,
-            undo_scale,
-            rv_editor_object_get_scale,
-            rv_editor_object_set_scale,
-            scale_speed,
-            o.id,
-            theme,
-            rv_editor_text("pane_scene_inspector.scale_label"));
-        if (kind == kind_mesh) {
-            rv_editor_section(rv_editor_text("pane_scene_inspector.resources_header"));
-            rv_editor_inspector_text(app,
-                undo_mesh,
-                rv_editor_object_get_mesh,
-                rv_editor_object_set_mesh,
-                draft.mesh,
-                sizeof(draft.mesh),
-                o.id,
-                theme,
-                rv_editor_text("pane_scene_inspector.mesh_label"));
-            rv_editor_item_tooltip(rv_editor_text("pane_scene_inspector.mesh_tooltip"));
-            rv_editor_inspector_text(app,
-                undo_texture,
-                rv_editor_object_get_texture,
-                rv_editor_object_set_texture,
-                draft.texture,
-                sizeof(draft.texture),
-                o.id,
-                theme,
-                rv_editor_text("pane_scene_inspector.texture_label"));
-            rv_editor_item_tooltip(rv_editor_text("pane_scene_inspector.texture_tooltip"));
-        }
-        if (kind == kind_quad || kind == kind_billboard) {
-            rv_editor_section(rv_editor_text("pane_scene_inspector.resources_header"));
-            rv_editor_inspector_text(app,
-                undo_texture,
-                rv_editor_object_get_texture,
-                rv_editor_object_set_texture,
-                draft.texture,
-                sizeof(draft.texture),
-                o.id,
-                theme,
-                rv_editor_text("pane_scene_inspector.texture_label"));
-            rv_editor_item_tooltip(rv_editor_text("pane_scene_inspector.texture_tooltip"));
-            rv_editor_inspector_array<rv_editor_uv>(app,
-                draft,
-                undo_uv,
-                rv_editor_object_get_uv,
-                rv_editor_object_set_uv,
-                ImGuiDataType_Double,
-                uv_speed,
-                "%.1f",
-                o.id,
-                -uv_drag_bound,
-                uv_drag_bound,
-                theme,
-                rv_editor_text("pane_scene_inspector.uv_label"));
-            rv_editor_item_tooltip(rv_editor_text("pane_scene_inspector.uv_tooltip"));
-            rv_editor_inspector_array<rv_editor_tint>(app,
-                draft,
-                undo_tint,
-                rv_editor_object_get_tint,
-                rv_editor_object_set_tint,
-                ImGuiDataType_S32,
-                1.0f,
-                "%d",
-                o.id,
-                0,
-                tint_channel_max,
-                theme,
-                rv_editor_text("pane_scene_inspector.tint_label"));
-            rv_editor_inspector_tess(app,
-                draft,
-                undo_tess,
-                rv_editor_object_get_tess,
-                rv_editor_object_set_tess,
-                tess_speed,
-                o.id,
-                theme,
-                rv_editor_text("pane_scene_inspector.tess_label"));
-            rv_editor_item_tooltip(rv_editor_text("pane_scene_inspector.tess_tooltip"));
-        }
         rv_editor_inspector_components(app, theme, o.id, read_only);
         if (!o.extra.empty()) {
             rv_editor_section(rv_editor_text("pane_scene_inspector.extra_header"));

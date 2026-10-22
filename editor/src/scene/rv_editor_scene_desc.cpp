@@ -18,6 +18,7 @@
 
 #include "rv_editor_scene.hpp"
 #include "rv_editor_scene_fields.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -25,14 +26,15 @@ namespace rv_editor
 namespace
 {
 
-// Reason of a set on a field the description does not name; the where-prefix names the field.
-constexpr std::string_view desc_err_unnamed = " is not named by its description";
-// Reason of a set on a field whose type is not in the table; the where-prefix names the field.
-constexpr std::string_view desc_err_type = " has a type the table does not have";
-// Note of a row for a second key of a described field; the file's first key is the one the row shows.
-constexpr std::string_view desc_note_repeat = "repeated field";
-// Reason of a set on a field the file repeats; the where-prefix names the field, the extra entry is removed by hand.
-constexpr std::string_view desc_err_repeat = " is repeated; remove the extra entry first";
+// Text ids of the refusal reasons (editor/texts/rv_editor_texts.toml); the where-prefix names the field or component.
+// Reason of a set on a field the description does not name.
+constexpr std::string_view desc_err_unnamed = "pane_scene_fields.desc_err_unnamed";
+// Reason of a set on a field whose type is not in the table.
+constexpr std::string_view desc_err_type = "pane_scene_fields.desc_err_type";
+// Reason of a set on a field the file repeats; the extra entry is removed by remove_entry.
+constexpr std::string_view desc_err_repeat = "pane_scene_fields.desc_err_repeat";
+// Reason of a remove_entry with an index that is no entry of the component.
+constexpr std::string_view desc_err_entry = "pane_scene_fields.desc_err_entry";
 
 // A field's bytes, as pdkkit's parser and the factory write them; a field is at most ecs_value_capacity bytes.
 using desc_bytes = std::array<unsigned char, rv_pdkkit::ecs_value_capacity>;
@@ -144,6 +146,7 @@ std::vector<rv_editor_scene_field_row> rv_editor_scene_field_rows(const rv_edito
             row.described = entry != nullptr;
             const rv_pdklib::rv_manifest_tree_entry *file = rv_editor_fields_find(c, row.name);
             row.is_default = file == nullptr;
+            row.entry = file != nullptr ? static_cast<int>(file - c.fields.data()) : -1;
             if (file != nullptr) {
                 row.text = rv_pdkkit::rv_scene_value_text(file->value);
             } else if (entry != nullptr) {
@@ -162,7 +165,8 @@ std::vector<rv_editor_scene_field_row> rv_editor_scene_field_rows(const rv_edito
         rv_editor_scene_field_row row;
         row.name = e.key;
         row.text = rv_pdkkit::rv_scene_value_text(e.value);
-        row.note = named ? std::string(desc_note_repeat) : std::string();
+        row.note = named ? std::string(rv_editor_text("pane_scene_fields.repeated_note")) : std::string();
+        row.entry = static_cast<int>(i);
         rows.push_back(std::move(row));
     }
     return rows;
@@ -176,19 +180,19 @@ int rv_editor_scene_field_set(rv_editor_scene_component &c,
 {
     const rv_pdkkit::ecs_field_desc *field = rv_pdkkit::ecs_desc_field_find(desc, key);
     if (field == nullptr) {
-        error = rv_editor_fields_where(c, key) + std::string(desc_err_unnamed);
+        error = rv_editor_fields_where(c, key) + std::string(rv_editor_text(desc_err_unnamed));
         return RV_ERR_NOENT;
     }
     const rv_pdkkit::ecs_field_type_entry *entry = rv_pdkkit::ecs_field_type_of(field->type);
     if (entry == nullptr) {
-        error = rv_editor_fields_where(c, key) + std::string(desc_err_type);
+        error = rv_editor_fields_where(c, key) + std::string(rv_editor_text(desc_err_type));
         return RV_ERR_INVAL;
     }
     const auto same_key = [key](const rv_pdklib::rv_manifest_tree_entry &e) {
         return e.key == key;
     };
     if (std::count_if(c.fields.begin(), c.fields.end(), same_key) > 1) {
-        error = rv_editor_fields_where(c, key) + std::string(desc_err_repeat);
+        error = rv_editor_fields_where(c, key) + std::string(rv_editor_text(desc_err_repeat));
         return RV_ERR_INVAL;
     }
     // The console's parser decides what reads, so the file never holds what pdkkit refuses; a refusal leaves c as it was.
@@ -203,6 +207,18 @@ int rv_editor_scene_field_set(rv_editor_scene_component &c,
         return RV_OK;
     }
     rv_editor_fields_put(c, key, desc_value_of(field->type, bytes.data()));
+    return RV_OK;
+}
+
+int rv_editor_scene_field_remove_entry(rv_editor_scene_component &c, int index, std::string &error)
+{
+    const bool in_range = index >= 0 && static_cast<std::size_t>(index) < c.fields.size();
+    if (!in_range) {
+        error = std::string(fields_part_component) + c.name + std::string(fields_part_close) +
+            std::string(rv_editor_text(desc_err_entry));
+        return RV_ERR_INVAL;
+    }
+    c.fields.erase(c.fields.begin() + index);
     return RV_OK;
 }
 

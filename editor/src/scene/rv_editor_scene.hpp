@@ -156,6 +156,7 @@ struct rv_editor_scene_field_row {
     bool described = false;
     bool is_default = false; // the file has no value for the field: text is the default
     std::string note;        // "repeated field" on a second key of a described field; empty otherwise
+    int entry = -1;          // index of the row's entry in c.fields; -1 when the file has none
 };
 
 // The description of the component named name: the snapshot's records when records is given (the snapshot is loaded),
@@ -177,7 +178,11 @@ int rv_editor_scene_field_set(rv_editor_scene_component &c,
     const std::string &text,
     std::string &error);
 
-// Removes field key of c, so the default applies again.
+// Removes the entry at index of c.fields (a row's entry), so a repeated key keeps its other entries. RV_ERR_INVAL with
+// the reason in error if index is not an entry of c; c is then unchanged.
+int rv_editor_scene_field_remove_entry(rv_editor_scene_component &c, int index, std::string &error);
+
+// Removes every entry of key from c, so the default applies again: the Reset of a described field.
 void rv_editor_scene_field_reset(rv_editor_scene_component &c, std::string_view key);
 
 } // namespace rv_editor

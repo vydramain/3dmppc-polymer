@@ -33,6 +33,16 @@ enum class rv_editor_visibility {
     absent
 };
 
+// The last refused edit of a field: its reason shows under the field until the document changes again.
+struct rv_editor_scene_field_refusal {
+    std::string object;
+    std::string component;
+    std::string key;
+    std::string reason;
+    uint64_t steps = 0; // doc.steps when refused: a new step changes it, so a stale reason hides
+    size_t undo = 0;    // doc.undo.size() when refused: an undo or redo changes it, and so does a step
+};
+
 // A scene being edited: the document, its undo and redo, and the selection,
 // which Hierarchy, the viewport and Inspector share by id. The Hierarchy search and
 // sort, and the Scene's Hidden and layers, are view state, kept here but not written to the scene file.
@@ -40,6 +50,10 @@ struct rv_editor_scene_doc {
     rv_editor_scene scene;
     std::vector<std::vector<rv_editor_scene_object>> undo;
     std::vector<std::vector<rv_editor_scene_object>> redo;
+    // Steps taken, never given back by undo: unlike undo.size(), it tells a new step from an undo and redo.
+    uint64_t steps = 0;
+    // The last refused field edit; it dies with the document.
+    rv_editor_scene_field_refusal field_refusal;
     bool dirty = false;
     std::string selected;
     rv_editor_hierarchy_sort hierarchy_sort = rv_editor_hierarchy_sort::file_order;

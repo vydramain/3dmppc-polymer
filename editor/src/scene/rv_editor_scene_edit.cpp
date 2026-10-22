@@ -333,6 +333,7 @@ void rv_editor_scene_step(rv_editor_scene_doc &doc)
 {
     doc.undo.push_back(doc.scene.objects);
     doc.redo.clear();
+    ++doc.steps;
     doc.dirty = true;
 }
 
