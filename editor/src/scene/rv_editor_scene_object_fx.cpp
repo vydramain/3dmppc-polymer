@@ -1,4 +1,4 @@
-// Q20.12 accessors of an object's transform, uv and tess: the raw values of their fields, no conversion.
+// Q20.12 accessors of an object's transform and tess: the raw values of their fields, no conversion.
 // The double accessors in rv_editor_scene_object.cpp read through these.
 
 #include "scene/rv_editor_scene.hpp"
@@ -71,21 +71,6 @@ rv_pdklib::fx_vec3 rv_editor_object_get_scale_fx(const rv_editor_scene_object &o
 void rv_editor_object_set_scale_fx(rv_editor_scene_object &o, const rv_pdklib::fx_vec3 &value)
 {
     rv_editor_fields_write_fx(rv_editor_fields_component_ensure(o, names().transform), names().scale, array_of(value));
-}
-
-std::array<rv_pdklib::fx, uv_size> rv_editor_object_get_uv_fx(const rv_editor_scene_object &o)
-{
-    return read_raw<uv_size>(sprite_of(o), names().legacy_uv, { 0, 0, 0, 0 });
-}
-
-void rv_editor_object_set_uv_fx(rv_editor_scene_object &o, const std::array<rv_pdklib::fx, uv_size> &value)
-{
-    rv_editor_scene_component *c = sprite_of(o);
-    if (c == nullptr) {
-        refuse(o, names().legacy_uv, reason_no_sprite);
-        return;
-    }
-    rv_editor_fields_write_fx(*c, names().legacy_uv, value);
 }
 
 rv_pdklib::fx rv_editor_object_get_tess_fx(const rv_editor_scene_object &o)

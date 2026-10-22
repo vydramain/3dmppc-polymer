@@ -39,7 +39,6 @@ inline constexpr const char *scene_log_tag = "scene";
 // with `version`).
 
 using rv_editor_vec3 = std::array<double, 3>;
-using rv_editor_uv = std::array<double, 4>;
 using rv_editor_tint = std::array<int, 3>;
 
 // Default tint, same as pdkkit when a model or sprite lacks a `tint` field.
@@ -124,15 +123,13 @@ std::string rv_editor_object_get_mesh(const rv_editor_scene_object &o);
 void rv_editor_object_set_mesh(rv_editor_scene_object &o, const std::string &value);
 std::string rv_editor_object_get_texture(const rv_editor_scene_object &o);
 void rv_editor_object_set_texture(rv_editor_scene_object &o, const std::string &value);
-rv_editor_uv rv_editor_object_get_uv(const rv_editor_scene_object &o);
-void rv_editor_object_set_uv(rv_editor_scene_object &o, const rv_editor_uv &value);
 rv_editor_tint rv_editor_object_get_tint(const rv_editor_scene_object &o);
 void rv_editor_object_set_tint(rv_editor_scene_object &o, const rv_editor_tint &value);
 double rv_editor_object_get_tess(const rv_editor_scene_object &o);
 void rv_editor_object_set_tess(rv_editor_scene_object &o, double value);
 
 // Q20.12 twins of the accessors above: raw values, no conversion. Transitional; callers move to them and the double
-// ones go, then the suffix goes. A set refuses only a sprite-less object (uv, tess) or a tess not above zero;
+// ones go, then the suffix goes. A set refuses only a sprite-less object (tess) or a tess not above zero;
 // position, rotation and scale never refuse, since fx holds every Q20.12 value. The double setters still refuse
 // input outside Q20.12.
 rv_pdklib::fx_vec3 rv_editor_object_get_position_fx(const rv_editor_scene_object &o);
@@ -141,8 +138,6 @@ rv_pdklib::fx_vec3 rv_editor_object_get_rotation_fx(const rv_editor_scene_object
 void rv_editor_object_set_rotation_fx(rv_editor_scene_object &o, const rv_pdklib::fx_vec3 &value);
 rv_pdklib::fx_vec3 rv_editor_object_get_scale_fx(const rv_editor_scene_object &o);
 void rv_editor_object_set_scale_fx(rv_editor_scene_object &o, const rv_pdklib::fx_vec3 &value);
-std::array<rv_pdklib::fx, 4> rv_editor_object_get_uv_fx(const rv_editor_scene_object &o);
-void rv_editor_object_set_uv_fx(rv_editor_scene_object &o, const std::array<rv_pdklib::fx, 4> &value);
 rv_pdklib::fx rv_editor_object_get_tess_fx(const rv_editor_scene_object &o);
 void rv_editor_object_set_tess_fx(rv_editor_scene_object &o, rv_pdklib::fx value);
 

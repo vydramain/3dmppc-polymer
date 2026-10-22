@@ -334,20 +334,6 @@ void rv_editor_object_set_texture(rv_editor_scene_object &o, const std::string &
     rv_editor_fields_write_string(*c, names().legacy_texture, value);
 }
 
-rv_editor_uv rv_editor_object_get_uv(const rv_editor_scene_object &o)
-{
-    return units_of(rv_editor_object_get_uv_fx(o));
-}
-
-void rv_editor_object_set_uv(rv_editor_scene_object &o, const rv_editor_uv &value)
-{
-    std::array<rv_pdklib::fx, uv_size> raw{};
-    if (to_fx(o, names().legacy_uv, value, raw) != RV_OK) {
-        return;
-    }
-    rv_editor_object_set_uv_fx(o, raw);
-}
-
 rv_editor_tint rv_editor_object_get_tint(const rv_editor_scene_object &o)
 {
     const rv_editor_scene_component *c = tint_of(o);
