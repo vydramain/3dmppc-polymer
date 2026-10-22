@@ -127,6 +127,18 @@ int rv_editor_edge_fx(const rv_editor_view &v, const vec3 &a, const vec3 &b, rv_
     return rv_editor_cut_edge(pa, pb);
 }
 
+// A world point in Q20.12 taken to view space by the integer camera. Error: the product leaves int32; out is untouched.
+int rv_editor_point_view_fx(const rv_editor_view &v, const rv_pdklib::fx_vec3 &scene, rv_pdklib::fx_vec3 &out)
+{
+    const std::int32_t in[tri_vertices] = { scene.x, scene.y, scene.z };
+    std::int32_t view[tri_vertices] = {};
+    if (rv_pdklib::rv_gte_point(v.camera.view, in, view) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    out = { view[0], view[1], view[2] };
+    return RV_OK;
+}
+
 } // namespace
 
 vec3 sub(const vec3 &a, const vec3 &b)
@@ -223,6 +235,53 @@ void rv_editor_line(ImDrawList *dl, const rv_editor_view &v, const vec3 &a, cons
         return;
     }
     dl->AddLine(rv_editor_screen_of_fx(v, pa), rv_editor_screen_of_fx(v, pb), color, width);
+}
+
+int rv_editor_edge_screen_fx(const rv_editor_view &v,
+    const rv_pdklib::fx_vec3 &a,
+    const rv_pdklib::fx_vec3 &b,
+    ImVec2 &sa,
+    ImVec2 &sb)
+{
+    rv_pdklib::fx_vec3 pa{};
+    rv_pdklib::fx_vec3 pb{};
+    const int rc_a = rv_editor_point_view_fx(v, a, pa);
+    const int rc_b = rv_editor_point_view_fx(v, b, pb);
+    const int rc_cut = rv_editor_cut_edge(pa, pb);
+    if (rc_a != RV_OK || rc_b != RV_OK || rc_cut != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    // Both ends still behind after the cut: the edge has no visible side. Not a fault, so no log.
+    if (pa.z < rv_editor_near_fx && pb.z < rv_editor_near_fx) {
+        return RV_ERR_NOENT;
+    }
+    sa = rv_editor_screen_of_fx(v, pa);
+    sb = rv_editor_screen_of_fx(v, pb);
+    return RV_OK;
+}
+
+void rv_editor_line_fx(ImDrawList *dl,
+    const rv_editor_view &v,
+    const rv_pdklib::fx_vec3 &a,
+    const rv_pdklib::fx_vec3 &b,
+    ImU32 color,
+    float width)
+{
+    // Its own once flag, apart from rv_editor_line's. A view-space overflow is reported here, where the double
+    // route counts it as behind; the edge is skipped either way.
+    static bool reported = false;
+    ImVec2 sa{};
+    ImVec2 sb{};
+    const int rc = rv_editor_edge_screen_fx(v, a, b, sa, sb);
+    if (rc == RV_OK) {
+        dl->AddLine(sa, sb, color, width);
+        return;
+    }
+    if (rc != RV_ERR_INVAL || reported) {
+        return;
+    }
+    reported = true;
+    RV_LOG_WARN(scene_log_tag, "a scene edge is outside Q20.12: the edge is not drawn");
 }
 
 } // namespace rv_editor

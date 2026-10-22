@@ -9,11 +9,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <string>
 
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
 #include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
@@ -327,6 +329,8 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             size,
             cam.shading == rv_editor_scene_shading::textured);
     }
+    // The ids reported in this process, kept for its lifetime, so each object is named once.
+    static std::set<std::string> edges_skip_reported;
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         const rv_editor_scene_object &obj = doc.scene.objects[i];
         const rv_editor_visibility vis = rv_editor_scene_visibility(doc, obj);
@@ -355,8 +359,13 @@ void rv_editor_scene_viewport(rv_editor_app &app,
                 rv_editor_object_triangles(doc.scene, app.project, static_cast<int>(i), &error);
             }
         } else {
-            for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i), &error)) {
-                rv_editor_line(dl, v, a, b, color, sel ? line_width_selected : 1.0f);
+            int skipped = 0;
+            for (const auto &[a, b] : rv_editor_object_edges_fx(doc.scene, app.project, static_cast<int>(i), skipped, &error)) {
+                rv_editor_line_fx(dl, v, a, b, color, sel ? line_width_selected : 1.0f);
+            }
+            if (skipped > 0 && !edges_skip_reported.contains(obj.id)) {
+                edges_skip_reported.insert(obj.id);
+                RV_LOG_WARN(scene_log_tag, "object '{}': {} edges or triangles outside Q20.12 are left out", obj.id, skipped);
             }
         }
         if (mesh_error.empty() && !error.empty()) {

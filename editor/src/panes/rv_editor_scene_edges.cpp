@@ -188,6 +188,20 @@ constexpr rv_editor_edge_builder edge_builders[] = {
     { kind_volume, rv_editor_volume_edges },
 };
 
+// A world point as Q20.12. Error: a coordinate outside Q20.12, NaN or inf; out is untouched.
+int rv_editor_world_fx(const vec3 &p, rv_pdklib::fx_vec3 &out)
+{
+    rv_pdklib::fx_vec3 raw{};
+    const int rc_x = rv_pdklib::fx_from_double(p[0], raw.x);
+    const int rc_y = rv_pdklib::fx_from_double(p[1], raw.y);
+    const int rc_z = rv_pdklib::fx_from_double(p[2], raw.z);
+    if (rc_x != RV_OK || rc_y != RV_OK || rc_z != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    out = raw;
+    return RV_OK;
+}
+
 } // namespace
 
 std::vector<std::pair<vec3, vec3>>
@@ -215,6 +229,43 @@ rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &pr
         }
     }
     rv_editor_other_edges(e, p);
+    return e;
+}
+
+std::vector<std::pair<rv_pdklib::fx_vec3, rv_pdklib::fx_vec3>> rv_editor_object_edges_fx(const rv_editor_scene &scene,
+    const rv_editor_project &project,
+    int index,
+    int &skipped,
+    std::string *error)
+{
+    skipped = 0;
+    const std::string &kind = rv_editor_object_get_kind(scene.objects[static_cast<size_t>(index)]);
+    std::vector<std::pair<rv_pdklib::fx_vec3, rv_pdklib::fx_vec3>> e;
+    if (kind == kind_mesh || kind == kind_quad || kind == kind_billboard) {
+        for (const rv_editor_tri &tri : rv_editor_object_triangles(scene, project, index, error)) {
+            // Without q the triangle's corners did not fit Q20.12; the raster refuses it too.
+            if (!tri.q_valid) {
+                ++skipped;
+                continue;
+            }
+            e.emplace_back(tri.q[0], tri.q[1]);
+            e.emplace_back(tri.q[1], tri.q[2]);
+            e.emplace_back(tri.q[2], tri.q[0]);
+        }
+        return e;
+    }
+    for (const auto &[a, b] : rv_editor_object_edges(scene, project, index)) {
+        rv_pdklib::fx_vec3 fa{};
+        rv_pdklib::fx_vec3 fb{};
+        // Each end is converted once. An end outside Q20.12 skips its edge, as the raster refuses such a point.
+        const int rc_a = rv_editor_world_fx(a, fa);
+        const int rc_b = rv_editor_world_fx(b, fb);
+        if (rc_a != RV_OK || rc_b != RV_OK) {
+            ++skipped;
+            continue;
+        }
+        e.emplace_back(fa, fb);
+    }
     return e;
 }
 

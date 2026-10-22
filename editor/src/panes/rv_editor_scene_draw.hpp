@@ -136,12 +136,35 @@ struct rv_editor_view {
 rv_editor_view rv_editor_view_make(const rv_editor_scene_camera &c, ImVec2 p0, ImVec2 size);
 // A scene segment clipped to the near plane, drawn.
 void rv_editor_line(ImDrawList *dl, const rv_editor_view &v, const vec3 &a, const vec3 &b, ImU32 color, float width);
+// Integer twin of the edge on screen (rv_gte_point, cut at the near plane). RV_OK sets sa and sb; RV_ERR_NOENT means
+// wholly behind the near plane (nothing to draw); RV_ERR_INVAL means a point or a cut point leaves int32. sa and sb
+// are untouched unless RV_OK.
+[[nodiscard]] int rv_editor_edge_screen_fx(const rv_editor_view &v,
+    const rv_pdklib::fx_vec3 &a,
+    const rv_pdklib::fx_vec3 &b,
+    ImVec2 &sa,
+    ImVec2 &sb);
+// rv_editor_line on Q20.12 world points; a wholly-behind edge is skipped silently.
+void rv_editor_line_fx(ImDrawList *dl,
+    const rv_editor_view &v,
+    const rv_pdklib::fx_vec3 &a,
+    const rv_pdklib::fx_vec3 &b,
+    ImU32 color,
+    float width);
 float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b);
 // Each object's edges in scene space: a mesh's real .glb triangles (or the unit cube while
 // its mesh is empty or does not load, with the reason in *error; a legacy quad or billboard is that cube),
 // a camera's body and lens, a group's corner brackets and axis cross, a third marker for any other kind.
 std::vector<std::pair<vec3, vec3>>
 rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
+// The same edges in Q20.12 world. A mesh, quad or billboard takes its triangles' q; a triangle without q_valid is
+// skipped. A marker edge with an end outside Q20.12 is skipped, as the raster refuses such a point. `skipped` counts
+// what was left out.
+std::vector<std::pair<rv_pdklib::fx_vec3, rv_pdklib::fx_vec3>> rv_editor_object_edges_fx(const rv_editor_scene &scene,
+    const rv_editor_project &project,
+    int index,
+    int &skipped,
+    std::string *error = nullptr);
 
 struct rv_editor_cpu_image;
 
