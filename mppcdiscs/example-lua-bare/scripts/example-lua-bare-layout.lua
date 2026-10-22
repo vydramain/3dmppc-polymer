@@ -39,7 +39,7 @@ return {
     {
         name = "street",
         kind = "mesh",
-        model = "street.mppcmod",
+        model = "street_16.mppcmod",
         tint = { r = 255, g = 255, b = 255 },
         world = {
             r = {
@@ -53,7 +53,7 @@ return {
     {
         name = "house",
         kind = "mesh",
-        model = "house.mppcmod",
+        model = "house_7.mppcmod",
         tint = { r = 255, g = 255, b = 255 },
         world = {
             r = {

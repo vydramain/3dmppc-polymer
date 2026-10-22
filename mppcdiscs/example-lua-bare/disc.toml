@@ -9,11 +9,13 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-# The scene is copied verbatim, as in example-cpp-pdkkit.
+# The scene is copied verbatim. The disc does not read it at run time: its layout is
+# scripts/example-lua-bare-layout.lua. The file is here because a manifest [assets] must not be empty.
 files = ["scenes/*.scene.toml"]
 
 [textures]
-# The pictures are inside the models; format is the format their textures are baked in.
+# The model pictures are separate PNG files in assets/tex, baked by the model build; this section
+# holds no separate textures. format is the format the model pictures are baked in.
 files = []
 format = "idx8"
 
@@ -21,7 +23,7 @@ format = "idx8"
 files = ["assets/snd/*.wav"]
 
 [models]
-files = ["models/*.glb"]
+files = ["assets/models/*.gltf"]
 
 [budget.pcca]
 voice_count = 24
@@ -39,9 +41,9 @@ ot_bucket_count = 1024
 
 [budget.pccg]
 model_memory_size = 524288
-# Worst frame: 2818 triangles (each model once, glb counts: factory 1324, street 642, yard 140, house 272,
+# Worst frame: 2568 triangles (each model once, model counts: factory 1324, street_16 404, yard 140, house_7 260,
 # apartment 160, machines 144, furniture 76, lamp 28, lamp_light 12, glyphs 16, board and halo 2 each) + 3 x 40
-# for the three extra lamp instances (lamp 28 and lit lamp_light 12) = 2938 <= 4096.
+# for the three extra lamp instances (lamp 28 and lit lamp_light 12) = 2688 <= 4096.
 triangle_capacity = 4096
 
 [budget.pccio]
