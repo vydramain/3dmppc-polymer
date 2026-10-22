@@ -338,8 +338,28 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
     return RV_OK;
 }
 
-// A .glb named by its bare filename: resolved under [models] and read once per mtime. Returns the
-// code with the reason in `error`; the placeholder cube fallback is the caller's.
+int rv_editor_glb_path_triangles(const std::filesystem::path &path,
+    const rv_pdklib::rv_gte_matrix &world,
+    std::vector<rv_editor_tri> &tris,
+    std::string &error)
+{
+    std::shared_ptr<const rv_editor_glb_model> glb;
+    if (const int rc = rv_editor_glb_load(path, glb, error); rc != RV_OK) {
+        return rc;
+    }
+    const rv_editor_glb_pictures &pictures = rv_editor_glb_part_pictures(path.string(), glb);
+    std::size_t refused = 0;
+    tris = rv_editor_glb_triangles(glb->quantized, world, pictures.part, refused);
+    // A warning, not a failure: the model's other triangles are drawn.
+    if (refused != 0) {
+        const std::string name = path.filename().string();
+        error = rv_editor_text_format("project.model_triangles_refused", std::make_format_args(name, refused));
+    }
+    return RV_OK;
+}
+
+// A .glb named by its bare filename: resolved under [models], then read as rv_editor_glb_path_triangles.
+// Returns the code with the reason in `error`; the placeholder cube fallback is the caller's.
 int rv_editor_glb_object_triangles(const rv_editor_project &project,
     const std::string &name,
     const rv_pdklib::rv_gte_matrix &world,
@@ -350,16 +370,8 @@ int rv_editor_glb_object_triangles(const rv_editor_project &project,
     if (const int rc = rv_editor_glb_resolve_name(project, name, path, error); rc != RV_OK) {
         return rc;
     }
-    std::shared_ptr<const rv_editor_glb_model> glb;
-    if (const int rc = rv_editor_glb_load(path, glb, error); rc != RV_OK) {
+    if (const int rc = rv_editor_glb_path_triangles(path, world, tris, error); rc != RV_OK) {
         return rc;
-    }
-    const rv_editor_glb_pictures &pictures = rv_editor_glb_part_pictures(path.string(), glb);
-    std::size_t refused = 0;
-    tris = rv_editor_glb_triangles(glb->quantized, world, pictures.part, refused);
-    // A warning, not a failure: the model's other triangles are drawn.
-    if (refused != 0) {
-        error = rv_editor_text_format("project.model_triangles_refused", std::make_format_args(name, refused));
     }
     return RV_OK;
 }
