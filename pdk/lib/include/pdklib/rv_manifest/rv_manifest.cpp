@@ -164,9 +164,15 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     out << "\n[assets]\n";
     render_array(out, "files", manifest.assets_files);
 
-    // A manifest that reached rendering has been through the binder, so the
-    // format is one of the enumerators; the empty string is what a corrupted
-    // one would render as, and it fails to parse back rather than lying.
+    // Always written, although its default is idx8: the copy on the disc names the format the burner baked
+    // textures and model pictures in. Same fallback as [textures] below.
+    const rv_pdklib::rv_texfmt_name *assets_texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.assets_texture_format);
+    out << "\n[assets.texture]\n";
+    out << "format = " << quote(assets_texfmt != nullptr ? assets_texfmt->text : "") << "\n";
+
+    // Once bound, the format is an enumerator. The empty string is what an unknown or absent format renders as:
+    // parse reads it back as the no-format marker, and rv_manifest_validate rejects it - the burner validates before it
+    // renders.
     const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
 
     // [textures] is optional: no images and no format is a disc without textures, so the section is left off.

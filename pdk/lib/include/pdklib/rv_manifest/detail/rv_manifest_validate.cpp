@@ -62,12 +62,12 @@ static int validate_disc_id(const rv_manifest &manifest, std::string &error)
     return RV_OK;
 }
 
-// The rest of what a disc cannot be built without. Everything NOT listed
-// here has a reference value and may be left unsaid; these three have none,
-// because no answer the tool could invent would be the author's. [textures] is
-// not here: a disc may have no textures at all, like [sounds]. Its format has no
-// reference value either, so validate_texture_format requires it when [textures]
-// lists files or [models] lists models.
+// The rest of what a disc cannot be built without. Sections with a reference
+// value may be left unsaid; these two have none, because no answer the tool
+// could invent would be the author's. [assets] and [textures] are not here: a
+// disc may carry no assets or textures at all, like [sounds]. The [textures]
+// format is the exception: it has no reference value, so validate_texture_format
+// requires it when [textures] lists files or [models] lists models.
 static int validate_required_sections(const rv_manifest &manifest, std::string &error)
 {
     if (manifest.disc_title.empty()) {
@@ -76,10 +76,6 @@ static int validate_required_sections(const rv_manifest &manifest, std::string &
     }
     if (manifest.build_sources.empty()) {
         error = "[build] sources is empty - a disc is built from its own code";
-        return RV_ERR_INVAL;
-    }
-    if (manifest.assets_files.empty()) {
-        error = "[assets] files is empty - state the files the disc carries";
         return RV_ERR_INVAL;
     }
     return RV_OK;
