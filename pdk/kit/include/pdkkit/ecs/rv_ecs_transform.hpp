@@ -29,6 +29,7 @@ struct ecs_component_world {
 // The logs are inside the guard too: a throwing log line becomes the guard's code.
 [[nodiscard]] inline int ecs_transform_world(ecs_world &world, ecs_id id, rv_pdklib::rv_mat4 &out)
 {
+    const auto &state = detail::ecs_state(world);
     return ecs_guard([&]() -> int {
         const ecs_component_transform *self = ecs_component_get<ecs_component_transform>(world, id);
         if (self == nullptr) {
@@ -39,7 +40,7 @@ struct ecs_component_world {
         ecs_id parent = self->parent;
         // An acyclic chain is shorter than live_count; reaching live_count steps means a cycle.
         for (uint32_t steps = 0; parent != ecs_id{}; ++steps) {
-            const bool cycle = steps >= world.live_count;
+            const bool cycle = steps >= state.live_count;
             if (cycle) {
                 RV_LOG_ERR(ecs_transform_tag, "entity {}:{}: parent chain is a cycle", id.index, id.generation);
                 return RV_ERR_INVAL;

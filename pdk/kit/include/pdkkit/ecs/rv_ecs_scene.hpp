@@ -96,9 +96,10 @@ inline int ecs_scene_ensure_failed(const ecs_scene_reading &load, int code)
 // Capacity for the whole load and its rollback, taken before the first change, so the rollback never allocates.
 inline void ecs_scene_reserve(ecs_scene_reading &load)
 {
+    auto &state = detail::ecs_state(load.world);
     const std::size_t objects = static_cast<std::size_t>(load.objects);
-    load.world.slots.reserve(load.world.slots.size() + objects);
-    load.world.free_slots.reserve(load.world.slots.size() + objects);
+    state.slots.reserve(state.slots.size() + objects);
+    state.free_slots.reserve(state.slots.size() + objects);
     load.made.reserve(objects);
 }
 
