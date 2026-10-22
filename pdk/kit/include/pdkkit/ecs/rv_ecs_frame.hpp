@@ -47,13 +47,14 @@ inline constexpr int32_t ecs_depth_decal_max = RV_DEPTH_MAX;
     if (bad) {
         return RV_ERR_INVAL;
     }
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&] {
-        for (const auto &entry : world.systems) {
+        for (const auto &entry : state.systems) {
             if (entry.first == name) {
                 return RV_ERR_ALREADY;
             }
         }
-        world.systems.emplace_back(name, run);
+        state.systems.emplace_back(name, run);
         return RV_OK;
     });
 }
@@ -61,8 +62,9 @@ inline constexpr int32_t ecs_depth_decal_max = RV_DEPTH_MAX;
 // Camera of the frame, for the puts that follow it. A system sets it; ecs_system_draw needs it.
 inline void ecs_world_camera(ecs_world &world, const rv_cg_camera &camera)
 {
-    world.camera = camera;
-    world.camera_set = true;
+    auto &state = detail::ecs_state(world);
+    state.camera = camera;
+    state.camera_set = true;
 }
 
 // Puts one entity's model. Dead, model-less and hidden entities are skipped; a decal takes the decal window.
@@ -109,11 +111,12 @@ inline void ecs_world_camera(ecs_world &world, const rv_cg_camera &camera)
 // A failed entity does not stop the rest, as the disc draws on; the first failure's code is returned.
 [[nodiscard]] inline int ecs_system_draw(ecs_world &world, const ecs_frame &frame, const std::vector<ecs_id> &order)
 {
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&]() -> int {
-        if (!world.camera_set) {
+        if (!state.camera_set) {
             return RV_ERR_NOENT;
         }
-        const int64_t camera_code = rv_cg_frame_camera(rv_pdko_cg(frame.pdk), &world.camera);
+        const int64_t camera_code = rv_cg_frame_camera(rv_pdko_cg(frame.pdk), &state.camera);
         if (camera_code < 0) {
             return static_cast<int>(camera_code);
         }
@@ -130,9 +133,10 @@ inline void ecs_world_camera(ecs_world &world, const rv_cg_camera &camera)
 // Rebuilds world.draw_order: the loads' entities in table order, each load in file order.
 inline void ecs_draw_order_build(ecs_world &world)
 {
-    world.draw_order.clear();
-    for (const ecs_load &load : world.loads) {
-        world.draw_order.insert(world.draw_order.end(), load.made.begin(), load.made.end());
+    auto &state = detail::ecs_state(world);
+    state.draw_order.clear();
+    for (const ecs_load &load : state.loads) {
+        state.draw_order.insert(state.draw_order.end(), load.made.begin(), load.made.end());
     }
 }
 
@@ -143,12 +147,14 @@ struct ecs_frame_scope {
     explicit ecs_frame_scope(ecs_world &w)
         : world(w)
     {
-        world.in_frame = true;
+        auto &state = detail::ecs_state(world);
+        state.in_frame = true;
     }
 
     ~ecs_frame_scope()
     {
-        world.in_frame = false;
+        auto &state = detail::ecs_state(world);
+        state.in_frame = false;
     }
 };
 
@@ -177,14 +183,15 @@ inline bool ecs_reason_same(const ecs_reason &a, const ecs_reason &b)
 // compares against, and a frame whose systems all succeed clears it.
 inline void ecs_frame_report(ecs_world &world, std::string_view name, int code, const ecs_reason &reason)
 {
+    auto &state = detail::ecs_state(world);
     const bool repeat =
-        name == world.logged_system && code == world.logged_code && ecs_reason_same(reason, world.logged_reason);
+        name == state.logged_system && code == state.logged_code && ecs_reason_same(reason, state.logged_reason);
     if (repeat) {
         return;
     }
-    world.logged_system = name;
-    world.logged_code = code;
-    world.logged_reason = reason;
+    state.logged_system = name;
+    state.logged_code = code;
+    state.logged_reason = reason;
     ecs_frame_log_failure(name, code, reason);
 }
 
@@ -198,7 +205,8 @@ inline void ecs_frame_no_report(const char *)
 // A system's exception is mapped by ecs_try, so it becomes a code and goes through the same report as a returned error.
 inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
 {
-    for (const auto &entry : world.systems) {
+    auto &state = detail::ecs_state(world);
+    for (const auto &entry : state.systems) {
         ecs_reason reason;
         const int code = ecs_try(
             [&] {
@@ -211,15 +219,15 @@ inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
             return code;
         }
     }
-    world.logged_system = {};
-    world.logged_code = RV_OK;
-    world.logged_reason = {};
+    state.logged_system = {};
+    state.logged_code = RV_OK;
+    state.logged_reason = {};
     const int transformed = ecs_system_transform(world);
     if (transformed != RV_OK) {
         return transformed;
     }
     ecs_draw_order_build(world);
-    return ecs_system_draw(world, frame, world.draw_order);
+    return ecs_system_draw(world, frame, state.draw_order);
 }
 
 // One frame. The camera is cleared first, so a frame whose systems set none draws nothing. Draws only the entities
@@ -229,7 +237,8 @@ inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
 // by the scope before the guard returns.
 [[nodiscard]] inline int ecs_world_frame(ecs_world &world, const ecs_frame &frame)
 {
-    world.camera_set = false;
+    auto &state = detail::ecs_state(world);
+    state.camera_set = false;
     const int ran = ecs_guard([&] {
         const ecs_frame_scope scope{ world };
         return ecs_frame_run(world, frame);
