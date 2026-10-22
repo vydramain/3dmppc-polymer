@@ -15,6 +15,14 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// The tabs work on a bare disc; its scene needs pdkkit, so the tile says why instead.
+constexpr const char *no_pdkkit_text_id = "shell_pane.no_pdkkit";
+
+} // namespace
+
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
 {
     if (rv_editor_button(rv_editor_text("pane_scene.create_scene"), theme)) {
@@ -37,9 +45,16 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
         rv_editor_open_project_row(app, theme);
         return;
     }
-    rv_editor_scene_new_area(app, theme, ui);
+    const bool bare = app.project.sdk == rv_editor_sdk_state::bare;
+    if (!bare) {
+        rv_editor_scene_new_area(app, theme, ui);
+    }
     if (!rv_editor_scene_tabs_draw(app, renderer, theme, ui)) {
-        return; // a picture or a sound tab is in front; it drew its own content
+        return; // a picture, sound or model tab is in front; it drew its own content
+    }
+    if (bare) {
+        rv_editor_label(rv_editor_text(no_pdkkit_text_id), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
+        return;
     }
     if (app.scene == nullptr) {
         rv_editor_label(rv_editor_text("pane_scene.no_scene_open"),

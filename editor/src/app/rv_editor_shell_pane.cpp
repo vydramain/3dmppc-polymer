@@ -21,7 +21,7 @@ namespace
 constexpr int rv_editor_strip_width_em = 20;
 // A pane kind without a view says so; the title fills the {}.
 constexpr const char *no_view_text_id = "shell_pane.no_view";
-// The scene panes edit a pdkkit scene; a bare disc runs none, so they say why instead.
+// Hierarchy and inspector edit a pdkkit scene; a bare disc runs none, so they say why instead.
 constexpr const char *no_pdkkit_text_id = "shell_pane.no_pdkkit";
 
 } // namespace
@@ -30,8 +30,8 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
 {
     rv_editor_shell &shell = *static_cast<rv_editor_shell *>(context);
     // Only a bare disc gates: unknown (no project, or manifest not loaded) keeps the panes.
-    const bool scene_kind =
-        kind == rv_editor_pane_kind::scene || kind == rv_editor_pane_kind::hierarchy || kind == rv_editor_pane_kind::inspector;
+    // The scene pane gates itself: its tabs work on a bare disc.
+    const bool scene_kind = kind == rv_editor_pane_kind::hierarchy || kind == rv_editor_pane_kind::inspector;
     const bool no_pdkkit = scene_kind && shell.app.project.sdk == rv_editor_sdk_state::bare;
     if (no_pdkkit) {
         rv_editor_label(rv_editor_text(no_pdkkit_text_id), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
