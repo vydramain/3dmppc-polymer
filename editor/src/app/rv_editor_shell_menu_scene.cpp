@@ -88,8 +88,21 @@ std::string rv_editor_new_scene_header_id(std::string_view name)
     return id;
 }
 
+// The scene tools edit a pdkkit scene; a bare disc runs none, so the menu says why instead.
+constexpr const char *no_pdkkit_text_id = "shell_pane.no_pdkkit";
+
+// The reason the scene tools are off on a bare disc, else nullptr.
+const char *rv_editor_scene_bare_reason(const rv_editor_app &app)
+{
+    return app.project.open && app.project.sdk == rv_editor_sdk_state::bare ? rv_editor_text(no_pdkkit_text_id) : nullptr;
+}
+
 const char *rv_editor_scene_why_not_save(const rv_editor_app &app)
 {
+    const char *bare = rv_editor_scene_bare_reason(app);
+    if (bare != nullptr) {
+        return bare;
+    }
     if (app.scene == nullptr) {
         return rv_editor_text("shell_menu_scene.no_scene_open");
     }
@@ -192,12 +205,15 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, 
 void rv_editor_menu_scene(rv_editor_shell &shell)
 {
     rv_editor_app &app = shell.app;
+    // First link of the chain: no project, else a bare disc; New and Open take it directly.
+    const char *bare = rv_editor_scene_bare_reason(app);
     const char *no_project = app.project.open ? nullptr : rv_editor_text("shell_menu_scene.no_project_open");
-    if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.new_scene"), nullptr, no_project)) {
+    const char *no_tools = no_project != nullptr ? no_project : bare;
+    if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.new_scene"), nullptr, no_tools)) {
         rv_editor_shell_new_scene_request(app);
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::scene);
     }
-    if (rv_editor_menu_begin(rv_editor_text("shell_menu_scene.open_scene"), no_project)) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu_scene.open_scene"), no_tools)) {
         const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
         for (const std::filesystem::path &path : files) {
             const std::string file_name = path.filename().string();
@@ -210,7 +226,8 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
         }
         rv_editor_menu_end();
     }
-    const char *no_scene = app.scene == nullptr ? rv_editor_text("shell_menu_scene.no_scene_open") : nullptr;
+    const char *no_scene =
+        bare != nullptr ? bare : (app.scene == nullptr ? rv_editor_text("shell_menu_scene.no_scene_open") : nullptr);
     const auto save_shortcut = rv_editor_text("shell_menu_scene.save_scene_shortcut");
     if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.save_scene"), save_shortcut, rv_editor_scene_why_not_save(app))) {
         rv_editor_shell_scene_save(shell);
