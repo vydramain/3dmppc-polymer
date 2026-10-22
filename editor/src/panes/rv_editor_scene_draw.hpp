@@ -105,6 +105,12 @@ double dot(const vec3 &a, const vec3 &b);
 inline constexpr double rv_editor_near = 0.05;
 // The editor's Q20.12 raw of rv_editor_near, rounded to the nearest step.
 inline constexpr rv_pdklib::fx rv_editor_near_fx = static_cast<rv_pdklib::fx>(rv_editor_near * rv_pdklib::fx_one + 0.5);
+// Editor camera's full vertical field of view: twice the 25 degree half angle the frame used before,
+// so the focal length h keeps its value.
+inline constexpr double rv_editor_camera_fov_degrees = 50.0;
+// The field in Q20.12, for the view and the filled raster's buffer projection.
+inline constexpr rv_pdklib::fx rv_editor_camera_fov_fx =
+    static_cast<rv_pdklib::fx>(rv_editor_camera_fov_degrees * rv_pdklib::fx_one);
 // Corners of a triangle.
 inline constexpr int tri_vertices = 3;
 // Seed of a box's min/max: lo starts at +it and hi at -it, and the first coordinate replaces it.

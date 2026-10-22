@@ -17,13 +17,9 @@ namespace rv_editor
 namespace
 {
 
-// Editor camera's full vertical field of view: twice the 25 degree half angle the frame used before,
-// so the focal length h keeps its value.
-constexpr double camera_fov_degrees = 50.0;
 // Far clip plane, metres: past the camera's largest distance (200 m) with room for the scene.
 constexpr double camera_far_metres = 1000.0;
-// Field and far plane in Q20.12 for rv_gte_camera_make; the near plane is rv_editor_near_fx.
-constexpr rv_pdklib::fx camera_fov_fx = static_cast<rv_pdklib::fx>(camera_fov_degrees * rv_pdklib::fx_one);
+// Far plane in Q20.12 for rv_gte_camera_make; the field is rv_editor_camera_fov_fx, the near plane rv_editor_near_fx.
 constexpr rv_pdklib::fx camera_far_fx = static_cast<rv_pdklib::fx>(camera_far_metres * rv_pdklib::fx_one);
 
 // Half-extent of the placeholder unit cube (local coordinates).
@@ -109,7 +105,7 @@ int rv_editor_eye_fx(const rv_editor_scene_camera &c, rv_pdklib::fx_vec3 &target
     return rv_pdklib::fx_vec3_sub(target, back, eye);
 }
 
-// The viewport's integer camera: up is +Y, the field is camera_fov_fx and the height is the frame's height in pixels.
+// The viewport's integer camera: up is +Y, the field is rv_editor_camera_fov_fx and the height is the frame's height in pixels.
 // Error: a value outside Q20.12, or a camera rv_gte_camera_make refuses; out is untouched.
 int rv_editor_camera_build(const rv_editor_scene_camera &c, float height, rv_pdklib::rv_gte_camera &out)
 {
@@ -122,7 +118,7 @@ int rv_editor_camera_build(const rv_editor_scene_camera &c, float height, rv_pdk
     return rv_pdklib::rv_gte_camera_make(eye,
         target,
         up,
-        camera_fov_fx,
+        rv_editor_camera_fov_fx,
         static_cast<std::int32_t>(std::lround(height)),
         rv_editor_near_fx,
         camera_far_fx,
