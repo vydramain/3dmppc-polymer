@@ -93,6 +93,18 @@ rv_editor_camera_pan(rv_editor_scene_camera &cam, rv_editor_camera_carry &carry,
 // The framing target and distance in Q20.12.
 [[nodiscard]] int
 rv_editor_frame_to_fx(const std::array<double, 3> &middle, double distance, rv_pdklib::fx_vec3 &target, rv_pdklib::fx &reach);
+// Camera units per pixel of a right drag and per unit a Rot wheel reports; the Scene viewport and its navigation share it.
+inline constexpr double rv_editor_camera_rotation_sensitivity = 0.4;
+// Mouse and keys move a viewport's camera (rv_editor_scene_draw.cpp): right drag orbits, middle drag pans, the wheel
+// dollies, the arrows orbit, +/- and the keypad dolly, Home resets. `hovered` and `active` are the caller's
+// IsItemHovered and IsItemActive on the view. `keys_free` is true when the view is focused, nothing is typed into and
+// no item is active. Returns the first refusal of the camera calls, RV_OK when none; the camera calls already log it.
+[[nodiscard]] int rv_editor_camera_navigate(rv_editor_scene_camera &cam,
+    rv_editor_camera_carry &carry,
+    const rv_editor_view &v,
+    bool hovered,
+    bool active,
+    bool keys_free);
 
 // The Scene viewport's geometry (editor/src/panes/rv_editor_scene_viewport.cpp):
 // the editor camera's frame, how scene points land on screen, what each object

@@ -35,11 +35,8 @@ constexpr float min_viewport_size = 40.0f;
 constexpr float wheel_width_spacing = 2.0f;
 constexpr float line_height_spacing = 2.0f;
 constexpr float gap_multiplier = 4.0f;
-constexpr double rotation_sensitivity = 0.4;
 constexpr float half = 0.5f;
 constexpr double dolly_sensitivity = 0.01;
-constexpr double zoom_base = 0.9;
-constexpr double keyboard_rotation_step = 2.0;
 constexpr float line_width_selected = 2.0f;
 constexpr float gizmo_line_width_normal = 2.0f;
 constexpr float gizmo_line_width_hot = 4.0f;
@@ -154,7 +151,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     const ImVec2 top = ImGui::GetCursorScreenPos();
     // The navigation calls in this function log their own refusal and leave the view as it was; the codes are dropped.
     const float rot_x_turn = rv_editor_thumbwheel("##rotx", rot_x_label, true, size.y, theme, reset);
-    (void)rv_editor_camera_orbit(cam, camera_carry, 0.0, -rot_x_turn * rotation_sensitivity);
+    (void)rv_editor_camera_orbit(cam, camera_carry, 0.0, -rot_x_turn * rv_editor_camera_rotation_sensitivity);
     if (reset) {
         (void)rv_editor_camera_reset_pitch(cam);
         camera_carry.pitch = 0.0;
@@ -183,7 +180,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     rv_editor_label(dolly_label, rv_editor_label_kind::normal, theme);
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap));
     const float rot_y_turn = rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme, reset);
-    (void)rv_editor_camera_orbit(cam, camera_carry, rot_y_turn * rotation_sensitivity, 0.0);
+    (void)rv_editor_camera_orbit(cam, camera_carry, rot_y_turn * rv_editor_camera_rotation_sensitivity, 0.0);
     if (reset) {
         (void)rv_editor_camera_reset_yaw(cam);
         camera_carry.yaw = 0.0;
@@ -214,37 +211,11 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     (void)rv_pdklib::fx_mul(camera_distance, gizmo_size_fx, gizmo);
     const bool read_only = !doc.scene.read_only.empty();
 
-    // Navigation: right drag orbits, middle drag pans, the wheel dollies; keys as well.
-    if (active && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-        (void)rv_editor_camera_orbit(cam,
-            camera_carry,
-            io.MouseDelta.x * rotation_sensitivity,
-            io.MouseDelta.y * rotation_sensitivity);
-    }
-    if (active && ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-        (void)rv_editor_camera_pan(cam, camera_carry, v, io.MouseDelta.x, io.MouseDelta.y);
-    }
-    if (hovered && io.MouseWheel != 0.0f) {
-        (void)rv_editor_camera_dolly(cam, camera_carry, std::log(zoom_base) * io.MouseWheel);
-    }
-    if (focused && !io.WantTextInput && !ImGui::IsAnyItemActive()) {
-        const double yaw_key = ImGui::IsKeyDown(ImGuiKey_LeftArrow) ? -keyboard_rotation_step :
-            ImGui::IsKeyDown(ImGuiKey_RightArrow)                   ? keyboard_rotation_step :
-                                                                      0.0;
-        const double pitch_key = (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? keyboard_rotation_step : 0.0) -
-            (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? keyboard_rotation_step : 0.0);
-        (void)rv_editor_camera_orbit(cam, camera_carry, yaw_key, pitch_key);
-        // The zoom keys step the same dolly carry as the wheel.
-        if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd)) {
-            (void)rv_editor_camera_dolly(cam, camera_carry, std::log(zoom_base));
-        }
-        if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract)) {
-            (void)rv_editor_camera_dolly(cam, camera_carry, -std::log(zoom_base));
-        }
-        if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
-            cam = rv_editor_camera_home(cam);
-            camera_carry = rv_editor_camera_carry{};
-        }
+    // Keys need focus, no typing and no active item; F and the tool letters share this test.
+    const bool keys_free = focused && !io.WantTextInput && !ImGui::IsAnyItemActive();
+    // The camera calls log their refusal; the navigation's first code is dropped, as the wheels' codes are.
+    (void)rv_editor_camera_navigate(cam, camera_carry, v, hovered, active, keys_free);
+    if (keys_free) {
         if (ImGui::IsKeyPressed(ImGuiKey_F) && !doc.selected.empty()) {
             rv_editor_scene_frame(app, cam, false);
         }

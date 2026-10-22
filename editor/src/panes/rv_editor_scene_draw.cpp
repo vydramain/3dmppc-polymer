@@ -18,6 +18,10 @@ namespace
 
 // Viewport centering: half of canvas dimension to find the center point.
 constexpr float viewport_center_half = 0.5f;
+// The dolly factor of one zoom key press; the wheel scales it by its turn.
+constexpr double zoom_base = 0.9;
+// Camera units an arrow key turns the view by each frame it is held.
+constexpr double keyboard_rotation_step = 2.0;
 
 // The view direction from yaw and pitch (raw Q20.12 degrees), in 4.12 like the trig tables:
 // (cos pitch sin yaw, -sin pitch, cos pitch cos yaw).
@@ -133,6 +137,14 @@ int rv_editor_point_view_fx(const rv_editor_view &v, const rv_pdklib::fx_vec3 &s
     }
     out = { view[0], view[1], view[2] };
     return RV_OK;
+}
+
+// Keeps the first refusal of a navigation step; later ones are dropped.
+void rv_editor_keep_first(int &first, int rc)
+{
+    if (first == RV_OK) {
+        first = rc;
+    }
 }
 
 } // namespace
@@ -293,6 +305,51 @@ void rv_editor_line_fx(ImDrawList *dl,
     }
     reported = true;
     RV_LOG_WARN(scene_log_tag, "a scene edge is outside Q20.12: the edge is not drawn");
+}
+
+int rv_editor_camera_navigate(rv_editor_scene_camera &cam,
+    rv_editor_camera_carry &carry,
+    const rv_editor_view &v,
+    bool hovered,
+    bool active,
+    bool keys_free)
+{
+    const ImGuiIO &io = ImGui::GetIO();
+    int first = RV_OK;
+    if (active && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+        rv_editor_keep_first(first,
+            rv_editor_camera_orbit(cam,
+                carry,
+                io.MouseDelta.x * rv_editor_camera_rotation_sensitivity,
+                io.MouseDelta.y * rv_editor_camera_rotation_sensitivity));
+    }
+    if (active && ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
+        rv_editor_keep_first(first, rv_editor_camera_pan(cam, carry, v, io.MouseDelta.x, io.MouseDelta.y));
+    }
+    if (hovered && io.MouseWheel != 0.0f) {
+        rv_editor_keep_first(first, rv_editor_camera_dolly(cam, carry, std::log(zoom_base) * io.MouseWheel));
+    }
+    if (!keys_free) {
+        return first;
+    }
+    const double yaw_key = ImGui::IsKeyDown(ImGuiKey_LeftArrow) ? -keyboard_rotation_step :
+        ImGui::IsKeyDown(ImGuiKey_RightArrow)                   ? keyboard_rotation_step :
+                                                                  0.0;
+    const double pitch_key = (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? keyboard_rotation_step : 0.0) -
+        (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? keyboard_rotation_step : 0.0);
+    rv_editor_keep_first(first, rv_editor_camera_orbit(cam, carry, yaw_key, pitch_key));
+    // The zoom keys step the same dolly carry as the wheel.
+    if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd)) {
+        rv_editor_keep_first(first, rv_editor_camera_dolly(cam, carry, std::log(zoom_base)));
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract)) {
+        rv_editor_keep_first(first, rv_editor_camera_dolly(cam, carry, -std::log(zoom_base)));
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
+        cam = rv_editor_camera_home(cam);
+        carry = rv_editor_camera_carry{};
+    }
+    return first;
 }
 
 } // namespace rv_editor
