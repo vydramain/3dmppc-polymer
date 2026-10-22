@@ -9,6 +9,7 @@
 #include "pdk/rv_err.h"
 #include "pdk/rv_pdko.h"
 #include "pdklib/rv_cppdisc/rv_cppdisc.hpp"
+#include "pdkkit/component/rv_component_register.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
@@ -125,10 +126,14 @@ private:
     std::vector<std::string> sound_errors_logged_;
 };
 
-// Registers the route's entity type and frame system, and the lamp_light and flicker components with their frame
-// systems; a scene refers to them by name.
+// Registers the built-in components first, then the route's entity type and frame system, and the lamp_light and flicker
+// components with their frame systems; a scene refers to them by name.
 int rv_dmain::register_ecs()
 {
+    const int builtin_code = rv_pdkkit::ecs_builtins_register(world_);
+    if (builtin_code != RV_OK) {
+        return builtin_code;
+    }
     const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type_);
     if (type_code != RV_OK) {
         return type_code;

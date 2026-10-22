@@ -33,6 +33,8 @@ inline constexpr const char *ecs_err_unknown_field = "is not a field of the desc
 inline constexpr const char *ecs_err_repeated = "is repeated in the scene";
 inline constexpr const char *ecs_err_add =
     "is not added: the id is stale, the entity has it already, the pool cannot grow, or the add threw";
+// Reason of a built-in component that ecs_builtins_register refuses; the refusal's code is returned to the caller.
+inline constexpr const char *ecs_err_builtin = "is a built-in component and is not registered";
 
 // True when T has `static int ecs_check(const T &, std::string &reason)`.
 template <typename T>
@@ -203,6 +205,42 @@ template <typename T>
     const ecs_component_desc &desc = ecs_component_traits<T>::desc;
     const std::string_view name{ desc.name, ecs_name_length(desc.name) };
     return ecs_component_register(world, name, ecs_component_factory_of<T>);
+}
+
+// Registers T as ecs_component_register does; a refusal is logged with its reason and the code is returned.
+template <typename T>
+int ecs_builtin_register(ecs_world &world)
+{
+    const int code = ecs_component_register<T>(world);
+    if (code != RV_OK) {
+        ecs_component_log_err(ecs_component_traits<T>::desc.name, nullptr, ecs_err_builtin);
+    }
+    return code;
+}
+
+// Registers the types in order, stopping at the first refusal, and returns its code.
+template <typename... T>
+int ecs_builtins_register_list(ecs_world &world)
+{
+    int code = RV_OK;
+    static_cast<void>((((code = ecs_builtin_register<T>(world)) == RV_OK) && ...));
+    return code;
+}
+
+// Registers the built-in components of rv_ecs_component.hpp, the ones with a PDKKIT_COMPONENT description: not
+// ecs_component_parent, which the loader sets from an object's parent, nor ecs_component_model, which has no description yet.
+// A disc calls it before its own ecs_component_register calls; a disc that registers one of these names itself gets
+// RV_ERR_ALREADY from that call.
+[[nodiscard]] inline int ecs_builtins_register(ecs_world &world)
+{
+    return ecs_builtins_register_list<ecs_component_name,
+        ecs_component_transform,
+        ecs_component_camera,
+        ecs_component_volume,
+        ecs_component_hidden,
+        ecs_component_decal,
+        ecs_component_two_sided,
+        ecs_component_face_camera>(world);
 }
 
 } // namespace rv_pdkkit
