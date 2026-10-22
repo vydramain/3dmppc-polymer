@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <exception>
 #include <limits>
 #include <memory>
@@ -71,6 +72,16 @@ struct ecs_load {
     std::vector<ecs_id> made;
 };
 
+// What an exception left when ecs_try mapped it: thrown is set, text copies its what(). The exception object ends with
+// its catch, so a view of what() would dangle.
+// Fixed size of that copy: it needs no allocation in a handler, and the record stays a plain struct. A longer text is
+// cut to 127 characters, so two texts equal in that prefix count as one repeat.
+inline constexpr std::size_t ecs_reason_size = 128;
+struct ecs_reason {
+    bool thrown = false;
+    char text[ecs_reason_size] = {};
+};
+
 // Only the ecs_* functions touch these fields.
 struct ecs_world {
     std::vector<ecs_slot> slots;
@@ -95,6 +106,11 @@ struct ecs_world {
     // Camera of the frame, set through ecs_world_camera; ecs_system_draw needs camera_set.
     rv_cg_camera camera{};
     bool camera_set = false;
+    // Last failure ecs_frame_run logged: system, code and reason. A frame repeating all three stays silent; a frame whose
+    // systems all succeed clears them, so the disc's log shows each new failure once and not once per frame.
+    std::string_view logged_system{};
+    int logged_code = RV_OK;
+    ecs_reason logged_reason{};
 };
 
 // Index for the next entity: the newest free slot, else a new slot appended.
@@ -136,22 +152,45 @@ inline void ecs_guard_log(const char *what)
     }
 }
 
-// Public ecs_* operations return int, so no exception may leave them: bad_alloc is RV_ERR_NOMEM, others RV_ERR_INVAL.
-// The helpers throw only before they change state, so the world is unchanged.
-template <typename Op>
-[[nodiscard]] int ecs_guard(Op &&op)
+// Copies an exception's text into reason; the copy takes no allocation, so it is safe in a handler.
+inline void ecs_reason_set(ecs_reason &reason, const char *text)
 {
+    std::strncpy(reason.text, text, ecs_reason_size - 1);
+    reason.text[ecs_reason_size - 1] = '\0';
+    reason.thrown = true;
+}
+
+// Runs op and maps its exception: bad_alloc is RV_ERR_NOMEM, another exception RV_ERR_INVAL. The exception's full text
+// goes to report inside the handler, where it is still whole; reason keeps a copy. A returned code passes through with
+// reason.thrown clear. bad_alloc is not reported: no allocation is safe to make at that point. report must not throw:
+// it runs inside the handler.
+template <typename Op, typename Report>
+[[nodiscard]] int ecs_try(Op &&op, ecs_reason &reason, Report &&report)
+{
+    reason = {};
     try {
         return op();
     } catch (const std::bad_alloc &) {
+        ecs_reason_set(reason, "out of memory");
         return RV_ERR_NOMEM;
     } catch (const std::exception &e) {
-        ecs_guard_log(e.what());
+        ecs_reason_set(reason, e.what());
+        report(e.what());
         return RV_ERR_INVAL;
     } catch (...) {
-        ecs_guard_log("unknown exception");
+        ecs_reason_set(reason, "unknown exception");
+        report("unknown exception");
         return RV_ERR_INVAL;
     }
+}
+
+// Public ecs_* operations return int, so no exception may leave them: bad_alloc is RV_ERR_NOMEM, others RV_ERR_INVAL.
+// The helpers throw only before they change state, so the world is unchanged. Only RV_ERR_INVAL from an exception is logged.
+template <typename Op>
+[[nodiscard]] int ecs_guard(Op &&op)
+{
+    ecs_reason reason;
+    return ecs_try(std::forward<Op>(op), reason, ecs_guard_log);
 }
 
 // RV_ERR_NOMEM when every index is taken.
