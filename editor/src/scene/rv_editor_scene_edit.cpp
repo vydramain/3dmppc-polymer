@@ -56,7 +56,7 @@ constexpr kind_layer kind_layers[] = { { kind_mesh, "model" },
 std::vector<std::string> rv_editor_object_layers(const rv_editor_scene_object &o)
 {
     std::vector<std::string> layers;
-    const auto found = std::ranges::find(kind_layers, o.kind, &kind_layer::kind);
+    const auto found = std::ranges::find(kind_layers, rv_editor_object_get_kind(o), &kind_layer::kind);
     if (found != std::end(kind_layers)) {
         layers.emplace_back(found->layer);
     }
@@ -71,7 +71,7 @@ std::vector<std::string> rv_editor_object_layers(const rv_editor_scene_object &o
 // True when one of the object's layers is switched off; looks up without building the names.
 bool rv_editor_object_layer_off(const rv_editor_scene_doc &doc, const rv_editor_scene_object &o)
 {
-    const auto built_in = std::ranges::find(kind_layers, o.kind, &kind_layer::kind);
+    const auto built_in = std::ranges::find(kind_layers, rv_editor_object_get_kind(o), &kind_layer::kind);
     if (built_in != std::end(kind_layers) && doc.off_layers.contains(built_in->layer)) {
         return true;
     }
@@ -165,9 +165,9 @@ int rv_editor_decompose(const rv_editor_affine &m, rv_editor_scene_object &o)
         a /= rv_editor_rad;
     }
     rv_editor_scene_object t = o;
-    t.position = { m[0][3], m[1][3], m[2][3] };
-    t.rotation = deg;
-    t.scale = s;
+    rv_editor_object_set_position(t, { m[0][3], m[1][3], m[2][3] });
+    rv_editor_object_set_rotation(t, deg);
+    rv_editor_object_set_scale(t, s);
     // Rebuilt, it must be the same matrix: otherwise the source had a shear.
     const rv_editor_affine back = rv_editor_scene_local(t);
     for (int i = 0; i < space_axes; ++i) {
@@ -177,9 +177,9 @@ int rv_editor_decompose(const rv_editor_affine &m, rv_editor_scene_object &o)
             }
         }
     }
-    o.position = t.position;
-    o.rotation = t.rotation;
-    o.scale = t.scale;
+    rv_editor_object_set_position(o, rv_editor_object_get_position(t));
+    rv_editor_object_set_rotation(o, rv_editor_object_get_rotation(t));
+    rv_editor_object_set_scale(o, rv_editor_object_get_scale(t));
     return RV_OK;
 }
 
@@ -267,13 +267,15 @@ std::array<double, 3> rv_editor_affine_solve(const rv_editor_affine &a, const st
 
 rv_editor_affine rv_editor_scene_local(const rv_editor_scene_object &o)
 {
-    const mat3 r = rv_editor_rotation(o.rotation);
+    const mat3 r = rv_editor_rotation(rv_editor_object_get_rotation(o));
+    const rv_editor_vec3 scale = rv_editor_object_get_scale(o);
+    const rv_editor_vec3 position = rv_editor_object_get_position(o);
     rv_editor_affine m{};
     for (int i = 0; i < space_axes; ++i) {
         for (int j = 0; j < space_axes; ++j) {
-            m[i][j] = r[i][j] * o.scale[j];
+            m[i][j] = r[i][j] * scale[j];
         }
-        m[i][affine_cols - 1] = o.position[i];
+        m[i][affine_cols - 1] = position[i];
     }
     return m;
 }
@@ -378,7 +380,7 @@ void rv_editor_scene_picks_check(rv_editor_scene_doc &doc, const rv_editor_scene
     if (doc.picked_owner != o.id) {
         return;
     }
-    if (doc.picked_mesh == o.mesh && doc.picked_count == pieces) {
+    if (doc.picked_mesh == rv_editor_object_get_mesh(o) && doc.picked_count == pieces) {
         return;
     }
     doc.picked_owner.clear();
@@ -392,13 +394,14 @@ std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kin
     rv_editor_scene_step(doc);
     rv_editor_scene_object o;
     o.id = rv_editor_scene_new_id(doc.scene);
-    o.kind = kind;
-    o.name = kind == kind_camera ? default_camera_name :
-        kind == kind_mesh        ? default_mesh_name :
-        kind == kind_quad        ? default_quad_name :
-        kind == kind_billboard   ? default_billboard_name :
-        kind == kind_volume      ? default_volume_name :
-                                   default_group_name;
+    rv_editor_object_set_kind(o, kind);
+    const std::string_view name = kind == kind_camera ? default_camera_name :
+        kind == kind_mesh                             ? default_mesh_name :
+        kind == kind_quad                             ? default_quad_name :
+        kind == kind_billboard                        ? default_billboard_name :
+        kind == kind_volume                           ? default_volume_name :
+                                                        default_group_name;
+    rv_editor_object_set_name(o, std::string(name));
     o.parent = rv_editor_scene_find(doc.scene, parent) >= 0 ? parent : std::string();
     doc.scene.objects.push_back(o);
     rv_editor_scene_select(doc, o.id);
@@ -452,7 +455,7 @@ std::string rv_editor_scene_duplicate(rv_editor_scene_doc &doc, const std::strin
             }
         }
     }
-    made.front().name += duplicate_suffix;
+    rv_editor_object_set_name(made.front(), rv_editor_object_get_name(made.front()) + std::string(duplicate_suffix));
     doc.scene.objects.insert(doc.scene.objects.end(), made.begin(), made.end());
     rv_editor_scene_select(doc, made.front().id);
     return made.front().id;
