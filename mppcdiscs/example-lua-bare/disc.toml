@@ -14,8 +14,9 @@ sources = ["scripts/*.lua"]
 files = ["scenes/*.scene.toml"]
 
 [textures]
-# The model pictures are separate PNG files in assets/tex, baked by the model build; this section
-# holds no separate textures. format is the format the model pictures are baked in.
+# The model pictures are the PNG files each .gltf names (most in assets/tex, street_16's beside it in
+# assets/models), baked by the model build; this section holds no separate textures. format is the
+# format the model pictures are baked in.
 files = []
 format = "idx8"
 
