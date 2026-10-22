@@ -32,9 +32,12 @@ constexpr std::string_view devproto_field_event = "event";
 constexpr std::string_view devproto_field_name = "name";
 
 // Dev-protocol event names.
+constexpr std::string_view devproto_event_asset = "asset";
 constexpr std::string_view devproto_event_pause = "pause";
-constexpr std::string_view devproto_event_scene = "scene";
 constexpr std::string_view devproto_event_script_error = "script_error";
+
+// The disc reports every asset it opens; only scene files feed the editor's scene list.
+constexpr std::string_view devproto_scene_suffix = ".scene.toml";
 
 } // namespace
 
@@ -59,9 +62,9 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
         const std::string_view event = msg.get(devproto_field_event);
         if (event == devproto_event_pause) {
             handle_mode(msg.get(devproto_field_mode));
-        } else if (event == devproto_event_scene) {
+        } else if (event == devproto_event_asset) {
             const std::string name = rv_editor_hex_decode(msg.get(devproto_field_name));
-            if (!name.empty()) {
+            if (name.ends_with(devproto_scene_suffix)) {
                 scenes_read_.insert(name);
             }
         } else if (event == devproto_event_script_error) {
