@@ -10,6 +10,7 @@
 #include "imgui.h"
 
 #include "pdklib/rv_gte/rv_gte_camera.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
 #include "project/rv_editor_project.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 
@@ -108,6 +109,28 @@ struct rv_editor_tri {
 // each cut corner's uv and colour interpolated with its position. Wholly in front: the triangle as is;
 // wholly behind: none.
 std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv_editor_tri &tri);
+
+// A corner for the integer clip: its view-space point as Q20.12, with the uv and colour the editor carries.
+struct rv_editor_fx_vertex {
+    rv_pdklib::fx_vec3 p{};
+    ImVec2 uv{};
+    ImVec4 color{ 1.0f, 1.0f, 1.0f, 1.0f };
+};
+
+struct rv_editor_fx_tri {
+    rv_editor_fx_vertex v[tri_vertices];
+};
+
+// Most triangles one triangle gives after the near cut: a convex polygon of at most four corners, fanned.
+inline constexpr int rv_editor_fx_max_pieces = 2;
+
+// The integer counterpart of rv_editor_clip_near (rv_editor_scene_draw.cpp), in rv_editor_scene_clip.cpp, on the console's
+// rv_gte primitives. near_plane is Q20.12 raw. Sets count to 0, 1 or 2 and writes those triangles to out, in the source
+// winding. Error: a cut point leaves fx; count is 0 and out is not used.
+int rv_editor_clip_near_fx(const rv_editor_fx_tri &tri,
+    rv_pdklib::fx near_plane,
+    rv_editor_fx_tri (&out)[rv_editor_fx_max_pieces],
+    int &count);
 
 // An object's surface in scene space: a mesh's .glb triangles (name ends in ".glb"), or the unit
 // cube while its mesh is empty or does not load (the reason in *error when given). A legacy quad
