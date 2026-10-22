@@ -149,9 +149,9 @@ std::optional<rv_editor_scene_tab> rv_editor_scene_tab_build(const std::filesyst
 // to scene and shows the Scene tile. False, with nothing queued, for any other file.
 bool rv_editor_scene_tab_open(rv_editor_app &app, const rv_editor_ui_port &ui, const std::filesystem::path &path);
 // Draws the Scene tile's tab strip (only when a tab is open) and, when the front
-// tab is a picture, a sound or a model, its content. True when the scene viewport belongs
-// in front instead (no tabs open, or the scene tab is in front). The front tab
-// and Close Tab are queued on `ui` (rv_editor_ui_request).
+// tab is a picture, a sound or a model, its content. True when the scene part belongs
+// in front instead (the viewport, or the no-pdkkit note on a bare disc): no tabs open,
+// or the scene tab is in front. The front tab and Close Tab are queued on `ui` (rv_editor_ui_request).
 bool rv_editor_scene_tabs_draw(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
