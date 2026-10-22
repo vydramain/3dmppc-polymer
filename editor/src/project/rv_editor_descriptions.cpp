@@ -196,4 +196,35 @@ int rv_editor_descriptions_load(const std::filesystem::path &state_dir, rv_edito
     return RV_OK;
 }
 
+int rv_editor_descriptions_forget(const std::filesystem::path &state_dir, std::string &error)
+{
+    const std::filesystem::path path = snapshot_path(state_dir);
+    std::error_code ec;
+    const bool present = std::filesystem::exists(path, ec);
+    if (ec) {
+        error = path.string() + ": " + ec.message();
+        return RV_ERR_IO;
+    }
+    if (!present) {
+        return RV_OK;
+    }
+    // remove() would delete an empty directory, which is not ours to delete. is_directory() reports a missing path as
+    // an error, so it runs only after exists().
+    const bool is_dir = std::filesystem::is_directory(path, ec);
+    if (ec) {
+        error = path.string() + ": " + ec.message();
+        return RV_ERR_IO;
+    }
+    if (is_dir) {
+        error = path.string() + ": a directory is in place of the snapshot";
+        return RV_ERR_IO;
+    }
+    std::filesystem::remove(path, ec);
+    if (ec) {
+        error = path.string() + ": " + ec.message();
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
 } // namespace rv_editor

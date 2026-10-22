@@ -48,4 +48,8 @@ int rv_editor_descriptions_capture(const std::filesystem::path &disc_so,
 // version is RV_OK with state pdk_mismatch. A damaged file is RV_ERR_INVAL with the reason; `out` is then state none.
 int rv_editor_descriptions_load(const std::filesystem::path &state_dir, rv_editor_descriptions &out, std::string &error);
 
+// Deletes the snapshot under `state_dir`, so a later load does not show a stale one. No snapshot is RV_OK: nothing to
+// forget. A directory in place of the snapshot or a failed deletion is RV_ERR_IO with the reason in `error`.
+int rv_editor_descriptions_forget(const std::filesystem::path &state_dir, std::string &error);
+
 } // namespace rv_editor
