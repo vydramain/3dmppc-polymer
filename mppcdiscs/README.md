@@ -26,16 +26,19 @@ for how the packaged disc is loaded.
 
 | Disc                             | What it is                                             |
 | -------------------------------- | ------------------------------------------------------ |
-| [`example-cpp-pdkkit/`](example-cpp-pdkkit/) | the **example disc** — the smallest complete one, and the thing you copy when starting a real game. |
+| [`example-cpp-pdkkit/`](example-cpp-pdkkit/) | the **example disc** on the pdkkit framework (`sdk = ["kit"]`; it reads its objects from the scene through the drive), and the thing you copy when starting a real game. |
+| [`example-cpp-bare/`](example-cpp-bare/) | the same demo as `example-cpp-pdkkit/` in C++ on pdklib alone, without pdkkit: the layout is a table in `src/example-cpp-bare-layout.cpp`, and the scene file is copied but not read. |
 | [`example-lua-bare/`](example-lua-bare/) | the same shape plus `scripts/`: all four lifecycle hooks (`disc_initialize`, `frame_update`, `frame_render`, `disc_shutdown`) forward one-to-one into a Lua chunk through `rv_cl`, and the script reaches `rv_cv`/`rv_ca`/`rv_cio` through the same exported console functions a C++ disc calls — no wrapper layer. |
 
 ## Real games live in their own repositories
 
-This repository is the **console** plus that one example. A game is not a
-subdirectory of the machine that runs it: it gets its own repository, carrying
-its own assets, code, and design docs, and it is burned against this console's
-`pdk/` contract. Nothing here should ever need to name a specific game — if it
-does, that is a bug in the layering, not a missing folder.
+This repository is the **console** plus three example discs:
+`example-cpp-pdkkit/` and `example-cpp-bare/` (the same demo in C++, on pdkkit
+and on pdklib alone) and `example-lua-bare/` (the same demo in Lua). A game is
+not a subdirectory of the machine that runs it: it gets its own repository,
+carrying its own assets, code, and design docs, and it is burned against this
+console's `pdk/` contract. Nothing here should ever need to name a specific game
+— if it does, that is a bug in the layering, not a missing folder.
 
 To work on such a game against a local console checkout, symlink it onto the
 shelf; the root [`.gitignore`](../.gitignore) keeps those symlinks out of this
