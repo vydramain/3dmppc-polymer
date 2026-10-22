@@ -143,11 +143,6 @@ int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::
 
 } // namespace
 
-int ecs_lamp_light_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_pdkkit::ecs_scene_component &component)
-{
-    return rv_pdkkit::ecs_marker_factory<ecs_component_lamp_light>(world, id, component);
-}
-
 int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame)
 {
     const int64_t phase = frame.frame % RV_ROUTE_PERIOD_FRAMES;

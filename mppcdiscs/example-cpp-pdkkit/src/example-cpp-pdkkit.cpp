@@ -34,7 +34,7 @@ constexpr const char *RV_EXAMPLE_CPP_SCENE_NAME = "main.scene.toml";
 constexpr const char *RV_EXAMPLE_CPP_BOARD_NAME = "board";
 // The frame system that sets the camera from the route keys.
 constexpr const char *RV_EXAMPLE_CPP_ROUTE_SYSTEM = "route";
-// The scene component of a lamp_N_light object; its factory and frame system are registered under this name.
+// The scene component of a lamp_N_light object: its description's name, and the name of its frame system.
 constexpr const char *RV_EXAMPLE_CPP_LAMP_LIGHT = "lamp_light";
 // The scene component of a board halo or letter: its description's name, and the name of its frame system.
 constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
@@ -143,10 +143,9 @@ int rv_dmain::register_ecs()
     if (system_code != RV_OK) {
         return system_code;
     }
-    const int lamp_factory_code =
-        rv_pdkkit::ecs_component_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp_pdkkit::ecs_lamp_light_factory);
-    if (lamp_factory_code != RV_OK) {
-        return lamp_factory_code;
+    const int lamp_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_lamp_light>(world_);
+    if (lamp_code != RV_OK) {
+        return lamp_code;
     }
     const int lamp_system_code =
         rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp_pdkkit::ecs_system_lamp_light);
