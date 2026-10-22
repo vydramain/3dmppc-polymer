@@ -44,10 +44,8 @@ struct rv_editor_kind_label {
 };
 
 constexpr rv_editor_kind_label kind_labels[] = {
-    { kind_mesh, "shell_menu_scene.add_box" },
+    { kind_mesh, "shell_menu_scene.add_model" },
     { kind_camera, "shell_menu_scene.add_camera" },
-    { kind_quad, "shell_menu_scene.add_quad" },
-    { kind_billboard, "shell_menu_scene.add_billboard" },
     { kind_volume, "shell_menu_scene.add_volume" },
 };
 
