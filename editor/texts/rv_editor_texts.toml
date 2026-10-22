@@ -1451,6 +1451,7 @@ subject_suffix = ": {}"
 
 [shell_pane]
 no_view = "{}: this pane kind has no view"
+no_pdkkit = "Disc without pdkkit: disc.toml [build] sdk does not list \"kit\", so the scene panes are not available"
 
 [scene_viewport]
 rot_x = "Rot X"
