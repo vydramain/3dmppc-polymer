@@ -1031,6 +1031,13 @@ owned_scale = "the console opens no window here: View > Game Scale scales the Ga
 [descriptions]
 no_snapshot = "no snapshot yet: components show as text"
 pdk_mismatch = "written by PDK {}, this build is PDK {}: components show as text"
+build_failed = "descriptions from the build of {}: the last build failed"
+sources_newer = "descriptions may be out of date: the sources changed after the build of {}"
+no_records = "the last build has no component records: components show as text"
+no_state_dir = "no state directory: component descriptions are not kept"
+not_read = "descriptions not read: {}"
+not_taken = "descriptions not taken from the build: {}"
+not_forgotten = "descriptions not forgotten, the old snapshot stays on disk: {}"
 
 [project]
 player_not_set_file_settings = "No player set: File > Settings names a 3dmppc built without devtools"

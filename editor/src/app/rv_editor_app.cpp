@@ -63,6 +63,7 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     app.release = {};
     app.observe = {};
     app.findings = {};
+    rv_editor_app_descriptions_open(app);
     if (app.session.pad_pending(0)) {
         std::string pad_error;
         if (app.session.pad(0, app.log, pad_error) != RV_OK) {
@@ -240,6 +241,7 @@ void rv_editor_app_build_ended_note(rv_editor_app &app)
 {
     app.build.prune(app.session.live() ? app.session.disc_dir() : std::filesystem::path());
     app.build_ended = std::filesystem::file_time_type::clock::now();
+    rv_editor_app_descriptions_build_ended(app);
 }
 
 int rv_editor_app_run_after_build_refuse(rv_editor_app &app)

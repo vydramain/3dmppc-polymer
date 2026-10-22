@@ -22,6 +22,7 @@
 #include "log/rv_editor_log_file.hpp"
 #include "nvim/rv_editor_nvim.hpp"
 #include "project/rv_editor_change.hpp"
+#include "project/rv_editor_descriptions.hpp"
 #include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
 #include "project/rv_editor_run_profile.hpp"
@@ -32,6 +33,18 @@
 
 namespace rv_editor
 {
+
+// The component descriptions of the open project: the snapshot and what the editor shows of it
+// (editor/src/app/rv_editor_app_descriptions.cpp).
+struct rv_editor_app_descriptions {
+    rv_editor_descriptions snapshot;
+    // Code entries of the map of the build the snapshot came from, relative to the project root; empty when that
+    // build had no map, and until a build ends in this session.
+    std::vector<std::string> sources;
+    bool build_failed = false; // the last development build failed: the snapshot is the previous one
+    bool no_records = false;   // the last build had no component records: no snapshot
+    std::string shown_text;    // the state text last logged; empty when no text applies
+};
 
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them.
@@ -128,6 +141,7 @@ struct rv_editor_app {
     std::chrono::steady_clock::time_point reload_due{};
     // Reload on a texture: the running bake, if any, and the last one's outcome.
     rv_editor_texture_bake texture_bake;
+    rv_editor_app_descriptions descriptions;
 };
 
 // Scene (editor/src/app/rv_editor_app_scene.cpp): the project's scenes/*.scene.toml,
@@ -358,6 +372,13 @@ int rv_editor_app_run_last(rv_editor_app &app);
 // Build ended steps, asked for by rv_editor_app_update_build_ended (questions there).
 // Note: old builds are pruned and the end time is kept.
 void rv_editor_app_build_ended_note(rv_editor_app &app);
+// Component descriptions (rv_editor_app_descriptions.cpp), both on the UI thread. Open: loads the snapshot; the build's
+// sources are unknown, so state 3 is not computed. Build ended: a development build (not an image) captures the snapshot
+// on success, marks the previous one on failure. Failures are warnings in the log; nothing returns a code.
+void rv_editor_app_descriptions_open(rv_editor_app &app);
+void rv_editor_app_descriptions_build_ended(rv_editor_app &app);
+// Question for state 3: `changed`, relative to the project root, is a code source of the snapshot's build.
+bool rv_editor_app_descriptions_sources_changed(const rv_editor_app &app, const std::filesystem::path &changed);
 // Refuse: the build a waiting Run waited for did not succeed; logs why. RV_ERR_BUSY.
 int rv_editor_app_run_after_build_refuse(rv_editor_app &app);
 // Start: runs the last successful build for a waiting Run. RV_OK or rv_editor_app_run_session's RV_ERR_*;
