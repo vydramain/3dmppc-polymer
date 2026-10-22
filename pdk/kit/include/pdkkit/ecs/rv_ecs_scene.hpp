@@ -21,7 +21,7 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 inline constexpr const char *ecs_scene_tag = "ecs-scene";
@@ -49,14 +49,14 @@ struct ecs_scene_reading {
 };
 
 // Boundary: a float of the PDK contract to fx (uv in pixels, tess as subdivision density, rv_cd.h). The only float entry.
-inline int ecs_scene_unit_from_float(float value, fx &out)
+inline int ecs_scene_unit_from_float(float value, rv_pdklib::fx &out)
 {
-    return fx_from_double(static_cast<double>(value), out);
+    return rv_pdklib::fx_from_double(static_cast<double>(value), out);
 }
 
 // Boundary: a float array of the PDK contract to fx. On error out may be partly written; the load then rolls back.
 template <std::size_t N>
-int ecs_scene_units_from_float(const float (&in)[N], fx (&out)[N])
+int ecs_scene_units_from_float(const float (&in)[N], rv_pdklib::fx (&out)[N])
 {
     for (std::size_t i = 0; i < N; ++i) {
         const int converted = ecs_scene_unit_from_float(in[i], out[i]);
@@ -77,7 +77,7 @@ std::string ecs_scene_text(const char (&text)[N])
 // Logged once: an entity the load has just made is not alive.
 inline int ecs_scene_no_entity(const char *scene)
 {
-    RV_LOG_ERR(ecs_scene_tag, "scene '{}': entity is not alive", rv_log_escape(scene));
+    RV_LOG_ERR(ecs_scene_tag, "scene '{}': entity is not alive", rv_pdklib::rv_log_escape(scene));
     return RV_ERR_NOENT;
 }
 
@@ -95,7 +95,7 @@ inline int ecs_scene_read_object(const ecs_scene_reading &load, int64_t index, r
 {
     const int64_t read = rv_cd_scene_object_read(load.cd, load.scene, index, &out);
     if (read != RV_OK) {
-        RV_LOG_ERR(ecs_scene_tag, "scene '{}' object {}: read failed ({})", rv_log_escape(load.scene), index, read);
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}' object {}: read failed ({})", rv_pdklib::rv_log_escape(load.scene), index, read);
         return static_cast<int>(read);
     }
     return RV_OK;
@@ -118,7 +118,7 @@ inline int ecs_scene_add_model(ecs_scene_reading &load, const rv_cd_scene_object
     if (!named) {
         RV_LOG_WARN(ecs_scene_tag,
             "scene '{}' object '{}': mesh has no model",
-            rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(load.scene),
             ecs_scene_text(object.name));
         return RV_OK;
     }
@@ -142,7 +142,7 @@ inline int ecs_scene_add_sprite(ecs_scene_reading &load, const rv_cd_scene_objec
     if (uv_status != RV_OK) {
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' object '{}': uv does not fit ({})",
-            rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(load.scene),
             ecs_scene_text(object.name),
             uv_status);
         return uv_status;
@@ -151,7 +151,7 @@ inline int ecs_scene_add_sprite(ecs_scene_reading &load, const rv_cd_scene_objec
     if (tess_status != RV_OK) {
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' object '{}': tess does not fit ({})",
-            rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(load.scene),
             ecs_scene_text(object.name),
             tess_status);
         return tess_status;
@@ -181,7 +181,7 @@ inline int ecs_scene_add_kind(ecs_scene_reading &load, const rv_cd_scene_object 
     }
     RV_LOG_ERR(ecs_scene_tag,
         "scene '{}' object '{}': unknown kind {}",
-        rv_log_escape(load.scene),
+        rv_pdklib::rv_log_escape(load.scene),
         ecs_scene_text(object.name),
         static_cast<int>(object.kind));
     return RV_ERR_INVAL;
@@ -195,7 +195,7 @@ inline int ecs_scene_add_transform(ecs_scene_reading &load, int64_t index, ecs_i
     if (read != RV_OK) {
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' object {}: local transform read failed ({})",
-            rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(load.scene),
             index,
             read);
         return static_cast<int>(read);
@@ -205,9 +205,9 @@ inline int ecs_scene_add_transform(ecs_scene_reading &load, int64_t index, ecs_i
         return ecs_scene_no_entity(load.scene);
     }
     // Q20.12 int32 is fx: the values are copied as they are.
-    transform->position = fx_vec3{ local.position[0], local.position[1], local.position[2] };
-    transform->rotation = fx_vec3{ local.rotation[0], local.rotation[1], local.rotation[2] };
-    transform->scale = fx_vec3{ local.scale[0], local.scale[1], local.scale[2] };
+    transform->position = rv_pdklib::fx_vec3{ local.position[0], local.position[1], local.position[2] };
+    transform->rotation = rv_pdklib::fx_vec3{ local.rotation[0], local.rotation[1], local.rotation[2] };
+    transform->scale = rv_pdklib::fx_vec3{ local.scale[0], local.scale[1], local.scale[2] };
     return RV_OK;
 }
 
@@ -224,7 +224,7 @@ inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
     if (typed != RV_OK) {
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' object '{}': entity type read failed ({})",
-            rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(load.scene),
             ecs_scene_text(object.name),
             typed);
         return static_cast<int>(typed);
@@ -235,9 +235,9 @@ inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
     if (created != RV_OK) {
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' object '{}': entity type '{}' failed ({})",
-            rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(load.scene),
             ecs_scene_text(object.name),
-            rv_log_escape(type.type),
+            rv_pdklib::rv_log_escape(type.type),
             created);
         return created;
     }
@@ -266,7 +266,7 @@ inline int ecs_scene_link(ecs_scene_reading &load, int64_t index, ecs_id parent)
     if (outside) {
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' object '{}': parent index {} is out of range",
-            rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(load.scene),
             ecs_scene_text(object.name),
             object.parent);
         return RV_ERR_INVAL;
@@ -299,15 +299,19 @@ inline int ecs_scene_component(ecs_scene_reading &load, int64_t index)
     rv_cd_scene_component component{};
     const int64_t read = rv_cd_scene_component_read(load.cd, load.scene, index, &component);
     if (read != RV_OK) {
-        RV_LOG_ERR(ecs_scene_tag, "scene '{}' component {}: read failed ({})", rv_log_escape(load.scene), index, read);
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' component {}: read failed ({})",
+            rv_pdklib::rv_log_escape(load.scene),
+            index,
+            read);
         return static_cast<int>(read);
     }
     const bool outside = component.object < 0 || component.object >= load.objects;
     if (outside) {
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' component '{}': object index {} is out of range",
-            rv_log_escape(load.scene),
-            rv_log_escape(component.name),
+            rv_pdklib::rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(component.name),
             component.object);
         return RV_ERR_INVAL;
     }
@@ -316,9 +320,9 @@ inline int ecs_scene_component(ecs_scene_reading &load, int64_t index)
     if (make == nullptr) {
         RV_LOG_WARN(ecs_scene_tag,
             "scene '{}' object {}: unknown component '{}' skipped",
-            rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(load.scene),
             component.object,
-            rv_log_escape(component.name));
+            rv_pdklib::rv_log_escape(component.name));
         return RV_OK;
     }
     const ecs_id id = load.made[static_cast<std::size_t>(component.object)];
@@ -326,9 +330,9 @@ inline int ecs_scene_component(ecs_scene_reading &load, int64_t index)
     if (filled != RV_OK) {
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' object {}: component '{}' failed ({})",
-            rv_log_escape(load.scene),
+            rv_pdklib::rv_log_escape(load.scene),
             component.object,
-            rv_log_escape(component.name),
+            rv_pdklib::rv_log_escape(component.name),
             filled);
         return filled;
     }
@@ -374,17 +378,17 @@ inline int ecs_scene_read_into(ecs_world &world, rv_cd *cd, const char *scene, e
     const bool root = parent == ecs_id{};
     const bool alive = root || ecs_entity_alive(world, parent);
     if (!alive) {
-        RV_LOG_ERR(ecs_scene_tag, "scene '{}': parent entity is not alive", rv_log_escape(scene));
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': parent entity is not alive", rv_pdklib::rv_log_escape(scene));
         return RV_ERR_NOENT;
     }
     const int64_t objects = rv_cd_scene_object_count(cd, scene);
     if (objects < 0) {
-        RV_LOG_ERR(ecs_scene_tag, "scene '{}': object count failed ({})", rv_log_escape(scene), objects);
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': object count failed ({})", rv_pdklib::rv_log_escape(scene), objects);
         return static_cast<int>(objects);
     }
     const int64_t components = rv_cd_scene_component_count(cd, scene);
     if (components < 0) {
-        RV_LOG_ERR(ecs_scene_tag, "scene '{}': component count failed ({})", rv_log_escape(scene), components);
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': component count failed ({})", rv_pdklib::rv_log_escape(scene), components);
         return static_cast<int>(components);
     }
     ecs_scene_reading load{ world, cd, scene, objects, components, made };
@@ -395,7 +399,7 @@ inline int ecs_scene_read_into(ecs_world &world, rv_cd *cd, const char *scene, e
 inline void ecs_scene_log_failure(const char *scene, int status)
 {
     try {
-        RV_LOG_ERR(ecs_scene_tag, "scene '{}': not loaded, world restored ({})", rv_log_escape(scene), status);
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': not loaded, world restored ({})", rv_pdklib::rv_log_escape(scene), status);
     } catch (const std::bad_alloc &) {
         // the line is lost; the caller still returns status
     }
@@ -423,4 +427,4 @@ inline int ecs_scene_read(ecs_world &world, rv_cd *cd, const char *scene, ecs_id
     return RV_OK;
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

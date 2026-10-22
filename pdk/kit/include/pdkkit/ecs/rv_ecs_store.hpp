@@ -15,7 +15,7 @@
 #include "pdk/rv_err.h"
 #include "pdkkit/ecs/rv_ecs.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 // Sparse entry of an entity without the component. No slot index reaches this value.
@@ -227,4 +227,4 @@ void ecs_component_each(ecs_world &world, Fn &&fn)
     }
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

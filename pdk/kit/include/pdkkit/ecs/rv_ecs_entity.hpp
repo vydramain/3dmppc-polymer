@@ -11,7 +11,7 @@
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 // Length of a name in a char array: up to the first NUL, never past the array.
@@ -116,4 +116,4 @@ inline int ecs_entity_create_as(ecs_world &world, std::string_view name, ecs_id 
     return RV_OK;
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

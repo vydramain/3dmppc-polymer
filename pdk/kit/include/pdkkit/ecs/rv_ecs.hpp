@@ -18,7 +18,7 @@
 // Defined in pdk/cd/rv_cd.h; only a reference is taken here.
 struct rv_cd_scene_component;
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 // Generation 0 is never issued: a default ecs_id{} (index 0, generation 0) names no entity.
@@ -166,4 +166,4 @@ inline uint32_t ecs_world_count(const ecs_world &world)
     return world.live_count;
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

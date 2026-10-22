@@ -22,10 +22,10 @@ struct ecs_component_flicker {
 };
 
 // Factory of flicker: field cell, an integer in 0..RV_BOARD_CELL_COUNT-1, 0 when absent. Other values are RV_ERR_INVAL.
-int ecs_flicker_factory(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const rv_cd_scene_component &component);
+int ecs_flicker_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_cd_scene_component &component);
 
 // Frame system: shows each flicker entity whose cell is lit at the frame's place in the route period, hides the others.
 // Error: RV_ERR_NOENT when a dark entity cannot take its hidden mark (a stale id); logged with its cell.
-int ecs_system_flicker(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_frame &frame);
+int ecs_system_flicker(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
 
 } // namespace example_cpp_pdkkit

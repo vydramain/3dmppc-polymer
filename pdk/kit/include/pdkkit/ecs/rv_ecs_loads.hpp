@@ -17,7 +17,7 @@
 #include "pdkkit/ecs/rv_ecs_scene.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 inline constexpr const char *ecs_loads_tag = "ecs-loads";
@@ -116,7 +116,7 @@ inline int ecs_scene_unload_now(ecs_world &world, uint32_t number)
 inline void ecs_loads_log_refused(const char *scene, const char *why)
 {
     try {
-        RV_LOG_ERR(ecs_loads_tag, "scene '{}': not loaded, {}", rv_log_escape(scene), why);
+        RV_LOG_ERR(ecs_loads_tag, "scene '{}': not loaded, {}", rv_pdklib::rv_log_escape(scene), why);
     } catch (const std::bad_alloc &) {
         // the line is lost; the caller still returns its code
     }
@@ -179,4 +179,4 @@ inline int ecs_unload_pending(ecs_world &world)
     return first_error;
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

@@ -34,12 +34,12 @@ constexpr int64_t RV_LAMP_OUTWARD_END = RV_ROUTE_PERIOD_FRAMES / 2;
 
 // A lamp_light entity and whether it burns at the frame.
 struct lamp_state {
-    rv_pdklib::ecs_id id{};
+    rv_pdkkit::ecs_id id{};
     bool burns = false;
 };
 
 // Base of a lamp in Q20.12: the translation column of its world. Error: a coordinate leaves fx; out is untouched.
-int lamp_base(const rv_pdklib::ecs_component_world &place, rv_pdklib::fx_vec3 &out)
+int lamp_base(const rv_pdkkit::ecs_component_world &place, rv_pdklib::fx_vec3 &out)
 {
     rv_pdklib::fx_vec3 base = {};
     const int x_code = rv_pdklib::fx_from_double(place.matrix.m[0][3], base.x);
@@ -89,20 +89,20 @@ int first_near(const std::vector<rv_route_key> &keys, rv_pdklib::fx_vec3 at, int
 
 // Schedule of one lamp_light entity, its base taken from the world matrix of its parent (lamp_N).
 // Error: the entity or its parent lacks a component, a Q20.12 failure or the route math; the entity keeps its schedule.
-int schedule_lamp(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const std::vector<rv_route_key> &keys)
+int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::vector<rv_route_key> &keys)
 {
-    const auto *transform = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_transform>(world, id);
+    const auto *transform = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_transform>(world, id);
     if (transform == nullptr) {
         RV_LOG_ERR("lamps", "lamp_light entity has no transform: not scheduled");
         return RV_ERR_NOENT;
     }
-    const auto *name = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_name>(world, transform->parent);
-    const auto *place = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_world>(world, transform->parent);
+    const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world, transform->parent);
+    const auto *place = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_world>(world, transform->parent);
     if (name == nullptr || place == nullptr) {
         RV_LOG_ERR("lamps", "lamp_light entity has no parent with a name and a world matrix: not scheduled");
         return RV_ERR_NOENT;
     }
-    ecs_component_lamp_light *light = rv_pdklib::ecs_component_get<ecs_component_lamp_light>(world, id);
+    ecs_component_lamp_light *light = rv_pdkkit::ecs_component_get<ecs_component_lamp_light>(world, id);
     if (light == nullptr) {
         RV_LOG_ERR("lamps", "{}: no lamp_light component: not scheduled", name->text.c_str());
         return RV_ERR_NOENT;
@@ -144,28 +144,28 @@ int schedule_lamp(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const std::
 
 } // namespace
 
-int ecs_lamp_light_factory(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const rv_cd_scene_component &component)
+int ecs_lamp_light_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_cd_scene_component &component)
 {
-    return rv_pdklib::ecs_marker_factory<ecs_component_lamp_light>(world, id, component);
+    return rv_pdkkit::ecs_marker_factory<ecs_component_lamp_light>(world, id, component);
 }
 
-int ecs_system_lamp_light(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_frame &frame)
+int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame)
 {
     const int64_t phase = frame.frame % RV_ROUTE_PERIOD_FRAMES;
     // Collected first: the hidden mark is added and removed only after the walk.
     std::vector<lamp_state> states;
-    rv_pdklib::ecs_component_each<ecs_component_lamp_light>(world,
-        [&states, phase](rv_pdklib::ecs_id id, ecs_component_lamp_light &light) {
+    rv_pdkkit::ecs_component_each<ecs_component_lamp_light>(world,
+        [&states, phase](rv_pdkkit::ecs_id id, ecs_component_lamp_light &light) {
             const bool burns = light.on_frame <= phase && phase < light.off_frame;
             states.push_back(lamp_state{ id, burns });
         });
     for (const lamp_state &state : states) {
         if (state.burns) {
             // NOENT: the lamp has no hidden mark, so it is shown already.
-            rv_pdklib::ecs_component_remove<rv_pdklib::ecs_component_hidden>(world, state.id);
+            rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, state.id);
         } else {
-            const rv_pdklib::ecs_component_hidden *hidden =
-                rv_pdklib::ecs_component_ensure<rv_pdklib::ecs_component_hidden>(world, state.id);
+            const rv_pdkkit::ecs_component_hidden *hidden =
+                rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, state.id);
             if (hidden == nullptr) {
                 return RV_ERR_NOENT;
             }
@@ -174,13 +174,13 @@ int ecs_system_lamp_light(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_fram
     return RV_OK;
 }
 
-int rv_lamps_schedule(rv_pdklib::ecs_world &world, const std::vector<rv_route_key> &keys)
+int rv_lamps_schedule(rv_pdkkit::ecs_world &world, const std::vector<rv_route_key> &keys)
 {
-    std::vector<rv_pdklib::ecs_id> lights;
-    rv_pdklib::ecs_component_each<ecs_component_lamp_light>(world, [&lights](rv_pdklib::ecs_id id, ecs_component_lamp_light &) {
+    std::vector<rv_pdkkit::ecs_id> lights;
+    rv_pdkkit::ecs_component_each<ecs_component_lamp_light>(world, [&lights](rv_pdkkit::ecs_id id, ecs_component_lamp_light &) {
         lights.push_back(id);
     });
-    for (const rv_pdklib::ecs_id id : lights) {
+    for (const rv_pdkkit::ecs_id id : lights) {
         const int code = schedule_lamp(world, id, keys);
         if (code != RV_OK) {
             return code;

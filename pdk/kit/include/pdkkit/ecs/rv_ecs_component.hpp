@@ -16,19 +16,19 @@
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 // Default tint: white, no change of the model's or sprite's colours.
 inline constexpr rv_color ecs_tint_white{ 255, 255, 255 };
 // Default sprite tessellation: two subdivisions per unit, as the editor's scene.
-inline constexpr fx ecs_sprite_tess_default = 2 * fx_one;
+inline constexpr rv_pdklib::fx ecs_sprite_tess_default = 2 * rv_pdklib::fx_one;
 
 // Position, rotation (Q20.12 degrees) and scale relative to the parent; parent {} is the scene root.
 struct ecs_component_transform {
-    fx_vec3 position{};
-    fx_vec3 rotation{};
-    fx_vec3 scale{ fx_one, fx_one, fx_one };
+    rv_pdklib::fx_vec3 position{};
+    rv_pdklib::fx_vec3 rotation{};
+    rv_pdklib::fx_vec3 scale{ rv_pdklib::fx_one, rv_pdklib::fx_one, rv_pdklib::fx_one };
     ecs_id parent{};
 };
 
@@ -52,9 +52,9 @@ enum class ecs_sprite_kind : uint8_t {
 struct ecs_component_sprite {
     ecs_sprite_kind kind = ecs_sprite_kind::quad;
     std::string texture;
-    fx uv[4]{};
+    rv_pdklib::fx uv[4]{};
     rv_color tint = ecs_tint_white;
-    fx tess = ecs_sprite_tess_default;
+    rv_pdklib::fx tess = ecs_sprite_tess_default;
 };
 
 // Marks the entity as a camera.
@@ -171,4 +171,4 @@ inline int ecs_component_register(ecs_world &world, std::string_view name, ecs_c
     return RV_OK;
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

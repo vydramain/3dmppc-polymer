@@ -14,26 +14,26 @@
 #include "pdklib/rv_math/rv_math.hpp"
 #include "pdklib/rv_scene/rv_scene_space.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 inline constexpr const char *ecs_transform_tag = "ecs-transform";
 
 // Scene-space matrix of an entity; written by ecs_system_transform.
 struct ecs_component_world {
-    rv_mat4 matrix{};
+    rv_pdklib::rv_mat4 matrix{};
 };
 
 // Scene-space matrix of the entity with a transform: its local matrix, then each ancestor's applied outside it.
 // RV_ERR_INVAL for a missing or dead parent, or a chain longer than the live count (a cycle).
-inline int ecs_transform_world(ecs_world &world, ecs_id id, rv_mat4 &out)
+inline int ecs_transform_world(ecs_world &world, ecs_id id, rv_pdklib::rv_mat4 &out)
 {
     const ecs_component_transform *self = ecs_component_get<ecs_component_transform>(world, id);
     if (self == nullptr) {
         RV_LOG_ERR(ecs_transform_tag, "entity {}:{} has no transform", id.index, id.generation);
         return RV_ERR_INVAL;
     }
-    rv_mat4 m = rv_scene_local_trs(self->position, self->rotation, self->scale);
+    rv_pdklib::rv_mat4 m = rv_pdklib::rv_scene_local_trs(self->position, self->rotation, self->scale);
     ecs_id parent = self->parent;
     // An acyclic chain is shorter than live_count; reaching live_count steps means a cycle.
     for (uint32_t steps = 0; parent != ecs_id{}; ++steps) {
@@ -52,7 +52,7 @@ inline int ecs_transform_world(ecs_world &world, ecs_id id, rv_mat4 &out)
                 parent.generation);
             return RV_ERR_INVAL;
         }
-        m = rv_mat4_mul(rv_scene_local_trs(up->position, up->rotation, up->scale), m);
+        m = rv_pdklib::rv_mat4_mul(rv_pdklib::rv_scene_local_trs(up->position, up->rotation, up->scale), m);
         parent = up->parent;
     }
     out = m;
@@ -68,7 +68,7 @@ inline int ecs_system_transform(ecs_world &world)
         holders.push_back(id);
     });
     for (const ecs_id id : holders) {
-        rv_mat4 matrix{};
+        rv_pdklib::rv_mat4 matrix{};
         const int computed = ecs_transform_world(world, id, matrix);
         if (computed != RV_OK) {
             return computed;
@@ -83,4 +83,4 @@ inline int ecs_system_transform(ecs_world &world)
     return RV_OK;
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

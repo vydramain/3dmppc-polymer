@@ -20,7 +20,7 @@
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdkkit/ecs/rv_ecs_transform.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 // Handle of one frame: the disc's drive, and the frame number (the disc's logic time).
@@ -85,7 +85,8 @@ inline int ecs_draw_entity(ecs_world &world, const ecs_frame &frame, ecs_id id)
         return static_cast<int>(addr);
     }
     rv_cg_put put = {};
-    static_assert(sizeof(rv_mat4::m) == sizeof(rv_cg_put::world), "rv_mat4 and rv_cg_put.world hold the same 16 floats");
+    static_assert(sizeof(rv_pdklib::rv_mat4::m) == sizeof(rv_cg_put::world),
+        "rv_mat4 and rv_cg_put.world hold the same 16 floats");
     std::memcpy(put.world, place->matrix.m, sizeof(put.world));
     put.depth_min = depth_min;
     put.depth_max = depth_max;
@@ -178,4 +179,4 @@ inline int ecs_world_frame(ecs_world &world, const ecs_frame &frame)
     return failed ? ran : unloaded;
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

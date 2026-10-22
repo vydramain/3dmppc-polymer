@@ -53,7 +53,7 @@ constexpr int64_t RV_BOARD_FLICKER_SIZE = static_cast<int64_t>(RV_BOARD_FLICKER_
 
 // A flicker entity and whether its cell is lit at the frame.
 struct flicker_state {
-    rv_pdklib::ecs_id id{};
+    rv_pdkkit::ecs_id id{};
     int cell = 0;
     bool lit = false;
 };
@@ -67,10 +67,10 @@ bool rv_board_cell_lit(int i, int64_t frame)
     return i != RV_BOARD_SPACE_CELL && level > RV_BOARD_LIT_ABOVE;
 }
 
-int ecs_flicker_factory(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const rv_cd_scene_component &component)
+int ecs_flicker_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_cd_scene_component &component)
 {
     int64_t cell = RV_FLICKER_CELL_DEFAULT;
-    const int read_code = rv_pdklib::ecs_field_int(component, RV_FLICKER_CELL_KEY, cell);
+    const int read_code = rv_pdkkit::ecs_field_int(component, RV_FLICKER_CELL_KEY, cell);
     const bool absent = read_code == RV_ERR_NOENT;
     if (read_code != RV_OK && !absent) {
         RV_LOG_ERR("board", "flicker: field {} is not an integer: rv_err {}", RV_FLICKER_CELL_KEY, read_code);
@@ -82,7 +82,7 @@ int ecs_flicker_factory(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const
         return RV_ERR_INVAL;
     }
     const int add_code =
-        rv_pdklib::ecs_component_add<ecs_component_flicker>(world, id, ecs_component_flicker{ static_cast<int>(cell) });
+        rv_pdkkit::ecs_component_add<ecs_component_flicker>(world, id, ecs_component_flicker{ static_cast<int>(cell) });
     if (add_code != RV_OK) {
         RV_LOG_ERR("board", "flicker: entity cannot take the component: rv_err {}", add_code);
         return add_code;
@@ -90,23 +90,23 @@ int ecs_flicker_factory(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const
     return RV_OK;
 }
 
-int ecs_system_flicker(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_frame &frame)
+int ecs_system_flicker(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame)
 {
     const int64_t phase = frame.frame % RV_ROUTE_PERIOD_FRAMES;
     // Collected first: the hidden mark is added and removed only after the walk.
     std::vector<flicker_state> states;
-    rv_pdklib::ecs_component_each<ecs_component_flicker>(world,
-        [&states, phase](rv_pdklib::ecs_id id, ecs_component_flicker &flicker) {
+    rv_pdkkit::ecs_component_each<ecs_component_flicker>(world,
+        [&states, phase](rv_pdkkit::ecs_id id, ecs_component_flicker &flicker) {
             states.push_back(flicker_state{ id, flicker.cell, rv_board_cell_lit(flicker.cell, phase) });
         });
     for (const flicker_state &state : states) {
         if (state.lit) {
             // NOENT: the entity has no hidden mark, so it is shown already.
-            rv_pdklib::ecs_component_remove<rv_pdklib::ecs_component_hidden>(world, state.id);
+            rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, state.id);
             continue;
         }
-        const rv_pdklib::ecs_component_hidden *hidden =
-            rv_pdklib::ecs_component_ensure<rv_pdklib::ecs_component_hidden>(world, state.id);
+        const rv_pdkkit::ecs_component_hidden *hidden =
+            rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, state.id);
         if (hidden == nullptr) {
             // Named: an unscoped enum does not format.
             const int code = RV_ERR_NOENT;

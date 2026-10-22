@@ -44,24 +44,24 @@ struct ecs_component_route {
 };
 
 // Scene entity type "route": a group that gets the route component when it is created.
-class ecs_entity_route : public rv_pdklib::ecs_entity
+class ecs_entity_route : public rv_pdkkit::ecs_entity
 {
 public:
     ecs_entity_route()
-        : rv_pdklib::ecs_entity("route")
+        : rv_pdkkit::ecs_entity("route")
     {
     }
 
-    int add_defaults(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id) const override;
+    int add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id) const override;
 };
 
 // Fills the route's keys from its cam_NN children and copies them to keys. Call after ecs_system_transform.
 // Error: RV_ERR_NOENT without one route entity or without a key, RV_ERR_ALREADY for two route entities,
 // RV_ERR_INVAL for a Q20.12 failure or a camera without a world matrix. Logged here; keys is untouched.
-int rv_route_collect(rv_pdklib::ecs_world &world, std::vector<rv_route_key> &keys);
+int rv_route_collect(rv_pdkkit::ecs_world &world, std::vector<rv_route_key> &keys);
 
 // Frame system: sets the frame's camera from the route keys. Error: RV_ERR_NOENT without a route entity,
 // else the code of rv_route_camera_at. Not logged: a frame repeats it, so the disc logs the first one.
-int ecs_system_route(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_frame &frame);
+int ecs_system_route(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
 
 } // namespace example_cpp_pdkkit

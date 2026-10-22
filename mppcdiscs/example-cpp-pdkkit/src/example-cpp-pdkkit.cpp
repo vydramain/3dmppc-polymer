@@ -109,7 +109,7 @@ private:
 
     // Declared before world_: the world keeps a pointer to the type, so the type must outlive it.
     example_cpp_pdkkit::ecs_entity_route route_type_;
-    rv_pdklib::ecs_world world_;
+    rv_pdkkit::ecs_world world_;
     // The cam_NN keys, in NN order.
     std::vector<rv_route_key> keys_;
     // The scene has the board object; the sound takes it into account.
@@ -128,32 +128,32 @@ private:
 // systems; a scene refers to them by name.
 int rv_dmain::register_ecs()
 {
-    const int type_code = rv_pdklib::ecs_entity_register(world_, route_type_);
+    const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type_);
     if (type_code != RV_OK) {
         return type_code;
     }
     const int system_code =
-        rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_ROUTE_SYSTEM, example_cpp_pdkkit::ecs_system_route);
+        rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_ROUTE_SYSTEM, example_cpp_pdkkit::ecs_system_route);
     if (system_code != RV_OK) {
         return system_code;
     }
     const int lamp_factory_code =
-        rv_pdklib::ecs_component_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp_pdkkit::ecs_lamp_light_factory);
+        rv_pdkkit::ecs_component_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp_pdkkit::ecs_lamp_light_factory);
     if (lamp_factory_code != RV_OK) {
         return lamp_factory_code;
     }
     const int lamp_system_code =
-        rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp_pdkkit::ecs_system_lamp_light);
+        rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp_pdkkit::ecs_system_lamp_light);
     if (lamp_system_code != RV_OK) {
         return lamp_system_code;
     }
     const int flicker_factory_code =
-        rv_pdklib::ecs_component_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_flicker_factory);
+        rv_pdkkit::ecs_component_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_flicker_factory);
     if (flicker_factory_code != RV_OK) {
         return flicker_factory_code;
     }
     const int flicker_system_code =
-        rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_system_flicker);
+        rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_system_flicker);
     if (flicker_system_code != RV_OK) {
         return flicker_system_code;
     }
@@ -170,11 +170,11 @@ int rv_dmain::read_scene()
     }
     rv_cd *cd = rv_pdko_cd(pdk_);
     uint32_t load_number = 0;
-    const int load_code = rv_pdklib::ecs_scene_load(world_, cd, RV_EXAMPLE_CPP_SCENE_NAME, rv_pdklib::ecs_id{}, load_number);
+    const int load_code = rv_pdkkit::ecs_scene_load(world_, cd, RV_EXAMPLE_CPP_SCENE_NAME, rv_pdkkit::ecs_id{}, load_number);
     if (load_code != RV_OK) {
         return load_code;
     }
-    const int transform_code = rv_pdklib::ecs_system_transform(world_);
+    const int transform_code = rv_pdkkit::ecs_system_transform(world_);
     if (transform_code != RV_OK) {
         return transform_code;
     }
@@ -196,9 +196,9 @@ int rv_dmain::read_scene()
 // The board from the scene's entities, in file order.
 int rv_dmain::collect_parts()
 {
-    for (const rv_pdklib::ecs_load &load : world_.loads) {
-        for (const rv_pdklib::ecs_id id : load.made) {
-            const auto *name = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_name>(world_, id);
+    for (const rv_pdkkit::ecs_load &load : world_.loads) {
+        for (const rv_pdkkit::ecs_id id : load.made) {
+            const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world_, id);
             if (name == nullptr) {
                 RV_LOG_ERR("scene", "scene refused: an entity has no name");
                 return RV_ERR_INVAL;
@@ -217,7 +217,7 @@ void rv_dmain::draw_world()
     if (keys_.empty()) {
         return;
     }
-    const int frame_code = rv_pdklib::ecs_world_frame(world_, rv_pdklib::ecs_frame{ pdk_, frame_count_ });
+    const int frame_code = rv_pdkkit::ecs_world_frame(world_, rv_pdkkit::ecs_frame{ pdk_, frame_count_ });
     if (frame_code != RV_OK) {
         log_draw_error("world", frame_code);
     }
