@@ -76,8 +76,8 @@ std::string rv_editor_scene_label(const rv_editor_app &app, const std::filesyste
 void rv_editor_app_add_mesh_names(const std::vector<rv_editor_scene_object> &objects, std::set<std::string> &names)
 {
     for (const rv_editor_scene_object &o : objects) {
-        if (o.kind == kind_mesh) {
-            names.insert(o.mesh);
+        if (rv_editor_object_get_kind(o) == kind_mesh) {
+            names.insert(rv_editor_object_get_mesh(o));
         }
     }
 }

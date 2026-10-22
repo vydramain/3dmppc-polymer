@@ -252,9 +252,9 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     }
     if (rv_editor_menu_begin(rv_editor_text("shell_menu_scene.add_menu"), read_only)) {
         const int sel = rv_editor_scene_find(app.scene->scene, app.scene->selected);
-        const std::string parent = sel >= 0 && app.scene->scene.objects[static_cast<size_t>(sel)].kind == kind_group ?
-            app.scene->selected :
-            std::string();
+        const bool sel_group =
+            sel >= 0 && rv_editor_object_get_kind(app.scene->scene.objects[static_cast<size_t>(sel)]) == kind_group;
+        const std::string parent = sel_group ? app.scene->selected : std::string();
         for (std::string_view kind : scene_kinds) {
             const char *label = rv_editor_text(rv_editor_kind_text_id(kind));
             if (rv_editor_menu_item(label, nullptr, nullptr)) {
