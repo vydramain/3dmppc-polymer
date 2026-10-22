@@ -239,17 +239,20 @@ void rv_editor_draw_filled(ImDrawList *dl,
     const rv_editor_scene &scene = doc.scene;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
         const rv_editor_scene_object &o = scene.objects[i];
-        if (o.kind != kind_mesh && o.kind != kind_quad && o.kind != kind_billboard) {
+        const std::string kind = rv_editor_object_get_kind(o);
+        if (kind != kind_mesh && kind != kind_quad && kind != kind_billboard) {
             continue; // volumes, cameras, groups and other kinds are not filled
         }
         if (rv_editor_scene_visibility(doc, o) != rv_editor_visibility::shown) {
             continue; // an outline is drawn as edges, an absent object not at all
         }
-        const rv_editor_cpu_image *tex = textured ? rv_editor_object_cpu_texture(project, o.texture) : nullptr;
+        const std::string texture = rv_editor_object_get_texture(o);
+        const rv_editor_cpu_image *tex = textured ? rv_editor_object_cpu_texture(project, texture) : nullptr;
+        const rv_editor_tint tint = rv_editor_object_get_tint(o);
         st.selected = o.id == selected;
-        st.pixel_uv = o.kind != kind_mesh;
-        st.tint = { o.tint[0] / color_channel_max, o.tint[1] / color_channel_max, o.tint[2] / color_channel_max, 1.0f };
-        const std::vector<rv_editor_tri> tris = o.kind == kind_billboard ?
+        st.pixel_uv = kind != kind_mesh;
+        st.tint = { tint[0] / color_channel_max, tint[1] / color_channel_max, tint[2] / color_channel_max, 1.0f };
+        const std::vector<rv_editor_tri> tris = kind == kind_billboard ?
             rv_editor_billboard_triangles(v, rv_editor_scene_world(scene, static_cast<int>(i)), o) :
             rv_editor_object_triangles(scene, project, static_cast<int>(i));
         for (const rv_editor_tri &tri : tris) {
