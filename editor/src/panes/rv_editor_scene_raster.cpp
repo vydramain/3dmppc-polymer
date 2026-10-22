@@ -222,28 +222,27 @@ void rv_editor_raster_piece(rv_editor_zbuf &buf,
     rv_editor_zbuf_draw(buf, zt);
 }
 
-// A scene point as Q20.12, then as view space through the camera's view matrix. RV_ERR_INVAL when either leaves int32.
-int rv_editor_view_fx_point(const rv_editor_view &v, const vec3 &p, rv_pdklib::fx_vec3 &out)
+// A Q20.12 world point to view space through the camera's view matrix. RV_ERR_INVAL when the view point leaves int32.
+int rv_editor_view_fx_point(const rv_editor_view &v, const rv_pdklib::fx_vec3 &scene, rv_pdklib::fx_vec3 &out)
 {
-    std::int32_t scene[tri_vertices] = {};
-    for (int k = 0; k < tri_vertices; ++k) {
-        if (rv_pdklib::fx_from_double(p[k], scene[k]) != RV_OK) {
-            return RV_ERR_INVAL;
-        }
-    }
+    const std::int32_t in[tri_vertices] = { scene.x, scene.y, scene.z };
     std::int32_t view[tri_vertices] = {};
-    if (rv_pdklib::rv_gte_point(v.camera.view, scene, view) != RV_OK) {
+    if (rv_pdklib::rv_gte_point(v.camera.view, in, view) != RV_OK) {
         return RV_ERR_INVAL;
     }
     out = { view[0], view[1], view[2] };
     return RV_OK;
 }
 
-// The triangle's corners in view space as Q20.12, with its uv and colour. RV_ERR_INVAL when a corner leaves int32.
+// The triangle's corners in view space as Q20.12, with its uv and colour. RV_ERR_INVAL when the triangle has no q
+// (q_valid is false) or a corner leaves int32.
 int rv_editor_view_fx_tri(const rv_editor_view &v, const rv_editor_tri &tri, rv_editor_fx_tri &out)
 {
+    if (!tri.q_valid) {
+        return RV_ERR_INVAL;
+    }
     for (int k = 0; k < tri_vertices; ++k) {
-        if (rv_editor_view_fx_point(v, tri.p[k], out.v[k].p) != RV_OK) {
+        if (rv_editor_view_fx_point(v, tri.q[k], out.v[k].p) != RV_OK) {
             return RV_ERR_INVAL;
         }
         out.v[k].uv = tri.uv[k];
