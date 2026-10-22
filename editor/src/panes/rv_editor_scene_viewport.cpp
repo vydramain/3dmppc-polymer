@@ -34,13 +34,8 @@ constexpr float wheel_width_spacing = 2.0f;
 constexpr float line_height_spacing = 2.0f;
 constexpr float gap_multiplier = 4.0f;
 constexpr double rotation_sensitivity = 0.4;
-constexpr double pitch_min = -89.9;
-constexpr double pitch_max = 89.9;
 constexpr float half = 0.5f;
 constexpr double dolly_sensitivity = 0.01;
-constexpr double camera_distance_min = 0.5;
-constexpr double camera_distance_max = 200.0;
-constexpr double pan_sensitivity = 0.002;
 constexpr double zoom_base = 0.9;
 constexpr double keyboard_rotation_step = 2.0;
 constexpr float line_width_selected = 2.0f;
@@ -58,6 +53,8 @@ constexpr size_t camera_status_buffer_size = 160; // the camera status line: yaw
 
 // The Scene viewport's own tool drag, shared by every Scene tile.
 rv_editor_gizmo_drag tool_drag;
+// The camera's sub-raw navigation rest, carried to the next frame; shared by the Scene tiles, like tool_drag.
+rv_editor_camera_carry camera_carry;
 
 // The gizmo axis under the mouse for the active tool; -1 when none.
 int rv_editor_tool_axis(rv_editor_scene_tool tool,
@@ -106,6 +103,10 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     rv_editor_scene_doc &doc = *app.scene;
     // Worked on as a copy; the shell gets the result once, at the end.
     rv_editor_scene_camera cam = ui.state.scene_camera;
+    // Checked before anything reads the camera: a stale saved view is reset here, with one warning, and its carry goes.
+    if (rv_editor_camera_check(cam) != RV_OK) {
+        camera_carry = rv_editor_camera_carry{};
+    }
     rv_editor_shelf_begin("##shelf", theme);
     rv_editor_scene_toolbar(app, cam, theme);
     rv_editor_shelf_end();
@@ -131,12 +132,12 @@ void rv_editor_scene_viewport(rv_editor_app &app,
         std::max(min_viewport_size, avail.y - wheel - line_height_spacing * line - gap));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
-    cam.pitch =
-        std::clamp(cam.pitch - rv_editor_thumbwheel("##rotx", rot_x_label, true, size.y, theme, reset) * rotation_sensitivity,
-            pitch_min,
-            pitch_max);
+    // The navigation calls in this function log their own refusal and leave the view as it was; the codes are dropped.
+    const float rot_x_turn = rv_editor_thumbwheel("##rotx", rot_x_label, true, size.y, theme, reset);
+    (void)rv_editor_camera_orbit(cam, camera_carry, 0.0, -rot_x_turn * rotation_sensitivity);
     if (reset) {
-        cam.pitch = rv_editor_scene_camera{}.pitch;
+        (void)rv_editor_camera_reset_pitch(cam);
+        camera_carry.pitch = 0.0;
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, top.y + (size.y - label_x.y) * half));
@@ -151,21 +152,21 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     const bool focused = ImGui::IsItemFocused() || ImGui::IsWindowFocused();
     ImGui::SameLine();
     const ImVec2 dolly_top = ImGui::GetCursorScreenPos();
-    cam.distance = std::clamp(cam.distance *
-            std::exp(-rv_editor_thumbwheel("##dolly", dolly_label, true, size.y, theme, reset) * dolly_sensitivity),
-        camera_distance_min,
-        camera_distance_max);
+    const float dolly_turn = rv_editor_thumbwheel("##dolly", dolly_label, true, size.y, theme, reset);
+    (void)rv_editor_camera_dolly(cam, camera_carry, -dolly_turn * dolly_sensitivity);
     if (reset) {
-        cam.distance = rv_editor_scene_camera{}.distance;
+        (void)rv_editor_camera_reset_distance(cam);
+        camera_carry.dolly = 0.0;
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, dolly_top.y + (size.y - label_d.y) * half));
     rv_editor_label(dolly_label, rv_editor_label_kind::normal, theme);
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap));
-    cam.yaw +=
-        rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme, reset) * rotation_sensitivity;
+    const float rot_y_turn = rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme, reset);
+    (void)rv_editor_camera_orbit(cam, camera_carry, rot_y_turn * rotation_sensitivity, 0.0);
     if (reset) {
-        cam.yaw = rv_editor_scene_camera{}.yaw;
+        (void)rv_editor_camera_reset_yaw(cam);
+        camera_carry.yaw = 0.0;
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, p0.y + size.y + gap + (wheel - label_y.y) * half));
@@ -173,43 +174,51 @@ void rv_editor_scene_viewport(rv_editor_app &app,
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
     if (!v.valid) {
-        // No camera, no frame: the well closes and the scene is not drawn.
+        // No camera, no frame: the well closes and the scene is not drawn. A changed camera still reaches the shell.
         rv_editor_well_end();
+        if (cam != ui.state.scene_camera) {
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
+        }
         return;
     }
     ImGuiIO &io = ImGui::GetIO();
     const ImVec2 mouse = io.MousePos;
-    const double gizmo = cam.distance * gizmo_size_factor;
+    // A failed read is logged by rv_editor_camera_read_units and leaves the units at zero.
+    rv_editor_camera_units units{};
+    (void)rv_editor_camera_read_units(cam, units);
+    const double gizmo = units.distance * gizmo_size_factor;
     const bool read_only = !doc.scene.read_only.empty();
 
     // Navigation: right drag orbits, middle drag pans, the wheel dollies; keys as well.
     if (active && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-        cam.yaw += io.MouseDelta.x * rotation_sensitivity;
-        cam.pitch = std::clamp(cam.pitch + io.MouseDelta.y * rotation_sensitivity, pitch_min, pitch_max);
+        (void)rv_editor_camera_orbit(cam,
+            camera_carry,
+            io.MouseDelta.x * rotation_sensitivity,
+            io.MouseDelta.y * rotation_sensitivity);
     }
     if (active && ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-        const double k = cam.distance * pan_sensitivity;
-        cam.target = add(cam.target, add(mul(v.right, -io.MouseDelta.x * k), mul(v.up, io.MouseDelta.y * k)));
+        (void)rv_editor_camera_pan(cam, camera_carry, v, io.MouseDelta.x, io.MouseDelta.y);
     }
     if (hovered && io.MouseWheel != 0.0f) {
-        cam.distance = std::clamp(cam.distance * std::pow(zoom_base, io.MouseWheel), camera_distance_min, camera_distance_max);
+        (void)rv_editor_camera_dolly(cam, camera_carry, std::log(zoom_base) * io.MouseWheel);
     }
     if (focused && !io.WantTextInput && !ImGui::IsAnyItemActive()) {
-        cam.yaw += ImGui::IsKeyDown(ImGuiKey_LeftArrow) ? -keyboard_rotation_step :
-            ImGui::IsKeyDown(ImGuiKey_RightArrow)       ? keyboard_rotation_step :
-                                                          0.0;
-        cam.pitch = std::clamp(cam.pitch + (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? keyboard_rotation_step : 0.0) -
-                (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? keyboard_rotation_step : 0.0),
-            pitch_min,
-            pitch_max);
+        const double yaw_key = ImGui::IsKeyDown(ImGuiKey_LeftArrow) ? -keyboard_rotation_step :
+            ImGui::IsKeyDown(ImGuiKey_RightArrow)                   ? keyboard_rotation_step :
+                                                                      0.0;
+        const double pitch_key = (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? keyboard_rotation_step : 0.0) -
+            (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? keyboard_rotation_step : 0.0);
+        (void)rv_editor_camera_orbit(cam, camera_carry, yaw_key, pitch_key);
+        // The zoom keys step the same dolly carry as the wheel.
         if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd)) {
-            cam.distance = std::max(camera_distance_min, cam.distance * zoom_base);
+            (void)rv_editor_camera_dolly(cam, camera_carry, std::log(zoom_base));
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract)) {
-            cam.distance = std::min(camera_distance_max, cam.distance / zoom_base);
+            (void)rv_editor_camera_dolly(cam, camera_carry, -std::log(zoom_base));
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
-            cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
+            cam = rv_editor_camera_home(cam);
+            camera_carry = rv_editor_camera_carry{};
         }
         if (ImGui::IsKeyPressed(ImGuiKey_F) && !doc.selected.empty()) {
             rv_editor_scene_frame(app, cam, false);
@@ -246,7 +255,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             if (cam.seeking) {
                 const int h = rv_editor_scene_find(doc.scene, hit);
                 if (h >= 0) {
-                    cam.target = rv_editor_affine_point(rv_editor_scene_world(doc.scene, h), { 0, 0, 0 });
+                    (void)rv_editor_camera_seek(cam, rv_editor_affine_point(rv_editor_scene_world(doc.scene, h), { 0, 0, 0 }));
                 }
                 cam.seeking = false;
             } else {
@@ -380,8 +389,9 @@ void rv_editor_scene_viewport(rv_editor_app &app,
 
     // What the view is, in numbers, and which camera this is.
     const std::string seek_msg = cam.seeking ? rv_editor_text("scene_viewport.seek_hint") : "";
+    (void)rv_editor_camera_read_units(cam, units);
     const std::string camera_info = rv_editor_text_format("scene_viewport.camera_status",
-        std::make_format_args(cam.yaw, cam.pitch, cam.distance, seek_msg));
+        std::make_format_args(units.yaw, units.pitch, units.distance, seek_msg));
     char buf[camera_status_buffer_size];
     std::snprintf(buf, sizeof(buf), "%s", camera_info.c_str());
     // Whether the running game has read this open scene document (its resource

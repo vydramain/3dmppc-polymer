@@ -44,6 +44,42 @@ void rv_editor_manipulate(rv_editor_app &app,
     const rv_editor_gizmo_drag &drag);
 void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool all);
 
+// Viewport navigation (rv_editor_scene_navigate.cpp) on the Q20.12 values. A delta in units is rounded to raw here;
+// the rounding's rest waits in `carry` for the next step, so slow drags are not lost. An operation that cannot
+// apply its step logs why and leaves the view as it was.
+struct rv_editor_camera_carry {
+    double yaw = 0.0;
+    double pitch = 0.0;
+    double dolly = 0.0; // the ln of the factor not yet applied
+    std::array<double, 3> pan{};
+};
+
+// The yaw, pitch and distance in units, for the status line and the gizmo.
+struct rv_editor_camera_units {
+    double yaw = 0.0;
+    double pitch = 0.0;
+    double distance = 0.0;
+};
+
+// Frame start: a value outside Q20.12 logs one warning, resets the view to home and returns its code.
+[[nodiscard]] int rv_editor_camera_check(rv_editor_scene_camera &cam);
+// The units for the gizmo and the status line. Valid after rv_editor_camera_check; out is untouched on error.
+[[nodiscard]] int rv_editor_camera_read_units(const rv_editor_scene_camera &cam, rv_editor_camera_units &out);
+// The home view: the defaults, with the tool, snapping and shading kept.
+rv_editor_scene_camera rv_editor_camera_home(const rv_editor_scene_camera &cam);
+[[nodiscard]] int
+rv_editor_camera_orbit(rv_editor_scene_camera &cam, rv_editor_camera_carry &carry, double yaw_units, double pitch_units);
+// Scales the distance by exp(log_factor + carry.dolly), clamped to the distance limits.
+[[nodiscard]] int rv_editor_camera_dolly(rv_editor_scene_camera &cam, rv_editor_camera_carry &carry, double log_factor);
+// Moves the target by the mouse delta (px) on the view's right and up axes.
+[[nodiscard]] int
+rv_editor_camera_pan(rv_editor_scene_camera &cam, rv_editor_camera_carry &carry, const rv_editor_view &v, double dx, double dy);
+// Turns about a scene point: the target becomes `point`.
+[[nodiscard]] int rv_editor_camera_seek(rv_editor_scene_camera &cam, const std::array<double, 3> &point);
+[[nodiscard]] int rv_editor_camera_reset_yaw(rv_editor_scene_camera &cam);
+[[nodiscard]] int rv_editor_camera_reset_pitch(rv_editor_scene_camera &cam);
+[[nodiscard]] int rv_editor_camera_reset_distance(rv_editor_scene_camera &cam);
+
 // The Scene viewport's geometry (editor/src/panes/rv_editor_scene_viewport.cpp):
 // the editor camera's frame, how scene points land on screen, what each object
 // draws as, and what the mouse is over.
