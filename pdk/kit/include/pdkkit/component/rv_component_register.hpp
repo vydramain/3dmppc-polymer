@@ -158,6 +158,17 @@ int ecs_component_defaults(const ecs_component_desc &desc, T &value)
     return written;
 }
 
+// Writes the value a factory starts from: a copy of the entity's own T when it has one, else the description's defaults.
+template <typename T>
+int ecs_component_base(const ecs_component_desc &desc, const T *existing, T &value)
+{
+    if (existing != nullptr) {
+        value = *existing;
+        return RV_OK;
+    }
+    return ecs_component_defaults(desc, value);
+}
+
 // Runs T::ecs_check when T has one. A refusal is logged with its reason and returns RV_ERR_INVAL.
 template <typename T>
 int ecs_component_check(const ecs_component_desc &desc, const T &value)
@@ -189,8 +200,10 @@ int ecs_component_derive(const ecs_component_desc &desc, T &value)
     return RV_OK;
 }
 
-// The factory of T, with the signature of ecs_component_factory. A local T takes the defaults, then the scene's fields,
-// then ecs_check, then ecs_derive; only a value that passed all of them is added, so a refusal leaves the entity as it was.
+// The factory of T, with the signature of ecs_component_factory. A local T starts from the entity's own T when it has one
+// (an entity type's add_defaults), else from the defaults; then the scene's fields, then ecs_check, then ecs_derive.
+// Only a value that passed all of them is written: into the existing T, or added when there is none. A refusal leaves
+// the entity as it was.
 template <typename T>
 int ecs_component_factory_of(ecs_world &world, ecs_id id, const ecs_scene_component &component)
 {
@@ -198,10 +211,11 @@ int ecs_component_factory_of(ecs_world &world, ecs_id id, const ecs_scene_compon
         "a component type must be standard-layout and trivially copyable");
     return ecs_guard([&]() -> int {
         const ecs_component_desc &desc = ecs_component_traits<T>::desc;
+        T *existing = ecs_component_get<T>(world, id);
         T value{};
-        const int defaulted = ecs_component_defaults(desc, value);
-        if (defaulted != RV_OK) {
-            return defaulted;
+        const int based = ecs_component_base(desc, existing, value);
+        if (based != RV_OK) {
+            return based;
         }
         const int set = ecs_component_fields_set(desc, component, value);
         if (set != RV_OK) {
@@ -214,6 +228,10 @@ int ecs_component_factory_of(ecs_world &world, ecs_id id, const ecs_scene_compon
         const int derived = ecs_component_derive(desc, value);
         if (derived != RV_OK) {
             return derived;
+        }
+        if (existing != nullptr) {
+            *existing = value;
+            return RV_OK;
         }
         const int added = ecs_component_add<T>(world, id, value);
         if (added != RV_OK) {
