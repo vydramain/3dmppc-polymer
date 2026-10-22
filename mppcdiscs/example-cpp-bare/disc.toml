@@ -6,22 +6,14 @@ title = "mppcdisc example: bare"
 sources = ["src/*.cpp"]
 
 [assets]
-# The scene is copied verbatim, as in example-lua-bare. The disc does not read it: the manifest
-# parser requires a non-empty [assets] (B-ASSETS, owner's decision).
-files = ["scenes/*.scene.toml"]
+# A file is sorted by its extension: .wav is baked to .pcm; .gltf is baked to .mppcmod with its .bin
+# and the PNG pictures it names (most in assets/tex, street_16's in assets/models); the rest (the scene) is copied as is.
+# The disc does not read the scene.
+files = ["scenes/*.scene.toml", "assets/snd/*.wav", "assets/models/*.gltf"]
 
-[textures]
-# The model pictures are separate PNG files in assets/tex, baked by the model build; this section
-# holds no separate textures. format is the format the model pictures are baked in.
-files = []
+[assets.texture]
+# The format each PNG picture named by a .gltf is baked to; idx8 is the default.
 format = "idx8"
-
-[sounds]
-files = ["assets/snd/*.wav"]
-
-[models]
-# glTF models with their .bin buffers, baked to .mppcmod by the build; pictures are assets/tex/*.png.
-files = ["assets/models/*.gltf"]
 
 [budget.pcca]
 voice_count = 24

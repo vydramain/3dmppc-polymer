@@ -8,20 +8,14 @@ sources = ["src/*.cpp"]
 sdk = ["kit"]
 
 [assets]
-# The scene is copied verbatim: the disc reads its objects through the drive (src/example-cpp-pdkkit.cpp).
-files = ["scenes/*.scene.toml"]
+# A file is sorted by its extension: .wav is baked to .pcm; .gltf is baked to .mppcmod with its .bin
+# and the PNG pictures it names (most in assets/tex, street_16's in assets/models); the rest (the scene) is copied as is.
+# The disc reads the scene's objects through the drive (src/example-cpp-pdkkit.cpp).
+files = ["scenes/*.scene.toml", "assets/snd/*.wav", "assets/models/*.gltf"]
 
-[textures]
-# The model pictures are separate PNG files in assets/tex, baked by the model build; this section
-# holds no separate textures. format is the format the model pictures are baked in.
-files = []
+[assets.texture]
+# The format each PNG picture named by a .gltf is baked to; idx8 is the default.
 format = "idx8"
-
-[sounds]
-files = ["assets/snd/*.wav"]
-
-[models]
-files = ["assets/models/*.gltf"]
 
 [budget.pcca]
 voice_count = 24
