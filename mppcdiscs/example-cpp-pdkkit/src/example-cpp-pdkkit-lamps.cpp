@@ -224,4 +224,15 @@ int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_fram
     return RV_OK;
 }
 
+int ecs_entity_lamp::add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id) const
+{
+    ecs_component_lamp_light *light = nullptr;
+    const int light_code = rv_pdkkit::ecs_component_ensure<ecs_component_lamp_light>(world, id, light);
+    if (light_code != RV_OK) {
+        RV_LOG_ERR("lamps", "lamp_light component not added: rv_err {}", light_code);
+        return light_code;
+    }
+    return RV_OK;
+}
+
 } // namespace example_cpp_pdkkit

@@ -37,9 +37,10 @@ constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
 
-// The route's and the board's entity types: the world keeps pointers to them, so they have static storage.
+// The route's, the board's and the lamp's entity types: the world keeps pointers to them, so they have static storage.
 const ecs_entity_route route_type;
 const ecs_entity_board board_type;
+const ecs_entity_lamp lamp_type;
 
 } // namespace
 
@@ -109,8 +110,8 @@ private:
     std::vector<std::string> sound_errors_logged_;
 };
 
-// Registers the route and board entity types, the route's frame system, then the lamp_light and flicker components with
-// their frame systems; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
+// Registers the route, board and lamp entity types, the route's frame system, then the lamp_light and flicker components
+// with their frame systems; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
 int rv_dmain::register_ecs()
 {
     const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
@@ -120,6 +121,10 @@ int rv_dmain::register_ecs()
     const int board_type_code = rv_pdkkit::ecs_entity_register(world_, board_type);
     if (board_type_code != RV_OK) {
         return board_type_code;
+    }
+    const int lamp_type_code = rv_pdkkit::ecs_entity_register(world_, lamp_type);
+    if (lamp_type_code != RV_OK) {
+        return lamp_type_code;
     }
     const int system_code =
         rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_ROUTE_SYSTEM, example_cpp_pdkkit::ecs_system_route);

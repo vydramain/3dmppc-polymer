@@ -4,6 +4,7 @@
 
 #include "pdkkit/component/rv_component_macro.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
+#include "pdkkit/ecs/rv_ecs_entity.hpp"
 #include "pdkkit/ecs/rv_ecs_frame.hpp"
 
 namespace example_cpp_pdkkit
@@ -16,6 +17,18 @@ struct ecs_component_lamp_light {
     int64_t on_frame = 0;
     int64_t off_frame = 0;
     bool scheduled = false;
+};
+
+// Scene entity type "lamp", used by the scene objects with entity = "lamp": they get the lamp_light component when created.
+class ecs_entity_lamp : public rv_pdkkit::ecs_entity
+{
+public:
+    ecs_entity_lamp()
+        : rv_pdkkit::ecs_entity("lamp")
+    {
+    }
+
+    int add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id) const override;
 };
 
 // Frame system: schedules each lamp_light entity not yet scheduled from the route keys (sorted by index) and the world

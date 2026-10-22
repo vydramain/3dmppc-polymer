@@ -629,6 +629,7 @@ name = "camera"
 [[object]]
 id = "5ce20001"
 parent = "5ce00006"
+entity = "lamp"
 
 [[component]]
 object = "5ce20001"
@@ -646,15 +647,12 @@ source = "lamp_light.gltf"
 
 [[component]]
 object = "5ce20001"
-name = "lamp_light"
-
-[[component]]
-object = "5ce20001"
 name = "hidden"
 
 [[object]]
 id = "5ce20002"
 parent = "5ce00007"
+entity = "lamp"
 
 [[component]]
 object = "5ce20002"
@@ -672,15 +670,12 @@ source = "lamp_light.gltf"
 
 [[component]]
 object = "5ce20002"
-name = "lamp_light"
-
-[[component]]
-object = "5ce20002"
 name = "hidden"
 
 [[object]]
 id = "5ce20003"
 parent = "5ce00008"
+entity = "lamp"
 
 [[component]]
 object = "5ce20003"
@@ -698,15 +693,12 @@ source = "lamp_light.gltf"
 
 [[component]]
 object = "5ce20003"
-name = "lamp_light"
-
-[[component]]
-object = "5ce20003"
 name = "hidden"
 
 [[object]]
 id = "5ce20004"
 parent = "5ce00009"
+entity = "lamp"
 
 [[component]]
 object = "5ce20004"
@@ -721,10 +713,6 @@ name = "transform"
 object = "5ce20004"
 name = "model"
 source = "lamp_light.gltf"
-
-[[component]]
-object = "5ce20004"
-name = "lamp_light"
 
 [[component]]
 object = "5ce20004"
