@@ -159,18 +159,6 @@ inline int ecs_field_int(const ecs_scene_component &component, std::string_view 
     return RV_OK;
 }
 
-// Factory of a marker: it has no fields, so any field is RV_ERR_INVAL. An existing marker is kept, not an error.
-template <typename T>
-int ecs_marker_factory(ecs_world &world, ecs_id id, const ecs_scene_component &component)
-{
-    const bool fielded = component.field_count != 0;
-    if (fielded) {
-        return RV_ERR_INVAL;
-    }
-    T *marker = nullptr;
-    return ecs_component_ensure<T>(world, id, marker);
-}
-
 // Factory of the name, or nullptr. The empty name is never registered.
 inline ecs_component_factory ecs_component_find(const ecs_world &world, std::string_view name)
 {
