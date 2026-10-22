@@ -13,6 +13,7 @@
 
 #include "pdk/cd/rv_cd.h"
 #include "pdk/cg/rv_cg.h"
+#include "pdk/cio/rv_isource.h"
 #include "pdk/cv/rv_primitives.h"
 #include "pdk/rv_err.h"
 #include "pdk/rv_pdko.h"
@@ -26,10 +27,19 @@
 namespace rv_pdkkit
 {
 
-// Handle of one frame: the disc's drive, and the frame number (the disc's logic time).
+// Port 0 at the frame update: its state, and the buttons that went down since the previous update.
+// The first update counts every button already held as pressed, as rv_cppdisc's MENU edge does.
+struct ecs_input {
+    rv_istate state{};
+    uint64_t pressed = 0;
+};
+
+// Handle of one frame: the disc's drive, the clock and the input.
 struct ecs_frame {
     rv_pdko *pdk = nullptr;
+    // The clock: the number of updates with dt > 0.
     int64_t frame = 0;
+    ecs_input input{};
 };
 
 // Ordering-table windows of the world and of decals, inside RV_DEPTH_MIN..RV_DEPTH_MAX (pdk/cv/rv_primitives.h).
