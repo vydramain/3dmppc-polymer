@@ -393,7 +393,7 @@ std::vector<std::pair<vec3, vec3>>
 rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
     const rv_editor_affine m = rv_editor_scene_world(scene, index);
-    const std::string &kind = scene.objects[static_cast<size_t>(index)].kind;
+    const std::string &kind = rv_editor_object_get_kind(scene.objects[static_cast<size_t>(index)]);
     auto p = [&m](double x, double y, double z) {
         return rv_editor_affine_point(m, { x, y, z });
     };

@@ -54,7 +54,7 @@ constexpr rv_editor_hierarchy_command_spec clear_picks_command = {
 void rv_editor_hierarchy_add(rv_editor_scene_doc &doc, const std::string &kind)
 {
     const int sel = rv_editor_scene_find(doc.scene, doc.selected);
-    const bool group = sel >= 0 && doc.scene.objects[static_cast<size_t>(sel)].kind == kind_group;
+    const bool group = sel >= 0 && rv_editor_object_get_kind(doc.scene.objects[static_cast<size_t>(sel)]) == kind_group;
     rv_editor_scene_add(doc, kind, group ? doc.selected : std::string());
 }
 
@@ -143,7 +143,9 @@ void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme
         return;
     }
     const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(index)];
-    const char *name = o.name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : o.name.c_str();
+    // The getter returns by value; object_name owns the bytes name points into.
+    const std::string object_name = rv_editor_object_get_name(o);
+    const char *name = object_name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : object_name.c_str();
     if (target == rv_editor_scene_action_target::pieces) {
         const size_t count = doc.picked_pieces.size();
         const std::string text = rv_editor_text_format("pane_hierarchy.target_pieces", std::make_format_args(name, count));
@@ -152,7 +154,9 @@ void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme
         rv_editor_hierarchy_command(app, ui, theme, clear_picks_command);
         return;
     }
-    const char *kind_label = rv_editor_scene_kind_label(o.kind);
+    // rv_editor_scene_kind_label returns kind.c_str(), or a literal for mesh; object_kind must outlive kind_label.
+    const std::string object_kind = rv_editor_object_get_kind(o);
+    const char *kind_label = rv_editor_scene_kind_label(object_kind);
     const std::string text = rv_editor_text_format("pane_hierarchy.node_label", std::make_format_args(name, kind_label));
     rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme);
 }
