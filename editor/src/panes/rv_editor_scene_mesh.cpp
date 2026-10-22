@@ -72,7 +72,6 @@ rv_editor_tri cube_tri(const cube_corner (&c)[cube_corner_count],
     tri.q_valid = true;
     for (int k = 0; k < tri_vertices; ++k) {
         const cube_corner &corner = c[idx[k]];
-        tri.p[k] = corner.p;
         tri.q[k] = corner.q;
         tri.uv[k] = uv[k];
         tri.q_valid = tri.q_valid && corner.q_valid;
@@ -121,7 +120,7 @@ std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
     return cube_triangles(c);
 }
 
-// The placeholder cube through the integer `world`: each corner is a Q20.12 point, then metres. A corner that
+// The placeholder cube through the integer `world`: each corner is a Q20.12 point. A corner that
 // leaves int32 returns RV_ERR_INVAL with the reason in `error`; `tris` is then left empty.
 int rv_editor_cube_gte_triangles(const rv_pdklib::rv_gte_matrix &world,
     const std::string &name,
@@ -139,9 +138,6 @@ int rv_editor_cube_gte_triangles(const rv_pdklib::rv_gte_matrix &world,
         }
         c[i].q = { raw[0], raw[1], raw[2] };
         c[i].q_valid = true;
-        for (size_t k = 0; k < c[i].p.size(); ++k) {
-            c[i].p[k] = static_cast<double>(raw[k]) / rv_editor_gte_units_per_metre;
-        }
     }
     tris = cube_triangles(c);
     return RV_OK;

@@ -6,7 +6,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -60,22 +59,19 @@ ImVec4 modulate(const ImVec4 &a, const ImVec4 &b)
     return { a.x * b.x, a.y * b.y, a.z * b.z, 1.0f };
 }
 
-// A triangle of `model` through `world`: its corners' Q20.12 and metres, uv and colour. A vertex that leaves int32 fails it.
+// A triangle of `model` through `world`: its corners' Q20.12, uv and colour. A vertex that leaves int32 fails it.
 int rv_editor_glb_triangle_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
     const rv_pdklib::rv_gte_matrix &world,
     const rv_pdklib::rv_mppcmod_triangle &t,
     rv_editor_tri &tri)
 {
-    for (std::size_t k = 0; k < std::size(tri.p); ++k) {
+    for (std::size_t k = 0; k < tri_vertices; ++k) {
         const std::size_t vertex = t.index[k];
         const rv_pdklib::rv_mppcmod_int_vertex &v = model.vertices[vertex];
         const int rc = rv_editor_glb_vertex_in_world(model, world, vertex, tri.q[k]);
         if (rc != RV_OK) {
             return rc;
         }
-        tri.p[k] = { static_cast<double>(tri.q[k].x) / rv_editor_gte_units_per_metre,
-            static_cast<double>(tri.q[k].y) / rv_editor_gte_units_per_metre,
-            static_cast<double>(tri.q[k].z) / rv_editor_gte_units_per_metre };
         tri.uv[k] = { static_cast<float>(v.uv[0]) / uv_one, static_cast<float>(v.uv[1]) / uv_one };
         tri.color[k] = rgb_unit(v.color);
     }

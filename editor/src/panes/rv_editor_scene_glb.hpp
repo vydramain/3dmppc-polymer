@@ -32,10 +32,6 @@ struct rv_editor_glb_model {
     std::vector<rv_editor_piece> pieces;
 };
 
-// Q20.12 raw units per metre: the exact divisor from an integer scene point to the viewport's double metres;
-// the bridge until the viewport draws integer points.
-inline constexpr double rv_editor_gte_units_per_metre = static_cast<double>(rv_pdklib::gte_one);
-
 // Vertex `vertex` of `model` through `world`, the chain the drawn mesh uses: its Q20.12 point in `q`.
 // RV_ERR_* from rv_gte_vertex when a component leaves int32; `q` is then untouched.
 int rv_editor_glb_vertex_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
@@ -57,7 +53,7 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
     std::string &error);
 
 // The .glb under [models] named `name` as triangles in scene space through `world` (the console's integer
-// chain, Q20.12 in metres after the divide). Each triangle carries its part's colour and its part's picture
+// chain, Q20.12 raw). Each triangle carries its part's colour and its part's picture
 // in memory (cpu_tex). The pictures are freed by the first successful re-read after the file's mtime moved
 // (or when the file is gone), so a cpu_tex is read before the next rv_editor_object_triangles call. A triangle
 // with a vertex outside int32 is not drawn: RV_OK still, with `error` naming the model and the count (a
