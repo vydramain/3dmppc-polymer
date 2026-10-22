@@ -30,8 +30,6 @@ inline constexpr int64_t rv_mppcmod_q16_one = int64_t{ 1 } << rv_mppcmod_q16_bit
 /// Magnitude limit of a float before Q.16: 2^40 m. Its Q.16 takes 56 bits of int64, which leaves
 /// headroom for the rounding add and the shifts after it.
 inline constexpr double rv_mppcmod_q16_limit_metres = 0x1p40;
-/// Fraction bits of a uv: 4.12, so 4096 is the whole texture.
-inline constexpr int rv_mppcmod_uv_bits = 12;
 
 namespace detail
 {

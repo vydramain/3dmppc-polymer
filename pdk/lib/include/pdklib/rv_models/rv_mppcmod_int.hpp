@@ -43,6 +43,9 @@ inline constexpr int rv_mppcmod_int_reserved_bytes = 3;
 /// Largest vertex shift: 12 gives 1/4096 m steps over the int16 range of +-8 m.
 inline constexpr uint8_t rv_mppcmod_int_max_shift = 12;
 
+/// Fraction bits of a uv: 4.12, so 4096 is the whole texture.
+inline constexpr int rv_mppcmod_uv_bits = 12;
+
 /// Offsets inside one vertex record.
 enum rv_mppcmod_int_vertex_offset : int {
     RV_MPPCMOD_INT_VERT_OFF_POS = 0,    ///< 3 x int16

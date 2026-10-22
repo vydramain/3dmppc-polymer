@@ -2,6 +2,7 @@
 // resident through the TEXTURE path, and the whole model uploaded to the
 // geometry controller. Kept out of rv_pccd_fs.cpp, which is at its size limit.
 #include <cmath>
+#include <cstdint>
 #include <new>
 #include <utility>
 #include <string>
@@ -20,7 +21,7 @@ namespace rv_3dmppc
 namespace
 {
 // 4.12 uv fixed point: 4096 is the whole texture.
-constexpr float RV_PCCD_MODEL_UV_ONE = 4096.0f;
+constexpr float RV_PCCD_MODEL_UV_ONE = static_cast<float>(int64_t{ 1 } << rv_pdklib::rv_mppcmod_uv_bits);
 
 // Integer model -> float model, the input of the float renderer. This is the transition step: it goes
 // away when the renderer takes the integer layout. Position is v / 2^shift and uv is u / 4096; both
