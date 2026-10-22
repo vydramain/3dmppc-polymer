@@ -14,6 +14,7 @@
 
 #include "pdk/rv_err.h"
 #include "panes/rv_editor_walk.hpp"
+#include "pdklib/rv_models/rv_mppcmod_quant.hpp"
 #include "scene/rv_editor_model_stage.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_icons.hpp"
@@ -183,6 +184,24 @@ int rv_editor_glb_find_pending(const rv_editor_project &project,
     return RV_OK;
 }
 
+// The reader's Q.16 model as the float model of the renderers: quantized as the baker does, then viewed as float.
+// A refusal names the file, as a read failure does.
+int rv_editor_glb_to_float(const std::string &path,
+    const rv_pdklib::rv_mppcmod_q16_model &q16,
+    rv_pdklib::rv_mppcmod &out,
+    std::string &error)
+{
+    rv_pdklib::rv_mppcmod_int_model quantized;
+    std::string reason;
+    const int rc = rv_pdklib::rv_mppcmod_quantize(q16, quantized, reason);
+    if (rc != RV_OK) {
+        error = "'" + path + "' " + reason;
+        return rc;
+    }
+    out = rv_pdklib::rv_mppcmod_int_to_float(quantized);
+    return RV_OK;
+}
+
 } // namespace
 
 int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const rv_editor_glb_model> &out, std::string &error)
@@ -209,7 +228,11 @@ int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const 
         entry.mtime = mtime;
         auto model = std::make_shared<rv_editor_glb_model>();
         const std::string stem = path.stem().string();
-        entry.rc = rv_pdklib::rv_mppcmod_read_gltf(key, stem, model->model, model->images, entry.error);
+        rv_pdklib::rv_mppcmod_q16_model q16;
+        entry.rc = rv_pdklib::rv_mppcmod_read_gltf(key, stem, q16, model->images, entry.error);
+        if (entry.rc == RV_OK) {
+            entry.rc = rv_editor_glb_to_float(key, q16, model->model, entry.error);
+        }
         if (entry.rc == RV_OK) {
             entry.rc = rv_pdklib::rv_mppcmod_validate(model->model, entry.error);
         }

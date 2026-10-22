@@ -29,12 +29,4 @@ int rv_mppcmod_read_gltf(const std::string &path,
     std::vector<rv_mppcmod_gltf_image> &images,
     std::string &error);
 
-// TRANSITIONAL: the float model for the editor. Same reading; positions and uvs divided by 2^16.
-// Goes away with its last caller.
-int rv_mppcmod_read_gltf(const std::string &path,
-    const std::string &stem,
-    rv_mppcmod &model,
-    std::vector<rv_mppcmod_gltf_image> &images,
-    std::string &error);
-
 } // namespace rv_pdklib

@@ -465,36 +465,4 @@ int rv_mppcmod_read_gltf(const std::string &path,
     return RV_OK;
 }
 
-// TRANSITIONAL: the editor's float caller. Reads the Q.16 model, then divides each position and uv by 2^16.
-// Goes away with its last caller.
-int rv_mppcmod_read_gltf(const std::string &path,
-    const std::string &stem,
-    rv_mppcmod &model,
-    std::vector<rv_mppcmod_gltf_image> &images,
-    std::string &error)
-{
-    rv_mppcmod_q16_model q16;
-    const int rc = rv_mppcmod_read_gltf(path, stem, q16, images, error);
-    if (rc != RV_OK) {
-        return rc;
-    }
-    model = rv_mppcmod{};
-    model.parts = q16.parts;
-    model.triangles = q16.triangles;
-    model.vertices.resize(q16.vertices.size());
-    const float one = static_cast<float>(rv_mppcmod_q16_one);
-    for (size_t v = 0; v < q16.vertices.size(); ++v) {
-        const rv_mppcmod_q16_vertex &src = q16.vertices[v];
-        rv_mppcmod_vertex &dst = model.vertices[v];
-        for (size_t k = 0; k < dst.pos.size(); ++k) {
-            dst.pos[k] = static_cast<float>(src.pos[k]) / one;
-        }
-        for (size_t k = 0; k < dst.uv.size(); ++k) {
-            dst.uv[k] = static_cast<float>(src.uv[k]) / one;
-        }
-        dst.color = src.color;
-    }
-    return RV_OK;
-}
-
 } // namespace rv_pdklib
