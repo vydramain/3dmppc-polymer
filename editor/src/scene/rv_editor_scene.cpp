@@ -161,7 +161,7 @@ rv_editor_scene rv_editor_scene_make(const std::filesystem::path &path)
     rv_editor_object_set_rotation_fx(camera, rv_pdklib::fx_vec3{ initial_camera_rot_x, 0, 0 });
     rv_editor_object_set_kind(camera, std::string(kind_camera));
     s.objects.push_back(camera);
-    // No model yet: an entity without one is shown as a box (plan 4.7, E10f).
+    // No model yet: an empty entity (its name only), drawn as a group.
     rv_editor_scene_object box;
     box.id = rv_editor_scene_new_id(s);
     rv_editor_object_set_name(box, std::string(default_mesh_name));
