@@ -237,8 +237,8 @@ inline int rv_scene_component_read(const std::string &origin,
 
 inline int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error)
 {
-    rv_manifest_tree tree;
-    if (rv_manifest_read_tree(text, origin, tree, error) != 0) {
+    rv_pdklib::rv_manifest_tree tree;
+    if (rv_pdklib::rv_manifest_read_tree(text, origin, tree, error) != 0) {
         return 1;
     }
     rv_scene out;
@@ -247,11 +247,11 @@ inline int rv_scene_parse(const std::string &text, const std::string &origin, rv
     std::vector<std::pair<std::string, int>> parents; // each object's parent id and line
     std::map<std::string, int32_t> index;
     std::vector<detail::rv_scene_component_ref> components;
-    for (const rv_manifest_tree_section &section : tree.sections) {
+    for (const rv_pdklib::rv_manifest_tree_section &section : tree.sections) {
         if (section.name == "scene" && !section.array) {
-            for (const rv_manifest_tree_entry &e : section.entries) {
-                const bool version_key = (e.key == "version" && e.value.kind == rv_manifest_value_kind::string) ||
-                    (e.key == "format" && e.value.kind == rv_manifest_value_kind::integer);
+            for (const rv_pdklib::rv_manifest_tree_entry &e : section.entries) {
+                const bool version_key = (e.key == "version" && e.value.kind == rv_pdklib::rv_manifest_value_kind::string) ||
+                    (e.key == "format" && e.value.kind == rv_pdklib::rv_manifest_value_kind::integer);
                 if (!version_key) {
                     out.scene_extra.push_back(e);
                 }
@@ -271,8 +271,8 @@ inline int rv_scene_parse(const std::string &text, const std::string &origin, rv
         }
         rv_scene_object o;
         std::string parent;
-        for (const rv_manifest_tree_entry &e : section.entries) {
-            const bool text_value = e.value.kind == rv_manifest_value_kind::string;
+        for (const rv_pdklib::rv_manifest_tree_entry &e : section.entries) {
+            const bool text_value = e.value.kind == rv_pdklib::rv_manifest_value_kind::string;
             std::string *field = e.key == "id" ? &o.id :
                 e.key == "name"                ? &o.name :
                 e.key == "kind"                ? &o.kind :
@@ -281,10 +281,10 @@ inline int rv_scene_parse(const std::string &text, const std::string &origin, rv
                 e.key == "texture"             ? &o.texture :
                 e.key == "parent"              ? &parent :
                                                  nullptr;
-            fx_vec3 *vec = e.key == "position" ? &o.position :
-                e.key == "rotation"            ? &o.rotation :
-                e.key == "scale"               ? &o.scale :
-                                                 nullptr;
+            rv_pdklib::fx_vec3 *vec = e.key == "position" ? &o.position :
+                e.key == "rotation"                       ? &o.rotation :
+                e.key == "scale"                          ? &o.scale :
+                                                            nullptr;
             if (field != nullptr && text_value) {
                 *field = e.value.str;
             } else if (field != nullptr) {
@@ -387,35 +387,36 @@ inline int rv_scene_parse(const std::string &text, const std::string &origin, rv
     return 0;
 }
 
-inline rv_mat4 rv_scene_local(const rv_scene_object &o)
+inline rv_pdklib::rv_mat4 rv_scene_local(const rv_scene_object &o)
 {
-    return rv_scene_local_trs(o.position, o.rotation, o.scale);
+    return rv_pdklib::rv_scene_local_trs(o.position, o.rotation, o.scale);
 }
 
-inline rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index)
+inline rv_pdklib::rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index)
 {
-    rv_mat4 m = rv_scene_local(scene.objects[index]);
+    rv_pdklib::rv_mat4 m = rv_scene_local(scene.objects[index]);
     size_t steps = 0;
     for (int32_t p = scene.objects[index].parent; p >= 0 && steps < scene.objects.size(); ++steps) {
-        m = rv_mat4_mul(rv_scene_local(scene.objects[static_cast<size_t>(p)]), m);
+        m = rv_pdklib::rv_mat4_mul(rv_scene_local(scene.objects[static_cast<size_t>(p)]), m);
         p = scene.objects[static_cast<size_t>(p)].parent;
     }
     return m;
 }
 
-inline void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_vec3 out[detail::rv_scene_quad_corners_count])
+inline void
+rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_pdklib::rv_vec3 out[detail::rv_scene_quad_corners_count])
 {
-    const rv_mat4 world = rv_scene_world(scene, index);
+    const rv_pdklib::rv_mat4 world = rv_scene_world(scene, index);
     // Local unit square, +y up, front face towards +z: top-left, top-right,
     // bottom-left, bottom-right -- the PDK's quad Z order.
-    const rv_vec3 local[detail::rv_scene_quad_corners_count] = {
+    const rv_pdklib::rv_vec3 local[detail::rv_scene_quad_corners_count] = {
         { -0.5f, 0.5f, 0.0f },
         { 0.5f, 0.5f, 0.0f },
         { -0.5f, -0.5f, 0.0f },
         { 0.5f, -0.5f, 0.0f },
     };
     for (int i = 0; i < detail::rv_scene_quad_corners_count; ++i) {
-        out[i] = rv_mat4_mul_point(world, local[i]);
+        out[i] = rv_pdklib::rv_mat4_mul_point(world, local[i]);
     }
 }
 
