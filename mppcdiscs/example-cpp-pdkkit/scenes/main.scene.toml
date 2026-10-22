@@ -75,6 +75,7 @@ text = "house"
 [[component]]
 object = "5ce00004"
 name = "transform"
+position = [2.1, 0, 0]
 
 [[component]]
 object = "5ce00004"
@@ -93,7 +94,7 @@ text = "apartment"
 [[component]]
 object = "5ce00005"
 name = "transform"
-position = [0, 0.2375, -1.5938]
+position = [2.1853, 0.2375, -1.5938]
 
 [[component]]
 object = "5ce00005"
@@ -208,7 +209,7 @@ text = "furniture"
 [[component]]
 object = "5ce0000c"
 name = "transform"
-position = [0, 0.2375, -1.5938]
+position = [2, 0.2375, -1.5938]
 
 [[component]]
 object = "5ce0000c"
@@ -391,7 +392,7 @@ text = "cam_07"
 [[component]]
 object = "5ce10007"
 name = "transform"
-position = [24, 4, 0]
+position = [22.4949, 2.7053, 0]
 rotation = [-3, 90, 0]
 
 [[component]]
@@ -429,7 +430,7 @@ text = "cam_09"
 [[component]]
 object = "5ce10009"
 name = "transform"
-position = [33, 7.6875, -1.5938]
+position = [34.0496, 7.6875, -1.7258]
 rotation = [0, 90, 0]
 
 [[component]]
@@ -448,7 +449,7 @@ text = "cam_10"
 [[component]]
 object = "5ce1000a"
 name = "transform"
-position = [35.3, 7.6375, -1.5938]
+position = [36.674, 7.6375, -1.5938]
 rotation = [5, 90, 0]
 
 [[component]]
@@ -467,8 +468,8 @@ text = "cam_11"
 [[component]]
 object = "5ce1000b"
 name = "transform"
-position = [36.6, 7.6375, -1.0938]
-rotation = [10, 180, 0]
+position = [38.3525, 7.6375, -2.4927]
+rotation = [10, 0, 0]
 
 [[component]]
 object = "5ce1000b"
@@ -486,7 +487,7 @@ text = "cam_12"
 [[component]]
 object = "5ce1000c"
 name = "transform"
-position = [35, 7.6875, -1.5938]
+position = [39.569, 7.6875, -1.5938]
 rotation = [0, -90, 0]
 
 [[component]]
@@ -505,7 +506,7 @@ text = "cam_13"
 [[component]]
 object = "5ce1000d"
 name = "transform"
-position = [32.5, 7.4375, -1.5938]
+position = [35.3457, 7.4375, -1.5938]
 rotation = [3, -90, 0]
 
 [[component]]
