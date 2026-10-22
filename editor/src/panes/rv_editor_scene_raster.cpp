@@ -11,6 +11,7 @@
 #include "panes/rv_editor_scene_draw.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -30,6 +31,7 @@
 #include "pdklib/rv_gte/rv_gte_matrix.hpp"
 #include "pdklib/rv_gte/rv_gte_project.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
 #include "panes/rv_editor_scene_glb.hpp"
 #include "panes/rv_editor_zbuf.hpp"
 #include "scene/rv_editor_scene.hpp"
@@ -42,30 +44,61 @@ namespace rv_editor
 namespace
 {
 
-// Minimum shade value for unlit triangle surfaces.
-constexpr float min_shade_value = 0.15f;
 // Maximum value for sRGB colour channel normalization.
 constexpr float color_channel_max = 255.0f;
-// Normalization threshold: minimum vector length before clamping to zero.
-constexpr double normalize_epsilon = 1e-12;
 // Bytes per pixel of the picture: RGBA8, as the z-buffer and the SDL texture both are.
 constexpr int rgba_channels = 4;
-// The shade as a raw 0..255 factor, converted once where it is computed; E12c makes it integer from the normal.
+// The shade as a raw 0..255 factor; rv_editor_shade_raw computes it as an integer from the normal.
 constexpr int RV_EDITOR_SHADE_SCALE = 255;
+// The lowest shade, raw: 0.15 * 255 = 38.25, rounded half up to 38.
+constexpr int RV_EDITOR_SHADE_MIN_RAW = 38;
+// Shift bounds: edge components below 2^20 (cross product below 2^41); normal below 2^30 (squares sum below 2^62).
+constexpr int RV_EDITOR_SHADE_EDGE_BITS = 20;
+constexpr int RV_EDITOR_SHADE_NORMAL_BITS = 30;
 // A colour channel as a raw 0..255 factor (u8 at the source). The vertex colour is four such factors, so its
 // divisor is 255 cubed; the console's scale_channel divides three factors by 255 squared.
 constexpr int64_t RV_EDITOR_COLOUR_SCALE = 255;
 constexpr int64_t RV_EDITOR_COLOUR_DIVISOR = RV_EDITOR_COLOUR_SCALE * RV_EDITOR_COLOUR_SCALE * RV_EDITOR_COLOUR_SCALE;
 
-vec3 cross(const vec3 &a, const vec3 &b)
+// The floor shift that brings `largest` down to `bits` bits; one shift for a whole set of components.
+int shift_for(int64_t largest, int bits)
 {
-    return { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
+    return std::max(0, static_cast<int>(std::bit_width(static_cast<uint64_t>(largest))) - bits);
 }
 
-vec3 norm(const vec3 &a)
+// The triangle's shade, raw 0..255: |n . forward| / |n|, rounded half up, not below RV_EDITOR_SHADE_MIN_RAW. No q:
+// the lowest shade. A zero normal is zero area, which the z-buffer draws nothing for.
+int rv_editor_shade_raw(const rv_editor_tri &tri, const rv_editor_view &v)
 {
-    const double l = std::sqrt(dot(a, a));
-    return l > normalize_epsilon ? mul(a, 1.0 / l) : a;
+    if (!tri.q_valid) {
+        return RV_EDITOR_SHADE_MIN_RAW;
+    }
+    // Edges are Q20.12 differences, up to 2^32 per component. Each edge has its own shift: the cross product then
+    // scales by a positive 2^-(s1+s2), which leaves its direction, |n| and the n.f ratio unchanged except for truncation.
+    const rv_pdklib::fx_vec3 &p0 = tri.q[0];
+    int64_t e1[3] = { int64_t{ tri.q[1].x } - p0.x, int64_t{ tri.q[1].y } - p0.y, int64_t{ tri.q[1].z } - p0.z };
+    int64_t e2[3] = { int64_t{ tri.q[2].x } - p0.x, int64_t{ tri.q[2].y } - p0.y, int64_t{ tri.q[2].z } - p0.z };
+    const int s1 = shift_for(std::max({ std::abs(e1[0]), std::abs(e1[1]), std::abs(e1[2]) }), RV_EDITOR_SHADE_EDGE_BITS);
+    const int s2 = shift_for(std::max({ std::abs(e2[0]), std::abs(e2[1]), std::abs(e2[2]) }), RV_EDITOR_SHADE_EDGE_BITS);
+    for (int k = 0; k < 3; ++k) {
+        e1[k] >>= s1;
+        e2[k] >>= s2;
+    }
+    int64_t n[3] = { e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0] };
+    const int64_t largest = std::max({ std::abs(n[0]), std::abs(n[1]), std::abs(n[2]) });
+    const int normal_shift = shift_for(largest, RV_EDITOR_SHADE_NORMAL_BITS);
+    int64_t length_sq = 0;
+    for (int k = 0; k < 3; ++k) {
+        n[k] >>= normal_shift;
+        length_sq += n[k] * n[k];
+    }
+    const uint64_t length = rv_pdklib::fx_isqrt(static_cast<uint64_t>(length_sq));
+    // The view's forward axis: the third row of the 4.12 view matrix. A zero normal gives dot 0, the lowest shade.
+    const std::int16_t *forward = &v.camera.view.r[6];
+    const int64_t dot = n[0] * forward[0] + n[1] * forward[1] + n[2] * forward[2];
+    const int64_t den = std::max<int64_t>(static_cast<int64_t>(length), 1) * rv_pdklib::fx_one;
+    const int64_t facing = (std::abs(dot) * RV_EDITOR_SHADE_SCALE + den / 2) / den;
+    return static_cast<int>(std::clamp<int64_t>(facing, RV_EDITOR_SHADE_MIN_RAW, RV_EDITOR_SHADE_SCALE));
 }
 
 // The cull mode of an object as pdkkit's rv_ecs_frame.hpp gives it (two_sided -> none, else back, near line 113),
@@ -440,12 +473,8 @@ void rv_editor_draw_filled(ImDrawList *dl,
         st.tint = { tint[0] / color_channel_max, tint[1] / color_channel_max, tint[2] / color_channel_max, 1.0f };
         const std::vector<rv_editor_tri> tris = rv_editor_object_triangles(scene, project, static_cast<int>(i));
         for (const rv_editor_tri &tri : tris) {
-            // Shade by the source triangle's normal; its cut pieces share it.
-            const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
-            const double facing = std::abs(dot(n, mul(v.forward, -1.0)));
-            // The shade's boundary: float until E12c, converted once to raw 0..255 here, clamped so the byte cannot wrap.
-            const long shade_raw = std::lround(std::max(static_cast<double>(min_shade_value), facing) * RV_EDITOR_SHADE_SCALE);
-            st.shade = static_cast<int>(std::min<long>(shade_raw, RV_EDITOR_SHADE_SCALE));
+            // Shade by the source triangle's normal, from its Q20.12 corners; its cut pieces share it.
+            st.shade = rv_editor_shade_raw(tri, v);
             // A part's own picture wins. A .glb part without one stays flat, as in the console; other meshes keep the object's.
             const rv_editor_cpu_image *piece_tex = tri.cpu_tex != nullptr ? tri.cpu_tex : (tri.from_model ? nullptr : tex);
             st.texture = textured ? piece_tex : nullptr;
