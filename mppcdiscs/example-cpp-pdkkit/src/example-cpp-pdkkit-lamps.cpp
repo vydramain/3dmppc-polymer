@@ -160,8 +160,12 @@ int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_fram
         });
     for (const lamp_state &state : states) {
         if (state.burns) {
-            // NOENT: the lamp has no hidden mark, so it is shown already.
-            rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, state.id);
+            // NOENT: the entity is live (collected above) and has no hidden mark.
+            const int shown_code = rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, state.id);
+            const bool none = shown_code == RV_ERR_NOENT;
+            if (shown_code != RV_OK && !none) {
+                return shown_code;
+            }
         } else {
             rv_pdkkit::ecs_component_hidden *hidden = nullptr;
             const int hidden_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, state.id, hidden);

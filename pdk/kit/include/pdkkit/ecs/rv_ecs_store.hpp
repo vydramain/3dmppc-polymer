@@ -2,6 +2,7 @@
 
 // Component storage of the scene ECS: one sparse set per component type, held by the world.
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -43,6 +44,8 @@ template <typename T>
 struct ecs_pool final : ecs_pool_base {
     // drop() assigns values mid-update; a throwing move would leave the pool half-changed.
     static_assert(std::is_nothrow_move_assignable_v<T>, "component type needs a nothrow move assignment");
+    // A reserve moves the existing values into a new buffer; a throwing move would break insert's strong guarantee.
+    static_assert(std::is_nothrow_move_constructible_v<T>, "component type needs a nothrow move constructor");
 
     std::vector<ecs_id> ids;      // dense: the holder of each value
     std::vector<T> values;        // dense: component values, parallel to ids
@@ -67,21 +70,31 @@ struct ecs_pool final : ecs_pool_base {
         return pos == ecs_absent ? nullptr : &values[pos];
     }
 
-    // Preconditions: id holds no T yet and is alive.
+    // Preconditions: id holds no T yet and is alive. A throw (bad_alloc or T's constructor) leaves the pool unchanged:
+    // every allocation runs before the sizes change.
     template <typename... Args>
     void insert(ecs_id id, Args &&...args)
     {
-        if (id.index >= sparse.size()) {
-            sparse.resize(id.index + 1, ecs_absent);
-        }
-        // Reserve both arrays before any push, so a failed allocation leaves the pool unchanged.
+        // Each array reserves against its own capacity, so a failed second reserve may leave the capacities apart;
+        // the next insert reserves each array that is full.
         if (ids.size() == ids.capacity()) {
             const std::size_t grown = ids.capacity() == 0 ? ecs_pool_first_capacity : ecs_pool_growth_factor * ids.capacity();
             ids.reserve(grown);
+        }
+        if (values.size() == values.capacity()) {
+            const std::size_t grown =
+                values.capacity() == 0 ? ecs_pool_first_capacity : ecs_pool_growth_factor * values.capacity();
             values.reserve(grown);
+        }
+        // Capacity before the emplace, so the resize below cannot allocate.
+        if (id.index >= sparse.capacity()) {
+            sparse.reserve(std::max<std::size_t>(id.index + 1, ecs_pool_growth_factor * sparse.capacity()));
         }
         const uint32_t pos = static_cast<uint32_t>(ids.size());
         values.emplace_back(std::forward<Args>(args)...);
+        if (id.index >= sparse.size()) {
+            sparse.resize(id.index + 1, ecs_absent);
+        }
         ids.push_back(id);
         sparse[id.index] = pos;
     }
@@ -119,50 +132,58 @@ ecs_pool<T> *ecs_pool_find(ecs_world &world)
     return present ? static_cast<ecs_pool<T> *>(world.pools[number].get()) : nullptr;
 }
 
-// Pool of T in the world, created on first use.
+// Installs a new pool of T. Precondition: the world has no pool of T yet (ecs_component_add checks it first).
 template <typename T>
-ecs_pool<T> &ecs_pool_ensure(ecs_world &world)
+void ecs_pool_install(ecs_world &world, std::unique_ptr<ecs_pool<T>> pool)
 {
     const std::size_t number = ecs_type_number<T>();
     if (number >= world.pools.size()) {
         world.pools.resize(number + 1);
     }
-    std::unique_ptr<ecs_pool_base> &pool = world.pools[number];
-    if (!pool) {
-        pool = std::make_unique<ecs_pool<T>>();
-    }
-    return static_cast<ecs_pool<T> &>(*pool);
+    world.pools[number] = std::move(pool);
 }
 
-// RV_ERR_NOENT for a stale id, RV_ERR_ALREADY when the entity already has a T.
+// RV_ERR_NOENT for a stale id, RV_ERR_ALREADY when the entity already has a T, RV_ERR_NOMEM when the pool cannot grow,
+// RV_ERR_INVAL for another exception (ecs_guard). Nothing is added on failure.
 template <typename T, typename... Args>
-int ecs_component_add(ecs_world &world, ecs_id id, Args &&...args)
+[[nodiscard]] int ecs_component_add(ecs_world &world, ecs_id id, Args &&...args)
 {
-    if (!ecs_entity_alive(world, id)) {
-        return RV_ERR_NOENT;
-    }
-    ecs_pool<T> &pool = ecs_pool_ensure<T>(world);
-    if (pool.find(id) != ecs_absent) {
-        return RV_ERR_ALREADY;
-    }
-    pool.insert(id, std::forward<Args>(args)...);
-    return RV_OK;
+    return ecs_guard([&] {
+        if (!ecs_entity_alive(world, id)) {
+            return RV_ERR_NOENT;
+        }
+        ecs_pool<T> *pool = ecs_pool_find<T>(world);
+        if (pool && pool->find(id) != ecs_absent) {
+            return RV_ERR_ALREADY;
+        }
+        if (!pool) {
+            // The new pool joins the world only after its insert succeeded.
+            std::unique_ptr<ecs_pool<T>> created = std::make_unique<ecs_pool<T>>();
+            created->insert(id, std::forward<Args>(args)...);
+            ecs_pool_install<T>(world, std::move(created));
+            return RV_OK;
+        }
+        pool->insert(id, std::forward<Args>(args)...);
+        return RV_OK;
+    });
 }
 
 // RV_ERR_NOENT for a stale id or an id without a T.
 template <typename T>
-int ecs_component_remove(ecs_world &world, ecs_id id)
+[[nodiscard]] int ecs_component_remove(ecs_world &world, ecs_id id)
 {
-    if (!ecs_entity_alive(world, id)) {
-        return RV_ERR_NOENT;
-    }
-    ecs_pool<T> *pool = ecs_pool_find<T>(world);
-    const bool held = pool && pool->find(id) != ecs_absent;
-    if (!held) {
-        return RV_ERR_NOENT;
-    }
-    pool->drop(id);
-    return RV_OK;
+    return ecs_guard([&] {
+        if (!ecs_entity_alive(world, id)) {
+            return RV_ERR_NOENT;
+        }
+        ecs_pool<T> *pool = ecs_pool_find<T>(world);
+        const bool held = pool && pool->find(id) != ecs_absent;
+        if (!held) {
+            return RV_ERR_NOENT;
+        }
+        pool->drop(id);
+        return RV_OK;
+    });
 }
 
 // Value of T held by id, or nullptr for a stale id or a missing T.
