@@ -8,6 +8,11 @@
 
 #include "scene/rv_editor_scene.hpp"
 
+namespace rv_pdklib
+{
+struct rv_gte_matrix;
+} // namespace rv_pdklib
+
 namespace rv_editor
 {
 
@@ -84,6 +89,9 @@ void rv_editor_scene_set_visible(rv_editor_scene_doc &doc, size_t at, bool visib
 using rv_editor_affine = std::array<std::array<double, 4>, 3>;
 rv_editor_affine rv_editor_scene_local(const rv_editor_scene_object &o);
 rv_editor_affine rv_editor_scene_world(const rv_editor_scene &scene, int index);
+// Integer twins of the two above, in Q20.12 and 4.12. RV_OK, or RV_ERR_INVAL with the reason logged; out is then untouched.
+int rv_editor_scene_local_gte(const rv_editor_scene_object &o, rv_pdklib::rv_gte_matrix &out);
+int rv_editor_scene_world_gte(const rv_editor_scene &scene, int index, rv_pdklib::rv_gte_matrix &out);
 rv_editor_affine rv_editor_affine_mul(const rv_editor_affine &a, const rv_editor_affine &b);
 std::array<double, 3> rv_editor_affine_point(const rv_editor_affine &a, const std::array<double, 3> &p);
 // A direction in `a`'s outer space brought into its inner one (`a` inverted, no translation).
