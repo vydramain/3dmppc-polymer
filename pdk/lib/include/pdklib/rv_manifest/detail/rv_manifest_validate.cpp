@@ -64,10 +64,8 @@ static int validate_disc_id(const rv_manifest &manifest, std::string &error)
 
 // The rest of what a disc cannot be built without. Sections with a reference
 // value may be left unsaid; these two have none, because no answer the tool
-// could invent would be the author's. [assets] and [textures] are not here: a
-// disc may carry no assets or textures at all, like [sounds]. The [textures]
-// format is the exception: it has no reference value, so validate_texture_format
-// requires it when [textures] lists files or [models] lists models.
+// could invent would be the author's. [assets] is not here: a disc may carry
+// no assets at all.
 static int validate_required_sections(const rv_manifest &manifest, std::string &error)
 {
     if (manifest.disc_title.empty()) {
@@ -133,29 +131,6 @@ static std::string texfmt_spellings()
         known += row.text;
     }
     return known;
-}
-
-// By the time a manifest reaches here the binder has already turned the
-// spelling into an enumerator, and an unknown spelling left the field at its
-// value-initialised zero. So this catches both a typo and a missing `format`
-// line - but it can no longer quote what the author actually typed, because
-// that string does not survive binding.
-static int validate_texture_format(const rv_manifest &manifest, std::string &error)
-{
-    // Nothing is baked without textures or models, so no format is asked for. Models bake through the
-    // [textures] format too, so a models-only disc is checked as well: without one, they are refused.
-    if (manifest.textures_files.files.empty() && manifest.models_files.empty()) {
-        return RV_OK;
-    }
-    if (rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format) != nullptr) {
-        return RV_OK;
-    }
-    // Without files the format is asked for by the models alone, so the reason says so.
-    const bool models_only = manifest.textures_files.files.empty();
-    const std::string reason = models_only ? "[textures] format is required by [models] - files may stay empty" :
-                                             "[textures] format is missing or unknown";
-    error = std::format("{} - expected one of {}", reason, texfmt_spellings());
-    return RV_ERR_INVAL;
 }
 
 // [assets.texture] format is optional and defaults to idx8, so only a spelling the binder could not
@@ -279,11 +254,6 @@ int rv_manifest_validate(const rv_manifest &manifest, std::string &error)
     }
 
     code = validate_sdk_names(manifest, error);
-    if (code != RV_OK) {
-        return code;
-    }
-
-    code = validate_texture_format(manifest, error);
     if (code != RV_OK) {
         return code;
     }

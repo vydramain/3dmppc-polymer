@@ -135,11 +135,9 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     std::ostringstream out;
 
     // Every key of a present section is written, including empty arrays and zero
-    // counts; the optional sections ([textures], [sounds], [models]) are left off
-    // when they carry nothing. This is the copy that goes
-    // ONTO THE DISC, and there it has to say what the burner actually used
-    // rather than leaning on a default a later version of the tool might
-    // change.
+    // counts. This is the copy that goes ONTO THE DISC, and there it has to say
+    // what the burner actually used rather than leaning on a default a later
+    // version of the tool might change.
     //
     // That is exactly why the manifest an author WRITES may be four sections
     // long: what it leaves out is filled from the reference machine while it is
@@ -165,35 +163,11 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     render_array(out, "files", manifest.assets_files);
 
     // Always written, although its default is idx8: the copy on the disc names the format the burner baked
-    // textures and model pictures in. Same fallback as [textures] below.
+    // textures and model pictures in. An unknown format renders as "": parse reads it back as the unknown-spelling
+    // marker, and rv_manifest_validate rejects it - the burner validates before it renders.
     const rv_pdklib::rv_texfmt_name *assets_texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.assets_texture_format);
     out << "\n[assets.texture]\n";
     out << "format = " << quote(assets_texfmt != nullptr ? assets_texfmt->text : "") << "\n";
-
-    // Once bound, the format is an enumerator. The empty string is what an unknown or absent format renders as:
-    // parse reads it back as the no-format marker, and rv_manifest_validate rejects it - the burner validates before it
-    // renders.
-    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
-
-    // [textures] is optional: no images and no format is a disc without textures, so the section is left off.
-    if (!manifest.textures_files.files.empty() || texfmt != nullptr) {
-        out << "\n[textures]\n";
-        render_array(out, "files", manifest.textures_files.files);
-        out << "format = " << quote(texfmt != nullptr ? texfmt->text : "") << "\n";
-    }
-
-    // [sounds] is optional, like [textures]: a disc with no sound assets
-    // states nothing and the section is left off the rendered copy entirely.
-    if (!manifest.sounds_files.empty()) {
-        out << "\n[sounds]\n";
-        render_array(out, "files", manifest.sounds_files);
-    }
-
-    // Optional like [sounds]: no models, no section.
-    if (!manifest.models_files.empty()) {
-        out << "\n[models]\n";
-        render_array(out, "files", manifest.models_files);
-    }
 
     const rv_manifest_budget &budget = manifest.budget;
 
