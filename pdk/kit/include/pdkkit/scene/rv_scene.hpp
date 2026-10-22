@@ -19,10 +19,11 @@ namespace rv_pdkkit
 // scene never calls it.
 //
 // [scene] carries version = "M.m", the PDK version the file was written
-// against; a file is read when rv_version_compatible(major, minor) holds
-// (rv_version.hpp). A file with no `version` but the old `format = 1` header
-// is read as version 0.0, the pre-version header kept compatible only while
-// the PDK major is 0.
+// against. Under refuse (the default, what the game uses) a file is read only
+// when rv_version_compatible(major, minor) holds (rv_version.hpp); under keep
+// an incompatible version is stored and the caller judges it. A file with no
+// `version` but the old `format = 1` header is read as version 0.0 under keep
+// whatever the PDK major; under refuse, only while the PDK major is 0.
 
 struct rv_scene_object {
     std::string id; // stable: the editor gives it and never changes it
@@ -58,8 +59,17 @@ struct rv_scene {
     std::vector<rv_pdklib::rv_manifest_tree_section> other_sections; // sections other than [scene] and [[object]]
 };
 
+// What rv_scene_parse does with a [scene] version rv_version_compatible refuses: `refuse` reports
+// it as a problem, `keep` stores it in the scene and the caller checks it. A file with neither
+// version nor format, or with a malformed version, is refused under both; under keep, a format = 1
+// file is read as 0.0.
+enum class rv_scene_version_policy {
+    refuse,
+    keep,
+};
+
 // 0 with the scene, or 1 with every problem in `error`, each stamped with
-// `origin`: syntax, a missing/malformed/non-compatible version, a missing or
+// `origin`: syntax, a missing/malformed/non-compatible version (under `refuse`), a missing or
 // repeated id, an unknown parent, a parent cycle, an unknown or missing kind on a form-1 object, a vector
 // that is not three numbers, a malformed `uv`/`tint`/`tess`, a number outside Q20.12,
 // a non-string `entity`,
@@ -67,7 +77,11 @@ struct rv_scene {
 // or a name repeated on one object. Unknown keys are kept
 // in `extra`/`scene_extra` and unknown sections in `other_sections`, each list in file
 // order. A `format` integer is not kept: a write-back writes `version` only, as the editor does.
-inline int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error);
+inline int rv_scene_parse(const std::string &text,
+    const std::string &origin,
+    rv_scene &scene,
+    std::string &error,
+    rv_scene_version_policy policy = rv_scene_version_policy::refuse);
 
 // Writes `scene` back in the dialect rv_scene_parse reads, the inverse of it. A parent index
 // outside objects is written as a root, a component on such an index is not written.
