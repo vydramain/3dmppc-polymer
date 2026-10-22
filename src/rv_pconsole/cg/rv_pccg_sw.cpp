@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 #include <string>
 #include <vector>
 
@@ -102,6 +103,62 @@ bool textures_per_part(const rv_pdklib::rv_mppcmod_int_model &model, std::span<c
     return textures.size() == model.parts.size();
 }
 
+// rv_cg_camera holds the field of view in radians; rv_gte_camera_make takes degrees.
+constexpr double RV_PCCG_SW_DEGREES_PER_RADIAN = 180.0 / std::numbers::pi;
+
+// The integer camera of the frame. transitional until E11e-2: rv_cg.h is float, so the conversion
+// to Q20.12 happens here, once per frame. Error: a value leaves Q20.12, the depth span is above
+// gte_key_span_max, or rv_gte_camera_make refuses the camera; out is untouched.
+int gte_camera_make(const rv_cg_camera &camera, int32_t screen_height, rv_pdklib::rv_gte_camera &out)
+{
+    rv_pdklib::fx_vec3 eye = {};
+    if (rv_pccg_sw_fx_vec3(camera.eye, eye) != RV_OK) {
+        RV_LOG_WARN("pccg", "camera refused: eye leaves Q20.12");
+        return RV_ERR_INVAL;
+    }
+    rv_pdklib::fx_vec3 target = {};
+    if (rv_pccg_sw_fx_vec3(camera.target, target) != RV_OK) {
+        RV_LOG_WARN("pccg", "camera refused: target leaves Q20.12");
+        return RV_ERR_INVAL;
+    }
+    rv_pdklib::fx_vec3 up = {};
+    if (rv_pccg_sw_fx_vec3(camera.up, up) != RV_OK) {
+        RV_LOG_WARN("pccg", "camera refused: up leaves Q20.12");
+        return RV_ERR_INVAL;
+    }
+    rv_pdklib::fx fov = 0;
+    if (rv_pdklib::fx_from_double(static_cast<double>(camera.fov_y) * RV_PCCG_SW_DEGREES_PER_RADIAN, fov) != RV_OK) {
+        RV_LOG_WARN("pccg", "camera refused: fov leaves Q20.12");
+        return RV_ERR_INVAL;
+    }
+    rv_pdklib::fx near_plane = 0;
+    if (rv_pdklib::fx_from_double(camera.near_plane, near_plane) != RV_OK) {
+        RV_LOG_WARN("pccg", "camera refused: near plane leaves Q20.12");
+        return RV_ERR_INVAL;
+    }
+    rv_pdklib::fx far_plane = 0;
+    if (rv_pdklib::fx_from_double(camera.far_plane, far_plane) != RV_OK) {
+        RV_LOG_WARN("pccg", "camera refused: far plane leaves Q20.12");
+        return RV_ERR_INVAL;
+    }
+    // rv_gte_depth_key refuses a span above gte_key_span_max, so every point of such a frame would refuse.
+    const int64_t span = static_cast<int64_t>(far_plane) - near_plane;
+    if (span > rv_pdklib::gte_key_span_max) {
+        RV_LOG_WARN("pccg",
+            "camera refused: far minus near is {} in Q20.12, above the depth key span {}",
+            span,
+            rv_pdklib::gte_key_span_max);
+        return RV_ERR_INVAL;
+    }
+    if (rv_pdklib::rv_gte_camera_make(eye, target, up, fov, screen_height, near_plane, far_plane, out) != RV_OK) {
+        RV_LOG_WARN("pccg",
+            "camera refused: rv_gte_camera_make has no valid camera (fov outside 10 to 180 degrees, planes, "
+            "screen height, eye on target, up along the aim, or h below 1 px)");
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
 } // namespace
 
 int rv_pccg_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error)
@@ -190,7 +247,17 @@ int64_t rv_pccg_sw::frame_camera(const rv_cg_camera *camera)
     if (bad_planes) {
         return RV_ERR_INVAL;
     }
+    int32_t height = 0;
+    if (rv_pccg_sw_screen_side(cv_.screen_height(), height) != RV_OK) {
+        RV_LOG_WARN("pccg", "camera refused: the screen height is outside (0, INT32_MAX]");
+        return RV_ERR_INVAL;
+    }
+    rv_pdklib::rv_gte_camera gte_camera = {};
+    if (gte_camera_make(*camera, height, gte_camera) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
     camera_ = *camera;
+    gte_camera_ = gte_camera;
     camera_set_ = true;
     return RV_OK;
 }

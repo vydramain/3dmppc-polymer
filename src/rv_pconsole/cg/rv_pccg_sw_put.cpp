@@ -2,6 +2,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <span>
 #include <vector>
 
@@ -336,6 +337,64 @@ int64_t rv_pccg_sw::model_put(int64_t model_addr, const rv_cg_put *put)
     return count;
 }
 
+int rv_pccg_sw_fx_vec3(const rv_cg_vec3 &value, rv_pdklib::fx_vec3 &out)
+{
+    rv_pdklib::fx_vec3 v = {};
+    const int rc_x = rv_pdklib::fx_from_double(value.x, v.x);
+    const int rc_y = rv_pdklib::fx_from_double(value.y, v.y);
+    const int rc_z = rv_pdklib::fx_from_double(value.z, v.z);
+    if (rc_x != RV_OK || rc_y != RV_OK || rc_z != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    out = v;
+    return RV_OK;
+}
+
+int rv_pccg_sw_screen_side(int64_t side, int32_t &out)
+{
+    const bool fits = side > 0 && side <= std::numeric_limits<int32_t>::max();
+    if (!fits) {
+        return RV_ERR_INVAL;
+    }
+    out = static_cast<int32_t>(side);
+    return RV_OK;
+}
+
+int rv_pccg_sw_point_int(const rv_pdklib::rv_gte_camera &camera,
+    rv_pdklib::rv_gte_viewport viewport,
+    rv_pdklib::fx_vec3 world,
+    int32_t depth_min,
+    int32_t depth_max,
+    rv_pdklib::rv_gte_screen &screen,
+    int32_t &depth)
+{
+    const int32_t in[3] = { world.x, world.y, world.z };
+    int32_t view_raw[3] = {};
+    int rc = rv_pdklib::rv_gte_point(camera.view, in, view_raw);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    const rv_pdklib::fx_vec3 view = { view_raw[0], view_raw[1], view_raw[2] };
+    if (view.z < camera.near_plane) {
+        return RV_ERR_INVAL;
+    }
+    const rv_pdklib::fx depth_z[1] = { view.z };
+    const rv_pdklib::rv_gte_depth_range range = { camera.near_plane, camera.far_plane, depth_min, depth_max };
+    int32_t key = 0;
+    rc = rv_pdklib::rv_gte_depth_key(depth_z, 1, range, key);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    rv_pdklib::rv_gte_screen point = {};
+    rc = rv_pdklib::rv_gte_project(view, viewport, point);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    screen = point;
+    depth = key;
+    return RV_OK;
+}
+
 int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, int32_t depth_min, int32_t depth_max, rv_cg_screen *out)
 {
     const bool no_point = world == nullptr || out == nullptr;
@@ -353,16 +412,31 @@ int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, int32_t depth_min, int32_t de
         RV_LOG_WARN("pccg", "point refused: depth_min {} is above depth_max {}", depth_min, depth_max);
         return RV_ERR_INVAL;
     }
-    const rv_pdklib::rv_xform_conf conf =
-        frame_conf(rv_pdklib::rv_mat4_identity(), depth_min, depth_max, rv_pdklib::RV_CULL_NONE);
-    rv_pdklib::rv_vec2 screen{};
-    int32_t depth = 0;
-    // A point nearer than the near plane is an ordinary answer: the HUD asks every frame.
-    if (!rv_pdklib::rv_xform_point(conf, to_vec3(*world), screen, depth)) {
+    rv_pdklib::fx_vec3 world_fx = {};
+    const bool world_bad = rv_pccg_sw_fx_vec3(*world, world_fx) != RV_OK;
+    if (world_bad) {
+        RV_LOG_WARN("pccg", "point refused: a world value leaves Q20.12");
         return RV_ERR_INVAL;
     }
-    out->x = screen.x;
-    out->y = screen.y;
+    // transitional until E11e-2: the screen leaves as float, the rv_cg contract
+    int32_t width = 0;
+    int32_t height = 0;
+    const bool width_bad = rv_pccg_sw_screen_side(cv_.screen_width(), width) != RV_OK;
+    const bool height_bad = rv_pccg_sw_screen_side(cv_.screen_height(), height) != RV_OK;
+    if (width_bad || height_bad) {
+        RV_LOG_WARN("pccg", "point refused: the screen side is outside (0, INT32_MAX]");
+        return RV_ERR_INVAL;
+    }
+    // the centre: rv_xform_to_screen maps ndc 0 to half the side
+    const rv_pdklib::rv_gte_viewport viewport = { gte_camera_.h, width / 2, height / 2 };
+    rv_pdklib::rv_gte_screen screen = {};
+    int32_t depth = 0;
+    // A point nearer than the near plane is an ordinary answer: the HUD asks every frame.
+    if (rv_pccg_sw_point_int(gte_camera_, viewport, world_fx, depth_min, depth_max, screen, depth) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    out->x = static_cast<float>(screen.x);
+    out->y = static_cast<float>(screen.y);
     out->depth = depth;
     return RV_OK;
 }

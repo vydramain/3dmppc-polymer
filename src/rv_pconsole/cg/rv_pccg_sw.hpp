@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "pdk/cg/rv_cg.h"
+#include "pdklib/rv_gte/rv_gte_camera.hpp"
 #include "pdklib/rv_models/rv_mppcmod.hpp"
 #include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "rv_pconsole/cg/rv_pccg.hpp"
@@ -26,6 +27,25 @@ struct rv_xform_conf;
 
 namespace rv_3dmppc
 {
+
+// The integer point of rv_pccg_sw::point: view by rv_gte_point, screen by rv_gte_project, depth by
+// rv_gte_depth_key. Free, so a probe runs it without the console. Error: RV_ERR_INVAL for a point nearer
+// than the near plane or a view value that leaves int32; screen and depth are then untouched.
+// frame_camera refuses a camera whose far minus near is above gte_key_span_max, so no point of such a
+// frame gets here.
+int rv_pccg_sw_point_int(const rv_pdklib::rv_gte_camera &camera,
+    rv_pdklib::rv_gte_viewport viewport,
+    rv_pdklib::fx_vec3 world,
+    int32_t depth_min,
+    int32_t depth_max,
+    rv_pdklib::rv_gte_screen &screen,
+    int32_t &depth);
+
+// A float world value to Q20.12. Error: a value leaves fx; out is untouched.
+int rv_pccg_sw_fx_vec3(const rv_cg_vec3 &value, rv_pdklib::fx_vec3 &out);
+
+// A screen side as int32. Error: the side is outside (0, INT32_MAX]; out is untouched.
+int rv_pccg_sw_screen_side(int64_t side, int32_t &out);
 
 class rv_pccg_sw final : public rv_pccg
 {
@@ -86,6 +106,8 @@ private:
     int64_t next_addr_;
 
     rv_cg_camera camera_ = {};
+    // transitional: point reads this integer camera, camera_ stays float for model_put until E11g-2b
+    rv_pdklib::rv_gte_camera gte_camera_ = {};
     bool camera_set_ = false;
     int64_t triangles_ = 0;
 };
