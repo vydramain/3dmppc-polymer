@@ -13,10 +13,12 @@
 #include "pdklib/rv_gte/rv_gte_camera.hpp"
 #include "pdklib/rv_gte/rv_gte_project.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
+#include "panes/rv_editor_zbuf.hpp"
 #include "project/rv_editor_project.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 
 struct SDL_Renderer;
+struct SDL_Texture;
 
 namespace rv_editor
 {
@@ -247,6 +249,24 @@ void rv_editor_draw_filled(ImDrawList *dl,
     ImVec2 origin,
     ImVec2 size,
     bool textured);
+// A viewport's picture: the z-buffer, and the SDL texture its colour is copied to each frame.
+// Kept while the size stays the same; its texture is destroyed by rv_editor_scene_pictures_free.
+struct rv_editor_scene_target {
+    int w = 0;
+    int h = 0;
+    rv_editor_zbuf buf;
+    SDL_Texture *texture = nullptr;
+    // A failure is reported once per viewport, not once per frame.
+    bool reported = false;
+    // Refused triangles are reported once per run of frames with refusals, per viewport.
+    bool refusal_reported = false;
+};
+// The picture of the viewport with this ImGui ID, made empty on first use (rv_editor_scene_picture.cpp).
+rv_editor_scene_target &rv_editor_scene_target_for(ImGuiID id);
+// The failure reason goes to stderr, once per viewport.
+void rv_editor_target_report(rv_editor_scene_target &t, int w, int h, const char *reason);
+// Makes the picture of `t` w x h on `renderer`, replacing the old one when its size changes.
+int rv_editor_target_make(rv_editor_scene_target &t, SDL_Renderer *renderer, int w, int h);
 // Destroys every viewport's picture texture. Call after the last frame and before SDL_DestroyRenderer:
 // a texture is bound to the renderer that made it, and a new renderer may reuse its address.
 void rv_editor_scene_pictures_free();

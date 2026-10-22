@@ -101,62 +101,6 @@ int rv_editor_shade_raw(const rv_editor_tri &tri, const rv_editor_view &v)
     return static_cast<int>(std::clamp<int64_t>(facing, RV_EDITOR_SHADE_MIN_RAW, RV_EDITOR_SHADE_SCALE));
 }
 
-// A viewport's picture: the z-buffer, and the SDL texture its colour is copied to each frame.
-// Kept while the size stays the same; its texture is destroyed by rv_editor_scene_pictures_free.
-struct rv_editor_scene_target {
-    int w = 0;
-    int h = 0;
-    rv_editor_zbuf buf;
-    SDL_Texture *texture = nullptr;
-    // A failure is reported once per viewport, not once per frame.
-    bool reported = false;
-    // Refused triangles are reported once per run of frames with refusals, per viewport.
-    bool refusal_reported = false;
-};
-
-// One picture per Scene viewport, keyed by its ImGui ID. An entry, and its texture, stays until
-// the editor exits: a closed tile's picture is not released (ponytail: release on tile close).
-std::unordered_map<ImGuiID, rv_editor_scene_target> rv_editor_targets;
-
-// The failure reason goes to stderr, once per viewport.
-void rv_editor_target_report(rv_editor_scene_target &t, int w, int h, const char *reason)
-{
-    if (t.reported) {
-        return;
-    }
-    t.reported = true;
-    std::fprintf(stderr, "3dmppc-editor: scene picture %dx%d: %s\n", w, h, reason);
-}
-
-// Makes the picture of `t` w x h on `renderer`, replacing the old one when its size changes.
-int rv_editor_target_make(rv_editor_scene_target &t, SDL_Renderer *renderer, int w, int h)
-{
-    if (t.texture != nullptr && t.w == w && t.h == h) {
-        return RV_OK;
-    }
-    if (t.texture != nullptr) {
-        SDL_DestroyTexture(t.texture);
-    }
-    const bool reported = t.reported;
-    t = {};
-    t.reported = reported;
-    if (rv_editor_zbuf_init(t.buf, w, h) != RV_OK) {
-        rv_editor_target_report(t, w, h, "the z-buffer cannot be sized");
-        return RV_ERR_INVAL;
-    }
-    SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, w, h);
-    if (texture == nullptr) {
-        rv_editor_target_report(t, w, h, SDL_GetError());
-        return RV_ERR_IO;
-    }
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
-    t.w = w;
-    t.h = h;
-    t.texture = texture;
-    return RV_OK;
-}
-
 // An object's texture decoded to memory, kept while its file's mtime stays the same.
 struct rv_editor_texture_cache_entry {
     std::filesystem::file_time_type mtime;
@@ -427,7 +371,7 @@ void rv_editor_draw_filled(ImDrawList *dl,
     const int w = std::max(1, static_cast<int>(std::lround(size.x * fb.x)));
     const int h = std::max(1, static_cast<int>(std::lround(size.y * fb.y)));
     // The picture is keyed by the ImGui ID of the viewport's tile: each Scene tile draws its own.
-    rv_editor_scene_target &t = rv_editor_targets[ImGui::GetID("scene picture")];
+    rv_editor_scene_target &t = rv_editor_scene_target_for(ImGui::GetID("scene picture"));
     if (rv_editor_target_make(t, renderer, w, h) != RV_OK) {
         return; // the reason is reported in rv_editor_target_make
     }
@@ -487,16 +431,6 @@ void rv_editor_draw_filled(ImDrawList *dl,
     SDL_UpdateTexture(t.texture, nullptr, t.buf.colour.data(), w * rgba_channels);
     const ImTextureID id = static_cast<ImTextureID>(reinterpret_cast<intptr_t>(t.texture));
     dl->AddImage(ImTextureRef(id), origin, ImVec2(origin.x + size.x, origin.y + size.y));
-}
-
-void rv_editor_scene_pictures_free()
-{
-    for (auto &entry : rv_editor_targets) {
-        if (entry.second.texture != nullptr) {
-            SDL_DestroyTexture(entry.second.texture);
-        }
-    }
-    rv_editor_targets.clear();
 }
 
 } // namespace rv_editor
