@@ -1,11 +1,10 @@
 -- The demo's music (example-cpp-pdkkit-sound.cpp, music and loop parts): the bars of the area the camera is in play on
 -- voice 1, one bar per second, two slots in turn; the voice's repeat and mark hand it on, and a new area restarts.
 -- A board clack plays on voice 4 when the lit letters change in the workshop. Two loops play on voices 8 and 16
--- while the camera is in the workshop. The footsteps are in example-lua-bare-steps.lua.
+-- while the camera is in the workshop.
 -- The tables live in the entry's `state.sound`; the read buffer of write_slot is the one module local.
 local mathx = require("example-lua-bare-math")
 local board = require("example-lua-bare-board")
-local steps = require("example-lua-bare-steps")
 local M = {}
 
 -- Eye x of the camera in Q20.12 raw (4096 per metre), as scenes/main.scene.toml places the objects: the factory
@@ -431,10 +430,6 @@ function M.init(ca, cd, keys, state)
     for index = 1, #LOOPS do
         sound.loop_armed[index] = false
     end
-    local steps_code = steps.init(keys)
-    if steps_code ~= 0 then
-        return fail(sound, "step table", steps_code)
-    end
     sound.ready = true
     return 0
 end
@@ -447,11 +442,6 @@ function M.update(ca, cd, keys, frame, board_present, state)
     local sound = state.sound
     if not sound.ready then
         return 0
-    end
-    -- Refused, as example-cpp-pdkkit refuses a table not period-sized: the steps would index past its end.
-    local table_of = steps.distance(keys)
-    if #table_of ~= mathx.PERIOD_FRAMES then
-        return fail(sound, "sound tables", ERR_INVAL)
     end
     if frame == sound.frame then
         return 0
@@ -509,16 +499,6 @@ function M.update(ca, cd, keys, frame, board_present, state)
         local clack_code = play_clack(ca, cd, sound)
         if code == 0 and clack_code < 0 then
             code = clack_code
-            asset = sound.error_asset
-        end
-    end
-    -- Only once the frame is committed: a failed music start is retried by the next update call (the same frame
-    -- again while paused), and the step of a committed frame must not repeat.
-    if music_ok then
-        -- local steps_code = steps.update(ca, cd, table_of, frame, area, sound)
-        local steps_code = 0
-        if code == 0 and steps_code < 0 then
-            code = steps_code
             asset = sound.error_asset
         end
     end
