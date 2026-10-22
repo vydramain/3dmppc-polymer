@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <string>
 
 #include "imgui.h"
@@ -323,7 +324,12 @@ void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool
         }
         return;
     }
+    // The edges' bounds stay in Q20.12 until the end, so they match what the viewport draws.
+    std::array<rv_pdklib::fx, space_axes> lo_fx{}, hi_fx{};
+    lo_fx.fill(std::numeric_limits<rv_pdklib::fx>::max());
+    hi_fx.fill(std::numeric_limits<rv_pdklib::fx>::min());
     bool any = false;
+    int dropped = 0;
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         if (!all && doc.scene.objects[i].id != doc.selected) {
             continue;
@@ -331,18 +337,29 @@ void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool
         if (rv_editor_scene_visibility(doc, doc.scene.objects[i]) == rv_editor_visibility::absent) {
             continue;
         }
-        for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i))) {
-            for (const vec3 &p : { a, b }) {
+        int left_out = 0;
+        for (const auto &[a, b] : rv_editor_object_edges_fx(doc.scene, app.project, static_cast<int>(i), left_out)) {
+            for (const rv_pdklib::fx_vec3 &p : { a, b }) {
+                const std::array<rv_pdklib::fx, space_axes> c{ p.x, p.y, p.z };
                 for (size_t k = 0; k < space_axes; ++k) {
-                    lo[k] = std::min(lo[k], p[k]);
-                    hi[k] = std::max(hi[k], p[k]);
+                    lo_fx[k] = std::min(lo_fx[k], c[k]);
+                    hi_fx[k] = std::max(hi_fx[k], c[k]);
                 }
                 any = true;
             }
         }
+        dropped += left_out;
     }
     if (!any) {
+        if (dropped > 0) {
+            RV_LOG_WARN(scene_log_tag, "the frame target is outside Q20.12, so the camera is not moved");
+        }
         return;
+    }
+    // Converted once, exactly (rv_editor_camera_units_of), to the units rv_editor_frame_box takes.
+    for (size_t k = 0; k < space_axes; ++k) {
+        lo[k] = rv_editor_camera_units_of(lo_fx[k]);
+        hi[k] = rv_editor_camera_units_of(hi_fx[k]);
     }
     if (rv_editor_frame_box(cam, lo, hi) != RV_OK) {
         RV_LOG_WARN(scene_log_tag, "the frame is outside Q20.12: the camera is not moved");

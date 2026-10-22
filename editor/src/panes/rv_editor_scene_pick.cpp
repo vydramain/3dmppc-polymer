@@ -1,6 +1,7 @@
 // The Scene viewport's picking: the object under the mouse and the Move gizmo's axis under it.
 
 #include "panes/rv_editor_scene_draw.hpp"
+#include "pdk/rv_err.h"
 
 #include <algorithm>
 #include <cmath>
@@ -37,9 +38,12 @@ std::string rv_editor_pick(const rv_editor_scene_doc &doc, const rv_editor_proje
         if (rv_editor_scene_visibility(doc, scene.objects[i]) == rv_editor_visibility::absent) {
             continue;
         }
-        for (const auto &[a, b] : rv_editor_object_edges(scene, project, static_cast<int>(i))) {
+        // Runs on each click, so it stays silent about edges the fx builder leaves out: the viewport names those objects.
+        int left_out = 0;
+        for (const auto &[a, b] : rv_editor_object_edges_fx(scene, project, static_cast<int>(i), left_out)) {
+            // Same edges the viewport draws: NOENT (wholly behind) and INVAL (outside Q20.12) are left undrawn.
             ImVec2 sa, sb;
-            if (!v.point(a, sa) || !v.point(b, sb)) {
+            if (rv_editor_edge_screen_fx(v, a, b, sa, sb) != RV_OK) {
                 continue;
             }
             const float d = rv_editor_segment_distance(at, sa, sb);
