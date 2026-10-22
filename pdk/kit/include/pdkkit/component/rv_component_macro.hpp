@@ -32,14 +32,18 @@ struct ecs_field_cpp<ecs_field_type::fixed> {
     using type = rv_pdklib::fx;
 };
 
+// fixed3 and angle3 members are fx_vec3, as ecs_component_transform's are; ecs_field_parse_fx3 copies three fx in a row.
+static_assert(sizeof(rv_pdklib::fx_vec3) == sizeof(rv_pdklib::fx) * ecs_array_items,
+    "fx_vec3 must be three fx in a row: ecs_field_parse_fx3 (rv_component_field_text.hpp) copies three fx into the member");
+
 template <>
 struct ecs_field_cpp<ecs_field_type::fixed3> {
-    using type = rv_pdklib::fx[ecs_array_items];
+    using type = rv_pdklib::fx_vec3;
 };
 
 template <>
 struct ecs_field_cpp<ecs_field_type::angle3> {
-    using type = rv_pdklib::fx[ecs_array_items];
+    using type = rv_pdklib::fx_vec3;
 };
 
 template <>
