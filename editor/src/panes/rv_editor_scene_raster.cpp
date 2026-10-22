@@ -101,13 +101,6 @@ int rv_editor_shade_raw(const rv_editor_tri &tri, const rv_editor_view &v)
     return static_cast<int>(std::clamp<int64_t>(facing, RV_EDITOR_SHADE_MIN_RAW, RV_EDITOR_SHADE_SCALE));
 }
 
-// The cull mode of an object as pdkkit's rv_ecs_frame.hpp gives it (two_sided -> none, else back, near line 113),
-// which the console's gte_cull_mode in src/rv_pconsole/cg/rv_pccg_sw_put.cpp copies.
-std::uint32_t rv_editor_cull_mode(bool two_sided)
-{
-    return two_sided ? rv_pdklib::gte_cull_none : rv_pdklib::gte_cull_screen_cw;
-}
-
 // A viewport's picture: the z-buffer, and the SDL texture its colour is copied to each frame.
 // Kept while the size stays the same; its texture is destroyed by rv_editor_scene_pictures_free.
 struct rv_editor_scene_target {
@@ -354,11 +347,11 @@ int rv_editor_view_fx_tri(const rv_editor_view &v, const rv_editor_tri &tri, rv_
 }
 
 // Whether the console drops a cut piece under `cull`: its corners projected onto the buffer as the raster
-// projects them (vp), so the cull and the drawn piece agree at any scale. The signed area is unchanged by
-// the projection's centre only while the corners stay inside gte_screen_limit, where rv_gte_clamp_screen
-// does not alter them. Zero area is dropped in every mode, as the console does. RV_ERR_INVAL when a corner
-// does not project: the near cut leaves every corner at z >= the near plane > 0, and rv_gte_project fails
-// only at z <= 0, so this error means a broken cut.
+// projects them (vp), so the cull and the drawn piece agree at any scale. The signed area is unchanged by the
+// projection's centre only while the corners stay inside gte_screen_limit, where rv_gte_clamp_screen does not
+// alter them (rv_editor_screen_culled decides).
+// RV_ERR_INVAL when a corner does not project: the near cut leaves every corner at z >= the near plane > 0,
+// and rv_gte_project fails only at z <= 0, so this error means a broken cut.
 int rv_editor_piece_culled(rv_pdklib::rv_gte_viewport vp, const rv_editor_fx_tri &piece, std::uint32_t cull, bool &culled)
 {
     rv_pdklib::rv_gte_screen screen[tri_vertices] = {};
@@ -370,9 +363,7 @@ int rv_editor_piece_culled(rv_pdklib::rv_gte_viewport vp, const rv_editor_fx_tri
             return RV_ERR_INVAL;
         }
     }
-    const bool zero_area = rv_pdklib::rv_gte_culled(screen[0], screen[1], screen[2], rv_pdklib::gte_cull_screen_cw) &&
-        rv_pdklib::rv_gte_culled(screen[0], screen[1], screen[2], rv_pdklib::gte_cull_screen_ccw);
-    culled = zero_area || rv_pdklib::rv_gte_culled(screen[0], screen[1], screen[2], cull);
+    culled = rv_editor_screen_culled(screen, cull);
     return RV_OK;
 }
 

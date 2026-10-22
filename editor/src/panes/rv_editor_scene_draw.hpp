@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -10,6 +11,7 @@
 #include "imgui.h"
 
 #include "pdklib/rv_gte/rv_gte_camera.hpp"
+#include "pdklib/rv_gte/rv_gte_project.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "project/rv_editor_project.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
@@ -209,6 +211,11 @@ int rv_editor_clip_near_fx(const rv_editor_fx_tri &tri,
     rv_pdklib::fx near_plane,
     rv_editor_fx_tri (&out)[rv_editor_fx_max_pieces],
     int &count);
+
+// The cull mode of an object: none when two_sided, else back faces (the console's gte_cull_mode).
+std::uint32_t rv_editor_cull_mode(bool two_sided);
+// Whether the console drops a triangle of screen corners under `cull`: zero area in every mode, else the cull's rule.
+bool rv_editor_screen_culled(const rv_pdklib::rv_gte_screen (&s)[tri_vertices], std::uint32_t cull);
 
 // An object's surface in scene space: a mesh's .glb triangles (name ends in ".glb"), or the unit
 // cube while its mesh is empty or does not load (the reason in *error when given). A legacy quad

@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "app/rv_editor_app.hpp"
+#include "pdklib/rv_gte/rv_gte_project.hpp"
 #include "pdklib/rv_gte/rv_gte_trig.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "scene/rv_editor_scene.hpp"
@@ -135,6 +136,22 @@ int rv_editor_point_view_fx(const rv_editor_view &v, const rv_pdklib::fx_vec3 &s
 }
 
 } // namespace
+
+// The cull mode of an object as pdkkit's rv_ecs_frame.hpp gives it (two_sided -> none, else back, near line 113),
+// which the console's gte_cull_mode in src/rv_pconsole/cg/rv_pccg_sw_put.cpp copies.
+std::uint32_t rv_editor_cull_mode(bool two_sided)
+{
+    return two_sided ? rv_pdklib::gte_cull_none : rv_pdklib::gte_cull_screen_cw;
+}
+
+// Exact while the corners lie within +-gte_screen_limit, the range rv_gte_project returns: beyond it rv_gte_clamp_screen
+// can change the sign. Zero area is dropped in every mode, as the console does.
+bool rv_editor_screen_culled(const rv_pdklib::rv_gte_screen (&s)[tri_vertices], std::uint32_t cull)
+{
+    const bool zero_area = rv_pdklib::rv_gte_culled(s[0], s[1], s[2], rv_pdklib::gte_cull_screen_cw) &&
+        rv_pdklib::rv_gte_culled(s[0], s[1], s[2], rv_pdklib::gte_cull_screen_ccw);
+    return zero_area || rv_pdklib::rv_gte_culled(s[0], s[1], s[2], cull);
+}
 
 vec3 sub(const vec3 &a, const vec3 &b)
 {
