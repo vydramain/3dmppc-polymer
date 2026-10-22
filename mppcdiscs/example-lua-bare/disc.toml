@@ -9,22 +9,15 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-# The scene is copied verbatim. The disc does not read it at run time: its layout is
-# scripts/example-lua-bare-layout.lua. The file is here because a manifest [assets] must not be empty.
-files = ["scenes/*.scene.toml"]
+# Each found file is baked by its kind, from its extension: .wav is a sound (baked to .pcm); .gltf is a model
+# with its .bin and PNG pictures (most in assets/tex, street_16's beside it in assets/models), baked to .mppcmod;
+# anything else is copied as is. The scene is copied, but the disc does not read it: its layout is
+# scripts/example-lua-bare-layout.lua.
+files = ["scenes/*.scene.toml", "assets/snd/*.wav", "assets/models/*.gltf"]
 
-[textures]
-# The model pictures are the PNG files each .gltf names (most in assets/tex, street_16's beside it in
-# assets/models), baked by the model build; this section holds no separate textures. format is the
-# format the model pictures are baked in.
-files = []
+[assets.texture]
+# The format each PNG picture of a model is baked in; idx8 is the default, so this section may be absent.
 format = "idx8"
-
-[sounds]
-files = ["assets/snd/*.wav"]
-
-[models]
-files = ["assets/models/*.gltf"]
 
 [budget.pcca]
 voice_count = 24
