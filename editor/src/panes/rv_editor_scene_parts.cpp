@@ -76,7 +76,7 @@ void rv_editor_parts_report(std::size_t refused)
 }
 
 // Whether the sample p is covered by the screen triangle s, by the zbuf's rule (rv_editor_zbuf_covers).
-bool rv_editor_parts_covers(const std::array<rv_pdklib::rv_gte_screen, tri_vertices> &s, rv_editor_parts_point p)
+bool rv_editor_parts_covers(const rv_pdklib::rv_gte_screen (&s)[tri_vertices], rv_editor_parts_point p)
 {
     std::int32_t x[RV_EDITOR_ZBUF_CORNERS] = {};
     std::int32_t y[RV_EDITOR_ZBUF_CORNERS] = {};
@@ -85,15 +85,6 @@ bool rv_editor_parts_covers(const std::array<rv_pdklib::rv_gte_screen, tri_verti
         y[k] = s[k].y;
     }
     return rv_editor_zbuf_covers(x, y, p.x, p.y);
-}
-
-// Whether the raster drops the screen triangle under `cull` (rv_editor_piece_culled, rv_editor_scene_raster.cpp): a zero
-// area is dropped in every mode, the rest by the mode.
-bool rv_editor_parts_culled(const std::array<rv_pdklib::rv_gte_screen, tri_vertices> &s, std::uint32_t cull)
-{
-    const bool zero_area = rv_pdklib::rv_gte_culled(s[0], s[1], s[2], rv_pdklib::gte_cull_screen_cw) &&
-        rv_pdklib::rv_gte_culled(s[0], s[1], s[2], rv_pdklib::gte_cull_screen_ccw);
-    return zero_area || rv_pdklib::rv_gte_culled(s[0], s[1], s[2], cull);
 }
 
 // A screen corner past the zbuf's coordinate limit: the zbuf refuses such a corner, so the triangle is refused here too.
@@ -141,7 +132,7 @@ int rv_editor_parts_world(const rv_editor_glb_model &glb,
 int rv_editor_parts_front(const rv_editor_view &v,
     const std::array<rv_pdklib::fx_vec3, tri_vertices> &q,
     std::array<rv_pdklib::fx_vec3, tri_vertices> &view,
-    std::array<rv_pdklib::rv_gte_screen, tri_vertices> &screen)
+    rv_pdklib::rv_gte_screen (&screen)[tri_vertices])
 {
     for (std::size_t k = 0; k < tri_vertices; ++k) {
         const std::int32_t in[3] = { q[k].x, q[k].y, q[k].z };
@@ -164,7 +155,7 @@ int rv_editor_parts_front(const rv_editor_view &v,
 }
 
 // The triangle chosen at `sample` by the raster's coverage, cull and depth-key rules: covering it (rv_editor_parts_covers),
-// not culled under `cull` (rv_editor_parts_culled), with the largest depth key; a tie keeps the later one, as the raster
+// not culled under `cull` (rv_editor_screen_culled), with the largest depth key; a tie keeps the later one, as the raster
 // draws it. An alpha-0 texel is not drawn by the raster but still picks. Returns its index and sets `key`; -1 for none.
 // `refused` counts the triangles left out for a corner outside Q20.12, int32 or the zbuf's limit, or a key that cannot
 // be built.
@@ -181,7 +172,7 @@ int rv_editor_parts_nearest(const rv_editor_glb_model &glb,
         const rv_pdklib::rv_mppcmod_triangle &tri = glb.quantized.triangles[t];
         std::array<rv_pdklib::fx_vec3, tri_vertices> q{};
         std::array<rv_pdklib::fx_vec3, tri_vertices> view{};
-        std::array<rv_pdklib::rv_gte_screen, tri_vertices> screen{};
+        rv_pdklib::rv_gte_screen screen[tri_vertices] = {};
         std::int32_t tri_key = 0;
         if (rv_editor_parts_world(glb, world, tri, q) != RV_OK) {
             ++refused;
@@ -192,7 +183,7 @@ int rv_editor_parts_nearest(const rv_editor_glb_model &glb,
             ++refused;
             continue;
         }
-        if (rc != RV_OK || rv_editor_parts_culled(screen, cull) || !rv_editor_parts_covers(screen, sample)) {
+        if (rc != RV_OK || rv_editor_screen_culled(screen, cull) || !rv_editor_parts_covers(screen, sample)) {
             continue;
         }
         if (rv_editor_parts_depth(view, tri_key) != RV_OK) {
@@ -303,9 +294,8 @@ int rv_editor_parts_pick(const rv_editor_scene_doc &doc,
             ++refused;
             continue;
         }
-        // The object's cull mode as the raster gives it (rv_editor_cull_mode): back faces unless two_sided.
-        const std::uint32_t cull =
-            rv_editor_scene_has_component(o, component_two_sided) ? rv_pdklib::gte_cull_none : rv_pdklib::gte_cull_screen_cw;
+        // The object's cull mode, shared with the filled raster (rv_editor_cull_mode).
+        const std::uint32_t cull = rv_editor_cull_mode(rv_editor_scene_has_component(o, component_two_sided));
         std::int32_t key = 0;
         const int tri = rv_editor_parts_nearest(*glb, world, v, sample, cull, key, refused);
         // Objects are drawn in scene order: a tie keeps the later one, as the raster draws it.
