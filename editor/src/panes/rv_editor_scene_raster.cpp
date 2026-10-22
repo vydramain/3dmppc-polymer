@@ -26,6 +26,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_gte/rv_gte_matrix.hpp"
+#include "pdklib/rv_gte/rv_gte_project.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "panes/rv_editor_scene_glb.hpp"
 #include "panes/rv_editor_zbuf.hpp"
@@ -59,6 +60,13 @@ vec3 norm(const vec3 &a)
 {
     const double l = std::sqrt(dot(a, a));
     return l > normalize_epsilon ? mul(a, 1.0 / l) : a;
+}
+
+// The cull mode of an object as pdkkit's rv_ecs_frame.hpp gives it (two_sided -> none, else back, near line 113),
+// which the console's gte_cull_mode in src/rv_pconsole/cg/rv_pccg_sw_put.cpp copies.
+std::uint32_t rv_editor_cull_mode(bool two_sided)
+{
+    return two_sided ? rv_pdklib::gte_cull_none : rv_pdklib::gte_cull_screen_cw;
 }
 
 // A viewport's picture: the z-buffer, and the SDL texture its colour is copied to each frame.
@@ -165,6 +173,8 @@ struct rv_editor_piece_style {
     ImVec4 selection;
     ImVec4 tint;
     bool selected = false;
+    // The object's cull mode, as rv_editor_cull_mode gives it.
+    std::uint32_t cull = rv_pdklib::gte_cull_screen_cw;
     // A .glb's triangle: its base is white and the tint applies, flat too.
     bool from_model = false;
     float shade = 1.0f;
@@ -258,8 +268,27 @@ void rv_editor_piece_metres(const rv_editor_fx_tri &piece, rv_editor_tri &tri, v
     }
 }
 
-// One triangle: corners to view space, cut at the near plane, each piece rasterised. RV_ERR_INVAL when a
-// corner or cut point leaves int32; the triangle is then not drawn.
+// Whether the console drops a cut piece under `cull`: its corners projected as rv_gte_project does, with the
+// view's h and the centre at the origin. The signed area is unchanged by a centre shift only while the corners
+// stay inside gte_screen_limit, where rv_gte_clamp_screen does not alter them. Zero area is dropped in every
+// mode, as the console does. RV_ERR_INVAL when a corner does not project: the near cut leaves every corner at
+// z >= the near plane > 0, and rv_gte_project fails only at z <= 0, so this error means a broken cut.
+int rv_editor_piece_culled(const rv_editor_view &v, const rv_editor_fx_tri &piece, std::uint32_t cull, bool &culled)
+{
+    rv_pdklib::rv_gte_screen screen[tri_vertices] = {};
+    for (int k = 0; k < tri_vertices; ++k) {
+        if (rv_pdklib::rv_gte_project(piece.v[k].p, { v.camera.h, 0, 0 }, screen[k]) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
+    }
+    const bool zero_area = rv_pdklib::rv_gte_culled(screen[0], screen[1], screen[2], rv_pdklib::gte_cull_screen_cw) &&
+        rv_pdklib::rv_gte_culled(screen[0], screen[1], screen[2], rv_pdklib::gte_cull_screen_ccw);
+    culled = zero_area || rv_pdklib::rv_gte_culled(screen[0], screen[1], screen[2], cull);
+    return RV_OK;
+}
+
+// One triangle: corners to view space, cut at the near plane, each piece culled and rasterised. RV_ERR_INVAL when a
+// corner or cut point leaves int32, or a piece does not project; the triangle is then not drawn further.
 int rv_editor_raster_tri(rv_editor_zbuf &buf,
     const rv_editor_view &v,
     const rv_editor_tri &tri,
@@ -275,6 +304,13 @@ int rv_editor_raster_tri(rv_editor_zbuf &buf,
         return RV_ERR_INVAL;
     }
     for (int i = 0; i < count; ++i) {
+        bool culled = false;
+        if (rv_editor_piece_culled(v, cut[i], st.cull, culled) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
+        if (culled) {
+            continue;
+        }
         rv_editor_tri piece{};
         vec3 view_p[tri_vertices] = {};
         rv_editor_piece_metres(cut[i], piece, view_p);
@@ -327,6 +363,7 @@ void rv_editor_draw_filled(ImDrawList *dl,
         const rv_editor_cpu_image *tex = textured ? rv_editor_object_cpu_texture(project, texture) : nullptr;
         const rv_editor_tint tint = rv_editor_object_get_tint(o);
         st.selected = o.id == selected;
+        st.cull = rv_editor_cull_mode(rv_editor_scene_has_component(o, component_two_sided));
         st.tint = { tint[0] / color_channel_max, tint[1] / color_channel_max, tint[2] / color_channel_max, 1.0f };
         const std::vector<rv_editor_tri> tris = rv_editor_object_triangles(scene, project, static_cast<int>(i));
         for (const rv_editor_tri &tri : tris) {

@@ -31,6 +31,9 @@ inline constexpr std::string_view kind_volume = "volume";
 // The component that marks an object hidden: its row is dimmed, and it is drawn as an outline or not at all.
 inline constexpr std::string_view component_hidden = "hidden";
 
+// The component that keeps an object's back faces in the filled viewport, as the game does (pdkkit's two_sided).
+inline constexpr std::string_view component_two_sided = "two_sided";
+
 // Log tag of the scene's warnings, shared by the scene and object sources.
 inline constexpr const char *scene_log_tag = "scene";
 
