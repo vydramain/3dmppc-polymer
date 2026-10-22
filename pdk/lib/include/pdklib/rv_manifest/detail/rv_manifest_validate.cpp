@@ -10,6 +10,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
 
+#include "rv_manifest_binder.hpp"
 #include "rv_manifest_sdk.hpp"
 
 namespace rv_pdklib
@@ -125,6 +126,19 @@ static int validate_sdk_names(const rv_manifest &manifest, std::string &error)
     return RV_OK;
 }
 
+// The accepted format spellings, read from the table, so a message never lists them by hand.
+static std::string texfmt_spellings()
+{
+    std::string known;
+    for (const rv_pdklib::rv_texfmt_name &row : rv_pdklib::rv_texfmt_names) {
+        if (!known.empty()) {
+            known += ", ";
+        }
+        known += row.text;
+    }
+    return known;
+}
+
 // By the time a manifest reaches here the binder has already turned the
 // spelling into an enumerator, and an unknown spelling left the field at its
 // value-initialised zero. So this catches both a typo and a missing `format`
@@ -140,18 +154,22 @@ static int validate_texture_format(const rv_manifest &manifest, std::string &err
     if (rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format) != nullptr) {
         return RV_OK;
     }
-    std::string known;
-    for (const rv_pdklib::rv_texfmt_name &row : rv_pdklib::rv_texfmt_names) {
-        if (!known.empty()) {
-            known += ", ";
-        }
-        known += row.text;
-    }
     // Without files the format is asked for by the models alone, so the reason says so.
     const bool models_only = manifest.textures_files.files.empty();
     const std::string reason = models_only ? "[textures] format is required by [models] - files may stay empty" :
                                              "[textures] format is missing or unknown";
-    error = std::format("{} - expected one of {}", reason, known);
+    error = std::format("{} - expected one of {}", reason, texfmt_spellings());
+    return RV_ERR_INVAL;
+}
+
+// [assets.texture] format is optional and defaults to idx8, so only a spelling the binder could not
+// read is refused: it arrives as the unknown-spelling marker, and nothing else can.
+static int validate_assets_texture_format(const rv_manifest &manifest, std::string &error)
+{
+    if (manifest.assets_texture_format != rv_manifest_texfmt_unknown_spelling) {
+        return RV_OK;
+    }
+    error = std::format("[assets.texture] format is not a known spelling - expected one of {}", texfmt_spellings());
     return RV_ERR_INVAL;
 }
 
@@ -270,6 +288,11 @@ int rv_manifest_validate(const rv_manifest &manifest, std::string &error)
     }
 
     code = validate_texture_format(manifest, error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    code = validate_assets_texture_format(manifest, error);
     if (code != RV_OK) {
         return code;
     }
