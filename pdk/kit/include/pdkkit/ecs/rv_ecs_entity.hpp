@@ -54,7 +54,8 @@ inline const ecs_entity &ecs_entity_base()
 // Registered type of the name, or nullptr. The empty name is never registered.
 inline const ecs_entity *ecs_entity_find(const ecs_world &world, std::string_view name)
 {
-    for (const ecs_entity *type : world.types) {
+    const auto &state = detail::ecs_state(world);
+    for (const ecs_entity *type : state.types) {
         if (type->name == name) {
             return type;
         }
@@ -66,6 +67,7 @@ inline const ecs_entity *ecs_entity_find(const ecs_world &world, std::string_vie
 // The type must outlive the world.
 [[nodiscard]] inline int ecs_entity_register(ecs_world &world, const ecs_entity &type)
 {
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&] {
         if (type.name.empty()) {
             return RV_ERR_INVAL;
@@ -73,7 +75,7 @@ inline const ecs_entity *ecs_entity_find(const ecs_world &world, std::string_vie
         if (ecs_entity_find(world, type.name) != nullptr) {
             return RV_ERR_ALREADY;
         }
-        world.types.push_back(&type);
+        state.types.push_back(&type);
         return RV_OK;
     });
 }
@@ -87,13 +89,14 @@ inline int ecs_entity_register(ecs_world &world, const ecs_entity &&type) = dele
 // and a grown pool sparse may stay (E7c).
 inline void ecs_rollback_create(ecs_world &world, ecs_id id, std::size_t slots_before)
 {
-    const bool appended = world.slots.size() > slots_before;
+    auto &state = detail::ecs_state(world);
+    const bool appended = state.slots.size() > slots_before;
     const uint32_t generation = appended ? ecs_first_generation : id.generation;
     (void)ecs_entity_destroy(world, id); // drops the components; NOENT when add_defaults destroyed id already
-    world.slots[id.index].generation = generation;
+    state.slots[id.index].generation = generation;
     if (appended) {
-        world.free_slots.pop_back();
-        world.slots.pop_back();
+        state.free_slots.pop_back();
+        state.slots.pop_back();
     }
 }
 
@@ -102,6 +105,7 @@ inline void ecs_rollback_create(ecs_world &world, ecs_id id, std::size_t slots_b
 // add that fails or throws leaves no entity behind: the world is rolled back, and a throw becomes its code.
 [[nodiscard]] inline int ecs_entity_create_as(ecs_world &world, std::string_view name, ecs_id &out)
 {
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&]() -> int {
         const bool base = name.empty();
         const ecs_entity *type = base ? &ecs_entity_base() : ecs_entity_find(world, name);
@@ -109,11 +113,11 @@ inline void ecs_rollback_create(ecs_world &world, ecs_id id, std::size_t slots_b
             return RV_ERR_NOENT;
         }
         // The rollback pushes id onto free_slots, and that push must not allocate: capacity grows ahead of the slot count.
-        const std::size_t needed = world.slots.size() + 1;
-        if (world.free_slots.capacity() < needed) {
-            world.free_slots.reserve(std::max(needed, ecs_pool_growth_factor * world.free_slots.capacity()));
+        const std::size_t needed = state.slots.size() + 1;
+        if (state.free_slots.capacity() < needed) {
+            state.free_slots.reserve(std::max(needed, ecs_pool_growth_factor * state.free_slots.capacity()));
         }
-        const std::size_t slots_before = world.slots.size();
+        const std::size_t slots_before = state.slots.size();
         ecs_id id{};
         const int created = ecs_entity_create(world, id);
         if (created != RV_OK) {

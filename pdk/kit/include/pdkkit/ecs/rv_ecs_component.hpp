@@ -153,7 +153,8 @@ inline int ecs_two_sided_factory(ecs_world &world, ecs_id id, const ecs_scene_co
 // Factory of the name, or nullptr. The empty name is never registered.
 inline ecs_component_factory ecs_component_find(const ecs_world &world, std::string_view name)
 {
-    for (const auto &entry : world.factories) {
+    const auto &state = detail::ecs_state(world);
+    for (const auto &entry : state.factories) {
         if (entry.first == name) {
             return entry.second;
         }
@@ -165,6 +166,7 @@ inline ecs_component_factory ecs_component_find(const ecs_world &world, std::str
 // registry cannot grow.
 [[nodiscard]] inline int ecs_component_register(ecs_world &world, std::string_view name, ecs_component_factory make)
 {
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&] {
         const bool bad = name.empty() || make == nullptr;
         if (bad) {
@@ -173,7 +175,7 @@ inline ecs_component_factory ecs_component_find(const ecs_world &world, std::str
         if (ecs_component_find(world, name) != nullptr) {
             return RV_ERR_ALREADY;
         }
-        world.factories.emplace_back(name, make);
+        state.factories.emplace_back(name, make);
         return RV_OK;
     });
 }
