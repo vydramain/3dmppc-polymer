@@ -40,7 +40,7 @@ namespace rv_pdktools
 // Expand one section's globs. An empty list expands to nothing and is not an error.
 //
 // @param patterns  the section's globs
-// @param section   section name for diagnostics, e.g. "[textures] files"
+// @param section   section name for diagnostics, e.g. "[scripts] sources"
 // @param disc_dir  directory the globs resolve against
 // @param matched   receives the relative paths, sorted
 // @param error     set with the section name already prefixed
@@ -106,22 +106,17 @@ static int append_entries(const std::vector<std::string> &relatives,
     return RV_OK;
 }
 
-// Plan one block of the archive: the [assets] files of its kind, then the section's own globs.
+// Append one block of the archive: its paths, in order, starting where the plan ended.
 //
-// Both go into plan.items back to back, so the block is one unbroken range that starts
-// where the plan ended. The caller records where the block starts.
-//
-// @param assets    this block's [assets] paths, already split out of the one [assets] glob
-// @param patterns  the section's own globs; an empty list adds nothing from the section
-// @param section   section name for its diagnostics, e.g. "[textures] files"
-// @param disc_dir  directory the section's globs resolve against
-// @param rule      how the entries are written
-// @param plan      receives the entries, appended in order
-// @param count     set to how many entries the block holds
-// @param error     set with the section name already prefixed
+// @param relatives  paths relative to disc_dir, already split out of one glob
+// @param section    section name for diagnostics, e.g. "[assets] files"
+// @param disc_dir   directory the paths resolve against
+// @param rule       how the entries are written
+// @param plan       receives the entries, appended in order
+// @param count      set to how many entries the block holds
+// @param error      set with the section name already prefixed
 // @return RV_OK on success, the RV_ERR_* of the refusing step otherwise
-static int plan_block(const std::vector<std::string> &assets,
-    const std::vector<std::string> &patterns,
+static int plan_block(const std::vector<std::string> &relatives,
     const char *section,
     const fs::path &disc_dir,
     const entry_rule &rule,
@@ -131,20 +126,9 @@ static int plan_block(const std::vector<std::string> &assets,
 {
     const std::size_t first = plan.items.size();
 
-    const int assets_err = append_entries(assets, k_assets_section, disc_dir, rule, plan, error);
-    if (assets_err != RV_OK) {
-        return assets_err;
-    }
-
-    std::vector<std::string> matched;
-    const int glob_err = glob_section(patterns, section, disc_dir, matched, error);
-    if (glob_err != RV_OK) {
-        return glob_err;
-    }
-
-    const int section_err = append_entries(matched, section, disc_dir, rule, plan, error);
-    if (section_err != RV_OK) {
-        return section_err;
+    const int append_err = append_entries(relatives, section, disc_dir, rule, plan, error);
+    if (append_err != RV_OK) {
+        return append_err;
     }
 
     count = plan.items.size() - first;
@@ -162,7 +146,6 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     std::string &error)
 {
     archive_plan plan;
-    const std::vector<std::string> none;
 
     // --- [assets]: one glob, then each file goes to the block of its kind ---
 
@@ -183,7 +166,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     // --- copied assets ---
 
     const entry_rule copy_rule{ fs::path(), nullptr, nullptr };
-    const int copy_err = plan_block(copies, none, k_assets_section, disc_dir, copy_rule, plan, plan.asset_count, error);
+    const int copy_err = plan_block(copies, k_assets_section, disc_dir, copy_rule, plan, plan.asset_count, error);
     if (copy_err != RV_OK) {
         return copy_err;
     }
@@ -192,14 +175,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
 
     const entry_rule texture_rule{ texture_dir, ".mppctex", nullptr };
     plan.first_texture = plan.items.size();
-    const int textures_err = plan_block(textures,
-        manifest.textures_files.files,
-        "[textures] files",
-        disc_dir,
-        texture_rule,
-        plan,
-        plan.texture_count,
-        error);
+    const int textures_err = plan_block(textures, k_assets_section, disc_dir, texture_rule, plan, plan.texture_count, error);
     if (textures_err != RV_OK) {
         return textures_err;
     }
@@ -208,8 +184,12 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
 
     const entry_rule script_rule{ scripts_dir, ".luac", nullptr };
     plan.first_script = plan.items.size();
-    const int scripts_err =
-        plan_block(none, manifest.scripts_sources, "[scripts] sources", disc_dir, script_rule, plan, plan.script_count, error);
+    std::vector<std::string> scripts;
+    const int scripts_glob_err = glob_section(manifest.scripts_sources, "[scripts] sources", disc_dir, scripts, error);
+    if (scripts_glob_err != RV_OK) {
+        return scripts_glob_err;
+    }
+    const int scripts_err = plan_block(scripts, "[scripts] sources", disc_dir, script_rule, plan, plan.script_count, error);
     if (scripts_err != RV_OK) {
         return scripts_err;
     }
@@ -218,8 +198,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
 
     const entry_rule sound_rule{ sound_dir, ".pcm", nullptr };
     plan.first_sound = plan.items.size();
-    const int sounds_err =
-        plan_block(sounds, manifest.sounds_files, "[sounds] files", disc_dir, sound_rule, plan, plan.sound_count, error);
+    const int sounds_err = plan_block(sounds, k_assets_section, disc_dir, sound_rule, plan, plan.sound_count, error);
     if (sounds_err != RV_OK) {
         return sounds_err;
     }
@@ -240,7 +219,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     return RV_OK;
 }
 
-int rv_pdktools::plan_models(const rv_pdklib::rv_manifest &manifest,
+int rv_pdktools::plan_models(const rv_pdklib::rv_manifest & /*manifest*/,
     const fs::path &disc_dir,
     const fs::path &model_dir,
     archive_plan &plan,
@@ -250,14 +229,7 @@ int rv_pdktools::plan_models(const rv_pdklib::rv_manifest &manifest,
 
     const entry_rule model_rule{ model_dir, nullptr, rv_pdklib::rv_mppcmod_disc_name };
     next.first_model = next.items.size();
-    const int models_err = plan_block(next.asset_models,
-        manifest.models_files,
-        "[models] files",
-        disc_dir,
-        model_rule,
-        next,
-        next.model_count,
-        error);
+    const int models_err = plan_block(next.asset_models, k_assets_section, disc_dir, model_rule, next, next.model_count, error);
     if (models_err != RV_OK) {
         return models_err;
     }

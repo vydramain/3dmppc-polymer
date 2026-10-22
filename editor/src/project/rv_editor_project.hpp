@@ -147,9 +147,9 @@ struct rv_editor_project {
     std::filesystem::path cache_dir;            // builds and logs: $XDG_CACHE_HOME/3dmppc-editor/<hash>
     std::filesystem::path state_dir;            // memory card: $XDG_STATE_HOME/3dmppc-editor/<hash>
     std::vector<std::string> assets_patterns;   // every [assets] pattern, of any kind, relative to root
-    std::vector<std::string> textures_patterns; // [textures] files, relative to root
-    std::vector<std::string> sounds_patterns;   // [sounds] files, relative to root
-    // [models] patterns and the [assets] patterns ending in .gltf or .glb, relative to root. The import folder
+    std::vector<std::string> textures_patterns; // never filled since the old [textures] section is no longer read; empty
+    std::vector<std::string> sounds_patterns;   // never filled since the old [sounds] section is no longer read; empty
+    // The [assets] patterns of the model kind (.gltf, .glb), relative to root. The import folder
     // is named only by a "<folder>/*.gltf" pattern (rv_editor_model_target_dir). An [assets] pattern like
     // "assets/models/*" is not in this list: the walk still finds its models by their own kind, but it names no folder.
     std::vector<std::string> models_patterns;

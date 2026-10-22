@@ -46,9 +46,9 @@ struct archive_plan {
 ///
 /// Nothing is read, baked or compiled here — only names and paths are decided.
 /// [assets] models are not in the item list: they wait in asset_models, and
-/// plan_models() places them with the [models] files.
+/// plan_models() places them in the model block.
 ///
-/// @param manifest     the validated manifest; assets, textures, sounds and scripts are read
+/// @param manifest     the validated manifest; assets and scripts are read
 /// @param disc_dir     absolute, canonical disc directory the globs resolve against
 /// @param texture_dir  directory baked .mppctex files will be written to
 /// @param scripts_dir  directory compiled .luac files will be written to
@@ -64,11 +64,11 @@ int plan_archive(const rv_pdklib::rv_manifest &manifest,
     archive_plan &out,
     std::string &error);
 
-/// Append the [models] entries to a plan made by plan_archive, and refuse a plan whose names collide.
+/// Append the [assets] models to a plan made by plan_archive, and refuse a plan whose names collide.
 ///
 /// Kept apart from plan_archive so its callers that never bake models stay as they were.
 ///
-/// @param manifest   the validated manifest; models_files is read
+/// @param manifest   the validated manifest; not read, kept for the callers
 /// @param disc_dir   absolute, canonical disc directory the globs resolve against
 /// @param model_dir  directory baked .mppcmod files will be written to
 /// @param plan       the plan to extend; untouched on failure

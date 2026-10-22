@@ -221,8 +221,6 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     if (rv_pdklib::rv_manifest_load(project.manifest.string(), manifest, error) != 0) {
         project.manifest_error = error;
         project.assets_patterns.clear();
-        project.textures_patterns.clear();
-        project.sounds_patterns.clear();
         project.models_patterns.clear();
         project.has_build_section = false;
         project.sdk = rv_editor_sdk_state::unknown;
@@ -234,10 +232,8 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     project.screen_w = manifest.budget.pccv.screen_width;
     project.screen_h = manifest.budget.pccv.screen_height;
     project.assets_patterns = manifest.assets_files;
-    project.textures_patterns = manifest.textures_files.files;
-    project.sounds_patterns = manifest.sounds_files;
-    // The model folder is found from a model pattern, so the [assets] models join [models].
-    project.models_patterns = manifest.models_files;
+    // The model folder is found from a model pattern: only the [assets] models name it.
+    project.models_patterns.clear();
     for (const std::string &pattern : manifest.assets_files) {
         if (rv_pdklib::rv_manifest_asset_kind_of(pattern) == rv_pdklib::rv_manifest_asset_kind::model) {
             project.models_patterns.push_back(pattern);
