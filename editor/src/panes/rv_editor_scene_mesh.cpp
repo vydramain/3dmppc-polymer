@@ -115,7 +115,7 @@ rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m
         add(center, add(up, right)),
         sub(center, add(up, right)),
         add(center, sub(right, up)) };
-    const std::array<ImVec2, quad_vertex_count> t = rv_editor_quad_uv(o.uv);
+    const std::array<ImVec2, quad_vertex_count> t = rv_editor_quad_uv(rv_editor_object_get_uv(o));
     return {
         { { c[0], c[2], c[1] }, { t[0], t[2], t[1] } },
         { { c[1], c[2], c[3] }, { t[1], t[2], t[3] } },
@@ -135,23 +135,25 @@ std::vector<rv_editor_tri>
 rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
     const rv_editor_scene_object &o = scene.objects[static_cast<size_t>(index)];
-    if (o.kind == kind_quad) {
-        return rv_editor_quad_triangles(rv_editor_scene_world(scene, index), o.uv);
+    const std::string kind = rv_editor_object_get_kind(o);
+    if (kind == kind_quad) {
+        return rv_editor_quad_triangles(rv_editor_scene_world(scene, index), rv_editor_object_get_uv(o));
     }
-    if (o.kind != kind_mesh) {
+    if (kind != kind_mesh) {
         return {};
     }
     const rv_editor_affine m = rv_editor_scene_world(scene, index);
-    if (o.mesh.empty()) {
+    const std::string mesh = rv_editor_object_get_mesh(o);
+    if (mesh.empty()) {
         return rv_editor_cube_triangles(m);
     }
-    if (!rv_editor_is_model_file_name(o.mesh)) {
-        set_error(error, rv_editor_text_format("project.mesh_not_supported", std::make_format_args(o.mesh)));
+    if (!rv_editor_is_model_file_name(mesh)) {
+        set_error(error, rv_editor_text_format("project.mesh_not_supported", std::make_format_args(mesh)));
         return rv_editor_cube_triangles(m);
     }
     std::vector<rv_editor_tri> glb_tris;
     std::string glb_error;
-    if (rv_editor_glb_object_triangles(project, o.mesh, m, glb_tris, glb_error) != RV_OK) {
+    if (rv_editor_glb_object_triangles(project, mesh, m, glb_tris, glb_error) != RV_OK) {
         set_error(error, glb_error);
         return rv_editor_cube_triangles(m);
     }
