@@ -6,6 +6,7 @@
 // binary at all.
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <vector>
 
@@ -35,8 +36,8 @@ int64_t rv_pccd_fs::asset_reload(const char *resname, rv_cd_resource_kind &kind_
         kind_out = RV_CD_RESOURCE_AUDIO;
         return RV_PCCD_UNSUPPORTED_KIND;
     }
-    if (scene_by_name_.find(key) != scene_by_name_.end()) {
-        return RV_PCCD_SCENE_RESIDENT;
+    if (std::find(scene_names_.begin(), scene_names_.end(), key) != scene_names_.end()) {
+        return RV_PCCD_SCENE_READ_AT_START;
     }
     return RV_PCCD_NOT_RESIDENT;
 }
@@ -127,8 +128,8 @@ int64_t rv_pccd_fs::asset_refresh(const char *resname, const void *bytes, int64_
         kind_out = RV_CD_RESOURCE_AUDIO;
         return RV_PCCD_UNSUPPORTED_KIND;
     }
-    if (scene_by_name_.find(key) != scene_by_name_.end()) {
-        return RV_PCCD_SCENE_RESIDENT;
+    if (std::find(scene_names_.begin(), scene_names_.end(), key) != scene_names_.end()) {
+        return RV_PCCD_SCENE_READ_AT_START;
     }
     return RV_PCCD_NOT_RESIDENT;
 }

@@ -92,20 +92,6 @@ private:
     std::vector<model_record> models_;
     std::unordered_map<std::string, int64_t> model_by_name_;
 
-    // SCENE's counterpart of model_record: a .scene.toml read from the disc and
-    // flattened into POD objects (world transforms, mesh names mapped to
-    // .mppcmod), with each object's entity type and local transform, and the
-    // components in document order. Host memory only; released when the medium is
-    // replaced (medium_insert), as rv_cd.h's scene contract requires.
-    struct scene_record {
-        std::vector<rv_cd_scene_object> objects;
-        std::vector<rv_cd_scene_entity> entities; // parallel to objects
-        std::vector<rv_cd_scene_local> locals;    // parallel to objects
-        std::vector<rv_cd_scene_component> components;
-    };
-    std::vector<scene_record> scenes_;
-    std::unordered_map<std::string, int64_t> scene_by_name_;
-
     // Handle table - a handle is simply an index into `resnames_`, and
     // `by_name_` makes the resolution idempotent. Two properties fall out, and
     // both are contract requirements rather than conveniences:
@@ -174,18 +160,6 @@ public:
 
     int64_t resource_height(rv_cd_resource_kind kind, const char *resname) override;
 
-    int64_t scene_object_count(const char *scene) override;
-
-    int64_t scene_object_read(const char *scene, int64_t index, rv_cd_scene_object *out) override;
-
-    int64_t scene_component_count(const char *scene) override;
-
-    int64_t scene_component_read(const char *scene, int64_t index, rv_cd_scene_component *out) override;
-
-    int64_t scene_object_entity_read(const char *scene, int64_t index, rv_cd_scene_entity *out) override;
-
-    int64_t scene_object_local_read(const char *scene, int64_t index, rv_cd_scene_local *out) override;
-
     int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) override;
 
     // asset_reload's twin for bytes the request carried: same result codes,
@@ -208,9 +182,6 @@ public:
         // A new medium has opened nothing yet: last medium's scenes do not
         // carry over.
         scene_names_.clear();
-        // Scenes are the last medium's too: a new disc reads its own.
-        scene_by_name_.clear();
-        scenes_.clear();
         ++scene_generation_;
     }
 
@@ -299,15 +270,6 @@ private:
     // Frees every model this drive uploaded, through cg_. Called from
     // ~rv_pccd_fs() before the textures are freed: a model holds their addresses.
     void free_models_();
-
-    // The SCENE cache: a resident scene answers from scenes_, a new one is read
-    // and flattened by scene_load_(), then remembered. A name over
-    // RV_CD_NAME_CAPACITY-1 bytes is refused before the disc is touched.
-    int64_t scene_resolve_(const char *scene, scene_record *&record_out);
-
-    // Cache miss half of scene_resolve_(): read, parse and flatten `scene`.
-    // Defined in rv_pccd_fs_scene.cpp.
-    int64_t scene_load_(const char *scene, scene_record &record);
 
     // Moves every model whose parts read texture `index` from `from` to `to` (same
     // model address, new entries). All or nothing: when the controller refuses one

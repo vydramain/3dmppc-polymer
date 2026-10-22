@@ -36,32 +36,6 @@ public:
 
     int64_t resource_height(rv_cd_resource_kind kind, const char *resname) override;
 
-    // No drive, so no scene is ever known: a null argument is INVAL, any name is NOENT.
-    int64_t scene_object_count(const char *scene) override
-    {
-        return scene == nullptr ? RV_ERR_INVAL : RV_ERR_NOENT;
-    }
-    int64_t scene_object_read(const char *scene, int64_t /*index*/, rv_cd_scene_object *out) override
-    {
-        return (scene == nullptr || out == nullptr) ? RV_ERR_INVAL : RV_ERR_NOENT;
-    }
-    int64_t scene_component_count(const char *scene) override
-    {
-        return scene == nullptr ? RV_ERR_INVAL : RV_ERR_NOENT;
-    }
-    int64_t scene_component_read(const char *scene, int64_t /*index*/, rv_cd_scene_component *out) override
-    {
-        return (scene == nullptr || out == nullptr) ? RV_ERR_INVAL : RV_ERR_NOENT;
-    }
-    int64_t scene_object_entity_read(const char *scene, int64_t /*index*/, rv_cd_scene_entity *out) override
-    {
-        return (scene == nullptr || out == nullptr) ? RV_ERR_INVAL : RV_ERR_NOENT;
-    }
-    int64_t scene_object_local_read(const char *scene, int64_t /*index*/, rv_cd_scene_local *out) override
-    {
-        return (scene == nullptr || out == nullptr) ? RV_ERR_INVAL : RV_ERR_NOENT;
-    }
-
     int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) override;
 
     // No drive to put it in: the medium is dropped.

@@ -143,7 +143,8 @@ std::string rv_editor_app_scene_name(const rv_editor_app &app);
 int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
 // The next free name ("main", else "sceneN") a new scene would get today.
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
-// Longest scene name in bytes, without ".scene.toml": the drive loads only names that fit RV_CD_NAME_CAPACITY.
+// Longest scene name in bytes, without ".scene.toml": the editor's convention from the old console limit;
+// the new console and pdkkit do not check it.
 size_t rv_editor_app_scene_name_max();
 // Non-empty, at most rv_editor_app_scene_name_max() bytes, letters/digits/_/- only: the one name rule.
 bool rv_editor_app_scene_name_valid(std::string_view name);

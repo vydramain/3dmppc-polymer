@@ -8,7 +8,6 @@
 #include <set>
 #include <system_error>
 
-#include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
 
 #include "panes/rv_editor_walk.hpp"
@@ -42,8 +41,11 @@ bool rv_editor_same_path(const std::filesystem::path &a, const std::filesystem::
 // Suffix for scene file names.
 constexpr std::string_view scene_suffix = ".scene.toml";
 
-// The drive refuses a scene whose "<name>.scene.toml" does not fit RV_CD_NAME_CAPACITY including its NUL.
-constexpr size_t scene_name_max = RV_CD_NAME_CAPACITY - 1 - scene_suffix.size();
+// Bytes of "<name>.scene.toml" with its NUL: the old console's limit, kept as an editor convention.
+// Neither the new console nor pdkkit checks scene name length. Kept while the scene codegen emits
+// the old-style code and while consoles older than the scene's removal from the contract still run.
+constexpr size_t scene_file_capacity = 64;
+constexpr size_t scene_name_max = scene_file_capacity - 1 - scene_suffix.size();
 
 // Numbering of a copied scene name starts here.
 constexpr int first_copy_number = 2;

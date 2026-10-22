@@ -72,7 +72,7 @@ struct refusal_text {
 
 constexpr refusal_text REFUSAL_TEXTS[] = {
     { RV_PCCD_UNSUPPORTED_KIND, "a sound is resident under that name; its bytes change only across a restart" },
-    { RV_PCCD_SCENE_RESIDENT, "a scene is resident under that name; it changes only across a restart" },
+    { RV_PCCD_SCENE_READ_AT_START, "a scene is read by the disc at start; its changes apply across a restart" },
 };
 
 // The one reading of a drive's refresh result, shared by both asset commands.
