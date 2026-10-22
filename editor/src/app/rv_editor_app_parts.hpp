@@ -10,6 +10,7 @@
 
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "project/rv_editor_run_profile.hpp"
 #include "release/rv_editor_candidate.hpp"
@@ -99,6 +100,75 @@ struct rv_editor_scene_camera {
     bool seeking = false; // Seek pressed: the next click picks the point to turn about
     bool operator==(const rv_editor_scene_camera &) const = default;
 };
+
+// Q20.12 accessors beside the double fields above; the viewport moves to them in E12-cam-1..3, the storage stays double until
+// E12a-2. get returns fx_from_double's code and leaves out untouched when a double lies outside Q20.12. Exact: dividing by 4096
+// only moves the exponent, and a raw int32 fits the double's 53-bit mantissa.
+inline double rv_editor_camera_units_of(rv_pdklib::fx raw)
+{
+    return static_cast<double>(raw) / rv_pdklib::fx_one;
+}
+
+[[nodiscard]] inline int rv_editor_camera_get_yaw_fx(const rv_editor_scene_camera &c, rv_pdklib::fx &out)
+{
+    return rv_pdklib::fx_from_double(c.yaw, out);
+}
+
+inline void rv_editor_camera_set_yaw_fx(rv_editor_scene_camera &c, rv_pdklib::fx value)
+{
+    c.yaw = rv_editor_camera_units_of(value);
+}
+
+[[nodiscard]] inline int rv_editor_camera_get_pitch_fx(const rv_editor_scene_camera &c, rv_pdklib::fx &out)
+{
+    return rv_pdklib::fx_from_double(c.pitch, out);
+}
+
+inline void rv_editor_camera_set_pitch_fx(rv_editor_scene_camera &c, rv_pdklib::fx value)
+{
+    c.pitch = rv_editor_camera_units_of(value);
+}
+
+[[nodiscard]] inline int rv_editor_camera_get_distance_fx(const rv_editor_scene_camera &c, rv_pdklib::fx &out)
+{
+    return rv_pdklib::fx_from_double(c.distance, out);
+}
+
+inline void rv_editor_camera_set_distance_fx(rv_editor_scene_camera &c, rv_pdklib::fx value)
+{
+    c.distance = rv_editor_camera_units_of(value);
+}
+
+[[nodiscard]] inline int rv_editor_camera_get_snap_step_fx(const rv_editor_scene_camera &c, rv_pdklib::fx &out)
+{
+    return rv_pdklib::fx_from_double(c.snap_step, out);
+}
+
+inline void rv_editor_camera_set_snap_step_fx(rv_editor_scene_camera &c, rv_pdklib::fx value)
+{
+    c.snap_step = rv_editor_camera_units_of(value);
+}
+
+[[nodiscard]] inline int rv_editor_camera_get_target_fx(const rv_editor_scene_camera &c, rv_pdklib::fx_vec3 &out)
+{
+    rv_pdklib::fx_vec3 v{};
+    if (const int rc = rv_pdklib::fx_from_double(c.target[0], v.x); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(c.target[1], v.y); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(c.target[2], v.z); rc != RV_OK) {
+        return rc;
+    }
+    out = v;
+    return RV_OK;
+}
+
+inline void rv_editor_camera_set_target_fx(rv_editor_scene_camera &c, const rv_pdklib::fx_vec3 &value)
+{
+    c.target = { rv_editor_camera_units_of(value.x), rv_editor_camera_units_of(value.y), rv_editor_camera_units_of(value.z) };
+}
 
 // Assets' own view: the folder shown (0: all), the filter, icons or details.
 struct rv_editor_assets_ui {
