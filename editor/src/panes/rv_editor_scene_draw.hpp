@@ -55,8 +55,10 @@ vec3 add(const vec3 &a, const vec3 &b);
 vec3 mul(const vec3 &a, double s);
 double dot(const vec3 &a, const vec3 &b);
 
-// The near plane both the view and the filled-mesh pass clip against.
+// The near plane in metres. The Q20.12 plane both passes clip against is rv_editor_near_fx.
 inline constexpr double rv_editor_near = 0.05;
+// The editor's Q20.12 raw of rv_editor_near, rounded to the nearest step.
+inline constexpr rv_pdklib::fx rv_editor_near_fx = static_cast<rv_pdklib::fx>(rv_editor_near * rv_pdklib::fx_one + 0.5);
 // Corners of a triangle.
 inline constexpr int tri_vertices = 3;
 // Seed of a box's min/max: lo starts at +it and hi at -it, and the first coordinate replaces it.
@@ -72,8 +74,8 @@ struct rv_editor_view {
     bool valid = false;
 
     vec3 to_view(const vec3 &p) const;
-    // Precondition: v[2] >= rv_editor_near up to rounding; rv_editor_draw_filled (a triangle wholly
-    // in front) and rv_editor_clip_near (its pieces) guarantee it.
+    // Precondition: v[2] >= rv_editor_near up to rounding; the filled pass passes only the corners of
+    // the pieces rv_editor_clip_near_fx returns, which are at or in front of the plane.
     ImVec2 to_screen(const vec3 &v) const;
     // False when the point is behind the near plane.
     bool point(const vec3 &p, ImVec2 &out) const;
@@ -105,11 +107,6 @@ struct rv_editor_tri {
     ImVec4 color[3] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f } };
 };
 
-// The triangle cut to the near plane (view z >= rv_editor_near): 0 to 2 triangles in the same winding,
-// each cut corner's uv and colour interpolated with its position. Wholly in front: the triangle as is;
-// wholly behind: none.
-std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv_editor_tri &tri);
-
 // A corner for the integer clip: its view-space point as Q20.12, with the uv and colour the editor carries.
 struct rv_editor_fx_vertex {
     rv_pdklib::fx_vec3 p{};
@@ -124,9 +121,9 @@ struct rv_editor_fx_tri {
 // Most triangles one triangle gives after the near cut: a convex polygon of at most four corners, fanned.
 inline constexpr int rv_editor_fx_max_pieces = 2;
 
-// The integer counterpart of rv_editor_clip_near (rv_editor_scene_draw.cpp), in rv_editor_scene_clip.cpp, on the console's
-// rv_gte primitives. near_plane is Q20.12 raw. Sets count to 0, 1 or 2 and writes those triangles to out, in the source
-// winding. Error: a cut point leaves fx; count is 0 and out is not used.
+// Cuts a triangle to the near plane in integers (rv_editor_scene_clip.cpp), on the console's rv_gte primitives.
+// near_plane is Q20.12 raw. Sets count to 0, 1 or 2 and writes those triangles to out, in the source
+// winding: wholly in front, the triangle as is; wholly behind, none. Error: a cut point leaves fx; count is 0, out unused.
 int rv_editor_clip_near_fx(const rv_editor_fx_tri &tri,
     rv_pdklib::fx near_plane,
     rv_editor_fx_tri (&out)[rv_editor_fx_max_pieces],

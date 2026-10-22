@@ -2,7 +2,6 @@
 
 #include "panes/rv_editor_scene_draw.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <string_view>
@@ -23,8 +22,7 @@ namespace
 constexpr double camera_fov_degrees = 50.0;
 // Far clip plane, metres: past the camera's largest distance (200 m) with room for the scene.
 constexpr double camera_far_metres = 1000.0;
-// Near plane and field in Q20.12 for rv_gte_camera_make; the near plane rounded to the nearest step.
-constexpr rv_pdklib::fx camera_near_fx = static_cast<rv_pdklib::fx>(rv_editor_near * rv_pdklib::fx_one + 0.5);
+// Field and far plane in Q20.12 for rv_gte_camera_make; the near plane is rv_editor_near_fx.
 constexpr rv_pdklib::fx camera_fov_fx = static_cast<rv_pdklib::fx>(camera_fov_degrees * rv_pdklib::fx_one);
 constexpr rv_pdklib::fx camera_far_fx = static_cast<rv_pdklib::fx>(camera_far_metres * rv_pdklib::fx_one);
 
@@ -126,7 +124,7 @@ int rv_editor_camera_build(const rv_editor_scene_camera &c, float height, rv_pdk
         up,
         camera_fov_fx,
         static_cast<std::int32_t>(std::lround(height)),
-        camera_near_fx,
+        rv_editor_near_fx,
         camera_far_fx,
         out);
 }
@@ -158,13 +156,13 @@ ImVec2 rv_editor_screen_of_fx(const rv_editor_view &v, const rv_pdklib::fx_vec3 
 // Error: never for a crossing edge (t is in [0, 4096]); the behind end is then untouched.
 int rv_editor_cut_edge(rv_pdklib::fx_vec3 &a, rv_pdklib::fx_vec3 &b)
 {
-    const bool a_behind = a.z < camera_near_fx;
-    if (a_behind == (b.z < camera_near_fx)) {
+    const bool a_behind = a.z < rv_editor_near_fx;
+    if (a_behind == (b.z < rv_editor_near_fx)) {
         return RV_OK;
     }
     rv_pdklib::fx_vec3 &behind = a_behind ? a : b;
     const rv_pdklib::fx_vec3 front = a_behind ? b : a;
-    return rv_pdklib::rv_gte_near_clip(behind, front, camera_near_fx, behind);
+    return rv_pdklib::rv_gte_near_clip(behind, front, rv_editor_near_fx, behind);
 }
 
 // Both ends of an edge in Q20.12, the crossing one cut to the near plane. Error: a view point outside Q20.12.
@@ -224,7 +222,7 @@ bool rv_editor_view::point(const vec3 &p, ImVec2 &out) const
 {
     // A point outside Q20.12 is not on screen: it returns false.
     rv_pdklib::fx_vec3 v{};
-    if (rv_editor_fx_of_view(to_view(p), v) != RV_OK || v.z < camera_near_fx) {
+    if (rv_editor_fx_of_view(to_view(p), v) != RV_OK || v.z < rv_editor_near_fx) {
         return false;
     }
     out = rv_editor_screen_of_fx(*this, v);
@@ -268,82 +266,10 @@ void rv_editor_line(ImDrawList *dl, const rv_editor_view &v, const vec3 &a, cons
         }
         return;
     }
-    if (pa.z < camera_near_fx && pb.z < camera_near_fx) {
+    if (pa.z < rv_editor_near_fx && pb.z < rv_editor_near_fx) {
         return;
     }
     dl->AddLine(rv_editor_screen_of_fx(v, pa), rv_editor_screen_of_fx(v, pb), color, width);
-}
-
-namespace
-{
-
-// A corner of the polygon a triangle is cut into: position, uv and colour, and its distance in
-// front of the near plane (view z - rv_editor_near; below 0 is behind).
-struct rv_editor_clip_vertex {
-    vec3 p;
-    ImVec2 uv;
-    ImVec4 color;
-    double front;
-};
-
-// Where the edge a-b crosses the near plane. Position, uv and colour take the same t.
-rv_editor_clip_vertex rv_editor_clip_cross(const rv_editor_clip_vertex &a, const rv_editor_clip_vertex &b)
-{
-    const double t = a.front / (a.front - b.front);
-    const float f = static_cast<float>(t);
-    const ImVec2 uv(a.uv.x + (b.uv.x - a.uv.x) * f, a.uv.y + (b.uv.y - a.uv.y) * f);
-    const ImVec4 color = { a.color.x + (b.color.x - a.color.x) * f,
-        a.color.y + (b.color.y - a.color.y) * f,
-        a.color.z + (b.color.z - a.color.z) * f,
-        a.color.w + (b.color.w - a.color.w) * f };
-    return { add(a.p, mul(sub(b.p, a.p), t)), uv, color, 0.0 };
-}
-
-} // namespace
-
-std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv_editor_tri &tri)
-{
-    std::vector<rv_editor_clip_vertex> in;
-    in.reserve(tri_vertices);
-    for (int k = 0; k < tri_vertices; ++k) {
-        in.push_back({ tri.p[k], tri.uv[k], tri.color[k], v.to_view(tri.p[k])[2] - rv_editor_near });
-    }
-    const auto behind = [](const rv_editor_clip_vertex &c) {
-        return c.front < 0.0;
-    };
-    const auto behind_count = std::count_if(in.begin(), in.end(), behind);
-    if (behind_count == 0) {
-        return { tri };
-    }
-    if (behind_count == tri_vertices) {
-        return {};
-    }
-    // Sutherland-Hodgman against one plane: keep the corners in front, add each crossing.
-    std::vector<rv_editor_clip_vertex> poly;
-    poly.reserve(tri_vertices + 1);
-    for (size_t i = 0; i < in.size(); ++i) {
-        const rv_editor_clip_vertex &cur = in[i];
-        const rv_editor_clip_vertex &nxt = in[(i + 1) % in.size()];
-        if (!behind(cur)) {
-            poly.push_back(cur);
-        }
-        if (behind(cur) != behind(nxt)) {
-            poly.push_back(rv_editor_clip_cross(cur, nxt));
-        }
-    }
-    // The polygon is convex: a fan from its first corner keeps the order of the source's winding.
-    std::vector<rv_editor_tri> out;
-    for (size_t i = 1; i + 1 < poly.size(); ++i) {
-        const rv_editor_clip_vertex *corner[tri_vertices] = { &poly[0], &poly[i], &poly[i + 1] };
-        rv_editor_tri piece = tri; // keeps from_model and cpu_tex
-        for (int k = 0; k < tri_vertices; ++k) {
-            piece.p[k] = corner[k]->p;
-            piece.uv[k] = corner[k]->uv;
-            piece.color[k] = corner[k]->color;
-        }
-        out.push_back(piece);
-    }
-    return out;
 }
 
 // Corner brackets of a small cube: three short legs per corner, pointing inward, plus

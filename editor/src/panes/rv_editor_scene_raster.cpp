@@ -48,8 +48,6 @@ constexpr float color_channel_max = 255.0f;
 constexpr double normalize_epsilon = 1e-12;
 // Bytes per pixel of the picture: RGBA8, as the z-buffer and the SDL texture both are.
 constexpr int rgba_channels = 4;
-// The near plane in Q20.12 raw: rv_editor_near rounded, as the console's near plane is.
-constexpr rv_pdklib::fx near_plane_raw = static_cast<rv_pdklib::fx>(rv_editor_near * rv_pdklib::fx_one + 0.5);
 
 vec3 cross(const vec3 &a, const vec3 &b)
 {
@@ -300,7 +298,7 @@ int rv_editor_raster_tri(rv_editor_zbuf &buf,
     }
     rv_editor_fx_tri cut[rv_editor_fx_max_pieces] = {};
     int count = 0;
-    if (rv_editor_clip_near_fx(source, near_plane_raw, cut, count) != RV_OK) {
+    if (rv_editor_clip_near_fx(source, rv_editor_near_fx, cut, count) != RV_OK) {
         return RV_ERR_INVAL;
     }
     for (int i = 0; i < count; ++i) {
