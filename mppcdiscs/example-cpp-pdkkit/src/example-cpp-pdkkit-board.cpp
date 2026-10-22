@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <vector>
 
-#include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
@@ -67,7 +66,7 @@ bool rv_board_cell_lit(int i, int64_t frame)
     return i != RV_BOARD_SPACE_CELL && level > RV_BOARD_LIT_ABOVE;
 }
 
-int ecs_flicker_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_cd_scene_component &component)
+int ecs_flicker_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_pdkkit::ecs_scene_component &component)
 {
     int64_t cell = RV_FLICKER_CELL_DEFAULT;
     const int read_code = rv_pdkkit::ecs_field_int(component, RV_FLICKER_CELL_KEY, cell);

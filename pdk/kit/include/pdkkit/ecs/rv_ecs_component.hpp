@@ -8,11 +8,11 @@
 #include <string_view>
 #include <system_error>
 
-#include "pdk/cd/rv_cd.h"
 #include "pdk/cv/rv_vertex.h"
 #include "pdk/rv_err.h"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
+#include "pdkkit/ecs/rv_ecs_scene_records.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 
@@ -85,12 +85,12 @@ T *ecs_component_ensure(ecs_world &world, ecs_id id)
 }
 
 // Field with the key, or nullptr. Only the first field_count fields are in use.
-inline const rv_cd_scene_field *ecs_field_find(const rv_cd_scene_component &component, std::string_view key)
+inline const ecs_scene_field *ecs_field_find(const ecs_scene_component &component, std::string_view key)
 {
-    const int64_t capacity = RV_CD_COMPONENT_FIELD_CAPACITY;
+    const int64_t capacity = ecs_component_field_capacity;
     const int64_t count = component.field_count < capacity ? component.field_count : capacity;
     for (int64_t i = 0; i < count; ++i) {
-        const rv_cd_scene_field &field = component.fields[i];
+        const ecs_scene_field &field = component.fields[i];
         if (std::string_view{ field.key, ecs_name_length(field.key) } == key) {
             return &field;
         }
@@ -99,9 +99,9 @@ inline const rv_cd_scene_field *ecs_field_find(const rv_cd_scene_component &comp
 }
 
 // RV_ERR_NOENT for a missing key, RV_ERR_INVAL when the whole value is not an integer. out is written only on success.
-inline int ecs_field_int(const rv_cd_scene_component &component, std::string_view key, int64_t &out)
+inline int ecs_field_int(const ecs_scene_component &component, std::string_view key, int64_t &out)
 {
-    const rv_cd_scene_field *field = ecs_field_find(component, key);
+    const ecs_scene_field *field = ecs_field_find(component, key);
     if (field == nullptr) {
         return RV_ERR_NOENT;
     }
@@ -119,7 +119,7 @@ inline int ecs_field_int(const rv_cd_scene_component &component, std::string_vie
 
 // Factory of a marker: it has no fields, so any field is RV_ERR_INVAL. An existing marker is kept, not an error.
 template <typename T>
-int ecs_marker_factory(ecs_world &world, ecs_id id, const rv_cd_scene_component &component)
+int ecs_marker_factory(ecs_world &world, ecs_id id, const ecs_scene_component &component)
 {
     const bool fielded = component.field_count != 0;
     if (fielded) {
@@ -131,17 +131,17 @@ int ecs_marker_factory(ecs_world &world, ecs_id id, const rv_cd_scene_component 
     return RV_OK;
 }
 
-inline int ecs_hidden_factory(ecs_world &world, ecs_id id, const rv_cd_scene_component &component)
+inline int ecs_hidden_factory(ecs_world &world, ecs_id id, const ecs_scene_component &component)
 {
     return ecs_marker_factory<ecs_component_hidden>(world, id, component);
 }
 
-inline int ecs_decal_factory(ecs_world &world, ecs_id id, const rv_cd_scene_component &component)
+inline int ecs_decal_factory(ecs_world &world, ecs_id id, const ecs_scene_component &component)
 {
     return ecs_marker_factory<ecs_component_decal>(world, id, component);
 }
 
-inline int ecs_two_sided_factory(ecs_world &world, ecs_id id, const rv_cd_scene_component &component)
+inline int ecs_two_sided_factory(ecs_world &world, ecs_id id, const ecs_scene_component &component)
 {
     return ecs_marker_factory<ecs_component_two_sided>(world, id, component);
 }

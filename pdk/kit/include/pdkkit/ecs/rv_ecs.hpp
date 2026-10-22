@@ -18,11 +18,11 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
-// Defined in pdk/cd/rv_cd.h; only a reference is taken here.
-struct rv_cd_scene_component;
-
 namespace rv_pdkkit
 {
+
+// Defined in rv_ecs_scene_records.hpp; only a reference is taken here, which keeps that header out of this one's includes.
+struct ecs_scene_component;
 
 // Generation 0 is never issued: a default ecs_id{} (index 0, generation 0) names no entity.
 inline constexpr uint32_t ecs_first_generation = 1;
@@ -60,7 +60,7 @@ struct ecs_frame;
 
 // Fills the components of entity id from the fields of a scene component. Returns RV_OK or RV_ERR_*.
 // May throw std::bad_alloc before any state changes, as the pool growth does.
-using ecs_component_factory = int (*)(ecs_world &, ecs_id, const rv_cd_scene_component &);
+using ecs_component_factory = int (*)(ecs_world &, ecs_id, const ecs_scene_component &);
 
 // Frame system: returns RV_OK or RV_ERR_*. Run by ecs_world_frame in registration order.
 using ecs_system = int (*)(ecs_world &, const ecs_frame &);

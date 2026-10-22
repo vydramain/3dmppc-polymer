@@ -49,7 +49,8 @@ struct ecs_scene_reading {
     std::vector<ecs_id> &made;
 };
 
-// Boundary: a float of the PDK contract to fx (uv in pixels, tess as subdivision density, rv_cd.h). The only float entry.
+// Boundary: a float of the scene contract to fx (uv in pixels, tess as subdivision density, ecs_scene_object in
+// rv_ecs_scene_records.hpp). The only float entry.
 inline int ecs_scene_unit_from_float(float value, rv_pdklib::fx &out)
 {
     return rv_pdklib::fx_from_double(static_cast<double>(value), out);
@@ -92,7 +93,7 @@ inline void ecs_scene_reserve(ecs_scene_reading &load)
 }
 
 // Object `index` of the records; read_into has checked that the index is in range.
-inline const rv_cd_scene_object &ecs_scene_object_at(const ecs_scene_reading &load, int64_t index)
+inline const ecs_scene_object &ecs_scene_object_at(const ecs_scene_reading &load, int64_t index)
 {
     return load.records.objects[static_cast<std::size_t>(index)];
 }
@@ -108,7 +109,7 @@ int ecs_scene_mark(ecs_scene_reading &load, ecs_id id)
 }
 
 // A mesh's model with its tint. A mesh without a model gets none, with a warning.
-inline int ecs_scene_add_model(ecs_scene_reading &load, const rv_cd_scene_object &object, ecs_id id)
+inline int ecs_scene_add_model(ecs_scene_reading &load, const ecs_scene_object &object, ecs_id id)
 {
     const bool named = object.model[0] != '\0';
     if (!named) {
@@ -128,7 +129,7 @@ inline int ecs_scene_add_model(ecs_scene_reading &load, const rv_cd_scene_object
 }
 
 // Sprite of a quad or billboard. uv (pixels) and tess (subdivision density) convert at the boundary.
-inline int ecs_scene_add_sprite(ecs_scene_reading &load, const rv_cd_scene_object &object, ecs_id id, ecs_sprite_kind kind)
+inline int ecs_scene_add_sprite(ecs_scene_reading &load, const ecs_scene_object &object, ecs_id id, ecs_sprite_kind kind)
 {
     ecs_component_sprite *sprite = ecs_component_ensure<ecs_component_sprite>(load.world, id);
     if (sprite == nullptr) {
@@ -159,20 +160,20 @@ inline int ecs_scene_add_sprite(ecs_scene_reading &load, const rv_cd_scene_objec
 }
 
 // Components of an object's kind. Groups have none.
-inline int ecs_scene_add_kind(ecs_scene_reading &load, const rv_cd_scene_object &object, ecs_id id)
+inline int ecs_scene_add_kind(ecs_scene_reading &load, const ecs_scene_object &object, ecs_id id)
 {
     switch (object.kind) {
-    case RV_CD_SCENE_GROUP:
+    case ecs_scene_kind::group:
         return RV_OK;
-    case RV_CD_SCENE_CAMERA:
+    case ecs_scene_kind::camera:
         return ecs_scene_mark<ecs_component_camera>(load, id);
-    case RV_CD_SCENE_MESH:
+    case ecs_scene_kind::mesh:
         return ecs_scene_add_model(load, object, id);
-    case RV_CD_SCENE_QUAD:
+    case ecs_scene_kind::quad:
         return ecs_scene_add_sprite(load, object, id, ecs_sprite_kind::quad);
-    case RV_CD_SCENE_BILLBOARD:
+    case ecs_scene_kind::billboard:
         return ecs_scene_add_sprite(load, object, id, ecs_sprite_kind::billboard);
-    case RV_CD_SCENE_VOLUME:
+    case ecs_scene_kind::volume:
         return ecs_scene_mark<ecs_component_volume>(load, id);
     }
     RV_LOG_ERR(ecs_scene_tag,
@@ -186,7 +187,7 @@ inline int ecs_scene_add_kind(ecs_scene_reading &load, const rv_cd_scene_object 
 // Transform from the local Q20.12 values. The parent is set later, once every object has an entity.
 inline int ecs_scene_add_transform(ecs_scene_reading &load, int64_t index, ecs_id id)
 {
-    const rv_cd_scene_local &local = load.records.locals[static_cast<std::size_t>(index)];
+    const ecs_scene_local &local = load.records.locals[static_cast<std::size_t>(index)];
     ecs_component_transform *transform = ecs_component_ensure<ecs_component_transform>(load.world, id);
     if (transform == nullptr) {
         return ecs_scene_no_entity(load.scene);
@@ -201,8 +202,8 @@ inline int ecs_scene_add_transform(ecs_scene_reading &load, int64_t index, ecs_i
 // Creates the entity of object `index` with its type, transform, name and kind components.
 inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
 {
-    const rv_cd_scene_object &object = ecs_scene_object_at(load, index);
-    const rv_cd_scene_entity &type = load.records.entities[static_cast<std::size_t>(index)];
+    const ecs_scene_object &object = ecs_scene_object_at(load, index);
+    const ecs_scene_entity &type = load.records.entities[static_cast<std::size_t>(index)];
     ecs_id id{};
     const std::string_view type_name{ type.type, ecs_name_length(type.type) };
     const int created = ecs_entity_create_as(load.world, type_name, id);
@@ -231,7 +232,7 @@ inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
 // Parent of object `index`: the entity of its parent object, or `parent` for a root.
 inline int ecs_scene_link(ecs_scene_reading &load, int64_t index, ecs_id parent)
 {
-    const rv_cd_scene_object &object = ecs_scene_object_at(load, index);
+    const ecs_scene_object &object = ecs_scene_object_at(load, index);
     const bool outside = object.parent >= load.objects;
     if (outside) {
         RV_LOG_ERR(ecs_scene_tag,
@@ -264,9 +265,9 @@ inline ecs_component_factory ecs_scene_factory(const ecs_world &world, std::stri
 }
 
 // One [[component]] of the scene, given to its object's factory. An unknown name is skipped with a warning.
-inline int ecs_scene_component(ecs_scene_reading &load, int64_t index)
+inline int ecs_scene_add_component(ecs_scene_reading &load, int64_t index)
 {
-    const rv_cd_scene_component &component = load.records.components[static_cast<std::size_t>(index)];
+    const ecs_scene_component &component = load.records.components[static_cast<std::size_t>(index)];
     const bool outside = component.object < 0 || component.object >= load.objects;
     if (outside) {
         RV_LOG_ERR(ecs_scene_tag,
@@ -317,7 +318,7 @@ inline int ecs_scene_load_all(ecs_scene_reading &load, ecs_id parent)
         }
     }
     for (int64_t index = 0; index < load.components; ++index) {
-        const int filled = ecs_scene_component(load, index);
+        const int filled = ecs_scene_add_component(load, index);
         if (filled != RV_OK) {
             return filled;
         }

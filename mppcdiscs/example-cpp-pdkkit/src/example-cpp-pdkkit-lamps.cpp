@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <vector>
 
-#include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
@@ -144,7 +143,7 @@ int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::
 
 } // namespace
 
-int ecs_lamp_light_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_cd_scene_component &component)
+int ecs_lamp_light_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_pdkkit::ecs_scene_component &component)
 {
     return rv_pdkkit::ecs_marker_factory<ecs_component_lamp_light>(world, id, component);
 }

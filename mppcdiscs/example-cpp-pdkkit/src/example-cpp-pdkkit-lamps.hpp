@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <vector>
 
-#include "pdk/cd/rv_cd.h"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_frame.hpp"
 #include "example-cpp-pdkkit-route.hpp"
@@ -19,7 +18,7 @@ struct ecs_component_lamp_light {
 };
 
 // Factory of lamp_light: it has no fields, so any field is RV_ERR_INVAL.
-int ecs_lamp_light_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_cd_scene_component &component);
+int ecs_lamp_light_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_pdkkit::ecs_scene_component &component);
 
 // Frame system: shows each lamp_light entity that burns at the frame's place in the period, hides the others.
 // Error: RV_ERR_NOENT when a dark lamp cannot take its hidden mark (a stale id). Not logged.
