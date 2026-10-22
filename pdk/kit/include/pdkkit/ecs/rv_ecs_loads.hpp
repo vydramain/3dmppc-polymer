@@ -44,7 +44,9 @@ inline void ecs_loads_prune(ecs_world &world)
 }
 
 // Whether the parent chain of id reaches one of roots. RV_ERR_INVAL for a cycle, which is logged.
-// A dead or transform-less parent ends the chain without reaching anything.
+// The parent is matched against roots before its transform is looked up, so a root is reached even without a
+// transform, and even when it is dead: a child of a dead load root is still in the load's subtree. Another dead or
+// transform-less parent ends the chain.
 inline int ecs_chain_reaches(ecs_world &world, ecs_id id, const std::vector<ecs_id> &roots, bool &reached)
 {
     const ecs_component_transform *self = ecs_component_get<ecs_component_transform>(world, id);
@@ -67,9 +69,17 @@ inline int ecs_chain_reaches(ecs_world &world, ecs_id id, const std::vector<ecs_
     return RV_OK;
 }
 
-// Every live entity that is one of roots or lies under one. RV_ERR_INVAL for a cycle, found before any change.
+// Every live root, with or without a transform, then every other live transform holder under a root, each once.
+// Roots come first, the rest in transform pool order. RV_ERR_INVAL for a cycle, found before any change.
 inline int ecs_subtree_collect(ecs_world &world, const std::vector<ecs_id> &roots, std::vector<ecs_id> &out)
 {
+    // ponytail: linear scans over roots; a sorted id list or a set if a load grows to thousands of objects.
+    for (const ecs_id id : roots) {
+        const bool listed = std::find(out.begin(), out.end(), id) != out.end();
+        if (ecs_entity_alive(world, id) && !listed) {
+            out.push_back(id);
+        }
+    }
     std::vector<ecs_id> holders;
     ecs_component_each<ecs_component_transform>(world, [&holders](ecs_id id, ecs_component_transform &) {
         holders.push_back(id);
@@ -81,7 +91,7 @@ inline int ecs_subtree_collect(ecs_world &world, const std::vector<ecs_id> &root
         if (walked != RV_OK) {
             return walked;
         }
-        if (is_root || under_root) {
+        if (under_root) {
             out.push_back(id);
         }
     }
