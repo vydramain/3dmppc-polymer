@@ -10,6 +10,10 @@
 
 namespace rv_pdklib
 {
+// No rv_texfmt enumerator is 0 and no rv_texfmt_names row has it. An unknown
+// spelling binds to this, so it cannot silently become the idx8 default.
+constexpr rv_texfmt rv_manifest_texfmt_unknown_spelling = static_cast<rv_texfmt>(0);
+
 // One row per field of rv_manifest. Section and key come from the schema
 // constants, so a row cannot drift away from the spelling the parser accepts.
 struct bind_rule {
@@ -62,6 +66,12 @@ constexpr bind_rule RULES[] = {
         rv_manifest_key_assets_files,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.assets_files = v.arr;
+        } },
+    { rv_manifest_section_assets_texture, // [assets.texture] format = "…"
+        rv_manifest_key_assets_texture_format,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            const rv_pdklib::rv_texfmt_name *row = rv_pdklib::rv_texfmt_name::by_text(v.str.c_str());
+            m.assets_texture_format = (row != nullptr) ? row->format : rv_manifest_texfmt_unknown_spelling;
         } },
     { rv_manifest_section_textures, // [textures] files = [ … ]
         rv_manifest_key_textures_files,

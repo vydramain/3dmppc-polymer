@@ -23,6 +23,7 @@ constexpr std::string_view rv_manifest_section_disc = "disc";
 constexpr std::string_view rv_manifest_section_build = "build";
 constexpr std::string_view rv_manifest_section_scripts = "scripts";
 constexpr std::string_view rv_manifest_section_assets = "assets";
+constexpr std::string_view rv_manifest_section_assets_texture = "assets.texture";
 constexpr std::string_view rv_manifest_section_textures = "textures";
 constexpr std::string_view rv_manifest_section_sounds = "sounds";
 constexpr std::string_view rv_manifest_section_models = "models";
@@ -49,6 +50,9 @@ constexpr std::string_view rv_manifest_key_scripts_sources = "sources";
 
 // Section ['assets']
 constexpr std::string_view rv_manifest_key_assets_files = "files";
+
+// Section ['assets.texture']
+constexpr std::string_view rv_manifest_key_assets_texture_format = "format";
 
 // Section ['textures']
 constexpr std::string_view rv_manifest_key_textures_files = "files";
@@ -124,6 +128,10 @@ constexpr rv_manifest_key_spec rv_manifest_assets_keys[] = {
     { rv_manifest_key_assets_files, rv_manifest_value_kind::array },
 };
 
+constexpr rv_manifest_key_spec rv_manifest_assets_texture_keys[] = {
+    { rv_manifest_key_assets_texture_format, rv_manifest_value_kind::string },
+};
+
 constexpr rv_manifest_key_spec rv_manifest_textures_keys[] = {
     { rv_manifest_key_textures_files, rv_manifest_value_kind::array },
     { rv_manifest_key_textures_format, rv_manifest_value_kind::string },
@@ -173,6 +181,7 @@ constexpr rv_manifest_section_spec rv_manifest_sections[] = {
     { rv_manifest_section_build, rv_manifest_build_keys, std::size(rv_manifest_build_keys) },
     { rv_manifest_section_scripts, rv_manifest_scripts_keys, std::size(rv_manifest_scripts_keys) },
     { rv_manifest_section_assets, rv_manifest_assets_keys, std::size(rv_manifest_assets_keys) },
+    { rv_manifest_section_assets_texture, rv_manifest_assets_texture_keys, std::size(rv_manifest_assets_texture_keys) },
     { rv_manifest_section_textures, rv_manifest_textures_keys, std::size(rv_manifest_textures_keys) },
     { rv_manifest_section_sounds, rv_manifest_sounds_keys, std::size(rv_manifest_sounds_keys) },
     { rv_manifest_section_models, rv_manifest_models_keys, std::size(rv_manifest_models_keys) },
