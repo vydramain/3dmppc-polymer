@@ -157,18 +157,21 @@ inline ecs_component_factory ecs_component_find(const ecs_world &world, std::str
     return nullptr;
 }
 
-// RV_ERR_INVAL for an empty name or a null factory, RV_ERR_ALREADY when the name is taken.
-inline int ecs_component_register(ecs_world &world, std::string_view name, ecs_component_factory make)
+// RV_ERR_INVAL for an empty name or a null factory, RV_ERR_ALREADY when the name is taken, RV_ERR_NOMEM when the
+// registry cannot grow.
+[[nodiscard]] inline int ecs_component_register(ecs_world &world, std::string_view name, ecs_component_factory make)
 {
-    const bool bad = name.empty() || make == nullptr;
-    if (bad) {
-        return RV_ERR_INVAL;
-    }
-    if (ecs_component_find(world, name) != nullptr) {
-        return RV_ERR_ALREADY;
-    }
-    world.factories.emplace_back(name, make);
-    return RV_OK;
+    return ecs_guard([&] {
+        const bool bad = name.empty() || make == nullptr;
+        if (bad) {
+            return RV_ERR_INVAL;
+        }
+        if (ecs_component_find(world, name) != nullptr) {
+            return RV_ERR_ALREADY;
+        }
+        world.factories.emplace_back(name, make);
+        return RV_OK;
+    });
 }
 
 } // namespace rv_pdkkit
