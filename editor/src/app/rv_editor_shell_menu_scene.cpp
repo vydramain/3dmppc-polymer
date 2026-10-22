@@ -35,7 +35,7 @@ constexpr std::string_view scenes_dir = "scenes";
 constexpr std::string_view scene_file_suffix = ".scene.toml";
 
 // Kinds the Add menu offers, in menu order
-constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
+constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_volume };
 
 // Add menu label for each node kind; anything else is a group.
 struct rv_editor_kind_label {

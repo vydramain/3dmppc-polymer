@@ -27,7 +27,7 @@ namespace
 {
 
 // Kinds the Add menu offers, in menu order
-constexpr std::string_view kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
+constexpr std::string_view kinds[] = { kind_group, kind_camera, kind_mesh, kind_volume };
 
 // A command's button: its code, and the theme colour it is drawn in.
 struct rv_editor_hierarchy_command_spec {
