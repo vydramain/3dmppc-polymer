@@ -1,7 +1,7 @@
 #pragma once
 
-// The scene loader and its transforms, inline: a disc gets pdklib as headers only, so the
-// loader cannot be a .cpp of its own there. Included by rv_scene.hpp; the bodies are the former rv_scene.cpp.
+// The scene loader and its transforms, inline: a disc gets the SDK as headers only, with no object code.
+// Included by rv_scene.hpp first, before rv_scene_write.hpp.
 
 #include "rv_scene.hpp"
 #include "rv_scene_space.hpp"

@@ -72,10 +72,10 @@ inline int rv_scene_parse(const std::string &text, const std::string &origin, rv
 // Writes `scene` back in the dialect rv_scene_parse reads, the inverse of it. A parent index
 // outside objects is written as a root, a component on such an index is not written.
 // A 0.0 scene is written as the PDK version.
-std::string rv_scene_render(const rv_scene &scene);
+inline std::string rv_scene_render(const rv_scene &scene);
 
 // One value as rv_scene_render writes it: a quoted string, [a, b] for an array, the shortest fixed number.
-std::string rv_scene_value_text(const rv_manifest_mvalue &value);
+inline std::string rv_scene_value_text(const rv_manifest_mvalue &value);
 
 // Object `index`'s local transform: T * Ry * Rx * Rz * S.
 inline rv_mat4 rv_scene_local(const rv_scene_object &object);
@@ -90,3 +90,4 @@ inline void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_v
 } // namespace rv_pdklib
 
 #include "pdklib/rv_scene/rv_scene_read.hpp"
+#include "pdklib/rv_scene/rv_scene_write.hpp"
