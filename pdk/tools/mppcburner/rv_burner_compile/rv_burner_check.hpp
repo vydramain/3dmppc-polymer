@@ -37,4 +37,19 @@ int check_sources_outside_disc(const rv_pdklib::rv_manifest &manifest,
     std::vector<std::string> &absolute_sources,
     std::string &error);
 
+/// Resolve the manifest's [build] sdk names into `<pdk root>/<name>/include` directories,
+/// appended to @p absolute_includes. The SDK root is the parent of the contract directory
+/// @p pdk_include_dir (-p or its default), so the trees are looked up where the PDK lives.
+///
+/// @param manifest           the validated manifest; `build_sdk` is read
+/// @param pdk_include_dir    the PDK include directory (-p or its default)
+/// @param absolute_includes  receives one entry per SDK tree, in manifest order
+/// @param error              set with a fragment the caller prefixes
+/// @return RV_OK on success; RV_ERR_NOENT if a named tree does not exist,
+///         RV_ERR_IO if the PDK directory or a tree cannot be checked
+int resolve_sdk_trees(const rv_pdklib::rv_manifest &manifest,
+    const std::filesystem::path &pdk_include_dir,
+    std::vector<std::string> &absolute_includes,
+    std::string &error);
+
 } // namespace rv_pdktools
