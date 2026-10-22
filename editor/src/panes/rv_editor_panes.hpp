@@ -153,6 +153,9 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui);
+// A model tab (.gltf/.glb) of the Scene tile: the model drawn textured through its own camera, which
+// the mouse and keys move (rv_editor_scene_tab_model.cpp). Its camera is kept per absolute path.
+void rv_editor_scene_tab_model(SDL_Renderer *renderer, const rv_editor_scene_tab &tab, const rv_editor_theme &theme);
 // Hierarchy and the scene's Inspector; rv_editor_scene_keys takes Ctrl+Z, Ctrl+Shift+Z,
 // Delete and Ctrl+D for the scene while the calling pane has the keyboard.
 void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);

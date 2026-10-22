@@ -319,6 +319,9 @@ status_playing = "Playing"
 tab_scene = "Scene"
 tooltip_nothing_playing = "Nothing is playing"
 tooltip_scene_stays_front = "The scene stays in front."
+error_model_load = "Could not read the model {}: {}"
+warning_triangles_dropped = "Some triangles of the model are left out: {}"
+error_model_view = "The model's view could not be drawn."
 
 [catalog_buttons]
 col_normal = "normal"
