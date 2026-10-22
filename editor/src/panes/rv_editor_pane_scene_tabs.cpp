@@ -169,6 +169,18 @@ std::optional<rv_editor_scene_tab> rv_editor_scene_tab_build(const std::filesyst
     return tab;
 }
 
+bool rv_editor_scene_tab_open(rv_editor_app &app, const rv_editor_ui_port &ui, const std::filesystem::path &path)
+{
+    const std::optional<rv_editor_scene_tab> tab = rv_editor_scene_tab_build(path);
+    if (!tab) {
+        return false;
+    }
+    ui.requests.push_back({ .kind = rv_editor_ui_request_kind::open_scene_tab, .scene_tab = *tab });
+    app.layout_request = rv_editor_layout_preset::scene;
+    app.show_request = rv_editor_pane_kind::scene;
+    return true;
+}
+
 bool rv_editor_scene_tabs_draw(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,

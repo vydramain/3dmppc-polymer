@@ -262,7 +262,11 @@ void rv_editor_files_node(rv_editor_app &app,
         rv_editor_files_select(ui, node.path);
     }
     if (!branch && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        app.open_requests.push_back({ node.path, 0 });
+        // A plain file with a tab view opens in the Scene tile; a directory (a link to one
+        // too) and the rest go to the code editor.
+        if (node.dir || !rv_editor_scene_tab_open(app, ui, node.path)) {
+            app.open_requests.push_back({ node.path, 0 });
+        }
     }
     if (node.symlink && ImGui::IsItemHovered()) {
         std::error_code ec;

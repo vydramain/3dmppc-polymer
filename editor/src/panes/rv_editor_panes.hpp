@@ -145,6 +145,9 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, 
 // A scene tab for `path` (a PNG, a sound or a model: .png, .wav, .pcm, .gltf, .glb), with a
 // sound's duration read now; nullopt for any other file (pane_scene_tabs.cpp).
 std::optional<rv_editor_scene_tab> rv_editor_scene_tab_build(const std::filesystem::path &path);
+// Opens `path` in the Scene tile when it has a tab view: queues the tab, moves the layout
+// to scene and shows the Scene tile. False, with nothing queued, for any other file.
+bool rv_editor_scene_tab_open(rv_editor_app &app, const rv_editor_ui_port &ui, const std::filesystem::path &path);
 // Draws the Scene tile's tab strip (only when a tab is open) and, when the front
 // tab is a picture, a sound or a model, its content. True when the scene viewport belongs
 // in front instead (no tabs open, or the scene tab is in front). The front tab
