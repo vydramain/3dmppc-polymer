@@ -61,24 +61,27 @@ ImVec4 modulate(const ImVec4 &a, const ImVec4 &b)
     return { a.x * b.x, a.y * b.y, a.z * b.z, 1.0f };
 }
 
-// Vertex `vertex` through `world`, in metres. rv_gte_vertex's RV_ERR_* when a component leaves int32.
+// Vertex `vertex` through `world`: its Q20.12 point in `q` and the same point in metres. rv_gte_vertex's
+// RV_ERR_* when a component leaves int32; both outputs are then untouched.
 int rv_editor_glb_vertex_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
     const rv_pdklib::rv_gte_matrix &world,
     std::size_t vertex,
+    rv_pdklib::fx_vec3 &q,
     std::array<double, 3> &metres)
 {
-    std::int32_t q[3] = {};
-    const int rc = rv_pdklib::rv_gte_vertex(world, model.vertices[vertex].pos.data(), model.shift, q);
+    std::int32_t raw[3] = {};
+    const int rc = rv_pdklib::rv_gte_vertex(world, model.vertices[vertex].pos.data(), model.shift, raw);
     if (rc != RV_OK) {
         return rc;
     }
+    q = { raw[0], raw[1], raw[2] };
     for (std::size_t k = 0; k < metres.size(); ++k) {
-        metres[k] = static_cast<double>(q[k]) / rv_editor_gte_units_per_metre;
+        metres[k] = static_cast<double>(raw[k]) / rv_editor_gte_units_per_metre;
     }
     return RV_OK;
 }
 
-// A triangle of `model` through `world`: its corners' metres, uv and colour. A vertex that leaves int32 fails it.
+// A triangle of `model` through `world`: its corners' Q20.12 and metres, uv and colour. A vertex that leaves int32 fails it.
 int rv_editor_glb_triangle_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
     const rv_pdklib::rv_gte_matrix &world,
     const rv_pdklib::rv_mppcmod_triangle &t,
@@ -87,13 +90,14 @@ int rv_editor_glb_triangle_in_world(const rv_pdklib::rv_mppcmod_int_model &model
     for (std::size_t k = 0; k < std::size(tri.p); ++k) {
         const std::size_t vertex = t.index[k];
         const rv_pdklib::rv_mppcmod_int_vertex &v = model.vertices[vertex];
-        const int rc = rv_editor_glb_vertex_in_world(model, world, vertex, tri.p[k]);
+        const int rc = rv_editor_glb_vertex_in_world(model, world, vertex, tri.q[k], tri.p[k]);
         if (rc != RV_OK) {
             return rc;
         }
         tri.uv[k] = { static_cast<float>(v.uv[0]) / uv_one, static_cast<float>(v.uv[1]) / uv_one };
         tri.color[k] = rgb_unit(v.color);
     }
+    tri.q_valid = true;
     tri.from_model = true;
     return RV_OK;
 }

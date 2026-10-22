@@ -55,24 +55,68 @@ void set_error(std::string *error, const std::string &text)
     }
 }
 
+// A placeholder cube corner: its scene-space metres, its Q20.12 raw, and whether that raw fit.
+struct cube_corner {
+    vec3 p{};
+    rv_pdklib::fx_vec3 q{};
+    bool q_valid = false;
+};
+
+// The triangle of corners idx of c, with uv in the same order. q_valid is set only when all three corners fit
+// Q20.12; q is copied either way.
+rv_editor_tri cube_tri(const cube_corner (&c)[cube_corner_count],
+    const std::array<int, tri_vertices> &idx,
+    const std::array<ImVec2, tri_vertices> &uv)
+{
+    rv_editor_tri tri;
+    tri.q_valid = true;
+    for (int k = 0; k < tri_vertices; ++k) {
+        const cube_corner &corner = c[idx[k]];
+        tri.p[k] = corner.p;
+        tri.q[k] = corner.q;
+        tri.uv[k] = uv[k];
+        tri.q_valid = tri.q_valid && corner.q_valid;
+    }
+    return tri;
+}
+
 // The placeholder cube's twelve triangles from its eight scene-space corners.
-std::vector<rv_editor_tri> cube_triangles(const vec3 (&c)[cube_corner_count])
+std::vector<rv_editor_tri> cube_triangles(const cube_corner (&c)[cube_corner_count])
 {
     std::vector<rv_editor_tri> tris;
     for (const auto &f : cube_faces) {
-        tris.push_back({ { c[f[0]], c[f[1]], c[f[2]] }, { quad_uv_corners[0], quad_uv_corners[1], quad_uv_corners[2] } });
-        tris.push_back({ { c[f[0]], c[f[2]], c[f[3]] }, { quad_uv_corners[0], quad_uv_corners[2], quad_uv_corners[3] } });
+        tris.push_back(cube_tri(c, { f[0], f[1], f[2] }, { quad_uv_corners[0], quad_uv_corners[1], quad_uv_corners[2] }));
+        tris.push_back(cube_tri(c, { f[0], f[2], f[3] }, { quad_uv_corners[0], quad_uv_corners[2], quad_uv_corners[3] }));
     }
     return tris;
+}
+
+// Q20.12 raw of a metres point, each component rounded to the nearest step. RV_OK, or fx_from_double's
+// RV_ERR_INVAL when one leaves fx; q is then untouched.
+int fx_point_from_metres(const vec3 &p, rv_pdklib::fx_vec3 &q)
+{
+    rv_pdklib::fx_vec3 raw{};
+    if (const int rc = rv_pdklib::fx_from_double(p[0], raw.x); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(p[1], raw.y); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(p[2], raw.z); rc != RV_OK) {
+        return rc;
+    }
+    q = raw;
+    return RV_OK;
 }
 
 // The placeholder cube through the double affine `m`: the fallback when the integer world cannot be built.
 std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
 {
-    vec3 c[cube_corner_count] = {};
+    cube_corner c[cube_corner_count] = {};
     for (int i = 0; i < cube_corner_count; ++i) {
         const auto &s = cube_corner_signs[i];
-        c[i] = rv_editor_affine_point(m, { s[0] * unit_half_extent, s[1] * unit_half_extent, s[2] * unit_half_extent });
+        c[i].p = rv_editor_affine_point(m, { s[0] * unit_half_extent, s[1] * unit_half_extent, s[2] * unit_half_extent });
+        c[i].q_valid = fx_point_from_metres(c[i].p, c[i].q) == RV_OK;
     }
     return cube_triangles(c);
 }
@@ -84,17 +128,19 @@ int rv_editor_cube_gte_triangles(const rv_pdklib::rv_gte_matrix &world,
     std::vector<rv_editor_tri> &tris,
     std::string &error)
 {
-    vec3 c[cube_corner_count] = {};
+    cube_corner c[cube_corner_count] = {};
     for (int i = 0; i < cube_corner_count; ++i) {
         const auto &s = cube_corner_signs[i];
         const std::int32_t local[3] = { s[0] * cube_half_raw, s[1] * cube_half_raw, s[2] * cube_half_raw };
-        std::int32_t q[3] = {};
-        if (rv_pdklib::rv_gte_point(world, local, q) != RV_OK) {
+        std::int32_t raw[3] = {};
+        if (rv_pdklib::rv_gte_point(world, local, raw) != RV_OK) {
             error = rv_editor_text_format("project.cube_corner_out_of_range", std::make_format_args(name));
             return RV_ERR_INVAL;
         }
-        for (size_t k = 0; k < c[i].size(); ++k) {
-            c[i][k] = static_cast<double>(q[k]) / rv_editor_gte_units_per_metre;
+        c[i].q = { raw[0], raw[1], raw[2] };
+        c[i].q_valid = true;
+        for (size_t k = 0; k < c[i].p.size(); ++k) {
+            c[i].p[k] = static_cast<double>(raw[k]) / rv_editor_gte_units_per_metre;
         }
     }
     tris = cube_triangles(c);

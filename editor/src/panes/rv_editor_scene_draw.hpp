@@ -95,6 +95,11 @@ struct rv_editor_cpu_image;
 
 struct rv_editor_tri {
     vec3 p[3];
+    // The integer twin of p: the world corners as Q20.12 raw. For a .glb or the integer cube, p is q / 4096
+    // exactly; for the fallback cube, q is p rounded to the nearest raw. The raster (bridge-a2) reads q, at a cost
+    // of 37 bytes per triangle until p goes. q_valid false means a corner did not fit Q20.12; q is then not read.
+    rv_pdklib::fx_vec3 q[3]{};
+    bool q_valid = false;
     ImVec2 uv[3];
     // A .glb's triangle: from_model, so the object's tint applies to it as in the console, and each
     // corner's colour 0..1 (vertex colour times part colour). A mesh without them keeps from_model false and white.
