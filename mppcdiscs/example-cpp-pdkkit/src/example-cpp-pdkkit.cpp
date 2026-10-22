@@ -61,11 +61,12 @@ public:
         // No scene, or one that does not read: the disc runs without it and says why.
         const int read_code = read_scene();
         if (read_code != RV_OK) {
-            keys_.clear();
+            scene_read_ = false;
             board_found_ = false;
             RV_LOG_ERR("scene", "{} not used: rv_err {}", RV_EXAMPLE_CPP_SCENE_NAME, read_code);
             return RV_OK;
         }
+        scene_read_ = true;
         if (!board_found_) {
             RV_LOG_WARN("scene", "no '{}' object: the board has no lettering", RV_EXAMPLE_CPP_BOARD_NAME);
         }
@@ -112,8 +113,8 @@ private:
     // Declared before world_: the world keeps a pointer to the type, so the type must outlive it.
     example_cpp_pdkkit::ecs_entity_route route_type_;
     rv_pdkkit::ecs_world world_;
-    // The cam_NN keys, in NN order.
-    std::vector<rv_route_key> keys_;
+    // read_scene succeeded: the scene's route and board are in world_, so the disc draws and plays.
+    bool scene_read_ = false;
     // The scene has the board object; the sound takes it into account.
     bool board_found_ = false;
     // Frames updated while running: the demo's clock.
@@ -164,8 +165,8 @@ int rv_dmain::register_ecs()
     return RV_OK;
 }
 
-// Loads the scene into world_, then fills keys_ and the board from its entities. The lamps are scheduled by the
-// lamp_light system on the first frame. An error leaves them partly filled; the caller clears them.
+// Loads the scene into world_, then fills the route's keys and the board from its entities. The lamps are scheduled by
+// the lamp_light system on the first frame. An error leaves them partly filled; the caller clears board_found_.
 int rv_dmain::read_scene()
 {
     const int register_code = register_ecs();
@@ -182,7 +183,7 @@ int rv_dmain::read_scene()
     if (transform_code != RV_OK) {
         return transform_code;
     }
-    const int route_code = rv_route_collect(world_, keys_);
+    const int route_code = rv_route_collect(world_);
     if (route_code != RV_OK) {
         return route_code;
     }
@@ -216,8 +217,8 @@ int rv_dmain::collect_parts(uint32_t load_number)
 
 void rv_dmain::draw_world()
 {
-    // No keys means no route: read_scene has already logged why, so nothing is drawn.
-    if (keys_.empty()) {
+    // Without a read scene there is no route: disc_initialize has already logged why, so nothing is drawn.
+    if (!scene_read_) {
         return;
     }
     const int frame_code = rv_pdkkit::ecs_world_frame(world_, rv_pdkkit::ecs_frame{ pdk_, frame_count_ });
@@ -239,7 +240,12 @@ void rv_dmain::log_draw_error(const char *step, int64_t code)
 // Loads the music and tabulates the areas; runs once, after read_scene found the camera keys.
 void rv_dmain::init_sound()
 {
-    const int64_t sound_code = rv_sound_init(pdk_, keys_, sound_state_);
+    const ecs_component_route *route = rv_route_of(world_);
+    if (route == nullptr) {
+        RV_LOG_ERR("sound", "sound off: the scene has no route");
+        return;
+    }
+    const int64_t sound_code = rv_sound_init(pdk_, route->keys, sound_state_);
     if (sound_code < 0) {
         RV_LOG_ERR("sound", "sound off: {} rv_err {}", sound_state_.error_asset, sound_code);
         return;

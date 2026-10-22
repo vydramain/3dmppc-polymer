@@ -358,7 +358,16 @@ int add_route_key(ecs_world &world, ecs_id camera, ecs_id route, std::vector<rv_
 
 } // namespace
 
-int rv_route_collect(ecs_world &world, std::vector<rv_route_key> &keys)
+const ecs_component_route *rv_route_of(ecs_world &world)
+{
+    const ecs_component_route *route = nullptr;
+    rv_pdkkit::ecs_component_each<ecs_component_route>(world, [&route](ecs_id, ecs_component_route &component) {
+        route = &component;
+    });
+    return route;
+}
+
+int rv_route_collect(ecs_world &world)
 {
     ecs_id route_id{};
     ecs_component_route *route = nullptr;
@@ -382,7 +391,6 @@ int rv_route_collect(ecs_world &world, std::vector<rv_route_key> &keys)
         return a.index < b.index;
     });
     route->keys = found;
-    keys = found;
     return RV_OK;
 }
 

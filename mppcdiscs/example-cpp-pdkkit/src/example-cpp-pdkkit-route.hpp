@@ -56,10 +56,13 @@ public:
     int add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id) const override;
 };
 
-// Fills the route's keys from its cam_NN children and copies them to keys. Call after ecs_system_transform.
+// Fills the route component's keys from its cam_NN children. Call after ecs_system_transform.
 // Error: RV_ERR_NOENT without one route entity or without a key, RV_ERR_ALREADY for two route entities,
-// RV_ERR_INVAL for a Q20.12 failure or a camera without a world matrix. Logged here; keys is untouched.
-int rv_route_collect(rv_pdkkit::ecs_world &world, std::vector<rv_route_key> &keys);
+// RV_ERR_INVAL for a Q20.12 failure or a camera without a world matrix. Logged here; the component is untouched.
+int rv_route_collect(rv_pdkkit::ecs_world &world);
+
+// The route component of the world, nullptr without one.
+const ecs_component_route *rv_route_of(rv_pdkkit::ecs_world &world);
 
 // Frame system: sets the frame's camera from the route keys. Error: RV_ERR_NOENT without a route entity,
 // else the code of rv_route_camera_at. Not logged: a frame repeats it, so the disc logs the first one.
