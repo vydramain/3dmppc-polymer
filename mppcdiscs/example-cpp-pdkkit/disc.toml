@@ -4,6 +4,8 @@ title = "mppcdisc example: pdkkit"
 
 [build]
 sources = ["src/*.cpp"]
+# Compiles against pdkkit: without the kit SDK tree, #include "pdkkit/..." is not found.
+sdk = ["kit"]
 
 [assets]
 # The scene is copied verbatim: the disc reads its objects through the drive (src/example-cpp-pdkkit.cpp).

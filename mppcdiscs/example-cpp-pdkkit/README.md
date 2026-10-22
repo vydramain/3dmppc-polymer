@@ -11,9 +11,9 @@ music are pure functions of its number in the period.
 | --- | --- | --- | --- |
 | Camera flight: a closed Catmull-Rom spline through the 20 keys | `scenes/main.scene.toml` (`cam_00`..`cam_19`, under `route`, the group with `entity = "route"`), `src/example-cpp-pdkkit-route.cpp` (`rv_route_camera_at`, `ecs_system_route`), `src/example-cpp-pdkkit-route.hpp` (`RV_ROUTE_PERIOD_FRAMES`) | move a `cam_NN` object to change the path; change the spline or the lens in the source | Build and Restart |
 | World meshes: factory, machines, street, house, apartment, furniture | `scenes/main.scene.toml`, `src/example-cpp-pdkkit.cpp` (`rv_dmain::read_scene` loads the scene, `draw_world` draws it) | position, rotation or scale of a mesh object; a `hidden` component keeps an object out of the frame | Build and Restart |
-| Model geometry: Solid Maid's places 1:1 (`factory.gltf` hall, `machines.gltf` props, honour and roster boards, signs, `street.gltf`, `house.gltf`, `apartment.gltf`, `furniture.gltf`) | `assets/models/*.gltf` with their `.bin`, drawn by the ECS draw of `ecs_draw_entity` (`pdk/lib/include/pdklib/rv_ecs/rv_ecs_frame.hpp`) | replace the .gltf and its .bin in `assets/models/`; the models are built from Solid Maid's level code, one atlas cell per surface and Solid Maid's tess subdivision; the flat's window has no frame card, since Solid Maid's frame cell has no cut-out texels | Build and Restart |
+| Model geometry: Solid Maid's places 1:1 (`factory.gltf` hall, `machines.gltf` props, honour and roster boards, signs, `street.gltf`, `house.gltf`, `apartment.gltf`, `furniture.gltf`) | `assets/models/*.gltf` with their `.bin`, drawn by the ECS draw of `ecs_draw_entity` (`pdk/kit/include/pdkkit/ecs/rv_ecs_frame.hpp`) | replace the .gltf and its .bin in `assets/models/`; the models are built from Solid Maid's level code, one atlas cell per surface and Solid Maid's tess subdivision; the flat's window has no frame card, since Solid Maid's frame cell has no cut-out texels | Build and Restart |
 | Pictures of the models | the PNGs `assets/tex/<model>_<n>.png`, referenced by the `.gltf` files (18 of the 19 models have them; `halo.gltf` has none) | edit the PNG; the build reads it through the `.gltf` and bakes it to `.mppctex` | Build and Restart |
-| Depth order | `pdk/lib/include/pdklib/rv_ecs/rv_ecs_frame.hpp` (`ecs_depth_decal_bias`, `ecs_depth_world_min`, `ecs_depth_world_max`, `ecs_depth_decal_min`, `ecs_depth_decal_max`) | the world takes the ordering-table window `RV_DEPTH_MIN`..`RV_DEPTH_MAX` minus the 260-key decal bias; decals take the window shifted up by the bias, so the board's halos and letters, which are decals, draw over the board | Build and Restart |
+| Depth order | `pdk/kit/include/pdkkit/ecs/rv_ecs_frame.hpp` (`ecs_depth_decal_bias`, `ecs_depth_world_min`, `ecs_depth_world_max`, `ecs_depth_decal_min`, `ecs_depth_decal_max`) | the world takes the ordering-table window `RV_DEPTH_MIN`..`RV_DEPTH_MAX` minus the 260-key decal bias; decals take the window shifted up by the bias, so the board's halos and letters, which are decals, draw over the board | Build and Restart |
 | Board "ОСТАЛОСЬ: 5": glyphs, flicker, halo | `src/example-cpp-pdkkit-board.cpp` (`RV_BOARD_FLICKER_TABLE`, `RV_BOARD_FLICKER_STEP`, `RV_FLICKER_CELL_KEY`), `src/example-cpp-pdkkit-board.hpp` (`RV_BOARD_CELL_COUNT`), and the scene objects `glyph_N` and `halo_N` under `board`, each with its own `cell` field | a letter's place (its object's `position`) and letter (its `mesh`), a halo's place, flicker table, step in frames; `cell` sets only the flicker phase; cell 9 is the space and has no object | Build and Restart |
 | Street lamps: lit on the way out, dark on the way back | `src/example-cpp-pdkkit-lamps.cpp` (`RV_LAMP_REACH`), `lamp_1`..`lamp_4` meshes in the scene and their `lamp_N_light` children (mesh `lamp_light.gltf`, components `lamp_light` and `hidden`), `assets/models/lamp_light.gltf` | reach of a lamp, the light's mesh in the scene, lamp positions; 4 lamps 8 m apart on both kerbs | Build and Restart |
 | Music per area (1-s bars through two slots: factory 3 bars, street 5, home 10), workshop loops, footsteps, board clack | `src/example-cpp-pdkkit-sound.cpp` (`RV_SOUND_WORKSHOP_MAX_X`, `RV_SOUND_FLAT_MIN_X`, `RV_SOUND_LOOPS`, `RV_SOUND_CLACK`), `src/example-cpp-pdkkit-music.cpp` (`RV_SOUND_SONGS`), `src/example-cpp-pdkkit-steps.cpp` (`RV_STEP_ASSETS`, `RV_STEP_STRIDE`), `assets/snd/*.wav` | area borders on the camera's x (workshop x < 0, flat x > 33.8), bar lists, loops, footstep pairs, step stride | Build and Restart |
@@ -48,7 +48,7 @@ needs a restart" in the root README.
   `rv_dmain_base_` (`RV_MPPC_DISC_CPP_DEF`, `pdk/lib/include/pdklib/rv_cppdisc/rv_cppdisc.hpp`)
   and plants itself with `RV_MPPC_DISC_ENTRY_DEF` (`pdk/include/pdk/de/rv_dv.h`).
   It loads the scene into the ECS world (`ecs_scene_load`,
-  `pdk/lib/include/pdklib/rv_ecs/rv_ecs_loads.hpp`), registers the route, lamp
+  `pdk/kit/include/pdkkit/ecs/rv_ecs_loads.hpp`), registers the route, lamp
   and flicker types and systems, and draws the world each frame with
   `ecs_world_frame`.
 - `src/example-cpp-pdkkit-route.*` - the camera loop: the `route` entity type and `ecs_system_route`.
@@ -57,7 +57,7 @@ needs a restart" in the root README.
   ECS systems (`ecs_system_flicker`, `ecs_system_lamp_light`).
 - `src/example-cpp-pdkkit-music.cpp` - the music: the bars of each area, one voice through two slots.
 - `src/example-cpp-pdkkit-steps.cpp` - the footsteps, one per 0.95 m of the eye's path.
-- `pdk/lib/include/pdklib/rv_ecs/` - the ECS: the world, the scene loader, the
+- `pdk/kit/include/pdkkit/ecs/` - the ECS: the world, the scene loader, the
   frame that draws the models.
 - `scenes/main.scene.toml` - the scene the disc loads into the ECS world; edit
   it in the editor's Scene layout.

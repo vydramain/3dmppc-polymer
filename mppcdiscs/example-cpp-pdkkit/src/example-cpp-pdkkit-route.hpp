@@ -4,9 +4,9 @@
 #include <vector>
 
 #include "pdk/cg/rv_cg.h"
-#include "pdklib/rv_ecs/rv_ecs.hpp"
-#include "pdklib/rv_ecs/rv_ecs_entity.hpp"
-#include "pdklib/rv_ecs/rv_ecs_frame.hpp"
+#include "pdkkit/ecs/rv_ecs.hpp"
+#include "pdkkit/ecs/rv_ecs_entity.hpp"
+#include "pdkkit/ecs/rv_ecs_frame.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 
 namespace example_cpp_pdkkit

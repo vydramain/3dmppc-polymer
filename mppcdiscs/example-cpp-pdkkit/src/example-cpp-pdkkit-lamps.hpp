@@ -4,8 +4,8 @@
 #include <vector>
 
 #include "pdk/cd/rv_cd.h"
-#include "pdklib/rv_ecs/rv_ecs.hpp"
-#include "pdklib/rv_ecs/rv_ecs_frame.hpp"
+#include "pdkkit/ecs/rv_ecs.hpp"
+#include "pdkkit/ecs/rv_ecs_frame.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp_pdkkit

@@ -8,8 +8,8 @@
 #include <string_view>
 
 #include "pdk/rv_err.h"
-#include "pdklib/rv_ecs/rv_ecs.hpp"
-#include "pdklib/rv_ecs/rv_ecs_store.hpp"
+#include "pdkkit/ecs/rv_ecs.hpp"
+#include "pdkkit/ecs/rv_ecs_store.hpp"
 
 namespace rv_pdklib
 {

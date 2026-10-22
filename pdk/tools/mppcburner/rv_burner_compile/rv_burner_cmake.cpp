@@ -133,9 +133,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
   VISIBILITY_INLINES_HIDDEN ON
 )
 
-# The contract, and only the contract. Nothing from src/ is reachable from
-# here, which is what turns "a disc cannot see the console" from a promise
-# into a compile error.
+# The contract, pdklib, the SDK trees the disc named in [build] sdk, and the disc's
+# own include dirs. Nothing from the console's src/ is listed, so it is unreachable,
+# which turns "a disc cannot see the console" from a promise into a compile error.
 target_include_directories(disc PRIVATE
 )cmake";
     text += "  " + cmake_quote(pdk_dir) + "\n";

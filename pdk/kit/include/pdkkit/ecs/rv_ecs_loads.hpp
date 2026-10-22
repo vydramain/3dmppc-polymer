@@ -12,9 +12,9 @@
 
 #include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
-#include "pdklib/rv_ecs/rv_ecs.hpp"
-#include "pdklib/rv_ecs/rv_ecs_component.hpp"
-#include "pdklib/rv_ecs/rv_ecs_scene.hpp"
+#include "pdkkit/ecs/rv_ecs.hpp"
+#include "pdkkit/ecs/rv_ecs_component.hpp"
+#include "pdkkit/ecs/rv_ecs_scene.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_pdklib

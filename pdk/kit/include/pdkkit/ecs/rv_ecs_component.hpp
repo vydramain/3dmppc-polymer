@@ -11,9 +11,9 @@
 #include "pdk/cd/rv_cd.h"
 #include "pdk/cv/rv_vertex.h"
 #include "pdk/rv_err.h"
-#include "pdklib/rv_ecs/rv_ecs.hpp"
-#include "pdklib/rv_ecs/rv_ecs_entity.hpp"
-#include "pdklib/rv_ecs/rv_ecs_store.hpp"
+#include "pdkkit/ecs/rv_ecs.hpp"
+#include "pdkkit/ecs/rv_ecs_entity.hpp"
+#include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 
 namespace rv_pdklib
@@ -58,21 +58,16 @@ struct ecs_component_sprite {
 };
 
 // Marks the entity as a camera.
-struct ecs_component_camera {
-};
+struct ecs_component_camera {};
 // Marks a scene object of kind "volume" (drawn as a wireframe in the editor).
-struct ecs_component_volume {
-};
+struct ecs_component_volume {};
 // Marks the entity as not drawn.
-struct ecs_component_hidden {
-};
+struct ecs_component_hidden {};
 // Marks the entity as a decal.
-struct ecs_component_decal {
-};
+struct ecs_component_decal {};
 // Marks the entity as drawn without back-face culling, the flag covers the whole model. A flat card is seen from
 // both faces as one layer of quads, not as a back-to-back pair.
-struct ecs_component_two_sided {
-};
+struct ecs_component_two_sided {};
 
 // Component of id, added with its defaults when missing. nullptr for a stale id.
 // The add fails only for a dead id or a held T, and both are excluded above. Growth of the pool may throw

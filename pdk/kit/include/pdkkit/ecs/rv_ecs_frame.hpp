@@ -14,11 +14,11 @@
 #include "pdk/cv/rv_primitives.h"
 #include "pdk/rv_err.h"
 #include "pdk/rv_pdko.h"
-#include "pdklib/rv_ecs/rv_ecs.hpp"
-#include "pdklib/rv_ecs/rv_ecs_component.hpp"
-#include "pdklib/rv_ecs/rv_ecs_loads.hpp"
-#include "pdklib/rv_ecs/rv_ecs_store.hpp"
-#include "pdklib/rv_ecs/rv_ecs_transform.hpp"
+#include "pdkkit/ecs/rv_ecs.hpp"
+#include "pdkkit/ecs/rv_ecs_component.hpp"
+#include "pdkkit/ecs/rv_ecs_loads.hpp"
+#include "pdkkit/ecs/rv_ecs_store.hpp"
+#include "pdkkit/ecs/rv_ecs_transform.hpp"
 
 namespace rv_pdklib
 {
