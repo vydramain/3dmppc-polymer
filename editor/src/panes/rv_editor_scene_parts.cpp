@@ -8,13 +8,21 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <string>
 
 #include "imgui.h"
 
+#include "app/rv_editor_app_parts.hpp"
+#include "panes/rv_editor_zbuf.hpp"
+#include "pdk/cv/rv_primitives.h"
 #include "pdk/rv_err.h"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
+#include "pdklib/rv_gte/rv_gte_project.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "panes/rv_editor_scene_glb.hpp"
 #include "project/rv_editor_project.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
@@ -25,10 +33,18 @@ namespace rv_editor
 namespace
 {
 
-// Screen triangles thinner than this (px squared) are not picked: their weights are meaningless.
-constexpr double sliver_area = 1e-3;
 // A picked piece's edges are drawn this wide, over the object's edges.
 constexpr float line_width_picked = 2.0f;
+// The zbuf's sample grid (rv_editor_zbuf.cpp): corners on the doubled lattice, a pixel's centre at 2 * pixel + 1.
+// Mirrored here; E12d-2 moves both into rv_editor_zbuf.hpp so the two share them.
+constexpr std::int64_t zbuf_doubling = 2;
+constexpr std::int64_t zbuf_centre_offset = 1;
+
+// A point in the zbuf's doubled units.
+struct rv_editor_parts_point {
+    std::int64_t x = 0;
+    std::int64_t y = 0;
+};
 
 // The model of the mesh named `name`, read through the cache; null when it does not load. Its error
 // is already shown by the object's edges in the viewport's status line.
@@ -49,63 +65,175 @@ std::shared_ptr<const rv_editor_glb_model> rv_editor_parts_model(const rv_editor
     return glb;
 }
 
-// Twice the signed area of the screen triangle a, b, c; the sign tells the winding.
-double rv_editor_parts_cross(ImVec2 a, ImVec2 b, ImVec2 c)
+// Triangles counted as refused by rv_editor_parts_nearest and rv_editor_parts_each_picked; logged once per process.
+void rv_editor_parts_report(std::size_t refused)
 {
-    const double ax = a.x, ay = a.y;
-    const double bx = b.x, by = b.y;
-    const double cx = c.x, cy = c.y;
-    return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    static bool reported = false;
+    if (refused == 0 || reported) {
+        return;
+    }
+    reported = true;
+    RV_LOG_WARN(scene_log_tag,
+        "{} model triangles are not picked or drawn: a corner outside Q20.12, int32 or the z-buffer's corner limit, "
+        "or a depth key that cannot be built",
+        refused);
 }
 
-// Barycentric weights of p in the screen triangle a, b, c (they sum to 1); false when p lies outside
-// or the triangle is a sliver. Dividing by the triangle's own area makes the test wind-independent.
-bool rv_editor_parts_weights(ImVec2 p, ImVec2 a, ImVec2 b, ImVec2 c, double (&w)[tri_vertices])
+// A buffer pixel's corner in doubled units, as rv_editor_zbuf.cpp's point_of.
+rv_editor_parts_point rv_editor_parts_doubled(rv_pdklib::rv_gte_screen s)
 {
-    const double area = rv_editor_parts_cross(a, b, c);
-    if (std::fabs(area) < sliver_area) {
+    return { zbuf_doubling * static_cast<std::int64_t>(s.x), zbuf_doubling * static_cast<std::int64_t>(s.y) };
+}
+
+// The console's edge function in doubled units: twice the signed area of (a, b, p), as rv_editor_zbuf.cpp's edge_at.
+// Exact in int64 for corners within RV_EDITOR_ZBUF_COORD_LIMIT.
+std::int64_t rv_editor_parts_edge(rv_editor_parts_point a, rv_editor_parts_point b, rv_editor_parts_point p)
+{
+    return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+}
+
+// The console's is_top_left, as rv_editor_zbuf.cpp: a top edge is horizontal with the interior below it, a left edge has
+// the interior to its right. Only these cover a sample lying exactly on them, so a shared edge is covered by one triangle.
+bool rv_editor_parts_top_left(std::int64_t dx, std::int64_t dy)
+{
+    return dy > 0 || (dy == 0 && dx < 0);
+}
+
+// Whether the sample p is covered by the screen triangle s, as the zbuf covers a pixel (rv_editor_zbuf.cpp's shade_pixel):
+// strictly inside each edge function, or on a top-left edge. A negative triangle is flipped by its sign instead of
+// swapping its corners as the zbuf does: the edges' values and directions are both negated, so the result is the same.
+// A zero area covers nothing.
+bool rv_editor_parts_covers(const std::array<rv_pdklib::rv_gte_screen, tri_vertices> &s, rv_editor_parts_point p)
+{
+    std::array<rv_editor_parts_point, tri_vertices> d{};
+    for (std::size_t k = 0; k < tri_vertices; ++k) {
+        d[k] = rv_editor_parts_doubled(s[k]);
+    }
+    const std::int64_t area2 = rv_editor_parts_edge(d[0], d[1], d[2]);
+    if (area2 == 0) {
         return false;
     }
-    w[0] = rv_editor_parts_cross(b, c, p) / area;
-    w[1] = rv_editor_parts_cross(c, a, p) / area;
-    w[2] = rv_editor_parts_cross(a, b, p) / area;
-    return w[0] >= 0.0 && w[1] >= 0.0 && w[2] >= 0.0;
+    const std::int64_t side = area2 > 0 ? 1 : -1;
+    for (std::size_t k = 0; k < tri_vertices; ++k) {
+        // The edge opposite corner k runs from corner k + 1 to corner k + 2.
+        const std::size_t a = (k + 1) % tri_vertices;
+        const std::size_t b = (k + 2) % tri_vertices;
+        const std::int64_t edge = side * rv_editor_parts_edge(d[a], d[b], p);
+        const std::int64_t dx = side * (d[b].x - d[a].x);
+        const std::int64_t dy = side * (d[b].y - d[a].y);
+        if (edge < 0 || (edge == 0 && !rv_editor_parts_top_left(dx, dy))) {
+            return false;
+        }
+    }
+    return true;
 }
 
-// The triangle of `glb`, placed by `m`, nearest the camera among those under `at`; -1 for none. Its view
-// depth at `at` comes back in `depth`: 1/z is linear over the screen, so it is interpolated by the same
-// weights. A triangle with a corner behind the near plane is skipped.
+// Whether the raster drops the screen triangle under `cull` (rv_editor_piece_culled, rv_editor_scene_raster.cpp): a zero
+// area is dropped in every mode, the rest by the mode.
+bool rv_editor_parts_culled(const std::array<rv_pdklib::rv_gte_screen, tri_vertices> &s, std::uint32_t cull)
+{
+    const bool zero_area = rv_pdklib::rv_gte_culled(s[0], s[1], s[2], rv_pdklib::gte_cull_screen_cw) &&
+        rv_pdklib::rv_gte_culled(s[0], s[1], s[2], rv_pdklib::gte_cull_screen_ccw);
+    return zero_area || rv_pdklib::rv_gte_culled(s[0], s[1], s[2], cull);
+}
+
+// A screen corner past the zbuf's coordinate limit: the zbuf refuses such a corner, so the triangle is refused here too.
+bool rv_editor_parts_beyond(rv_pdklib::rv_gte_screen s)
+{
+    return std::abs(static_cast<std::int64_t>(s.x)) > RV_EDITOR_ZBUF_COORD_LIMIT ||
+        std::abs(static_cast<std::int64_t>(s.y)) > RV_EDITOR_ZBUF_COORD_LIMIT;
+}
+
+// The triangle's ordering key, as rv_editor_raster_piece builds it: the console's depth key over the view z of its corners.
+int rv_editor_parts_depth(const std::array<rv_pdklib::fx_vec3, tri_vertices> &view, std::int32_t &key)
+{
+    const rv_pdklib::fx z[tri_vertices] = { view[0].z, view[1].z, view[2].z };
+    const rv_pdklib::rv_gte_depth_range range = { rv_editor_near_fx, rv_editor_camera_far_fx, RV_DEPTH_MIN, RV_DEPTH_MAX };
+    return rv_pdklib::rv_gte_depth_key(z, tri_vertices, range, key);
+}
+
+// A triangle's Q20.12 corners through the object's world chain. RV_ERR_INVAL when a corner leaves int32.
+int rv_editor_parts_world(const rv_editor_glb_model &glb,
+    const rv_pdklib::rv_gte_matrix &world,
+    const rv_pdklib::rv_mppcmod_triangle &tri,
+    std::array<rv_pdklib::fx_vec3, tri_vertices> &q)
+{
+    for (std::size_t k = 0; k < tri_vertices; ++k) {
+        if (rv_editor_glb_vertex_in_world(glb.quantized, world, tri.index[k], q[k]) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
+    }
+    return RV_OK;
+}
+
+// The corners' view-space Q20.12 and their pixels from the view centre, projected as the overlay's edges are
+// (rv_gte_project with the camera's focal length). RV_ERR_NOENT when a corner is behind the near plane: the triangle is
+// not picked, as before; the raster draws its visible part, so a click there misses it. RV_ERR_INVAL when a value leaves
+// int32 or a pixel leaves RV_EDITOR_ZBUF_COORD_LIMIT: the triangle is refused.
+int rv_editor_parts_front(const rv_editor_view &v,
+    const std::array<rv_pdklib::fx_vec3, tri_vertices> &q,
+    std::array<rv_pdklib::fx_vec3, tri_vertices> &view,
+    std::array<rv_pdklib::rv_gte_screen, tri_vertices> &screen)
+{
+    for (std::size_t k = 0; k < tri_vertices; ++k) {
+        const std::int32_t in[3] = { q[k].x, q[k].y, q[k].z };
+        std::int32_t out[3] = {};
+        if (rv_pdklib::rv_gte_point(v.camera.view, in, out) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
+        view[k] = { out[0], out[1], out[2] };
+        if (view[k].z < rv_editor_near_fx) {
+            return RV_ERR_NOENT;
+        }
+        if (rv_pdklib::rv_gte_project(view[k], { v.camera.h, 0, 0 }, screen[k]) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
+        if (rv_editor_parts_beyond(screen[k])) {
+            return RV_ERR_INVAL;
+        }
+    }
+    return RV_OK;
+}
+
+// The triangle chosen at `sample` by the raster's coverage, cull and depth-key rules: covering it (rv_editor_parts_covers),
+// not culled under `cull` (rv_editor_parts_culled), with the largest depth key; a tie keeps the later one, as the raster
+// draws it. An alpha-0 texel is not drawn by the raster but still picks. Returns its index and sets `key`; -1 for none.
+// `refused` counts the triangles left out for a corner outside Q20.12, int32 or the zbuf's limit, or a key that cannot
+// be built.
 int rv_editor_parts_nearest(const rv_editor_glb_model &glb,
+    const rv_pdklib::rv_gte_matrix &world,
     const rv_editor_view &v,
-    const rv_editor_affine &m,
-    ImVec2 at,
-    double &depth)
+    rv_editor_parts_point sample,
+    std::uint32_t cull,
+    std::int32_t &key,
+    std::size_t &refused)
 {
     int best = -1;
-    for (size_t t = 0; t < glb.quantized.triangles.size(); ++t) {
+    for (std::size_t t = 0; t < glb.quantized.triangles.size(); ++t) {
         const rv_pdklib::rv_mppcmod_triangle &tri = glb.quantized.triangles[t];
-        vec3 p[std::size(tri.index)];
-        ImVec2 s[std::size(tri.index)];
-        bool in_front = true;
-        for (size_t k = 0; k < std::size(tri.index); ++k) {
-            p[k] = rv_editor_affine_point(m, rv_editor_glb_vertex_metres(glb.quantized, tri.index[k]));
-            in_front = in_front && v.point(p[k], s[k]);
-        }
-        if (!in_front) {
+        std::array<rv_pdklib::fx_vec3, tri_vertices> q{};
+        std::array<rv_pdklib::fx_vec3, tri_vertices> view{};
+        std::array<rv_pdklib::rv_gte_screen, tri_vertices> screen{};
+        std::int32_t tri_key = 0;
+        if (rv_editor_parts_world(glb, world, tri, q) != RV_OK) {
+            ++refused;
             continue;
         }
-        double w[tri_vertices];
-        if (!rv_editor_parts_weights(at, s[0], s[1], s[2], w)) {
+        const int rc = rv_editor_parts_front(v, q, view, screen);
+        if (rc == RV_ERR_INVAL) {
+            ++refused;
             continue;
         }
-        double inv_z = 0.0;
-        for (size_t k = 0; k < std::size(tri.index); ++k) {
-            inv_z += w[k] / v.to_view(p[k])[2];
+        if (rc != RV_OK || rv_editor_parts_culled(screen, cull) || !rv_editor_parts_covers(screen, sample)) {
+            continue;
         }
-        const double z = 1.0 / inv_z;
-        if (best < 0 || z < depth) {
+        if (rv_editor_parts_depth(view, tri_key) != RV_OK) {
+            ++refused;
+            continue;
+        }
+        if (best < 0 || tri_key >= key) {
             best = static_cast<int>(t);
-            depth = z;
+            key = tri_key;
         }
     }
     return best;
@@ -125,7 +253,7 @@ size_t rv_editor_parts_piece_of(const rv_editor_glb_model &glb, uint32_t tri)
 
 static_assert(std::tuple_size_v<decltype(rv_pdklib::rv_mppcmod_triangle::index)> == tri_vertices);
 
-// Calls fn with the scene-space corners of each triangle of the target's picked pieces; none without a model.
+// Calls fn with the Q20.12 world corners of each triangle of the target's picked pieces; none without a model.
 template <typename Fn>
 void rv_editor_parts_each_picked(const rv_editor_scene_doc &doc, const rv_editor_parts_target &target, Fn &&fn)
 {
@@ -133,21 +261,32 @@ void rv_editor_parts_each_picked(const rv_editor_scene_doc &doc, const rv_editor
         return;
     }
     const rv_editor_glb_model &glb = *target.model;
-    const rv_editor_affine m = rv_editor_scene_world(doc.scene, target.owner);
+    rv_pdklib::rv_gte_matrix world{};
+    if (rv_editor_scene_world_gte(doc.scene, target.owner, world) != RV_OK) {
+        // Once per process: the owner's chain is refused (a bad index, an overflow or a parent cycle).
+        static bool reported = false;
+        if (!reported) {
+            reported = true;
+            RV_LOG_WARN(scene_log_tag, "the picked object's world chain is outside Q20.12: its pieces are not drawn");
+        }
+        return;
+    }
+    std::size_t refused = 0;
     for (const size_t number : doc.picked_pieces) {
         // Picks belong to this mesh; a number past its pieces is ignored.
         if (number == 0 || number > glb.pieces.size()) {
             continue;
         }
         for (const uint32_t t : glb.pieces[number - 1]) {
-            const rv_pdklib::rv_mppcmod_triangle &tri = glb.quantized.triangles[t];
-            std::array<vec3, tri_vertices> p{};
-            for (size_t k = 0; k < tri_vertices; ++k) {
-                p[k] = rv_editor_affine_point(m, rv_editor_glb_vertex_metres(glb.quantized, tri.index[k]));
+            std::array<rv_pdklib::fx_vec3, tri_vertices> q{};
+            if (rv_editor_parts_world(glb, world, glb.quantized.triangles[t], q) != RV_OK) {
+                ++refused;
+                continue;
             }
-            fn(p);
+            fn(q);
         }
     }
+    rv_editor_parts_report(refused);
 }
 
 } // namespace
@@ -161,10 +300,17 @@ int rv_editor_parts_pick(const rv_editor_scene_doc &doc,
     std::shared_ptr<const rv_editor_glb_model> &model)
 {
     const rv_editor_scene &scene = doc.scene;
+    // The sample is the centre of the pointer's pixel, in doubled units; the pixel is the floor of the pointer's offset
+    // from v.center. The overlay's pixel is one ImGui point, while the raster's buffer has lround(size * framebuffer
+    // scale) pixels with an integer centre: they agree at scale 1 and differ by the scale otherwise (D3, D4).
+    const rv_editor_parts_point sample = { zbuf_doubling * static_cast<std::int64_t>(std::floor(at.x - v.center.x)) +
+            zbuf_centre_offset,
+        zbuf_doubling * static_cast<std::int64_t>(std::floor(at.y - v.center.y)) + zbuf_centre_offset };
     std::shared_ptr<const rv_editor_glb_model> best_glb;
     size_t best_object = 0;
     int best_tri = -1;
-    double best_depth = 0.0;
+    std::int32_t best_key = 0;
+    std::size_t refused = 0;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
         const rv_editor_scene_object &o = scene.objects[i];
         if (rv_editor_object_get_kind(o) != kind_mesh || rv_editor_scene_visibility(doc, o) == rv_editor_visibility::absent) {
@@ -174,15 +320,25 @@ int rv_editor_parts_pick(const rv_editor_scene_doc &doc,
         if (!glb) {
             continue;
         }
-        double depth = 0.0;
-        const int tri = rv_editor_parts_nearest(*glb, v, rv_editor_scene_world(scene, static_cast<int>(i)), at, depth);
-        if (tri >= 0 && (best_tri < 0 || depth < best_depth)) {
+        rv_pdklib::rv_gte_matrix world{};
+        if (rv_editor_scene_world_gte(scene, static_cast<int>(i), world) != RV_OK) {
+            ++refused;
+            continue;
+        }
+        // The object's cull mode as the raster gives it (rv_editor_cull_mode): back faces unless two_sided.
+        const std::uint32_t cull =
+            rv_editor_scene_has_component(o, component_two_sided) ? rv_pdklib::gte_cull_none : rv_pdklib::gte_cull_screen_cw;
+        std::int32_t key = 0;
+        const int tri = rv_editor_parts_nearest(*glb, world, v, sample, cull, key, refused);
+        // Objects are drawn in scene order: a tie keeps the later one, as the raster draws it.
+        if (tri >= 0 && (best_tri < 0 || key >= best_key)) {
             best_glb = glb;
             best_object = i;
             best_tri = tri;
-            best_depth = depth;
+            best_key = key;
         }
     }
+    rv_editor_parts_report(refused);
     if (best_tri < 0) {
         return RV_ERR_NOENT;
     }
@@ -264,32 +420,39 @@ void rv_editor_parts_highlight(ImDrawList *dl,
     const rv_editor_parts_target &target,
     ImU32 color)
 {
-    rv_editor_parts_each_picked(doc, target, [&](const std::array<vec3, tri_vertices> &p) {
-        for (size_t k = 0; k < tri_vertices; ++k) {
-            rv_editor_line(dl, v, p[k], p[(k + 1) % tri_vertices], color, line_width_picked);
+    rv_editor_parts_each_picked(doc, target, [&](const std::array<rv_pdklib::fx_vec3, tri_vertices> &q) {
+        for (std::size_t k = 0; k < tri_vertices; ++k) {
+            rv_editor_line_fx(dl, v, q[k], q[(k + 1) % tri_vertices], color, line_width_picked);
         }
     });
 }
 
 bool rv_editor_parts_bounds(const rv_editor_scene_doc &doc, const rv_editor_parts_target &target, vec3 &lo, vec3 &hi)
 {
-    vec3 low{ bounding_box_infinity, bounding_box_infinity, bounding_box_infinity },
-        high{ -bounding_box_infinity, -bounding_box_infinity, -bounding_box_infinity };
+    std::array<rv_pdklib::fx, tri_vertices> low{};
+    std::array<rv_pdklib::fx, tri_vertices> high{};
+    low.fill(std::numeric_limits<rv_pdklib::fx>::max());
+    high.fill(std::numeric_limits<rv_pdklib::fx>::min());
     bool any = false;
-    rv_editor_parts_each_picked(doc, target, [&](const std::array<vec3, tri_vertices> &p) {
-        for (const vec3 &c : p) {
-            for (size_t k = 0; k < c.size(); ++k) {
-                low[k] = std::min(low[k], c[k]);
-                high[k] = std::max(high[k], c[k]);
+    rv_editor_parts_each_picked(doc, target, [&](const std::array<rv_pdklib::fx_vec3, tri_vertices> &q) {
+        for (const rv_pdklib::fx_vec3 &c : q) {
+            const rv_pdklib::fx xyz[tri_vertices] = { c.x, c.y, c.z };
+            for (std::size_t k = 0; k < tri_vertices; ++k) {
+                low[k] = std::min(low[k], xyz[k]);
+                high[k] = std::max(high[k], xyz[k]);
             }
         }
         any = true;
     });
-    if (any) {
-        lo = low;
-        hi = high;
+    if (!any) {
+        return false;
     }
-    return any;
+    // The box is exact in Q20.12 until here; this is its one conversion to the viewport's units.
+    for (std::size_t k = 0; k < tri_vertices; ++k) {
+        lo[k] = rv_editor_camera_units_of(low[k]);
+        hi[k] = rv_editor_camera_units_of(high[k]);
+    }
+    return true;
 }
 
 } // namespace rv_editor

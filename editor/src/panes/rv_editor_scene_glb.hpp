@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <filesystem>
 #include <memory>
@@ -37,8 +36,12 @@ struct rv_editor_glb_model {
 // the bridge until the viewport draws integer points.
 inline constexpr double rv_editor_gte_units_per_metre = static_cast<double>(rv_pdklib::gte_one);
 
-// Bridge until the viewport draws integer points: vertex `vertex` of `model` in metres, v / 2^shift.
-std::array<double, 3> rv_editor_glb_vertex_metres(const rv_pdklib::rv_mppcmod_int_model &model, std::size_t vertex);
+// Vertex `vertex` of `model` through `world`, the chain the drawn mesh uses: its Q20.12 point in `q`.
+// RV_ERR_* from rv_gte_vertex when a component leaves int32; `q` is then untouched.
+int rv_editor_glb_vertex_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
+    const rv_pdklib::rv_gte_matrix &world,
+    std::size_t vertex,
+    rv_pdklib::fx_vec3 &q);
 
 // Reads the .glb at `path` (absolute), once per mtime. `out` shares the cached model, so a holder
 // keeps it valid when the file changes or goes. RV_OK, or the code with the reason in `error`.
