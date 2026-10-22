@@ -67,7 +67,7 @@ struct rv_scene {
 // or a name repeated on one object. Unknown keys are kept
 // in `extra`/`scene_extra` and unknown sections in `other_sections`, each list in file
 // order. A `format` integer is not kept: a write-back writes `version` only, as the editor does.
-int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error);
+inline int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error);
 
 // Writes `scene` back in the dialect rv_scene_parse reads, the inverse of it. A parent index
 // outside objects is written as a root, a component on such an index is not written.
@@ -78,13 +78,15 @@ std::string rv_scene_render(const rv_scene &scene);
 std::string rv_scene_value_text(const rv_manifest_mvalue &value);
 
 // Object `index`'s local transform: T * Ry * Rx * Rz * S.
-rv_mat4 rv_scene_local(const rv_scene_object &object);
+inline rv_mat4 rv_scene_local(const rv_scene_object &object);
 
 // Object `index`'s transform in scene space: its parents' applied outside its own.
-rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index);
+inline rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index);
 
 // A "quad" object's four scene-space corners, PDK Z order (top-left, top-right,
 // bottom-left, bottom-right of its local XY square), for the game and the editor alike.
-void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_vec3 out[4]);
+inline void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_vec3 out[4]);
 
 } // namespace rv_pdklib
+
+#include "pdklib/rv_scene/rv_scene_read.hpp"
