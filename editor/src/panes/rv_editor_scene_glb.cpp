@@ -287,14 +287,24 @@ int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const 
         auto model = std::make_shared<rv_editor_glb_model>();
         const std::string stem = path.stem().string();
         rv_pdklib::rv_mppcmod_q16_model q16;
-        entry.rc = rv_pdklib::rv_mppcmod_read_gltf(key, stem, q16, model->images, entry.error);
+        std::vector<rv_pdklib::rv_mppcmod_gltf_source_vertex> source;
+        entry.rc = rv_pdklib::rv_mppcmod_read_gltf(key, stem, q16, model->images, source, entry.error);
         if (entry.rc == RV_OK) {
             entry.rc = rv_editor_glb_quantize(key, q16, model->quantized, entry.error);
         }
         if (entry.rc == RV_OK) {
             entry.rc = rv_pdklib::rv_mppcmod_int_validate(model->quantized, entry.error);
         }
+        // Internal invariant: the reader and the quantizer both emit one vertex per model vertex.
+        if (entry.rc == RV_OK && source.size() != model->quantized.vertices.size()) {
+            const std::size_t source_count = source.size();
+            const std::size_t model_count = model->quantized.vertices.size();
+            entry.rc = RV_ERR_INVAL;
+            entry.error =
+                rv_editor_text_format("project.model_source_mismatch", std::make_format_args(key, source_count, model_count));
+        }
         if (entry.rc == RV_OK) {
+            model->source = std::move(source);
             model->pieces = rv_editor_model_pieces(model->quantized);
             entry.model = std::move(model);
         }

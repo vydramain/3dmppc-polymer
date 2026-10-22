@@ -25,6 +25,8 @@ namespace rv_editor
 struct rv_editor_glb_model {
     // The model as quantized: what the viewport draws and Parts picks from.
     rv_pdklib::rv_mppcmod_int_model quantized;
+    // The glTF floats before quantization; index i is quantized vertex i. Kept for Separate only.
+    std::vector<rv_pdklib::rv_mppcmod_gltf_source_vertex> source;
     std::vector<rv_pdklib::rv_mppcmod_gltf_image> images;
     // Set once per read, with the model; the triangles of each piece.
     std::vector<rv_editor_piece> pieces;
