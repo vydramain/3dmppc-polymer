@@ -35,9 +35,11 @@ int rv_route_unit(rv_pdklib::fx_vec3 v, rv_pdklib::fx_vec3 &out);
 // Error: keys empty (RV_ERR_NOENT), or the Q20.12 math leaves its range (RV_ERR_INVAL); out is untouched.
 int rv_route_eye_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_pdklib::fx_vec3 &out);
 
-// Camera of frame `frame` (any value, negative too; taken modulo the period). keys must be sorted by index.
-// Error: keys empty (RV_ERR_NOENT), or the Q20.12 math leaves its range; out is untouched.
-int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_cg_camera &out);
+// Camera of frame `frame` (any value, negative too; taken modulo the period) for a screen of screen_height pixels.
+// keys must be sorted by index. Error: keys empty (RV_ERR_NOENT); screen_height not a positive int32, the Q20.12
+// math leaves its range, or rv_gte_camera_make refuses (RV_ERR_INVAL); out is untouched. Not logged: a frame
+// repeats it, so the disc logs the first one.
+int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, int64_t screen_height, rv_cg_camera &out);
 
 // The route entity's component: the keys of its cam_NN children, sorted by index. rv_route_collect fills it.
 struct ecs_component_route {

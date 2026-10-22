@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <span>
 #include <vector>
@@ -44,10 +45,17 @@ constexpr int64_t RV_PCCG_SW_COLOUR_SCALE = 255 * 255;
 // rv_uv holds unsigned texels.
 constexpr int64_t RV_PCCG_SW_TEXEL_MAX = 65535;
 
-// The bottom row of an affine world is 0 0 0 1; rv_gte_matrix keeps no bottom row to carry the rest.
-bool world_affine(const float (&world)[16])
+// rv_cg_matrix and rv_gte_matrix have the same fields, so the copy is field by field.
+rv_pdklib::rv_gte_matrix gte_world(const rv_cg_matrix &world)
 {
-    return world[12] == 0.0f && world[13] == 0.0f && world[14] == 0.0f && world[15] == 1.0f;
+    rv_pdklib::rv_gte_matrix out = {};
+    for (size_t i = 0; i < std::size(world.r); ++i) {
+        out.r[i] = world.r[i];
+    }
+    for (size_t i = 0; i < std::size(world.t); ++i) {
+        out.t[i] = world.t[i];
+    }
+    return out;
 }
 
 // RV_CG_CULL_BACK drops the faces turned away from the eye. A front face is counter-clockwise on
@@ -249,17 +257,7 @@ int64_t rv_pccg_sw::model_put(int64_t model_addr, const rv_cg_put *put)
         RV_LOG_WARN("pccg", "model {} refused: a textured part has no size", model_addr);
         return RV_ERR_INVAL;
     }
-    const bool affine = world_affine(put->world);
-    if (!affine) {
-        RV_LOG_WARN("pccg", "model {} refused: the world transform is not affine, its bottom row is not 0 0 0 1", model_addr);
-        return RV_ERR_INVAL;
-    }
-    rv_pdklib::rv_gte_matrix world = {};
-    const bool world_bad = rv_pccg_sw_world_matrix(put->world, world) != RV_OK;
-    if (world_bad) {
-        RV_LOG_WARN("pccg", "model {} refused: the world transform leaves rv_gte's range", model_addr);
-        return RV_ERR_INVAL;
-    }
+    const rv_pdklib::rv_gte_matrix world = gte_world(put->world);
     std::vector<rv_pccg_sw_view_vertex> view;
     const int view_rc = rv_pccg_sw_view_vertexes(gte_camera_.view, world, it->int_model, view);
     if (view_rc != RV_OK) {
@@ -320,19 +318,6 @@ int64_t rv_pccg_sw::model_put(int64_t model_addr, const rv_cg_put *put)
         ++triangles_;
     }
     return count;
-}
-
-int rv_pccg_sw_fx_vec3(const rv_cg_vec3 &value, rv_pdklib::fx_vec3 &out)
-{
-    rv_pdklib::fx_vec3 v = {};
-    const int rc_x = rv_pdklib::fx_from_double(value.x, v.x);
-    const int rc_y = rv_pdklib::fx_from_double(value.y, v.y);
-    const int rc_z = rv_pdklib::fx_from_double(value.z, v.z);
-    if (rc_x != RV_OK || rc_y != RV_OK || rc_z != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    out = v;
-    return RV_OK;
 }
 
 int rv_pccg_sw_screen_side(int64_t side, int32_t &out)
@@ -397,13 +382,7 @@ int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, int32_t depth_min, int32_t de
         RV_LOG_WARN("pccg", "point refused: depth_min {} is above depth_max {}", depth_min, depth_max);
         return RV_ERR_INVAL;
     }
-    rv_pdklib::fx_vec3 world_fx = {};
-    const bool world_bad = rv_pccg_sw_fx_vec3(*world, world_fx) != RV_OK;
-    if (world_bad) {
-        RV_LOG_WARN("pccg", "point refused: a world value leaves Q20.12");
-        return RV_ERR_INVAL;
-    }
-    // transitional until E11e-2: the screen leaves as float, the rv_cg contract
+    const rv_pdklib::fx_vec3 world_fx = { world->x, world->y, world->z };
     int32_t width = 0;
     int32_t height = 0;
     const bool width_bad = rv_pccg_sw_screen_side(cv_.screen_width(), width) != RV_OK;
@@ -416,12 +395,12 @@ int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, int32_t depth_min, int32_t de
     const rv_pdklib::rv_gte_viewport viewport = { gte_camera_.h, width / 2, height / 2 };
     rv_pdklib::rv_gte_screen screen = {};
     int32_t depth = 0;
-    // A point nearer than the near plane is an ordinary answer: the HUD asks every frame.
+    // A point nearer than the near plane is refused with RV_ERR_INVAL and out is untouched, as rv_cg.h says.
     if (rv_pccg_sw_point_int(gte_camera_, viewport, world_fx, depth_min, depth_max, screen, depth) != RV_OK) {
         return RV_ERR_INVAL;
     }
-    out->x = static_cast<float>(screen.x);
-    out->y = static_cast<float>(screen.y);
+    out->x = screen.x;
+    out->y = screen.y;
     out->depth = depth;
     return RV_OK;
 }

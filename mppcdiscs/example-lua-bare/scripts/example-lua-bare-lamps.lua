@@ -1,43 +1,54 @@
--- Street lamps (example-cpp-pdkkit-lamps.cpp). A lamp burns from the first frame of the outward
+-- Street lamps (example-cpp-pdkkit-lamps.cpp), in Q20.12. A lamp burns from the first frame of the outward
 -- half in which the eye comes within 8 m of it, until the first such frame of the return half.
 local mathx = require("example-lua-bare-math")
 local draw = require("example-lua-bare-draw")
 local M = {}
 
 local LIGHT_MODEL = "lamp_light.mppcmod"
--- Squared reach, metres: 8 m. Exact in float, so no rounding is needed.
-local REACH_SQUARED = 8 * 8
+-- A lamp burns while the eye is nearer than this, metres: 8 m in Q20.12 is 8 * 4096 raw steps.
+local REACH = 32768
+-- REACH squared: the floor of the root of s is below REACH exactly when s is below REACH^2.
+local REACH_SQ = REACH * REACH
 -- The outward half is frames [0, P/2); the turn is in the flat at P/2 (key cam_10, frame 2160) and belongs to the return half.
 local OUTWARD_END = math.floor(mathx.PERIOD_FRAMES / 2)
 
--- First frame in [from, to) whose eye is within the reach of at (1-based world column), -1 when none.
-local function first_near(keys, at, from, to)
+-- First frame in [from, to) whose eye is within REACH of at, -1 when none. eyes is period_eyes' table.
+local function first_near(eyes, at, from, to)
     for frame = from, to - 1 do
-        local eye = mathx.camera_of(keys, frame)
-        local dx = mathx.f(eye.x - at.x)
-        local dy = mathx.f(eye.y - at.y)
-        local dz = mathx.f(eye.z - at.z)
-        if mathx.f(mathx.f(mathx.f(dx * dx) + mathx.f(dy * dy)) + mathx.f(dz * dz)) < REACH_SQUARED then
+        local dx = eyes.x[frame + 1] - at.x
+        local dy = eyes.y[frame + 1] - at.y
+        local dz = eyes.z[frame + 1] - at.z
+        if dx * dx + dy * dy + dz * dz < REACH_SQ then
             return frame
         end
     end
     return -1
 end
 
+-- A lamp the route does not light: dark for the whole period, warned once.
+local function stays_dark(lamp, reason)
+    lamp.on_frame, lamp.off_frame = 0, 0
+    print("warning: example-lua-bare: " .. lamp.name .. " " .. reason)
+end
+
 -- Sets on_frame and off_frame of each lamp. A lamp the route does not pass in both halves
 -- stays dark (0, 0) and gets one warning.
 function M.schedule(keys, lamps)
+    local eyes, code = mathx.period_eyes(keys)
     for _, lamp in ipairs(lamps) do
-        -- The translation column of the lamp's world: its base on the street.
-        local at = { x = lamp.world[4], y = lamp.world[8], z = lamp.world[12] }
-        local on = first_near(keys, at, 0, OUTWARD_END)
-        local off = first_near(keys, at, OUTWARD_END, mathx.PERIOD_FRAMES)
-        if on < 0 or off < 0 then
-            lamp.on_frame, lamp.off_frame = 0, 0
-            print("warning: example-lua-bare: " .. lamp.name .. " is not passed by the route in both halves: it stays dark")
+        -- The translation of the lamp's world, Q20.12: its base on the street.
+        local at = { x = lamp.world.t[1], y = lamp.world.t[2], z = lamp.world.t[3] }
+        if eyes == nil or not mathx.in_range(at) then
+            stays_dark(lamp, "is refused by the route, it stays dark: code " .. (code or mathx.ERR_INVAL))
         else
-            lamp.on_frame, lamp.off_frame = on, off
-            print(string.format("example-lua-bare: %s burns from frame %d to %d of the period", lamp.name, on, off))
+            local on = first_near(eyes, at, 0, OUTWARD_END)
+            local off = first_near(eyes, at, OUTWARD_END, mathx.PERIOD_FRAMES)
+            if on < 0 or off < 0 then
+                stays_dark(lamp, "is not passed by the route in both halves: it stays dark")
+            else
+                lamp.on_frame, lamp.off_frame = on, off
+                print(string.format("example-lua-bare: %s burns from frame %d to %d of the period", lamp.name, on, off))
+            end
         end
     end
 end

@@ -34,9 +34,6 @@ int rv_pccg_sw_point_int(const rv_pdklib::rv_gte_camera &camera,
     rv_pdklib::rv_gte_screen &screen,
     int32_t &depth);
 
-// A float world value to Q20.12. Error: a value leaves fx; out is untouched.
-int rv_pccg_sw_fx_vec3(const rv_cg_vec3 &value, rv_pdklib::fx_vec3 &out);
-
 // A screen side as int32. Error: the side is outside (0, INT32_MAX]; out is untouched.
 int rv_pccg_sw_screen_side(int64_t side, int32_t &out);
 
@@ -57,10 +54,6 @@ struct rv_pccg_sw_view_vertex {
     rv_pdklib::fx_vec3 view;
     bool valid;
 };
-
-// A float world to rv_gte's integer form: row-major 4x4, the bottom row not taken, so the caller
-// checks the world is affine. Error: an element leaves its integer type; out is untouched.
-int rv_pccg_sw_world_matrix(const float (&world)[16], rv_pdklib::rv_gte_matrix &out);
 
 // View-space Q20.12 of every model vertex: rv_gte_compose(camera view, world), then rv_gte_vertex.
 // Error: the composed matrix leaves rv_gte's range. A vertex that rv_gte_vertex refuses is marked, not an error.

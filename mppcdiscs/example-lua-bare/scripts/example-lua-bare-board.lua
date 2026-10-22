@@ -1,6 +1,5 @@
 -- The factory board's lettering "ОСТАЛОСЬ: 5" (example-cpp-pdkkit-board.cpp): one glyph model per
 -- cell, lit by a flicker table. Each lit cell draws its halo first, then the letters.
-local mathx = require("example-lua-bare-math")
 local draw = require("example-lua-bare-draw")
 local M = {}
 
@@ -21,22 +20,23 @@ local TEXT = {
 }
 local CELL_COUNT = 11
 M.CELL_COUNT = CELL_COUNT
--- Cell pitch along the panel, metres; the text is centred on the panel.
-local CELL_WIDTH = 0.24
--- Forward offsets from the panel along its normal, metres: the halo and the letter stand off it.
-local HALO_FORWARD = 0.005
-local LETTER_FORWARD = 0.010
+-- Q20.12 raw steps (4096 = 1 m), nearest value of the scene's metres: 0.24 m cell pitch (983.04),
+-- the text is centred on the panel.
+local CELL_WIDTH = 983
+-- Forward offsets along the panel normal: halo 0.005 m (20.48), letter 0.010 m (40.96), as the scene.
+local HALO_FORWARD = 20
+local LETTER_FORWARD = 41
+-- 0.5 in Q20.12.
+local FX_HALF = 2048
+-- rv_err.h codes, named as in example-lua-bare.lua.
+local RV_OK = 0
+local RV_ERR_INVAL = -1
 -- Flicker: cell i is lit when TABLE[(frame / STEP + i * SHIFT) % 256] > LIT_ABOVE.
 -- The shift spreads the letters over the table so they do not blink in unison.
 local FLICKER_STEP = 6 -- frames per table step
 local FLICKER_SHIFT = 37
 local FLICKER_SIZE = 256
 local LIT_ABOVE = 128
--- The matrix is row-major 4x4: 16 numbers.
-local MATRIX_LEN = mathx.MATRIX_LEN
--- The text is centred on the panel: half its width, and the centre of a cell is half a cell in.
-local HALF_FACTOR = 0.5
-local CELL_CENTRE = 0.5
 
 -- Own values, of the same kind as Doom's rndtable (256 bytes of pseudo-random data read by
 -- frame index), not its numbers. Same table as example-cpp-pdkkit-board.cpp.
@@ -58,49 +58,73 @@ function M.cell_lit(i, frame)
     return TEXT[i + 1] ~= false and FLICKER_TABLE[index + 1] > LIT_ABOVE
 end
 
--- Offset of cell i along the panel: centred on the panel, as example-cpp-pdkkit-board.cpp.
+-- Offset of cell i along the panel, Q20.12: the cell's centre (i + 0.5) * cell, less half the text.
 local function along_of(half, i, cell)
-    return mathx.f(-half + mathx.f(mathx.f(i + CELL_CENTRE) * cell))
+    local centre, code = pdk.fx_mul((2 * i + 1) * FX_HALF, cell)
+    if centre == nil then
+        return nil, code
+    end
+    return centre - half
 end
 
--- board is the board object's 1-based world table. Returns the panel world of a model
--- shifted by `forward` along the panel normal (the board's local +x) and `along` along its local +z.
+-- board is the board object's world, { r = 9 raw 4.12, t = 3 Q20.12 }. Returns the panel world of a
+-- model shifted by `forward` along the panel normal (the board's local +x) and `along` along its local +z:
+-- the board composed with the translation (forward, 0, along), as rv_gte_compose does it.
+-- Returns nil and the code when a step leaves its range: a translation past int32 or a pdk error.
 local function panel_world(board, forward, along)
-    local out = {}
-    for k = 1, MATRIX_LEN do
-        out[k] = board[k]
+    local r = board.r
+    local t = {}
+    for i = 0, 2 do
+        local shift, shift_code = pdk.gte_round_frac(r[3 * i + 1] * forward + r[3 * i + 3] * along)
+        if shift == nil then
+            return nil, shift_code
+        end
+        t[i + 1] = shift + board.t[i + 1]
+        if not pdk.gte_fits(t[i + 1]) then
+            return nil, RV_ERR_INVAL
+        end
     end
-    out[4] = mathx.f(mathx.f(board[4] + mathx.f(board[1] * forward)) + mathx.f(board[3] * along))
-    out[8] = mathx.f(mathx.f(board[8] + mathx.f(board[5] * forward)) + mathx.f(board[7] * along))
-    out[12] = mathx.f(mathx.f(board[12] + mathx.f(board[9] * forward)) + mathx.f(board[11] * along))
-    return out
+    return { r = r, t = t }
+end
+
+-- Draws decal `name` of cell i at `forward` off the panel. Returns RV_OK or the first error.
+local function draw_cell(cg, cd, name, board, forward, half, i)
+    local along, along_code = along_of(half, i, CELL_WIDTH)
+    if along == nil then
+        return along_code
+    end
+    local world, world_code = panel_world(board, forward, along)
+    if world == nil then
+        return world_code
+    end
+    return draw.decal(cg, cd, name, world, draw.WHITE)
 end
 
 -- Draws the lit cells at frame `frame`: all halos first, then all letters, so a halo never
--- lands over its neighbour's letter. Returns 0 or the first drive or cg error.
+-- lands over its neighbour's letter. Returns RV_OK or the first pdk, drive or cg error.
 function M.draw(cg, cd, board, frame)
-    local cell = mathx.f(CELL_WIDTH)
-    local half = mathx.f(mathx.f(CELL_COUNT * cell) * HALF_FACTOR)
-    local halo_forward = mathx.f(HALO_FORWARD)
-    local letter_forward = mathx.f(LETTER_FORWARD)
+    -- Half the text: 11 cells * cell / 2, rounded as fx_mul rounds.
+    local half, half_code = pdk.fx_mul(CELL_COUNT * CELL_WIDTH, FX_HALF)
+    if half == nil then
+        return half_code
+    end
     for i = 0, CELL_COUNT - 1 do
         if M.cell_lit(i, frame) then
-            local code = draw.decal(cg, cd, HALO_MODEL, panel_world(board, halo_forward, along_of(half, i, cell)), draw.WHITE)
-            if code < 0 then
+            local code = draw_cell(cg, cd, HALO_MODEL, board, HALO_FORWARD, half, i)
+            if code < RV_OK then
                 return code
             end
         end
     end
     for i = 0, CELL_COUNT - 1 do
         if M.cell_lit(i, frame) then
-            local world = panel_world(board, letter_forward, along_of(half, i, cell))
-            local code = draw.decal(cg, cd, TEXT[i + 1], world, draw.WHITE)
-            if code < 0 then
+            local code = draw_cell(cg, cd, TEXT[i + 1], board, LETTER_FORWARD, half, i)
+            if code < RV_OK then
                 return code
             end
         end
     end
-    return 0
+    return RV_OK
 end
 
 return M

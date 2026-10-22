@@ -1,10 +1,9 @@
 #include "rv_pconsole/cg/rv_pccg_sw.hpp"
 
 #include <algorithm>
-#include <array>
-#include <cmath>
+#include <cstddef>
 #include <cstdint>
-#include <numbers>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -73,74 +72,29 @@ int64_t host_bytes_per_file_byte()
     return std::max({ part, vertex, triangle });
 }
 
-// A NaN or an inf in eye, target or up poisons the projection as surely as a bad fov or
-// plane, so all twelve floats are refused together.
-bool camera_finite(const rv_cg_camera &camera)
-{
-    const std::array<float, 12> values = { camera.eye.x,
-        camera.eye.y,
-        camera.eye.z,
-        camera.target.x,
-        camera.target.y,
-        camera.target.z,
-        camera.up.x,
-        camera.up.y,
-        camera.up.z,
-        camera.fov_y,
-        camera.near_plane,
-        camera.far_plane };
-    return std::all_of(values.begin(), values.end(), [](float value) {
-        return std::isfinite(value);
-    });
-}
-
 // One texture entry per part, in part order: the rule model_upload and model_textures_set share.
 bool textures_per_part(const rv_pdklib::rv_mppcmod_int_model &model, std::span<const rv_pccg_part_texture> textures)
 {
     return textures.size() == model.parts.size();
 }
 
-// rv_cg_camera holds the field of view in radians; rv_gte_camera_make takes degrees.
-constexpr double RV_PCCG_SW_DEGREES_PER_RADIAN = 180.0 / std::numbers::pi;
+// rv_cg_camera and rv_gte_camera are the same fields in the same layout, so the console copies
+// the disc's camera whole. The asserts keep that true if either header changes.
+static_assert(sizeof(rv_cg_matrix) == sizeof(rv_pdklib::rv_gte_matrix), "rv_cg_matrix must match rv_gte_matrix");
+static_assert(sizeof(rv_cg_camera) == sizeof(rv_pdklib::rv_gte_camera), "rv_cg_camera must match rv_gte_camera");
+static_assert(offsetof(rv_cg_matrix, r) == offsetof(rv_pdklib::rv_gte_matrix, r), "rv_cg_matrix: r offset");
+static_assert(offsetof(rv_cg_matrix, t) == offsetof(rv_pdklib::rv_gte_matrix, t), "rv_cg_matrix: t offset");
+static_assert(offsetof(rv_cg_camera, view) == offsetof(rv_pdklib::rv_gte_camera, view), "rv_cg_camera: view offset");
+static_assert(offsetof(rv_cg_camera, h) == offsetof(rv_pdklib::rv_gte_camera, h), "rv_cg_camera: h offset");
+static_assert(offsetof(rv_cg_camera, near_plane) == offsetof(rv_pdklib::rv_gte_camera, near_plane),
+    "rv_cg_camera: near offset");
+static_assert(offsetof(rv_cg_camera, far_plane) == offsetof(rv_pdklib::rv_gte_camera, far_plane), "rv_cg_camera: far offset");
 
-// The integer camera of the frame. transitional until E11e-2: rv_cg.h is float, so the conversion
-// to Q20.12 happens here, once per frame. Error: a value leaves Q20.12, the triangle depth key span is
-// above gte_key_span_max, or rv_gte_camera_make refuses the camera; out is untouched.
-int gte_camera_make(const rv_cg_camera &camera, int32_t screen_height, rv_pdklib::rv_gte_camera &out)
+// rv_gte_depth_key takes count * (far minus near) and refuses above gte_key_span_max. A triangle takes
+// RV_PCCG_SW_TRI_CORNERS points, so a larger span would refuse every triangle of the frame. out is untouched on error.
+int gte_camera_copy(const rv_cg_camera &camera, rv_pdklib::rv_gte_camera &out)
 {
-    rv_pdklib::fx_vec3 eye = {};
-    if (rv_pccg_sw_fx_vec3(camera.eye, eye) != RV_OK) {
-        RV_LOG_WARN("pccg", "camera refused: eye leaves Q20.12");
-        return RV_ERR_INVAL;
-    }
-    rv_pdklib::fx_vec3 target = {};
-    if (rv_pccg_sw_fx_vec3(camera.target, target) != RV_OK) {
-        RV_LOG_WARN("pccg", "camera refused: target leaves Q20.12");
-        return RV_ERR_INVAL;
-    }
-    rv_pdklib::fx_vec3 up = {};
-    if (rv_pccg_sw_fx_vec3(camera.up, up) != RV_OK) {
-        RV_LOG_WARN("pccg", "camera refused: up leaves Q20.12");
-        return RV_ERR_INVAL;
-    }
-    rv_pdklib::fx fov = 0;
-    if (rv_pdklib::fx_from_double(static_cast<double>(camera.fov_y) * RV_PCCG_SW_DEGREES_PER_RADIAN, fov) != RV_OK) {
-        RV_LOG_WARN("pccg", "camera refused: fov leaves Q20.12");
-        return RV_ERR_INVAL;
-    }
-    rv_pdklib::fx near_plane = 0;
-    if (rv_pdklib::fx_from_double(camera.near_plane, near_plane) != RV_OK) {
-        RV_LOG_WARN("pccg", "camera refused: near plane leaves Q20.12");
-        return RV_ERR_INVAL;
-    }
-    rv_pdklib::fx far_plane = 0;
-    if (rv_pdklib::fx_from_double(camera.far_plane, far_plane) != RV_OK) {
-        RV_LOG_WARN("pccg", "camera refused: far plane leaves Q20.12");
-        return RV_ERR_INVAL;
-    }
-    // rv_gte_depth_key takes count * (far minus near) and refuses above gte_key_span_max. A triangle takes
-    // RV_PCCG_SW_TRI_CORNERS points, so a larger span would refuse every triangle of the frame.
-    const int64_t span = static_cast<int64_t>(far_plane) - near_plane;
+    const int64_t span = static_cast<int64_t>(camera.far_plane) - camera.near_plane;
     const int64_t triangle_span = span * RV_PCCG_SW_TRI_CORNERS;
     if (triangle_span > rv_pdklib::gte_key_span_max) {
         RV_LOG_WARN("pccg",
@@ -149,12 +103,7 @@ int gte_camera_make(const rv_cg_camera &camera, int32_t screen_height, rv_pdklib
             rv_pdklib::gte_key_span_max);
         return RV_ERR_INVAL;
     }
-    if (rv_pdklib::rv_gte_camera_make(eye, target, up, fov, screen_height, near_plane, far_plane, out) != RV_OK) {
-        RV_LOG_WARN("pccg",
-            "camera refused: rv_gte_camera_make has no valid camera (fov outside 10 to 180 degrees, planes, "
-            "screen height, eye on target, up along the aim, or h below 1 px)");
-        return RV_ERR_INVAL;
-    }
+    std::memcpy(&out, &camera, sizeof(out));
     return RV_OK;
 }
 
@@ -231,19 +180,17 @@ int64_t rv_pccg_sw::frame_camera(const rv_cg_camera *camera)
 {
     const bool absent = camera == nullptr;
     if (absent) {
+        RV_LOG_WARN("pccg", "camera refused: no camera");
         return RV_ERR_INVAL;
     }
-    const bool not_finite = !camera_finite(*camera);
-    if (not_finite) {
-        return RV_ERR_INVAL;
-    }
-    // Written as "not greater than zero" so a NaN is refused as well.
-    const bool bad_fov = !(camera->fov_y > 0.0f);
-    if (bad_fov) {
-        return RV_ERR_INVAL;
-    }
-    const bool bad_planes = !(camera->near_plane > 0.0f && camera->near_plane < camera->far_plane);
+    const bool bad_planes = camera->near_plane <= 0 || camera->near_plane >= camera->far_plane;
     if (bad_planes) {
+        RV_LOG_WARN("pccg", "camera refused: the planes are not 0 < near < far");
+        return RV_ERR_INVAL;
+    }
+    const bool bad_h = camera->h < 1;
+    if (bad_h) {
+        RV_LOG_WARN("pccg", "camera refused: h is below 1 px");
         return RV_ERR_INVAL;
     }
     int32_t height = 0;
@@ -252,7 +199,7 @@ int64_t rv_pccg_sw::frame_camera(const rv_cg_camera *camera)
         return RV_ERR_INVAL;
     }
     rv_pdklib::rv_gte_camera gte_camera = {};
-    if (gte_camera_make(*camera, height, gte_camera) != RV_OK) {
+    if (gte_camera_copy(*camera, gte_camera) != RV_OK) {
         return RV_ERR_INVAL;
     }
     gte_camera_ = gte_camera;

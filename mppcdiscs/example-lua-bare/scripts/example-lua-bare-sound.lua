@@ -83,9 +83,13 @@ local function area_of(eye_x)
     return STREET
 end
 
--- The area of frame `frame`, by its camera. Computed per call: no per-frame table is kept.
+-- The area of frame `frame`, by its camera. Answers the area, or nil and the route's code.
 local function area_at(keys, frame)
-    return area_of(mathx.camera_of(keys, frame).x)
+    local eye, code = mathx.camera_of(keys, frame)
+    if eye == nil then
+        return nil, code
+    end
+    return area_of(eye.x)
 end
 
 -- The first frame of the span holding `frame`: the last span start at or before it, or else the last
@@ -398,12 +402,21 @@ function M.init(ca, cd, keys, state)
         sound.slots[index] = { addr = addr }
     end
 
+    -- The areas of the period, once: a refused route stops init with its code.
+    local period = mathx.PERIOD_FRAMES
+    local areas = {}
+    for f = 0, period - 1 do
+        local area, route_code = area_at(keys, f)
+        if area == nil then
+            return fail(sound, "route", route_code)
+        end
+        areas[f] = area
+    end
     -- The frames where an area span starts, ascending. A span starts where its area differs from the
     -- frame before it, cyclically.
-    local period = mathx.PERIOD_FRAMES
     local starts = {}
     for f = 0, period - 1 do
-        if area_at(keys, f) ~= area_at(keys, (f + period - 1) % period) then
+        if areas[f] ~= areas[(f + period - 1) % period] then
             starts[#starts + 1] = f
         end
     end
@@ -418,7 +431,10 @@ function M.init(ca, cd, keys, state)
     for index = 1, #LOOPS do
         sound.loop_armed[index] = false
     end
-    steps.init(keys)
+    local steps_code = steps.init(keys)
+    if steps_code ~= 0 then
+        return fail(sound, "step table", steps_code)
+    end
     sound.ready = true
     return 0
 end
@@ -441,7 +457,10 @@ function M.update(ca, cd, keys, frame, board_present, state)
         return 0
     end
     local period = mathx.PERIOD_FRAMES
-    local area = area_at(keys, frame)
+    local area, route_code = area_at(keys, frame)
+    if area == nil then
+        return fail(sound, "route", route_code)
+    end
     local span_offset = (frame - span_start_of(sound.starts, frame) + period) % period
     local bar = math.floor(span_offset / BAR_FRAMES)
     -- Both are decided against the previous frame before sound takes this one.

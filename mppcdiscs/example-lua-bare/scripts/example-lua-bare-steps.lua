@@ -31,33 +31,46 @@ local ASSETS = {
 -- the cdata of the state. A script reload drops it; init or the next update builds it again.
 local distance = nil
 
--- Frame f is at index f + 1. Index 1 is frame 0, the cumulative distance is 0 there.
+-- Frame f is at index f + 1. Index 1 is frame 0, the cumulative distance is 0 there. Answers the table,
+-- or nil and the rv_err code of the route.
 local function build(keys)
+    local eyes, code = mathx.period_eyes(keys)
+    if eyes == nil then
+        return nil, code
+    end
     local period = mathx.PERIOD_FRAMES
     local table_of = {}
-    local prev = mathx.camera_of(keys, 0)
     local total = 0
     table_of[1] = 0
     for f = 1, period - 1 do
-        local eye = mathx.camera_of(keys, f)
-        local dx = eye.x - prev.x
-        local dz = eye.z - prev.z
+        local dx = eyes.x[f + 1] - eyes.x[f]
+        local dz = eyes.z[f + 1] - eyes.z[f]
         total = total + math.sqrt(dx * dx + dz * dz)
         table_of[f + 1] = total
-        prev = eye
     end
     return table_of
 end
 
--- Builds the distance table at the sound's init.
+-- Builds the distance table at the sound's init. Answers 0 or the route's code, which is also printed.
 function M.init(keys)
-    distance = build(keys)
+    local table_of, code = build(keys)
+    if table_of == nil then
+        print("warning: example-lua-bare: step table refused: code " .. code)
+        return code
+    end
+    distance = table_of
+    return 0
 end
 
--- The distance table, built if a reload dropped it.
+-- The distance table, built if a reload dropped it. A refused route answers an empty table, which
+-- sound.update refuses as not period-sized.
 function M.distance(keys)
     if distance == nil then
-        distance = build(keys)
+        local table_of = build(keys)
+        if table_of == nil then
+            return {}
+        end
+        distance = table_of
     end
     return distance
 end

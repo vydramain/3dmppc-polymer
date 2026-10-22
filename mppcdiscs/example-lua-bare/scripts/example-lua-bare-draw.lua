@@ -2,7 +2,7 @@
 -- every draw of the disc goes through (rv_draw_model and rv_draw_decal in example-cpp-draw.hpp).
 local M = {}
 
-local MATRIX_LEN = require("example-lua-bare-math").MATRIX_LEN
+local mathx = require("example-lua-bare-math")
 
 -- The ordering-table windows, as example-cpp-draw.hpp: the decal window is the world window
 -- DECAL_BIAS keys nearer, same width, so a decal wins over the wall it lies on.
@@ -16,15 +16,18 @@ local DECAL_DEPTH_MAX = pdk.DEPTH_MAX
 -- colour with the texel. A mesh passes its scene tint instead.
 M.WHITE = { r = 255, g = 255, b = 255 }
 
--- world is a 1-based Lua table of 16 numbers. Returns 0 or the first drive or cg error.
+-- world is { r = 9 numbers, t = 3 numbers }, 1-based as the layout. Returns 0 or the first drive or cg error.
 local function put_window(cg, cd, name, world, tint, depth_min, depth_max)
     local addr = tonumber(pdk.cd_resource_addr(cd, pdk.CD_RESOURCE_MODEL, name))
     if addr < 0 then
         return addr
     end
     local put = pdk.new("rv_cg_put")
-    for k = 0, MATRIX_LEN - 1 do
-        put.world[k] = world[k + 1]
+    for k = 0, mathx.ROTATION_LEN - 1 do
+        put.world.r[k] = world.r[k + 1]
+    end
+    for k = 0, mathx.TRANSLATION_LEN - 1 do
+        put.world.t[k] = world.t[k + 1]
     end
     put.depth_min = depth_min
     put.depth_max = depth_max

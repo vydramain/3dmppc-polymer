@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <string_view>
 #include <vector>
 
@@ -80,19 +81,14 @@ inline void ecs_world_camera(ecs_world &world, const rv_cg_camera &camera)
     state.camera_set = true;
 }
 
-// transitional: the rv_cg boundary is float until E11e-2. Writes the world matrix as rv_cg's row-major 4x4, element
-// (row, col) at row*4+col: the 3x3 of r and the column of t, both over 4096, then the last row 0 0 0 1.
-inline void ecs_world_to_cg(const rv_pdklib::rv_gte_matrix &m, float (&out)[16])
+// Copies the world matrix field by field: rv_cg_matrix has the same units, and no layout is assumed between the two types.
+inline void ecs_world_to_cg(const rv_pdklib::rv_gte_matrix &m, rv_cg_matrix &out)
 {
-    const float one = static_cast<float>(rv_pdklib::gte_one);
-    for (int row = 0; row < 3; ++row) {
-        for (int col = 0; col < 3; ++col) {
-            out[row * 4 + col] = static_cast<float>(m.r[row * 3 + col]) / one;
-        }
-        out[row * 4 + 3] = static_cast<float>(m.t[row]) / one;
+    for (std::size_t i = 0; i < std::size(out.r); ++i) {
+        out.r[i] = m.r[i];
     }
-    for (int col = 0; col < 4; ++col) {
-        out[12 + col] = col == 3 ? 1.0f : 0.0f;
+    for (std::size_t i = 0; i < std::size(out.t); ++i) {
+        out.t[i] = m.t[i];
     }
 }
 

@@ -2,10 +2,13 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <numbers>
+#include <iterator>
+#include <limits>
 #include <string_view>
 #include <vector>
 
+#include "pdk/cv/rv_cv.h"
+#include "pdklib/rv_gte/rv_gte_camera.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace example_cpp_pdkkit
@@ -17,11 +20,12 @@ namespace
 using rv_pdklib::fx;
 using rv_pdklib::fx_vec3;
 
-// Lens and clip planes; the far plane is a margin past the scene's extent.
-constexpr float RV_ROUTE_FOV_Y = 60.0f * std::numbers::pi_v<float> / 180.0f;
-constexpr float RV_ROUTE_NEAR = 0.1f;
-constexpr float RV_ROUTE_FAR = 100.0f;
-constexpr rv_cg_vec3 RV_ROUTE_UP = { 0.0f, 1.0f, 0.0f };
+// Lens and clip planes in Q20.12; the far plane is a margin past the scene's extent. The field is in degrees.
+// The near plane is 0.1 m = 409.6 raw, rounded half up to 410. The up axis is +y.
+constexpr fx RV_ROUTE_FOV_Y = 60 * rv_pdklib::fx_one;
+constexpr fx RV_ROUTE_NEAR = 410;
+constexpr fx RV_ROUTE_FAR = 100 * rv_pdklib::fx_one;
+constexpr fx_vec3 RV_ROUTE_UP = { 0, rv_pdklib::fx_one, 0 };
 
 // A Catmull-Rom segment is drawn by four keys: p0 before it, p1 and p2 at its ends, p3 after it.
 constexpr int64_t RV_ROUTE_SEGMENT_KEYS = 4;
@@ -173,23 +177,6 @@ int route_spline(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec3 r
     return spline(pts, t, out);
 }
 
-rv_cg_vec3 to_float(fx_vec3 v)
-{
-    return { rv_pdklib::fx_to_float(v.x), rv_pdklib::fx_to_float(v.y), rv_pdklib::fx_to_float(v.z) };
-}
-
-rv_cg_camera make_camera(const rv_cg_vec3 &eye, const rv_cg_vec3 &target)
-{
-    rv_cg_camera camera = {};
-    camera.eye = eye;
-    camera.target = target;
-    camera.up = RV_ROUTE_UP;
-    camera.fov_y = RV_ROUTE_FOV_Y;
-    camera.near_plane = RV_ROUTE_NEAR;
-    camera.far_plane = RV_ROUTE_FAR;
-    return camera;
-}
-
 } // namespace
 
 bool rv_route_key_name(std::string_view text, int32_t &index)
@@ -235,8 +222,11 @@ int rv_route_eye_at(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec
     return route_spline(keys, frame, &rv_route_key::eye, out);
 }
 
-int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_cg_camera &out)
+int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, int64_t screen_height, rv_cg_camera &out)
 {
+    if (screen_height <= 0 || screen_height > std::numeric_limits<int32_t>::max()) {
+        return RV_ERR_INVAL;
+    }
     fx_vec3 eye = {};
     const int eye_rv = rv_route_eye_at(keys, frame, eye);
     if (eye_rv != RV_OK) {
@@ -255,7 +245,28 @@ int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_
     if (rv_pdklib::fx_vec3_add(eye, dir, target) != RV_OK) {
         return RV_ERR_INVAL;
     }
-    out = make_camera(to_float(eye), to_float(target));
+    rv_pdklib::rv_gte_camera camera = {};
+    const int make_code = rv_pdklib::rv_gte_camera_make(eye,
+        target,
+        RV_ROUTE_UP,
+        RV_ROUTE_FOV_Y,
+        static_cast<int32_t>(screen_height),
+        RV_ROUTE_NEAR,
+        RV_ROUTE_FAR,
+        camera);
+    if (make_code != RV_OK) {
+        return make_code;
+    }
+    // rv_cg_camera has the same fields as rv_gte_camera; the matrix layouts match (see rv_cg.h).
+    for (std::size_t i = 0; i < std::size(out.view.r); ++i) {
+        out.view.r[i] = camera.view.r[i];
+    }
+    for (std::size_t i = 0; i < std::size(out.view.t); ++i) {
+        out.view.t[i] = camera.view.t[i];
+    }
+    out.h = camera.h;
+    out.near_plane = camera.near_plane;
+    out.far_plane = camera.far_plane;
     return RV_OK;
 }
 
@@ -389,8 +400,9 @@ int ecs_system_route(ecs_world &world, const rv_pdkkit::ecs_frame &frame)
     if (route_code != RV_OK) {
         return route_code;
     }
+    const int64_t screen_height = rv_cv_screen_height(rv_pdko_cv(frame.pdk));
     rv_cg_camera camera = {};
-    const int camera_code = rv_route_camera_at(route->keys, frame.frame, camera);
+    const int camera_code = rv_route_camera_at(route->keys, frame.frame, screen_height, camera);
     if (camera_code != RV_OK) {
         return camera_code;
     }

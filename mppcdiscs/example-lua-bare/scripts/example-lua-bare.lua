@@ -23,25 +23,32 @@ print("Hello from example lua!")
 -- The object kinds of the layout (example-lua-bare-layout.lua).
 local KIND_MESH = "mesh"
 local KIND_CAMERA = "camera"
--- Same values as example-cpp-pdkkit (example-cpp-pdkkit-route.hpp, example-cpp-pdkkit.cpp).
--- Lens and clip planes; the far plane is a margin past the scene's extent.
--- As RV_ROUTE_FOV_Y in example-cpp-pdkkit-route.cpp: 60 degrees, converted to radians in float.
-local FOV_DEGREES = 60
-local DEGREES_PER_HALF_TURN = 180
-local NEAR_PLANE = 0.1
-local FAR_PLANE = 100.0
-local UP = { x = 0, y = 1, z = 0 }
+-- Same values as RV_ROUTE_FOV_Y, RV_ROUTE_NEAR, RV_ROUTE_FAR and RV_ROUTE_UP of example-cpp-pdkkit-route.cpp, in Q20.12.
+-- The field is in degrees. The near plane is 0.1 m = 409.6 raw, rounded half up to 410; the far plane
+-- is a margin past the scene's extent.
+local FX_ONE = 4096
+local FOV_Y = 60 * FX_ONE
+local NEAR_PLANE = 410
+local FAR_PLANE = 100 * FX_ONE
+local UP = { x = 0, y = FX_ONE, z = 0 }
+-- rv_err.h codes: a refused scene answers RV_ERR_INVAL.
+local RV_OK = 0
+local RV_ERR_INVAL = -1
 local BACKGROUND = { 20, 24, 40 }
 -- The scene object that carries the factory board lettering, and the prefix of the street lamps.
 local BOARD_NAME = "board"
 local LAMP_PREFIX = "lamp_"
 
 -- The state keeps its own numbers: Reload Module rewrites the layout's tables in place, and a
--- frame must not change with a reload. Copies one 1-based world of 16 numbers.
+-- frame must not change with a reload. Copies one world: the layout's 1-based r (9) and t (3).
 local function copy_world(world)
-    local out = {}
-    for k = 1, require("example-lua-bare-math").MATRIX_LEN do
-        out[k] = world[k]
+    local mathx = require("example-lua-bare-math")
+    local out = { r = {}, t = {} }
+    for k = 1, mathx.ROTATION_LEN do
+        out.r[k] = world.r[k]
+    end
+    for k = 1, mathx.TRANSLATION_LEN do
+        out.t[k] = world.t[k]
     end
     return out
 end
@@ -58,22 +65,28 @@ local function add_mesh(meshes, entry)
     meshes[#meshes + 1] = { model = entry.model, world = copy_world(entry.world), tint = copy_tint(entry.tint) }
 end
 
--- The camera's eye is world * (0,0,0) and its view direction world * (0,0,1) minus the eye.
--- The layout's world is 1-based: the translation is column 4, the z axis column 3.
+-- The eye is the translation t; the view direction is the z column of r, as add_route_key in
+-- example-cpp-pdkkit-route.cpp. Answers RV_OK, or RV_ERR_INVAL when the direction leaves Q20.12.
 local function add_key(keys, entry, mathx)
     local digits = entry.name:match("^cam_(%d%d)$")
     if digits == nil then
-        return -- a camera outside the route is not part of the loop
+        return RV_OK -- a camera outside the route is not part of the loop
     end
     local w = entry.world
+    local dir = mathx.unit({ x = w.r[3], y = w.r[6], z = w.r[9] })
+    if dir == nil then
+        print("example-lua-bare: scene refused: camera '" .. entry.name .. "' direction leaves Q20.12")
+        return RV_ERR_INVAL
+    end
     keys[#keys + 1] = {
         index = tonumber(digits),
-        eye = { x = w[4], y = w[8], z = w[12] },
-        dir = mathx.unit({ x = w[3], y = w[7], z = w[11] }),
+        eye = { x = w.t[1], y = w.t[2], z = w.t[3] },
+        dir = dir,
     }
+    return RV_OK
 end
 
--- Fills `scene` from the layout's entries, in scene order.
+-- Fills `scene` from the layout's entries, in scene order. Answers RV_OK, or the code of a refused key.
 local function read_objects(scene, mathx)
     for _, entry in ipairs(require("example-lua-bare-layout")) do
         if entry.name == BOARD_NAME then
@@ -90,16 +103,23 @@ local function read_objects(scene, mathx)
                 }
             end
         elseif entry.kind == KIND_CAMERA then
-            add_key(scene.keys, entry, mathx)
+            local code = add_key(scene.keys, entry, mathx)
+            if code ~= RV_OK then
+                return code
+            end
         end
     end
+    return RV_OK
 end
 
 -- Copies the meshes, the cam_NN keys (in NN order), the lamps and the board out of the layout.
 -- With no keys there is no loop: the lists come back empty with the reason, so the disc runs without the scene.
 local function scene_read(mathx)
     local scene = { meshes = {}, keys = {}, lamps = {} }
-    read_objects(scene, mathx)
+    local code = read_objects(scene, mathx)
+    if code ~= RV_OK then
+        return { meshes = {}, keys = {}, lamps = {} }, string.format("example-lua-bare-layout refused: rv_err %d", code)
+    end
     if #scene.keys == 0 then
         return { meshes = {}, keys = {}, lamps = {} }, "example-lua-bare-layout not used: no cam_NN keys"
     end
@@ -171,14 +191,16 @@ function M.frame_render(o_)
         log_error_once("sound " .. state.sound.error_asset, sound_code, "not played")
     end
     local eye, target = mathx.camera_of(state.keys, state.frame_count)
-    local camera = pdk.new("rv_cg_camera")
-    camera.eye.x, camera.eye.y, camera.eye.z = eye.x, eye.y, eye.z
-    camera.target.x, camera.target.y, camera.target.z = target.x, target.y, target.z
-    camera.up.x, camera.up.y, camera.up.z = UP.x, UP.y, UP.z
-    -- FOV_DEGREES * pi_v<float> / DEGREES_PER_HALF_TURN, each step rounded to float as in C++
-    camera.fov_y = mathx.f(mathx.f(FOV_DEGREES * mathx.f(math.pi)) / DEGREES_PER_HALF_TURN)
-    camera.near_plane = NEAR_PLANE
-    camera.far_plane = FAR_PLANE
+    if eye == nil then
+        log_error_once("camera", target) -- on failure the second answer is the code
+        return
+    end
+    local screen_height = tonumber(pdk.cv_screen_height(cv))
+    local camera, make_code = pdk.gte_camera(eye, target, UP, FOV_Y, screen_height, NEAR_PLANE, FAR_PLANE)
+    if camera == nil then
+        log_error_once("camera", make_code)
+        return
+    end
     local camera_code = tonumber(pdk.cg_frame_camera(cg, camera))
     if camera_code < 0 then
         log_error_once("camera", camera_code)
