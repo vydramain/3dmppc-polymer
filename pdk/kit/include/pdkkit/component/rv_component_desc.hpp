@@ -58,7 +58,7 @@ inline constexpr ecs_field_type_entry ecs_field_types[] = {
 };
 
 // The table row of `type`, or nullptr when the table does not name it.
-inline const ecs_field_type_entry *ecs_field_type_of(ecs_field_type type)
+constexpr const ecs_field_type_entry *ecs_field_type_of(ecs_field_type type)
 {
     for (const ecs_field_type_entry &entry : ecs_field_types) {
         if (entry.type == type) {
