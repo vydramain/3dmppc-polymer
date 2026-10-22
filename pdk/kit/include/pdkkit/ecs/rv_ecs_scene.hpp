@@ -51,7 +51,7 @@ struct ecs_scene_reading {
 
 // Boundary: a float of the scene contract to fx (uv in pixels, tess as subdivision density, ecs_scene_object in
 // rv_ecs_scene_records.hpp). The only float entry.
-inline int ecs_scene_unit_from_float(float value, rv_pdklib::fx &out)
+[[nodiscard]] inline int ecs_scene_unit_from_float(float value, rv_pdklib::fx &out)
 {
     return rv_pdklib::fx_from_double(static_cast<double>(value), out);
 }
@@ -382,17 +382,15 @@ inline void ecs_scene_log_failure(const char *scene, int status)
 
 // Loads scene `scene` of cd into world. Objects become entities in file order in out; roots take `parent`
 // (ecs_id{} is the world root, else it must be alive). On failure the load's entities are destroyed, out is
-// empty, and the reason is logged. A bad_alloc anywhere in the call rolls back the same way and gives RV_ERR_NOMEM.
-inline int ecs_scene_read(ecs_world &world, rv_cd *cd, const char *scene, ecs_id parent, std::vector<ecs_id> &out)
+// empty, and the reason is logged. An exception anywhere in the call, a disc's factory included, rolls back the
+// same way: bad_alloc gives RV_ERR_NOMEM, any other exception RV_ERR_INVAL, as in ecs_guard.
+[[nodiscard]] inline int ecs_scene_read(ecs_world &world, rv_cd *cd, const char *scene, ecs_id parent, std::vector<ecs_id> &out)
 {
     out.clear();
     std::vector<ecs_id> made;
-    int status = RV_OK;
-    try {
-        status = ecs_scene_read_into(world, cd, scene, parent, made);
-    } catch (const std::bad_alloc &) {
-        status = RV_ERR_NOMEM;
-    }
+    const int status = ecs_guard([&] {
+        return ecs_scene_read_into(world, cd, scene, parent, made);
+    });
     if (status != RV_OK) {
         ecs_scene_rollback(world, made);
         ecs_scene_log_failure(scene, status);
