@@ -81,7 +81,7 @@ std::array<ImVec2, quad_vertex_count> rv_editor_quad_uv(const rv_editor_uv &uv)
         ImVec2{ static_cast<float>(uv[2]), static_cast<float>(uv[3]) } };
 }
 
-// A quad's two triangles: rv_pdklib::rv_scene_quad_corners' own local square and corner
+// A quad's two triangles: rv_pdkkit::rv_scene_quad_corners' own local square and corner
 // order (top-left, top-right, bottom-left, bottom-right; scale is already in `m`).
 std::vector<rv_editor_tri> rv_editor_quad_triangles(const rv_editor_affine &m, const rv_editor_uv &uv)
 {

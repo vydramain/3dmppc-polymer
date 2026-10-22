@@ -107,7 +107,7 @@ std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv
 
 // An object's surface in scene space: a mesh's .glb triangles (name ends in ".glb"), or the unit
 // cube while its mesh is empty or does not load (the reason in *error when given); a quad's two
-// triangles (rv_pdklib::rv_scene_quad_corners' layout, uv the object's pixel rect); empty for
+// triangles (rv_pdkkit::rv_scene_quad_corners' layout, uv the object's pixel rect); empty for
 // other kinds (a billboard's corners depend on the view: see rv_editor_billboard_triangles).
 // Each mesh triangle carries its glTF uv (the whole unit square per face for the placeholder
 // cube); a quad's uv is raw pixels, normalized in rv_editor_draw_filled once a texture's pixel
