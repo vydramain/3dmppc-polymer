@@ -38,24 +38,11 @@ struct lamp_state {
     bool burns = false;
 };
 
-// Base of a lamp in Q20.12: the translation column of its world. Error: a coordinate leaves fx; out is untouched.
-int lamp_base(const rv_pdkkit::ecs_component_world &place, rv_pdklib::fx_vec3 &out)
+// Base of a lamp in Q20.12: the translation of its world matrix.
+rv_pdklib::fx_vec3 lamp_base(const rv_pdkkit::ecs_component_world &place)
 {
-    rv_pdklib::fx_vec3 base = {};
-    const int x_code = rv_pdklib::fx_from_double(place.matrix.m[0][3], base.x);
-    if (x_code != RV_OK) {
-        return x_code;
-    }
-    const int y_code = rv_pdklib::fx_from_double(place.matrix.m[1][3], base.y);
-    if (y_code != RV_OK) {
-        return y_code;
-    }
-    const int z_code = rv_pdklib::fx_from_double(place.matrix.m[2][3], base.z);
-    if (z_code != RV_OK) {
-        return z_code;
-    }
-    out = base;
-    return RV_OK;
+    const auto &t = place.matrix.t;
+    return rv_pdklib::fx_vec3{ t[0], t[1], t[2] };
 }
 
 // First frame in [from, to) whose eye is within the reach of at; -1 in out when none.
@@ -107,12 +94,7 @@ int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::
         RV_LOG_WARN("lamps", "lamp_light entity has no parent with a name and a world matrix: it stays dark");
         return RV_OK;
     }
-    rv_pdklib::fx_vec3 at = {};
-    const int at_code = lamp_base(*place, at);
-    if (at_code != RV_OK) {
-        RV_LOG_WARN("lamps", "{}: base leaves Q20.12, it stays dark: rv_err {}", std::string_view{ name->text }, at_code);
-        return RV_OK;
-    }
+    const rv_pdklib::fx_vec3 at = lamp_base(*place);
     int64_t on = -1;
     const int on_code = first_near(keys, at, 0, RV_LAMP_OUTWARD_END, on);
     if (on_code != RV_OK) {

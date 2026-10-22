@@ -3,12 +3,15 @@
 // Face-camera system of the scene ECS: turns each entity with ecs_component_face_camera to the frame's camera.
 // Runs after ecs_system_transform. Only the rotation of the world matrix changes; the scale and the translation stay.
 
+#include <cstdint>
 #include <cstring>
 #include <vector>
 
 #include "pdk/cg/rv_cg.h"
 #include "pdk/rv_err.h"
-#include "pdklib/rv_math/rv_math.hpp"
+#include "pdklib/rv_gte/rv_gte_camera.hpp"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
@@ -17,23 +20,19 @@
 namespace rv_pdkkit
 {
 
-// A camera vector shorter than this (world units) is zero: eye on target, or up with no length.
-inline constexpr float ecs_face_camera_epsilon = 1e-6f;
-
-// Sine of up against the view, of unit vectors. Looser than the length test: the cross product of unit floats carries
-// an error around 1e-7, and a sine that close to the threshold would pick a wrong right vector.
-inline constexpr float ecs_face_camera_sine_epsilon = 1e-4f;
-
 // Reason texts of the refused cameras; the frame logs them with the code.
 inline constexpr const char *ecs_face_camera_no_view = "camera eye is on its target";
 inline constexpr const char *ecs_face_camera_no_up = "camera up is zero";
 inline constexpr const char *ecs_face_camera_up_along_view = "camera up is along the view";
+// Transitional until E11e-2: the frame camera is float, and a value outside Q20.12 is refused.
+inline constexpr const char *ecs_face_camera_out_of_range = "camera leaves Q20.12";
+inline constexpr const char *ecs_face_camera_turned_out_of_range = "the turned matrix leaves its range";
 
-// Unit axes of the camera: right, the true up, and back (the direction from target to eye, the camera's -z).
+// Unit axes of the camera in 4.12: right, the true up, and back (the direction from target to eye, the camera's -z).
 struct ecs_camera_axes {
-    rv_pdklib::rv_vec3 right{};
-    rv_pdklib::rv_vec3 up{};
-    rv_pdklib::rv_vec3 back{};
+    std::int16_t right[3]{};
+    std::int16_t up[3]{};
+    std::int16_t back[3]{};
 };
 
 // Writes the reason text of a returned refusal. thrown stays clear: the frame logs it as returned, with the text.
@@ -43,52 +42,106 @@ inline void ecs_face_camera_refuse(ecs_reason &reason, const char *text)
     reason.text[ecs_reason_size - 1] = '\0';
 }
 
-// RV_ERR_INVAL for a degenerate camera, with its case in reason; out is written only on RV_OK.
-[[nodiscard]] inline int ecs_camera_axes_of(const rv_cg_camera &camera, ecs_camera_axes &out, ecs_reason &reason)
+// Transitional until E11e-2: one float vector to Q20.12. RV_ERR_INVAL for a component outside it; out is untouched.
+[[nodiscard]] inline int ecs_face_camera_fx(const rv_cg_vec3 &v, rv_pdklib::fx_vec3 &out, ecs_reason &reason)
 {
-    const rv_pdklib::rv_vec3 eye{ camera.eye.x, camera.eye.y, camera.eye.z };
-    const rv_pdklib::rv_vec3 target{ camera.target.x, camera.target.y, camera.target.z };
-    const rv_pdklib::rv_vec3 up_in{ camera.up.x, camera.up.y, camera.up.z };
-    const rv_pdklib::rv_vec3 view = eye - target;
-    if (rv_pdklib::rv_length(view) <= ecs_face_camera_epsilon) {
-        ecs_face_camera_refuse(reason, ecs_face_camera_no_view);
+    rv_pdklib::fx_vec3 q{};
+    const bool fits = rv_pdklib::fx_from_double(v.x, q.x) == RV_OK && rv_pdklib::fx_from_double(v.y, q.y) == RV_OK &&
+        rv_pdklib::fx_from_double(v.z, q.z) == RV_OK;
+    if (!fits) {
+        ecs_face_camera_refuse(reason, ecs_face_camera_out_of_range);
         return RV_ERR_INVAL;
     }
-    if (rv_pdklib::rv_length(up_in) <= ecs_face_camera_epsilon) {
-        ecs_face_camera_refuse(reason, ecs_face_camera_no_up);
-        return RV_ERR_INVAL;
-    }
-    const rv_pdklib::rv_vec3 back = rv_pdklib::rv_normalize(view);
-    const rv_pdklib::rv_vec3 up_unit = rv_pdklib::rv_normalize(up_in);
-    const rv_pdklib::rv_vec3 side = rv_pdklib::rv_cross(up_unit, back);
-    if (rv_pdklib::rv_length(side) <= ecs_face_camera_sine_epsilon) {
-        ecs_face_camera_refuse(reason, ecs_face_camera_up_along_view);
-        return RV_ERR_INVAL;
-    }
-    out.back = back;
-    out.right = rv_pdklib::rv_normalize(side);
-    out.up = rv_pdklib::rv_cross(back, out.right);
+    out = q;
     return RV_OK;
 }
 
-// Columns 0..2 become the camera's right, up and back, each scaled to the length of the column it replaces.
-// The translation in column 3 is not touched.
-inline void ecs_face_camera_apply(rv_pdklib::rv_mat4 &world, const ecs_camera_axes &axes)
+// Integer length of a vector of raw values, in the scale of its inputs: the root of the squares, floored.
+inline std::int64_t ecs_face_camera_length(std::int64_t x, std::int64_t y, std::int64_t z)
 {
-    const rv_pdklib::rv_vec3 axis_of[3] = { axes.right, axes.up, axes.back };
-    for (int col = 0; col < 3; ++col) {
-        const rv_pdklib::rv_vec3 own{ world.m[0][col], world.m[1][col], world.m[2][col] };
-        const rv_pdklib::rv_vec3 turned = axis_of[col] * rv_pdklib::rv_length(own);
-        world.m[0][col] = turned.x;
-        world.m[1][col] = turned.y;
-        world.m[2][col] = turned.z;
+    const auto sum = static_cast<std::uint64_t>(x * x + y * y + z * z);
+    return static_cast<std::int64_t>(rv_pdklib::fx_isqrt(sum));
+}
+
+// RV_ERR_INVAL for a degenerate camera, with its case in reason; out is written only on RV_OK.
+[[nodiscard]] inline int ecs_camera_axes_of(const rv_cg_camera &camera, ecs_camera_axes &out, ecs_reason &reason)
+{
+    rv_pdklib::fx_vec3 eye{};
+    rv_pdklib::fx_vec3 target{};
+    rv_pdklib::fx_vec3 up{};
+    int rc = ecs_face_camera_fx(camera.eye, eye, reason);
+    if (rc != RV_OK) {
+        return rc;
     }
+    rc = ecs_face_camera_fx(camera.target, target, reason);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    rc = ecs_face_camera_fx(camera.up, up, reason);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    const bool same_point = eye.x == target.x && eye.y == target.y && eye.z == target.z;
+    if (same_point) {
+        ecs_face_camera_refuse(reason, ecs_face_camera_no_view);
+        return RV_ERR_INVAL;
+    }
+    const bool up_zero = up.x == 0 && up.y == 0 && up.z == 0;
+    if (up_zero) {
+        ecs_face_camera_refuse(reason, ecs_face_camera_no_up);
+        return RV_ERR_INVAL;
+    }
+    // The rows refuse an aim or up that leaves fx as parallel, so their sizes are checked here: only a parallel
+    // pair then reaches up_along_view.
+    rv_pdklib::fx_vec3 aim{};
+    rv_pdklib::fx aim_len = 0;
+    rv_pdklib::fx up_len = 0;
+    const bool sizes_fit = rv_pdklib::fx_vec3_sub(target, eye, aim) == RV_OK &&
+        rv_pdklib::fx_vec3_length(aim, aim_len) == RV_OK && rv_pdklib::fx_vec3_length(up, up_len) == RV_OK;
+    if (!sizes_fit) {
+        ecs_face_camera_refuse(reason, ecs_face_camera_out_of_range);
+        return RV_ERR_INVAL;
+    }
+    // Rows are right, up and forward. The float right is cross(up, back) = -side, so it is -row 0; back = -forward.
+    rv_pdklib::rv_gte_matrix view{};
+    rc = rv_pdklib::rv_gte_camera_rows(eye, target, up, view);
+    if (rc != RV_OK) {
+        ecs_face_camera_refuse(reason, ecs_face_camera_up_along_view);
+        return RV_ERR_INVAL;
+    }
+    for (int i = 0; i < 3; ++i) {
+        out.right[i] = static_cast<std::int16_t>(-view.r[i]);
+        out.up[i] = view.r[3 + i];
+        out.back[i] = static_cast<std::int16_t>(-view.r[6 + i]);
+    }
+    return RV_OK;
+}
+
+// Columns 0..2 become the camera's right, up and back, each scaled to the length of the column it replaces, rounded
+// to 4.12. The translation in column 3 is not touched. RV_ERR_INVAL for a value outside int16; world is then untouched.
+[[nodiscard]] inline int ecs_face_camera_apply(rv_pdklib::rv_gte_matrix &world, const ecs_camera_axes &axes, ecs_reason &reason)
+{
+    const std::int16_t *axis_of[3] = { axes.right, axes.up, axes.back };
+    rv_pdklib::rv_gte_matrix turned = world;
+    for (int col = 0; col < 3; ++col) {
+        const std::int64_t own_len = ecs_face_camera_length(world.r[0 + col], world.r[3 + col], world.r[6 + col]);
+        for (int row = 0; row < 3; ++row) {
+            const std::int64_t scaled = rv_pdklib::rv_gte_round_frac(static_cast<std::int64_t>(axis_of[col][row]) * own_len);
+            if (!rv_pdklib::rv_gte_fits<std::int16_t>(scaled)) {
+                ecs_face_camera_refuse(reason, ecs_face_camera_turned_out_of_range);
+                return RV_ERR_INVAL;
+            }
+            turned.r[row * 3 + col] = static_cast<std::int16_t>(scaled);
+        }
+    }
+    world = turned;
+    return RV_OK;
 }
 
 // Writes the rotation of every face-camera entity's ecs_component_world. Without a camera set this does nothing and
-// returns RV_OK; the draw then reports the missing camera. RV_ERR_INVAL for a degenerate camera, with its case in
-// reason; ecs_frame_run reports it. An entity with no world matrix is skipped: the transform left it out, so there is
-// nothing to turn; a visible model without one still fails in ecs_draw_entity.
+// returns RV_OK; the draw then reports the missing camera. RV_ERR_INVAL for a degenerate camera or a turned value that
+// leaves int16, with its case in reason; ecs_frame_run reports it. An entity with no world matrix is skipped: the
+// transform left it out, so there is nothing to turn; a visible model without one still fails in ecs_draw_entity.
 [[nodiscard]] inline int ecs_system_face_camera(ecs_world &world, ecs_reason &reason)
 {
     const auto &state = detail::ecs_state(world);
@@ -111,7 +164,10 @@ inline void ecs_face_camera_apply(rv_pdklib::rv_mat4 &world, const ecs_camera_ax
             if (place == nullptr) {
                 continue;
             }
-            ecs_face_camera_apply(place->matrix, axes);
+            const int turned = ecs_face_camera_apply(place->matrix, axes, reason);
+            if (turned != RV_OK) {
+                return turned;
+            }
         }
         return RV_OK;
     });

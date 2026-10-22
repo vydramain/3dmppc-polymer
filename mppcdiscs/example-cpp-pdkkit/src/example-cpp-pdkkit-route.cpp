@@ -173,23 +173,6 @@ int route_spline(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec3 r
     return spline(pts, t, out);
 }
 
-// A position or direction from the float world matrix to Q20.12: the float contract ends here.
-int fx_vec3_from_floats(float x, float y, float z, fx_vec3 &out)
-{
-    fx_vec3 v = {};
-    if (rv_pdklib::fx_from_double(x, v.x) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    if (rv_pdklib::fx_from_double(y, v.y) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    if (rv_pdklib::fx_from_double(z, v.z) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    out = v;
-    return RV_OK;
-}
-
 rv_cg_vec3 to_float(fx_vec3 v)
 {
     return { rv_pdklib::fx_to_float(v.x), rv_pdklib::fx_to_float(v.y), rv_pdklib::fx_to_float(v.z) };
@@ -336,17 +319,10 @@ int add_route_key(ecs_world &world, ecs_id camera, ecs_id route, std::vector<rv_
     }
     rv_route_key key = {};
     key.index = index;
-    // The eye is the translation column, the view direction the z column: the entries world[] of the scene held.
-    const auto &m = place->matrix.m;
-    if (fx_vec3_from_floats(m[0][3], m[1][3], m[2][3], key.eye) != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' position leaves Q20.12", std::string_view{ name->text });
-        return RV_ERR_INVAL;
-    }
-    fx_vec3 dir = {};
-    if (fx_vec3_from_floats(m[0][2], m[1][2], m[2][2], dir) != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", std::string_view{ name->text });
-        return RV_ERR_INVAL;
-    }
+    // The eye is t; the view direction is the z column of r. 4.12 and Q20.12 share the 4096 scale, so the raw values are fx.
+    const auto &m = place->matrix;
+    key.eye = fx_vec3{ m.t[0], m.t[1], m.t[2] };
+    const fx_vec3 dir = fx_vec3{ m.r[2], m.r[5], m.r[8] };
     const int unit_code = rv_route_unit(dir, key.dir);
     if (unit_code != RV_OK) {
         RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", std::string_view{ name->text });

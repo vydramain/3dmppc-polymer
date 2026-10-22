@@ -1,34 +1,56 @@
 #pragma once
 
-// Transform system of the scene ECS: the world matrix of each entity, the float boundary with rv_cg (rv_cg_put.world),
-// for drawing only. Same order of operations as rv_scene_world, so the matrices match byte for byte in one build.
+// Transform system of the scene ECS: the world matrix of each entity, an integer rv_gte_matrix. The conversion to
+// rv_cg is in draw (rv_ecs_frame.hpp), not here. Same order as rv_gte_trs, T * Ry * Rx * Rz * S, and the same parent
+// chain: each ancestor's local matrix is applied outside the entity's.
 
 #include <cstdint>
+#include <format>
+#include <string>
 #include <vector>
 
 #include "pdk/rv_err.h"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
+#include "pdklib/rv_gte/rv_gte_trs.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "pdklib/rv_math/rv_math.hpp"
-#include "pdklib/rv_scene/rv_scene_space.hpp"
 
 namespace rv_pdkkit
 {
 
 inline constexpr const char *ecs_transform_tag = "ecs-transform";
 
-// Scene-space matrix of an entity; written by ecs_system_transform.
+// World matrix of an entity, integer; written by ecs_system_transform.
 struct ecs_component_world {
-    rv_pdklib::rv_mat4 matrix{};
+    rv_pdklib::rv_gte_matrix matrix{};
 };
 
-// Scene-space matrix of the entity with a transform: its local matrix, then each ancestor's applied outside it.
+// The entity's name for a log line, or index:generation when it has none.
+[[nodiscard]] inline std::string ecs_transform_label(const ecs_world &world, ecs_id id)
+{
+    const ecs_component_name *named = ecs_component_get<ecs_component_name>(world, id);
+    const bool has_name = named != nullptr && named->text[0] != '\0';
+    return has_name ? std::string{ named->text } : std::format("{}:{}", id.index, id.generation);
+}
+
+// Local matrix of the transform of entity id. A refusal logs id and returns RV_ERR_INVAL.
+[[nodiscard]] inline int
+ecs_transform_local(const ecs_world &world, ecs_id id, const ecs_component_transform &t, rv_pdklib::rv_gte_matrix &out)
+{
+    if (rv_pdklib::rv_gte_trs(t.position, t.rotation, t.scale, out) != RV_OK) {
+        RV_LOG_ERR(ecs_transform_tag, "entity {}: |R*S| reaches 8", ecs_transform_label(world, id));
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
+// World matrix of the entity with a transform: its local matrix, then each ancestor's applied outside it.
 // The chain follows ecs_component_parent. An ancestor without a transform is an identity; its parent link still counts.
-// RV_ERR_INVAL for a dead parent, or a chain longer than the live count (a cycle).
+// RV_ERR_INVAL for a dead parent, or a chain longer than the live count (a cycle), or a matrix out of range.
 // The logs are inside the guard too: a throwing log line becomes the guard's code.
-[[nodiscard]] inline int ecs_transform_world(ecs_world &world, ecs_id id, rv_pdklib::rv_mat4 &out)
+[[nodiscard]] inline int ecs_transform_world(ecs_world &world, ecs_id id, rv_pdklib::rv_gte_matrix &out)
 {
     const auto &state = detail::ecs_state(world);
     return ecs_guard([&]() -> int {
@@ -37,7 +59,10 @@ struct ecs_component_world {
             RV_LOG_ERR(ecs_transform_tag, "entity {}:{} has no transform", id.index, id.generation);
             return RV_ERR_INVAL;
         }
-        rv_pdklib::rv_mat4 m = rv_pdklib::rv_scene_local_trs(self->position, self->rotation, self->scale);
+        rv_pdklib::rv_gte_matrix m{};
+        if (ecs_transform_local(world, id, *self, m) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
         const ecs_component_parent *link = ecs_component_get<ecs_component_parent>(world, id);
         ecs_id parent = link == nullptr ? ecs_id{} : link->parent;
         // An acyclic chain is shorter than live_count; reaching live_count steps means a cycle.
@@ -60,7 +85,18 @@ struct ecs_component_world {
             const ecs_component_transform *up = ecs_component_get<ecs_component_transform>(world, parent);
             const bool has_transform = up != nullptr;
             if (has_transform) {
-                m = rv_pdklib::rv_mat4_mul(rv_pdklib::rv_scene_local_trs(up->position, up->rotation, up->scale), m);
+                rv_pdklib::rv_gte_matrix up_local{};
+                if (ecs_transform_local(world, parent, *up, up_local) != RV_OK) {
+                    return RV_ERR_INVAL;
+                }
+                rv_pdklib::rv_gte_matrix next{};
+                if (rv_pdklib::rv_gte_compose(up_local, m, next) != RV_OK) {
+                    RV_LOG_ERR(ecs_transform_tag,
+                        "entity {}: the composed matrix leaves its range",
+                        ecs_transform_label(world, parent));
+                    return RV_ERR_INVAL;
+                }
+                m = next;
             }
             const ecs_component_parent *up_link = ecs_component_get<ecs_component_parent>(world, parent);
             parent = up_link == nullptr ? ecs_id{} : up_link->parent;
@@ -82,7 +118,7 @@ struct ecs_component_world {
             holders.push_back(id);
         });
         for (const ecs_id id : holders) {
-            rv_pdklib::rv_mat4 matrix{};
+            rv_pdklib::rv_gte_matrix matrix{};
             const int computed = ecs_transform_world(world, id, matrix);
             if (computed != RV_OK) {
                 return computed;

@@ -33,7 +33,7 @@ public:
 
 // Frame system: schedules each lamp_light entity not yet scheduled from the route keys (sorted by index) and the world
 // matrix of its parent (lamp_N). A lamp the route does not pass in both halves of the period stays dark. A lamp that
-// cannot be scheduled (no parent with a name and a world matrix, a base or offset leaving Q20.12, no route keys) is
+// cannot be scheduled (no parent with a name and a world matrix, an offset leaving Q20.12, no route keys) is
 // warned once and stays dark. Then shows each lamp that burns at the frame's place in the period, hides the others.
 // Error: RV_ERR_NOENT when a dark lamp cannot take its hidden mark (a stale id). Not logged.
 int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);

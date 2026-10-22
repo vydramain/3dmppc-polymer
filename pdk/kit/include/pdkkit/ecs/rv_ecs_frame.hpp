@@ -23,6 +23,7 @@
 #include "pdkkit/ecs/rv_ecs_loads.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdkkit/ecs/rv_ecs_transform.hpp"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
 
 namespace rv_pdkkit
 {
@@ -79,6 +80,22 @@ inline void ecs_world_camera(ecs_world &world, const rv_cg_camera &camera)
     state.camera_set = true;
 }
 
+// transitional: the rv_cg boundary is float until E11e-2. Writes the world matrix as rv_cg's row-major 4x4, element
+// (row, col) at row*4+col: the 3x3 of r and the column of t, both over 4096, then the last row 0 0 0 1.
+inline void ecs_world_to_cg(const rv_pdklib::rv_gte_matrix &m, float (&out)[16])
+{
+    const float one = static_cast<float>(rv_pdklib::gte_one);
+    for (int row = 0; row < 3; ++row) {
+        for (int col = 0; col < 3; ++col) {
+            out[row * 4 + col] = static_cast<float>(m.r[row * 3 + col]) / one;
+        }
+        out[row * 4 + 3] = static_cast<float>(m.t[row]) / one;
+    }
+    for (int col = 0; col < 4; ++col) {
+        out[12 + col] = col == 3 ? 1.0f : 0.0f;
+    }
+}
+
 // Puts one entity's model. Dead, model-less and hidden entities are skipped; a decal takes the decal window.
 // An entity with two_sided is drawn without back-face culling, so both faces of a flat card show.
 [[nodiscard]] inline int ecs_draw_entity(ecs_world &world, const ecs_frame &frame, ecs_id id)
@@ -106,9 +123,7 @@ inline void ecs_world_camera(ecs_world &world, const rv_cg_camera &camera)
             return static_cast<int>(addr);
         }
         rv_cg_put put = {};
-        static_assert(sizeof(rv_pdklib::rv_mat4::m) == sizeof(rv_cg_put::world),
-            "rv_mat4 and rv_cg_put.world hold the same 16 floats");
-        std::memcpy(put.world, place->matrix.m, sizeof(put.world));
+        ecs_world_to_cg(place->matrix, put.world);
         put.depth_min = depth_min;
         put.depth_max = depth_max;
         put.cull = cull;

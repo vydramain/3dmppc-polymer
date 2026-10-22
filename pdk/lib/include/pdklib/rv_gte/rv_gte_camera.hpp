@@ -131,33 +131,15 @@ inline void rv_gte_camera_half_sincos(fx degrees, std::int64_t &sin_num, std::in
     return RV_OK;
 }
 
-// Builds the camera from a left-handed look-at (eye, target, up), the full vertical field of view in degrees,
-// the screen height in pixels and the clip planes. out is written only on RV_OK.
-// Error: RV_ERR_INVAL for screen_height <= 0, near <= 0 or far <= near, a fov or h outside the rv_gte_camera_focal
-// range, eye == target, up zero or parallel to the aim (|up x forward| below gte_camera_min_side), or a value
-// that leaves its range.
-[[nodiscard]] inline int rv_gte_camera_make(fx_vec3 eye,
-    fx_vec3 target,
-    fx_vec3 up,
-    fx fov_y_degrees,
-    std::int32_t screen_height,
-    fx near_plane,
-    fx far_plane,
-    rv_gte_camera &out)
+// Rows of a left-handed look-at: right, up and forward in 4.12, unit to the rounding; forward is the aim from eye
+// to target. t is left zero. out is written only on RV_OK.
+// Error: RV_ERR_INVAL for eye == target, up zero, up parallel to the aim (|up x forward| below gte_camera_min_side),
+// a target - eye that leaves fx, or the length of the aim or of up that leaves fx (callers that must tell those
+// apart from the parallel case check the sizes first).
+[[nodiscard]] inline int rv_gte_camera_rows(fx_vec3 eye, fx_vec3 target, fx_vec3 up, rv_gte_matrix &out)
 {
-    if (screen_height <= 0) {
-        return RV_ERR_INVAL;
-    }
-    if (near_plane <= 0 || far_plane <= near_plane) {
-        return RV_ERR_INVAL;
-    }
-    std::int32_t h = 0;
-    int rc = rv_gte_camera_focal(fov_y_degrees, screen_height, h);
-    if (rc != RV_OK) {
-        return rc;
-    }
     fx_vec3 aim{};
-    rc = fx_vec3_sub(target, eye, aim);
+    int rc = fx_vec3_sub(target, eye, aim);
     if (rc != RV_OK) {
         return rc;
     }
@@ -189,14 +171,28 @@ inline void rv_gte_camera_half_sincos(fx degrees, std::int64_t &sin_num, std::in
         rv_gte_camera_round(rv_gte_camera_cross(forward, right_q24), std::int64_t{ 1 } << (gte_dir_shift + gte_frac_bits));
     const rv_gte_dir forward_q12 = rv_gte_camera_round(forward, fx_one);
 
-    // Rows are the camera axes; t = -row . eye uses the rounded 4.12 rows, so the eye maps to 0.
     const rv_gte_dir rows[3] = { right, upward, forward_q12 };
-    const std::int64_t eye_c[3] = { eye.x, eye.y, eye.z };
-    rv_gte_matrix view{};
+    rv_gte_matrix rows_out{};
     for (int i = 0; i < 3; ++i) {
-        view.r[i * 3 + 0] = static_cast<std::int16_t>(rows[i].x);
-        view.r[i * 3 + 1] = static_cast<std::int16_t>(rows[i].y);
-        view.r[i * 3 + 2] = static_cast<std::int16_t>(rows[i].z);
+        rows_out.r[i * 3 + 0] = static_cast<std::int16_t>(rows[i].x);
+        rows_out.r[i * 3 + 1] = static_cast<std::int16_t>(rows[i].y);
+        rows_out.r[i * 3 + 2] = static_cast<std::int16_t>(rows[i].z);
+    }
+    out = rows_out;
+    return RV_OK;
+}
+
+// View matrix of a left-handed look-at: the rows of rv_gte_camera_rows and t = -row . eye in Q20.12, so the eye
+// maps to 0. Error: the rows' RV_ERR_INVAL, or a t that leaves int32; out is written only on RV_OK.
+[[nodiscard]] inline int rv_gte_camera_view(fx_vec3 eye, fx_vec3 target, fx_vec3 up, rv_gte_matrix &out)
+{
+    rv_gte_matrix view{};
+    int rc = rv_gte_camera_rows(eye, target, up, view);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    const std::int64_t eye_c[3] = { eye.x, eye.y, eye.z };
+    for (int i = 0; i < 3; ++i) {
         std::int64_t acc = 0;
         for (int k = 0; k < 3; ++k) {
             acc += static_cast<std::int64_t>(view.r[i * 3 + k]) * eye_c[k];
@@ -206,6 +202,40 @@ inline void rv_gte_camera_half_sincos(fx degrees, std::int64_t &sin_num, std::in
             return RV_ERR_INVAL;
         }
         view.t[i] = static_cast<std::int32_t>(t);
+    }
+    out = view;
+    return RV_OK;
+}
+
+// Builds the camera from a left-handed look-at (eye, target, up), the full vertical field of view in degrees,
+// the screen height in pixels and the clip planes. out is written only on RV_OK.
+// Error: RV_ERR_INVAL for screen_height <= 0, near <= 0 or far <= near, a fov or h outside the rv_gte_camera_focal
+// range, eye == target, up zero or parallel to the aim (|up x forward| below gte_camera_min_side), or a value
+// that leaves its range.
+[[nodiscard]] inline int rv_gte_camera_make(fx_vec3 eye,
+    fx_vec3 target,
+    fx_vec3 up,
+    fx fov_y_degrees,
+    std::int32_t screen_height,
+    fx near_plane,
+    fx far_plane,
+    rv_gte_camera &out)
+{
+    if (screen_height <= 0) {
+        return RV_ERR_INVAL;
+    }
+    if (near_plane <= 0 || far_plane <= near_plane) {
+        return RV_ERR_INVAL;
+    }
+    std::int32_t h = 0;
+    int rc = rv_gte_camera_focal(fov_y_degrees, screen_height, h);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    rv_gte_matrix view{};
+    rc = rv_gte_camera_view(eye, target, up, view);
+    if (rc != RV_OK) {
+        return rc;
     }
     out = rv_gte_camera{ view, h, near_plane, far_plane };
     return RV_OK;
