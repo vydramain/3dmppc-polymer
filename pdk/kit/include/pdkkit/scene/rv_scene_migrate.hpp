@@ -1,7 +1,7 @@
 #pragma once
 
 // Migrates a parsed scene from form 1 (an object with a kind and its data as fields) to form 2 (the data as
-// [[component]] blocks), in memory. The ECS loader and the editor will call it; rv_scene_parse does not.
+// [[component]] blocks), in memory. The ECS loader and the editor call it; rv_scene_parse does not.
 
 #include <algorithm>
 #include <charconv>

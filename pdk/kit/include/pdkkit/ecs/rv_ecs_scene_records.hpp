@@ -19,7 +19,8 @@ namespace rv_pdkkit
 
 inline constexpr const char *ecs_scene_records_tag = "ecs-scene";
 
-// One object of a scene: its id and parent, the only fields of form 2. Its components are in ecs_scene_records::components.
+// One object of a scene: its id and parent. Its entity type is in ecs_scene_records::entities, its components in
+// ecs_scene_records::components; a form-2 [[object]] carries id, parent and entity.
 struct ecs_scene_object {
     char id[ecs_name_capacity]; // NUL-terminated
     int64_t parent; // index of the parent object, -1 for a root
