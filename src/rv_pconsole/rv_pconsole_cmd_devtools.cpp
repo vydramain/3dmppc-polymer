@@ -49,13 +49,13 @@ bool cmd_close_logged = false;
 // broken game hook is noticed without the disc having to tell anyone.
 int64_t cmd_error_seq = 0;
 
-// How many of rv_pccd_fs's scene_names_ this file has already sent as
-// `event=scene`, and the generation (rv_pccd_fs::scene_generation) that
+// How many of rv_pccd_fs's asset_names_ this file has already sent as
+// `event=asset`, and the generation (rv_pccd_fs::asset_generation) that
 // count was taken against. A generation change means medium_insert() cleared
-// scene_names_, so the cursor resets to 0 regardless of the new list's
+// asset_names_, so the cursor resets to 0 regardless of the new list's
 // length.
-size_t cmd_scene_sent = 0;
-uint64_t cmd_scene_generation = 0;
+size_t cmd_asset_sent = 0;
+uint64_t cmd_asset_generation = 0;
 
 } // namespace
 
@@ -72,7 +72,6 @@ struct refusal_text {
 
 constexpr refusal_text REFUSAL_TEXTS[] = {
     { RV_PCCD_UNSUPPORTED_KIND, "a sound is resident under that name; its bytes change only across a restart" },
-    { RV_PCCD_SCENE_READ_AT_START, "a scene is read by the disc at start; its changes apply across a restart" },
 };
 
 // The one reading of a drive's refresh result, shared by both asset commands.
@@ -147,24 +146,24 @@ void rv_3dmppc::rv_pconsole::cmd_service()
     }
 }
 
-void rv_3dmppc::rv_pconsole::cmd_send_scenes()
+void rv_3dmppc::rv_pconsole::cmd_send_assets()
 {
-    // Which scenes has the disc opened? rv_pccd_fs is the only drive that
-    // tracks this (see its scene_names_); the cast is null for rv_pccd_null,
+    // Which assets has the disc opened? rv_pccd_fs is the only drive that
+    // tracks this (see its asset_names_); the cast is null for rv_pccd_null,
     // meaning nothing was ever opened. A release console never runs this
-    // file, so only a developer session ever sends `event=scene`.
+    // file, so only a developer session ever sends `event=asset`.
     auto *fs = dynamic_cast<rv_pccd_fs *>(cd_.get());
     if (fs == nullptr) {
         return;
     }
-    const std::vector<std::string> &scenes = fs->scene_names();
-    const uint64_t generation = fs->scene_generation();
-    if (generation != cmd_scene_generation) {
-        cmd_scene_sent = 0;
-        cmd_scene_generation = generation;
+    const std::vector<std::string> &assets = fs->asset_names();
+    const uint64_t generation = fs->asset_generation();
+    if (generation != cmd_asset_generation) {
+        cmd_asset_sent = 0;
+        cmd_asset_generation = generation;
     }
-    for (; cmd_scene_sent < scenes.size(); ++cmd_scene_sent) {
-        cmd_->reply(std::format("0 event=scene name={}", rv_pccmd_hex(scenes[cmd_scene_sent])));
+    for (; cmd_asset_sent < assets.size(); ++cmd_asset_sent) {
+        cmd_->reply(std::format("0 event=asset name={}", rv_pccmd_hex(assets[cmd_asset_sent])));
     }
 }
 
@@ -190,7 +189,7 @@ void rv_3dmppc::rv_pconsole::cmd_after_frame()
         cmd_->reply(std::format("0 event=frame frame={} slot={}", frames_ + 1, slot));
     }
 
-    cmd_send_scenes();
+    cmd_send_assets();
 
     // Did a game hook fail this frame? rv_pccl counts every failed call, so
     // comparing that count is how the console finds out without the disc having

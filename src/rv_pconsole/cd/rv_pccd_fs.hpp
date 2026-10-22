@@ -104,19 +104,18 @@ private:
     std::vector<std::string> resnames_;
     std::unordered_map<std::string, int64_t> by_name_;
 
-    // Names of ".scene.toml" resources this drive has successfully opened
-    // for the currently inserted medium, each name once, in open order.
-    // Cleared on medium_insert(). Not part of the rv_cd contract - a disc
-    // never asks a drive what it opened - this is read by the devtools
-    // command layer only, to tell the editor which scenes the running disc
-    // used.
-    std::vector<std::string> scene_names_;
+    // Names of every asset this drive has opened, each name once, in open
+    // order. Cleared on medium_insert(), which runs once at boot. Not part of
+    // the rv_cd contract - a disc never asks a drive what it opened - this is
+    // read by the devtools command layer only, to tell the editor which assets
+    // the running disc used.
+    std::vector<std::string> asset_names_;
 
-    // Bumped in medium_insert(), after scene_names_ is cleared. The devtools
+    // Bumped in medium_insert(), after asset_names_ is cleared. The devtools
     // side keeps the generation it last saw next to its own send cursor;
-    // a mismatch means scene_names_ started over, so the cursor must too,
+    // a mismatch means asset_names_ started over, so the cursor must too,
     // even when the new list is as long or longer than the old one.
-    uint64_t scene_generation_ = 0;
+    uint64_t asset_generation_ = 0;
 
 public:
     explicit rv_pccd_fs(const rv_pccd_conf &conf);
@@ -134,16 +133,16 @@ public:
 
     int64_t asset_open(const char *resname) override;
 
-    // Read-only view of scene_names_ above.
-    const std::vector<std::string> &scene_names() const
+    // Read-only view of asset_names_ above.
+    const std::vector<std::string> &asset_names() const
     {
-        return scene_names_;
+        return asset_names_;
     }
 
-    // Read-only view of scene_generation_ above.
-    uint64_t scene_generation() const
+    // Read-only view of asset_generation_ above.
+    uint64_t asset_generation() const
     {
-        return scene_generation_;
+        return asset_generation_;
     }
 
     int64_t asset_size(int64_t handle) override;
@@ -179,10 +178,10 @@ public:
             return;
         }
         medium_ = std::move(medium);
-        // A new medium has opened nothing yet: last medium's scenes do not
+        // A new medium has opened nothing yet: last medium's assets do not
         // carry over.
-        scene_names_.clear();
-        ++scene_generation_;
+        asset_names_.clear();
+        ++asset_generation_;
     }
 
     void video_attach(rv_pccv &cv) override

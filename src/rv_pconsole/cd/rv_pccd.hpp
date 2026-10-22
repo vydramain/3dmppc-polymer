@@ -29,10 +29,6 @@ constexpr int64_t RV_PCCD_UNSUPPORTED_KIND = 2;
 // the base class's default body returns it.
 constexpr int64_t RV_PCCD_REFRESH_UNSUPPORTED = 3;
 
-// asset_reload / asset_refresh result meaning the name is a scene the disc reads
-// once at start; a refresh does not reach the running world, so the answer says "restart".
-constexpr int64_t RV_PCCD_SCENE_READ_AT_START = 4;
-
 class rv_pccd
 {
 public:
@@ -74,9 +70,8 @@ public:
     // that holds `resname` resident and naming that kind in `kind_out`.
     // Returns RV_OK when refreshed, RV_PCCD_NOT_RESIDENT when nothing holds
     // the name (nothing to refresh - the next name query reads the current
-    // bytes), RV_PCCD_UNSUPPORTED_KIND (a sound) or RV_PCCD_SCENE_READ_AT_START
-    // (a scene) when its kind cannot be refreshed, a negative rv_err when the
-    // refresh failed and the old copy stays.
+    // bytes), RV_PCCD_UNSUPPORTED_KIND (a sound) when its kind cannot be
+    // refreshed, a negative rv_err when the refresh failed and the old copy stays.
     // Console-side only, reached by the dev channel, never by a game.
     virtual int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) = 0;
 
