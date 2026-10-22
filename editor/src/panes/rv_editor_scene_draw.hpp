@@ -9,6 +9,7 @@
 
 #include "imgui.h"
 
+#include "pdklib/rv_gte/rv_gte_camera.hpp"
 #include "project/rv_editor_project.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 
@@ -60,11 +61,14 @@ inline constexpr int tri_vertices = 3;
 // Seed of a box's min/max: lo starts at +it and hi at -it, and the first coordinate replaces it.
 inline constexpr double bounding_box_infinity = 1e30;
 
-// The editor camera as it is this frame: its frame and how a point lands on screen.
+// The editor camera as it is this frame: the integer camera (rv_gte_camera) and the screen centre.
+// right, up, forward are its rows as doubles, exact 4.12 values, for the viewport tools.
 struct rv_editor_view {
-    vec3 eye, right, up, forward;
-    ImVec2 center;
-    double focal = 1.0;
+    rv_pdklib::rv_gte_camera camera{};
+    vec3 right{}, up{}, forward{};
+    ImVec2 center{};
+    // False when the camera did not build: the camera is then zero, and the viewport draws no scene.
+    bool valid = false;
 
     vec3 to_view(const vec3 &p) const;
     // Precondition: v[2] >= rv_editor_near up to rounding; rv_editor_draw_filled (a triangle wholly
@@ -130,7 +134,7 @@ std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &pr
 // it resolves and loads. A .glb's flat parts are their colour and take the object's tint; the
 // selected object keeps its selection colour. `renderer` owns the picture's SDL texture, one per
 // viewport (keyed by the ImGui ID of the viewport's tile). `origin` and `size` are the viewport's frame: rv_editor_view
-// keeps only its centre and focal, so the frame is passed in.
+// keeps only its centre and camera, so the frame is passed in.
 void rv_editor_draw_filled(ImDrawList *dl,
     const rv_editor_view &v,
     const rv_editor_scene_doc &doc,

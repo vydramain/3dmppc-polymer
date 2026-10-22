@@ -172,6 +172,11 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     rv_editor_label(rot_y_label, rv_editor_label_kind::normal, theme);
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
+    if (!v.valid) {
+        // No camera, no frame: the well closes and the scene is not drawn.
+        rv_editor_well_end();
+        return;
+    }
     ImGuiIO &io = ImGui::GetIO();
     const ImVec2 mouse = io.MousePos;
     const double gizmo = cam.distance * gizmo_size_factor;
