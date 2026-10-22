@@ -76,6 +76,16 @@ the face camera and the draw. A failing system ends the frame with its code;
 during a frame waits for the frame's end, so the frame still draws those
 entities. A failed scene load destroys its own entities.
 
+A volume is the unit cube `[-1/2, 1/2]^3` in its own units, placed by the
+entity's world matrix (`ecs_component_world`). `ecs_volume_contains`
+(`ecs/rv_ecs_volume.hpp`) tests a point, a Q20.12 value (see The scene), in
+integers, without inverting the matrix; it is exact for perpendicular columns,
+and a skewed matrix gives a wrong answer. Each element of R*S is stored as 4.12
+(4 integer bits, 12 fraction bits), so it is below 8 in magnitude and an
+unrotated volume is under 8 units along each axis. Rounding each element moves a
+face by a few Q20.12 units, more when the axis scales differ. A zero column (a
+flat volume) tests false.
+
 Public functions return `int`: `RV_OK` or an `RV_ERR_*` from `pdk/rv_err.h`.
 The face-camera system (`ecs_system_face_camera`) takes an `ecs_reason`
 out-parameter; `rv_scene_parse` and the field parsers (`ecs_field_int`) take a
@@ -100,7 +110,7 @@ and only the editor reads it (`component/rv_component_records_read.hpp`).
 | `transform` | `ecs_component_transform` | `position` fixed3, `rotation` angle3, `scale` fixed3 |
 | `model` | `ecs_component_model` | `source` model, `tint` color |
 | `camera`, `hidden`, `decal`, `two_sided` | empty structs | none |
-| `volume` | `ecs_component_volume` | none; the editor draws it as a wireframe |
+| `volume` | `ecs_component_volume` | none; the editor draws it as a wireframe; `ecs_volume_contains` tests a point in it |
 | `face_camera` | `ecs_component_face_camera` | none; the model turns to face the camera |
 
 ## The scene
@@ -149,6 +159,7 @@ drive, with voice setup, play and stop calls. The drive owns the sample RAM.
 | `ecs/rv_ecs_scene_records.hpp` | the flat records of a form-2 scene |
 | `ecs/rv_ecs_store.hpp` | per-type component storage |
 | `ecs/rv_ecs_transform.hpp` | the transform system: world matrix per entity |
+| `ecs/rv_ecs_volume.hpp` | the point-in-volume test over an entity's world matrix |
 | `scene/rv_scene.hpp` | the scene document as a disc reads it |
 | `scene/rv_scene_migrate.hpp` | in-memory migration from form 1 to form 2 |
 | `scene/rv_scene_read.hpp` | the scene loader and its transforms, inline |
