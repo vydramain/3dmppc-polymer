@@ -62,7 +62,7 @@ card_slot_size = 8192
 # (4320 numbers, for the sound init). The music's span starts stay in the state. The modules
 # and the per-frame garbage of cdata (rv_cg_put, int64 returns) and rv_cg_camera are left to
 # the ordinary collector. Measured lua_used over 4400 stepped frames with the music and loops:
-# about 372 to 712 KB (decimal; exact figures differ by bytes between runs; peak at frame 6),
-# as the collector runs.
+# about 370 to 710 KB (decimal) over three runs, which differ by up to 15 KB; the peak falls in the
+# first frames after disc_initialize (frame 6 or 7), as the collector runs.
 script_memory_size = 1048576
 script_entry = "example-lua-bare.luac"

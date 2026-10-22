@@ -119,6 +119,14 @@ local function fail(sound, asset, code)
     return code
 end
 
+-- Folds a step into the first failure: keeps `code` and `asset` once one step has failed; otherwise takes the step's failure, if it has one.
+local function first_error(code, asset, step_code, step_asset)
+    if code == 0 and step_code < 0 then
+        return step_code, step_asset
+    end
+    return code, asset
+end
+
 -- The read buffer, made once. A module local, not state: the console's state walk refuses cdata
 -- (rv_pccl_luajit_shapewalk.cpp, legal_state_type). A reload drops it; the next call makes it again.
 local function read_buffer(sound)
@@ -346,10 +354,7 @@ local function set_loops(ca, cd, sound, in_workshop)
     local asset = ""
     for index = 1, #LOOPS do
         local loop_code = set_loop(ca, cd, sound, index, in_workshop)
-        if code == 0 and loop_code < 0 then
-            code = loop_code
-            asset = sound.error_asset
-        end
+        code, asset = first_error(code, asset, loop_code, sound.error_asset)
     end
     sound.error_asset = asset
     return code
@@ -434,6 +439,50 @@ function M.init(ca, cd, keys, state)
     return 0
 end
 
+-- What a frame does to the music, one of these per frame (see music_step). Idle does nothing.
+local STEP_IDLE = 0
+local STEP_FINISH = 1
+local STEP_START = 2
+local STEP_MARK = 3
+
+-- The frame's music step: an unarmed chain is finished first, then a start, then the mark of a running chain.
+local function music_step(sound, area_changed, bar)
+    local unarmed = sound.music_on and not sound.music_armed
+    local starts = area_changed or (not sound.music_on and bar ~= sound.bar)
+    return unarmed and STEP_FINISH or starts and STEP_START or sound.music_on and STEP_MARK or STEP_IDLE
+end
+
+-- Finishes a chain whose last step failed: its voice already plays, so it is not restarted, unless the area
+-- changed since the chain started.
+local function finish_chain(ca, cd, sound, area, bar)
+    local music_code = arm_chain(ca, cd, sound)
+    if music_code < 0 or area == sound.music_area then
+        return music_code
+    end
+    return start_chain(ca, cd, sound, area, bar, true)
+end
+
+-- Reads the mark of a running chain and moves it on when the voice has reached it.
+local function mark_step(ca, cd, sound, area)
+    local mark_code, reached = at_mark(ca, sound)
+    if mark_code < 0 or not reached then
+        return mark_code
+    end
+    return advance(ca, cd, sound, area)
+end
+
+-- The music step by its STEP_ value. All are called with area, bar and silent; each uses only what it needs. Returns 0 or the first error.
+local MUSIC_STEPS = {
+    [STEP_IDLE] = function()
+        return 0
+    end,
+    [STEP_FINISH] = finish_chain,
+    [STEP_START] = function(ca, cd, sound, area, bar, silent)
+        return start_chain(ca, cd, sound, area, bar, not silent)
+    end,
+    [STEP_MARK] = mark_step,
+}
+
 -- Plays what frame `frame` (in [0, PERIOD)) needs after state.sound.frame. The same frame again plays
 -- nothing, and nothing plays before init. Returns 0 or the first error, with state.sound.error_asset
 -- naming the asset. A failed music start is not committed, so the next update call retries it: the next
@@ -458,31 +507,15 @@ function M.update(ca, cd, keys, frame, board_present, state)
     local area_changed = first or area ~= sound.area
     -- A first frame mid-bar fills the slots and waits (a running chain restarts instead): the bar is not played from its head.
     local silent = first and not sound.music_on and span_offset % BAR_FRAMES ~= 0
-    local clack = board_present and not first and area == WORKSHOP and letters_changed(sound.frame, frame)
+    -- The letters are compared with the previous frame, so the first frame does not compare them: it has none.
+    local in_workshop = area == WORKSHOP
+    local letters_moved = not first and letters_changed(sound.frame, frame)
+    local clack = board_present and in_workshop and letters_moved
     -- Every new frame runs the loops. The clack runs only after the music step succeeded: otherwise the same clack would
     -- repeat every frame. The first failure is returned with its asset.
-    local code = 0
-    local asset = ""
-    local music_code = 0
-    if sound.music_on and not sound.music_armed then
-        -- A failed start is finished, not restarted; if the area changed since it started, it starts again.
-        music_code = arm_chain(ca, cd, sound)
-        if music_code == 0 and area ~= sound.music_area then
-            music_code = start_chain(ca, cd, sound, area, bar, true)
-        end
-    elseif area_changed or (not sound.music_on and bar ~= sound.bar) then
-        music_code = start_chain(ca, cd, sound, area, bar, not silent)
-    elseif sound.music_on then
-        local reached = false
-        music_code, reached = at_mark(ca, sound)
-        if music_code == 0 and reached then
-            music_code = advance(ca, cd, sound, area)
-        end
-    end
-    if music_code < 0 then
-        code = music_code
-        asset = sound.error_asset
-    end
+    local step = music_step(sound, area_changed, bar)
+    local music_code = MUSIC_STEPS[step](ca, cd, sound, area, bar, silent)
+    local code, asset = first_error(0, "", music_code, sound.error_asset)
     -- Committed only after the music start: a failed start is retried by the next update call.
     local music_ok = music_code == 0
     if music_ok then
@@ -490,17 +523,11 @@ function M.update(ca, cd, keys, frame, board_present, state)
         sound.area = area
         sound.bar = bar
     end
-    local loops_code = set_loops(ca, cd, sound, area == WORKSHOP)
-    if code == 0 and loops_code < 0 then
-        code = loops_code
-        asset = sound.error_asset
-    end
+    local loops_code = set_loops(ca, cd, sound, in_workshop)
+    code, asset = first_error(code, asset, loops_code, sound.error_asset)
     if music_ok and clack then
         local clack_code = play_clack(ca, cd, sound)
-        if code == 0 and clack_code < 0 then
-            code = clack_code
-            asset = sound.error_asset
-        end
+        code, asset = first_error(code, asset, clack_code, sound.error_asset)
     end
     sound.error_asset = asset
     return code
