@@ -299,6 +299,11 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
     if (!rv_editor_app_scene_dirty(app)) {
         return RV_ERR_ALREADY; // nothing unsaved: nothing written
     }
+    // Refused before the models move: a read-only scene must not rename model files on disk.
+    if (!app.scene->scene.read_only.empty()) {
+        error = "read-only: " + app.scene->scene.read_only;
+        return RV_ERR_INVAL;
+    }
     // Models are moved before the scene is written; if the write then fails, the moved models stay in the models folder.
     std::set<std::string> current;
     std::set<std::string> history;

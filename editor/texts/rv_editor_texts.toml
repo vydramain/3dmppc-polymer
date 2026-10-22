@@ -429,6 +429,7 @@ open_file = "Open {}"
 no_scene_open = "No scene is open. A scene is a file in scenes/ with objects in it: groups, cameras and boxes, each with a position, rotation and scale."
 game_loader_explanation = "The game shows a scene only if its code reads it through a loader, pdkkit/scene, as example-cpp-pdkkit does. Geometry written in C++ is not a scene here, and nothing is converted into one."
 read_only_format = "Read-only: {}"
+read_only_version = "scene {}.{}; this editor reads and writes up to {}.{}"
 
 [catalog_fields]
 col_normal = "normal"

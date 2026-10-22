@@ -12,6 +12,7 @@
 #include "pdkkit/scene/rv_scene.hpp"
 #include "pdkkit/scene/rv_scene_migrate.hpp"
 #include "project/rv_editor_toml.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -36,6 +37,10 @@ constexpr uint32_t id_generation_mask = 0x10000000u;
 constexpr int id_hex_base = 16;
 // Buffer for formatting random scene object ID as hexadecimal via to_chars; size for uint32_t.
 constexpr size_t hex_id_buffer_bytes = 16;
+
+// The PDK version this editor writes; a scene of another version opens read-only, with it in the reason.
+constexpr uint32_t editor_version_major = static_cast<uint32_t>(RV_MPPC_VER_MAJOR);
+constexpr uint32_t editor_version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
 
 // Default preamble for new scene files.
 constexpr std::string_view scene_preamble = "# A scene: 3dmppc-editor's Scene layout edits it.\n\n";
@@ -99,7 +104,8 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
         return RV_ERR_INVAL;
     }
     rv_pdkkit::rv_scene pdk;
-    if (rv_pdkkit::rv_scene_parse(rv_editor_file_text(path), path.string(), pdk, error) != 0) {
+    const auto policy = rv_pdkkit::rv_scene_version_policy::keep;
+    if (rv_pdkkit::rv_scene_parse(rv_editor_file_text(path), path.string(), pdk, error, policy) != 0) {
         return RV_ERR_INVAL;
     }
     std::string notes;
@@ -129,6 +135,12 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
             return RV_ERR_INVAL;
         }
     }
+    // A version this editor does not read opens for reading only; save refuses it (rv_editor_scene_save).
+    const bool compatible = rv_pdklib::rv_version_compatible(s.version_major, s.version_minor);
+    s.read_only = compatible ?
+        std::string() :
+        rv_editor_text_format("pane_scene.read_only_version",
+            std::make_format_args(s.version_major, s.version_minor, editor_version_major, editor_version_minor));
     scene = std::move(s);
     return RV_OK;
 }
