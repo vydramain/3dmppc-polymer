@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-#include "pdklib/rv_models/rv_mppcmod.hpp"
 #include "pdklib/rv_models/rv_mppcmod_gltf.hpp"
 #include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
@@ -17,11 +16,10 @@
 namespace rv_editor
 {
 
-// A .glb model as the scene viewport reads it: the parsed container, its embedded PNGs and its pieces.
+// A .glb model as the scene viewport reads it: the parsed container, its quantized model, its embedded PNGs and its pieces.
 struct rv_editor_glb_model {
-    // The model as quantized; `model` is its float view until the float field is removed.
+    // The model as quantized: what the viewport draws and Parts picks from.
     rv_pdklib::rv_mppcmod_int_model quantized;
-    rv_pdklib::rv_mppcmod model;
     std::vector<rv_pdklib::rv_mppcmod_gltf_image> images;
     // Set once per read, with the model; the triangles of each piece.
     std::vector<rv_editor_piece> pieces;

@@ -30,7 +30,7 @@ namespace
 constexpr std::string_view name_separators = "/\\";
 // A colour byte's full scale, to map a part's RGB to 0..1.
 constexpr float color_channel_max = 255.0f;
-// A uv's whole texture is 2^rv_mppcmod_uv_bits steps; the division by it is exact in float, as in the float view.
+// A uv's whole texture is 2^rv_mppcmod_uv_bits steps; the division by it is exact in float.
 constexpr float uv_one = static_cast<float>(int64_t{ 1 } << rv_pdklib::rv_mppcmod_uv_bits);
 
 // One read of a .glb, kept until the file's mtime moves on. `rc` and `error` hold a failed read.
@@ -188,12 +188,10 @@ int rv_editor_glb_find_pending(const rv_editor_project &project,
     return RV_OK;
 }
 
-// The reader's Q.16 model quantized as the baker does: `quantized` keeps it, `view` is its float view for
-// the renderers. A refusal names the file, as a read failure does.
-int rv_editor_glb_quantize_models(const std::string &path,
+// The reader's Q.16 model quantized as the baker does, into `quantized`. A refusal names the file, as a read failure does.
+int rv_editor_glb_quantize(const std::string &path,
     const rv_pdklib::rv_mppcmod_q16_model &q16,
     rv_pdklib::rv_mppcmod_int_model &quantized,
-    rv_pdklib::rv_mppcmod &view,
     std::string &error)
 {
     std::string reason;
@@ -202,7 +200,6 @@ int rv_editor_glb_quantize_models(const std::string &path,
         error = "'" + path + "' " + reason;
         return rc;
     }
-    view = rv_pdklib::rv_mppcmod_int_to_float(quantized);
     return RV_OK;
 }
 
@@ -245,7 +242,7 @@ int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const 
         rv_pdklib::rv_mppcmod_q16_model q16;
         entry.rc = rv_pdklib::rv_mppcmod_read_gltf(key, stem, q16, model->images, entry.error);
         if (entry.rc == RV_OK) {
-            entry.rc = rv_editor_glb_quantize_models(key, q16, model->quantized, model->model, entry.error);
+            entry.rc = rv_editor_glb_quantize(key, q16, model->quantized, entry.error);
         }
         if (entry.rc == RV_OK) {
             entry.rc = rv_pdklib::rv_mppcmod_int_validate(model->quantized, entry.error);
