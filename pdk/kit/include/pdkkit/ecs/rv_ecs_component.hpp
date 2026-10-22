@@ -24,12 +24,12 @@ inline constexpr rv_color ecs_tint_white{ 255, 255, 255 };
 // Default sprite tessellation: two subdivisions per unit, as the editor's scene.
 inline constexpr rv_pdklib::fx ecs_sprite_tess_default = 2 * rv_pdklib::fx_one;
 
-// Position, rotation (Q20.12 degrees) and scale relative to the parent; parent {} is the scene root.
+// Position, rotation (Q20.12 degrees) and scale relative to the entity's parent in the hierarchy (ecs_component_parent);
+// a world root is relative to the world.
 struct ecs_component_transform {
     rv_pdklib::fx_vec3 position{};
     rv_pdklib::fx_vec3 rotation{};
     rv_pdklib::fx_vec3 scale{ rv_pdklib::fx_one, rv_pdklib::fx_one, rv_pdklib::fx_one };
-    ecs_id parent{};
 };
 
 // The entity's parent in the hierarchy; an entity without it is a root of the world.

@@ -199,7 +199,7 @@ inline int ecs_scene_add_kind(ecs_scene_reading &load, const ecs_scene_object &o
     return RV_ERR_INVAL;
 }
 
-// Transform from the local Q20.12 values. The parent is set later, once every object has an entity.
+// Transform from the local Q20.12 values. The hierarchy is set later by ecs_scene_link, once every object has an entity.
 inline int ecs_scene_add_transform(ecs_scene_reading &load, int64_t index, ecs_id id)
 {
     const ecs_scene_local &local = load.records.locals[static_cast<std::size_t>(index)];
@@ -246,8 +246,8 @@ inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
     return ecs_scene_add_kind(load, object, id);
 }
 
-// Parent of object `index`: the entity of its parent object, or `parent` for a root. The transform keeps the parent for
-// its readers; ecs_component_parent is set too, and only when there is a parent entity (a world root has none).
+// Parent of object `index`: the entity of its parent object, or `parent` for a root. ecs_component_parent is the
+// hierarchy; a world root has none, so the component is added only when there is a parent entity.
 inline int ecs_scene_link(ecs_scene_reading &load, int64_t index, ecs_id parent)
 {
     const ecs_scene_object &object = ecs_scene_object_at(load, index);
@@ -262,16 +262,11 @@ inline int ecs_scene_link(ecs_scene_reading &load, int64_t index, ecs_id parent)
     }
     const bool root = object.parent < 0;
     const ecs_id entity_parent = root ? parent : load.made[static_cast<std::size_t>(object.parent)];
-    const ecs_id id = load.made[static_cast<std::size_t>(index)];
-    ecs_component_transform *transform = ecs_component_get<ecs_component_transform>(load.world, id);
-    if (transform == nullptr) {
-        return ecs_scene_no_entity(load.scene);
-    }
-    transform->parent = entity_parent;
     const bool has_parent = entity_parent != ecs_id{};
     if (!has_parent) {
         return RV_OK;
     }
+    const ecs_id id = load.made[static_cast<std::size_t>(index)];
     ecs_component_parent *link = nullptr;
     const int ensured = ecs_component_ensure<ecs_component_parent>(load.world, id, link);
     if (ensured != RV_OK) {
