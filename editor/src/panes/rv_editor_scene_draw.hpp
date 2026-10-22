@@ -249,6 +249,19 @@ void rv_editor_draw_filled(ImDrawList *dl,
     ImVec2 origin,
     ImVec2 size,
     bool textured);
+// The same fill for a model's triangle list (rv_editor_glb_path_triangles), with no scene: no selection, white tint,
+// back faces culled as a mesh without two_sided, and no object picture, so only a part's own picture applies when
+// `textured`. A triangle with no model part is white. `key` is the ImGui ID keying the picture: call once per key per
+// frame, since a second call in the frame replaces the picture the ImDrawList already references. It must differ from
+// the viewport's ("scene picture") when both draw in one window.
+void rv_editor_draw_triangles(ImDrawList *dl,
+    const rv_editor_view &v,
+    const std::vector<rv_editor_tri> &tris,
+    bool textured,
+    SDL_Renderer *renderer,
+    ImGuiID key,
+    ImVec2 origin,
+    ImVec2 size);
 // A viewport's picture: the z-buffer, and the SDL texture its colour is copied to each frame.
 // Kept while the size stays the same; its texture is destroyed by rv_editor_scene_pictures_free.
 struct rv_editor_scene_target {

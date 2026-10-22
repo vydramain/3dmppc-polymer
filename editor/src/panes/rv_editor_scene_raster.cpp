@@ -1,5 +1,6 @@
 // The Scene viewport's filled pass (Filled and Textured): every mesh, quad and billboard is
 // rasterised by the CPU z-buffer into one picture the size of the viewport, drawn as one image.
+// rv_editor_draw_triangles fills a model's triangle list into such a picture the same way, with no scene.
 // Each object is rasterised as it comes, since a part's CPU picture lives only until the next
 // rv_editor_object_triangles call.
 // Cost: every frame the picture is cleared, rasterised in full and uploaded whole (w * h * 4 bytes),
@@ -48,6 +49,8 @@ namespace
 constexpr float color_channel_max = 255.0f;
 // Bytes per pixel of the picture: RGBA8, as the z-buffer and the SDL texture both are.
 constexpr int rgba_channels = 4;
+// White, the base and tint of a triangle list with no object: a triangle with no model part is white, untinted.
+constexpr ImVec4 list_white(1.0f, 1.0f, 1.0f, 1.0f);
 // The shade as a raw 0..255 factor; rv_editor_shade_raw computes it as an integer from the normal.
 constexpr int RV_EDITOR_SHADE_SCALE = 255;
 // The lowest shade, raw: 0.15 * 255 = 38.25, rounded half up to 38.
@@ -154,6 +157,9 @@ struct rv_editor_piece_style {
     bool from_model = false;
     // The shade, raw 0..255 (RV_EDITOR_SHADE_SCALE).
     int shade = RV_EDITOR_SHADE_SCALE;
+    // The textured pass, and the object's picture (null for a list): a part's own picture wins over it.
+    bool textured = false;
+    const rv_editor_cpu_image *object_texture = nullptr;
     const rv_editor_cpu_image *texture = nullptr; // null: flat
 };
 
@@ -352,6 +358,74 @@ int rv_editor_raster_tri(rv_editor_zbuf &buf,
     return result;
 }
 
+// Fills a triangle list into t.buf with style `st`: each triangle shaded by its normal, drawn with its own picture when
+// st.textured, else the object's (st.object_texture). Returns how many triangles were refused.
+int rv_editor_fill_tris(rv_editor_scene_target &t,
+    const rv_editor_view &v,
+    const std::vector<rv_editor_tri> &tris,
+    rv_editor_piece_style st)
+{
+    int refused = 0;
+    for (const rv_editor_tri &tri : tris) {
+        // Shade by the source triangle's normal, from its Q20.12 corners; its cut pieces share it.
+        st.shade = rv_editor_shade_raw(tri, v);
+        // A part's own picture wins. A .glb part without one stays flat, as in the console; other meshes keep the object's.
+        const rv_editor_cpu_image *piece_tex =
+            tri.cpu_tex != nullptr ? tri.cpu_tex : (tri.from_model ? nullptr : st.object_texture);
+        st.texture = st.textured ? piece_tex : nullptr;
+        st.from_model = tri.from_model;
+        if (rv_editor_raster_tri(t.buf, v, tri, st) != RV_OK) {
+            ++refused;
+        }
+    }
+    return refused;
+}
+
+// The viewport picture keyed by `id`, sized in framebuffer pixels and cleared; its buffer projection goes to st.screen.
+// RV_OK sets t to it. On failure the reason is reported and t stays as passed (null); a failed rv_editor_target_make
+// has already reset the key's picture, destroying its old texture, if it had one.
+int rv_editor_fill_begin(SDL_Renderer *renderer, ImGuiID id, ImVec2 size, rv_editor_piece_style &st, rv_editor_scene_target *&t)
+{
+    const ImVec2 fb = ImGui::GetIO().DisplayFramebufferScale;
+    const int w = std::max(1, static_cast<int>(std::lround(size.x * fb.x)));
+    const int h = std::max(1, static_cast<int>(std::lround(size.y * fb.y)));
+    // The picture is keyed by the ImGui ID of the viewport's tile: each Scene tile draws its own.
+    rv_editor_scene_target &pic = rv_editor_scene_target_for(id);
+    const int made = rv_editor_target_make(pic, renderer, w, h);
+    if (made != RV_OK) {
+        return made; // the reason is reported in rv_editor_target_make
+    }
+    // The buffer's own projection: the viewport's field at the buffer's height, centred at (w / 2, h / 2)
+    // in whole pixels. For an odd size that centre is half a pixel left of, and up from, the true one (D4).
+    const int focal = rv_pdklib::rv_gte_camera_focal(rv_editor_camera_fov_fx, h, st.screen.h);
+    if (focal != RV_OK) {
+        rv_editor_target_report(pic, w, h, "the focal length cannot be built");
+        return focal;
+    }
+    st.screen.cx = w / 2;
+    st.screen.cy = h / 2;
+    rv_editor_zbuf_clear(pic.buf);
+    t = &pic;
+    return RV_OK;
+}
+
+// Reports a frame's refusals once per run of frames with refusals, uploads the picture and draws it at origin on dl.
+void rv_editor_fill_end(ImDrawList *dl, rv_editor_scene_target &t, ImVec2 origin, ImVec2 size, int refused)
+{
+    // Reported once per run of frames with refusals: the flag clears on a frame without any.
+    if (refused == 0) {
+        t.refusal_reported = false;
+    } else if (!t.refusal_reported) {
+        t.refusal_reported = true;
+        RV_LOG_WARN(scene_log_tag,
+            "{}",
+            rv_editor_text_format("project.filled_triangles_refused", std::make_format_args(refused)));
+    }
+    SDL_UpdateTexture(t.texture, nullptr, t.buf.colour.data(), t.w * rgba_channels);
+    const ImTextureID id = static_cast<ImTextureID>(reinterpret_cast<intptr_t>(t.texture));
+    dl->AddImage(ImTextureRef(id), origin, ImVec2(origin.x + size.x, origin.y + size.y));
+}
+
 } // namespace
 
 void rv_editor_draw_filled(ImDrawList *dl,
@@ -366,31 +440,16 @@ void rv_editor_draw_filled(ImDrawList *dl,
     ImVec2 size,
     bool textured)
 {
-    // The picture is in framebuffer pixels, so a HiDPI UI scale keeps it sharp.
-    const ImVec2 fb = ImGui::GetIO().DisplayFramebufferScale;
-    const int w = std::max(1, static_cast<int>(std::lround(size.x * fb.x)));
-    const int h = std::max(1, static_cast<int>(std::lround(size.y * fb.y)));
-    // The picture is keyed by the ImGui ID of the viewport's tile: each Scene tile draws its own.
-    rv_editor_scene_target &t = rv_editor_scene_target_for(ImGui::GetID("scene picture"));
-    if (rv_editor_target_make(t, renderer, w, h) != RV_OK) {
-        return; // the reason is reported in rv_editor_target_make
-    }
-    // The buffer's own projection: the viewport's field at the buffer's height, centred at (w / 2, h / 2)
-    // in whole pixels. For an odd size that centre is half a pixel left of, and up from, the true one (D4).
-    rv_pdklib::rv_gte_viewport screen{};
-    if (rv_pdklib::rv_gte_camera_focal(rv_editor_camera_fov_fx, h, screen.h) != RV_OK) {
-        rv_editor_target_report(t, w, h, "the focal length cannot be built");
-        return;
-    }
-    screen.cx = w / 2;
-    screen.cy = h / 2;
-    rv_editor_zbuf_clear(t.buf);
-    int refused = 0;
     rv_editor_piece_style st;
-    st.screen = screen;
     st.base = ImGui::ColorConvertU32ToFloat4(base);
     st.selection = ImGui::ColorConvertU32ToFloat4(selected_color);
+    st.textured = textured;
+    rv_editor_scene_target *t = nullptr;
+    if (rv_editor_fill_begin(renderer, ImGui::GetID("scene picture"), size, st, t) != RV_OK) {
+        return; // the reason is reported in rv_editor_fill_begin
+    }
     const rv_editor_scene &scene = doc.scene;
+    int refused = 0;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
         const rv_editor_scene_object &o = scene.objects[i];
         const std::string kind = rv_editor_object_get_kind(o);
@@ -401,36 +460,38 @@ void rv_editor_draw_filled(ImDrawList *dl,
             continue; // an outline is drawn as edges, an absent object not at all
         }
         const std::string texture = rv_editor_object_get_texture(o);
-        const rv_editor_cpu_image *tex = textured ? rv_editor_object_cpu_texture(project, texture) : nullptr;
+        st.object_texture = textured ? rv_editor_object_cpu_texture(project, texture) : nullptr;
         const rv_editor_tint tint = rv_editor_object_get_tint(o);
         st.selected = o.id == selected;
         st.cull = rv_editor_cull_mode(rv_editor_scene_has_component(o, component_two_sided));
         st.tint = { tint[0] / color_channel_max, tint[1] / color_channel_max, tint[2] / color_channel_max, 1.0f };
         const std::vector<rv_editor_tri> tris = rv_editor_object_triangles(scene, project, static_cast<int>(i));
-        for (const rv_editor_tri &tri : tris) {
-            // Shade by the source triangle's normal, from its Q20.12 corners; its cut pieces share it.
-            st.shade = rv_editor_shade_raw(tri, v);
-            // A part's own picture wins. A .glb part without one stays flat, as in the console; other meshes keep the object's.
-            const rv_editor_cpu_image *piece_tex = tri.cpu_tex != nullptr ? tri.cpu_tex : (tri.from_model ? nullptr : tex);
-            st.texture = textured ? piece_tex : nullptr;
-            st.from_model = tri.from_model;
-            if (rv_editor_raster_tri(t.buf, v, tri, st) != RV_OK) {
-                ++refused;
-            }
-        }
+        refused += rv_editor_fill_tris(*t, v, tris, st);
     }
-    // Reported once per run of frames with refusals: the flag clears on a frame without any.
-    if (refused == 0) {
-        t.refusal_reported = false;
-    } else if (!t.refusal_reported) {
-        t.refusal_reported = true;
-        RV_LOG_WARN(scene_log_tag,
-            "{}",
-            rv_editor_text_format("project.filled_triangles_refused", std::make_format_args(refused)));
+    rv_editor_fill_end(dl, *t, origin, size, refused);
+}
+
+void rv_editor_draw_triangles(ImDrawList *dl,
+    const rv_editor_view &v,
+    const std::vector<rv_editor_tri> &tris,
+    bool textured,
+    SDL_Renderer *renderer,
+    ImGuiID key,
+    ImVec2 origin,
+    ImVec2 size)
+{
+    // No object: white base and tint, no selection, back faces culled as a mesh without two_sided.
+    rv_editor_piece_style st;
+    st.base = list_white;
+    st.tint = list_white;
+    st.cull = rv_editor_cull_mode(false);
+    st.textured = textured;
+    rv_editor_scene_target *t = nullptr;
+    if (rv_editor_fill_begin(renderer, key, size, st, t) != RV_OK) {
+        return; // the reason is reported in rv_editor_fill_begin
     }
-    SDL_UpdateTexture(t.texture, nullptr, t.buf.colour.data(), w * rgba_channels);
-    const ImTextureID id = static_cast<ImTextureID>(reinterpret_cast<intptr_t>(t.texture));
-    dl->AddImage(ImTextureRef(id), origin, ImVec2(origin.x + size.x, origin.y + size.y));
+    const int refused = rv_editor_fill_tris(*t, v, tris, st);
+    rv_editor_fill_end(dl, *t, origin, size, refused);
 }
 
 } // namespace rv_editor
