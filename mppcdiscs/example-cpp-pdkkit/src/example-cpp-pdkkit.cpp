@@ -4,16 +4,15 @@
 #include <string_view>
 #include <vector>
 
-#include "pdk/cd/rv_cd.h"
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdk/rv_pdko.h"
 #include "pdklib/rv_cppdisc/rv_cppdisc.hpp"
 #include "pdkkit/component/rv_component_register.hpp"
+#include "pdkkit/disc/rv_pdkkit_disc.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
-#include "pdkkit/ecs/rv_ecs_frame.hpp"
 #include "pdkkit/ecs/rv_ecs_loads.hpp"
 #include "pdkkit/ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -41,20 +40,18 @@ constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
 
+// The route's entity type: the world keeps a pointer to it, so it has static storage, not a member of the disc.
+const ecs_entity_route route_type;
+
 } // namespace
 
-// rv_dmain_base_ carries everything pdklib/rv_cppdisc/rv_cppdisc.hpp
-// considers the same for any C++ disc: the startup guards, MENU-button
-// press-edge tracking, read_asset() and the frame plumbing.
-RV_MPPC_DISC_CPP_DEF(rv_dmain_base_)
-
-class rv_dmain : public rv_dmain_base_
+class rv_dmain : public rv_pdkkit::pdkkit_disc
 {
 public:
     int64_t disc_initialize(rv_pdko *pdk)
     {
-        const int64_t base_result = rv_dmain_base_::disc_initialize(pdk);
-        if (base_result < 0) {
+        const int64_t base_result = pdkkit_disc::disc_initialize(pdk);
+        if (base_result != RV_OK) {
             return base_result;
         }
 
@@ -72,14 +69,6 @@ public:
         }
         init_sound();
         return RV_OK;
-    }
-
-    void frame_update(float dt)
-    {
-        rv_dmain_base_::frame_update(dt);
-        if (dt > 0.0f) {
-            ++frame_count_;
-        }
     }
 
     void frame_render()
@@ -110,15 +99,10 @@ private:
     void play_sound();
     void log_sound_error(int64_t code);
 
-    // Declared before world_: the world keeps a pointer to the type, so the type must outlive it.
-    example_cpp_pdkkit::ecs_entity_route route_type_;
-    rv_pdkkit::ecs_world world_;
     // read_scene succeeded: the scene's route and board are in world_, so the disc draws and plays.
     bool scene_read_ = false;
     // The scene has the board object; the sound takes it into account.
     bool board_found_ = false;
-    // Frames updated while running: the demo's clock.
-    int64_t frame_count_ = 0;
     bool draw_error_logged_ = false;
     // The music and the clack; sound_ready_ is false when init_sound failed, and then nothing plays.
     rv_sound_state sound_state_;
@@ -127,15 +111,11 @@ private:
     std::vector<std::string> sound_errors_logged_;
 };
 
-// Registers the built-in components first, then the route's entity type and frame system, and the lamp_light and flicker
-// components with their frame systems; a scene refers to them by name.
+// Registers the route's entity type and frame system, then the lamp_light and flicker components with their frame
+// systems; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
 int rv_dmain::register_ecs()
 {
-    const int builtin_code = rv_pdkkit::ecs_builtins_register(world_);
-    if (builtin_code != RV_OK) {
-        return builtin_code;
-    }
-    const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type_);
+    const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
     if (type_code != RV_OK) {
         return type_code;
     }
@@ -173,9 +153,8 @@ int rv_dmain::read_scene()
     if (register_code != RV_OK) {
         return register_code;
     }
-    rv_cd *cd = rv_pdko_cd(pdk_);
     uint32_t load_number = 0;
-    const int load_code = rv_pdkkit::ecs_scene_load(world_, cd, RV_EXAMPLE_CPP_SCENE_NAME, rv_pdkkit::ecs_id{}, load_number);
+    const int load_code = scene_load(RV_EXAMPLE_CPP_SCENE_NAME, load_number);
     if (load_code != RV_OK) {
         return load_code;
     }
@@ -221,7 +200,7 @@ void rv_dmain::draw_world()
     if (!scene_read_) {
         return;
     }
-    const int frame_code = rv_pdkkit::ecs_world_frame(world_, rv_pdkkit::ecs_frame{ pdk_, frame_count_ });
+    const int frame_code = world_frame();
     if (frame_code != RV_OK) {
         log_draw_error("world", frame_code);
     }
@@ -259,7 +238,7 @@ void rv_dmain::play_sound()
     if (!sound_ready_) {
         return;
     }
-    const int64_t sound_code = rv_sound_update(pdk_, frame_count_ % RV_ROUTE_PERIOD_FRAMES, board_found_, sound_state_);
+    const int64_t sound_code = rv_sound_update(pdk_, frame_ % RV_ROUTE_PERIOD_FRAMES, board_found_, sound_state_);
     if (sound_code < 0) {
         log_sound_error(sound_code);
     }
