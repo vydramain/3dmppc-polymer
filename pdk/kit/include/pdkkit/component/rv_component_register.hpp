@@ -42,6 +42,12 @@ concept ecs_component_checked = requires(const T &value, std::string &reason) {
     { T::ecs_check(value, reason) } -> std::same_as<int>;
 };
 
+// True when T has `static int ecs_derive(T &, std::string &reason)`.
+template <typename T>
+concept ecs_component_derived = requires(T &value, std::string &reason) {
+    { T::ecs_derive(value, reason) } -> std::same_as<int>;
+};
+
 // Best effort, as ecs_guard_log: a line whose formatting throws is lost, and the factory's code stands.
 inline void ecs_component_log_warn(const char *component, const char *field, const char *reason)
 {
@@ -167,8 +173,24 @@ int ecs_component_check(const ecs_component_desc &desc, const T &value)
     return RV_OK;
 }
 
+// Runs T::ecs_derive when T has one, to fill the members computed from the described fields. A refusal is logged with
+// its reason and returns RV_ERR_INVAL.
+template <typename T>
+int ecs_component_derive(const ecs_component_desc &desc, T &value)
+{
+    if constexpr (ecs_component_derived<T>) {
+        std::string reason;
+        const int derived = T::ecs_derive(value, reason);
+        if (derived != RV_OK) {
+            ecs_component_log_err(desc.name, nullptr, reason.c_str());
+            return RV_ERR_INVAL;
+        }
+    }
+    return RV_OK;
+}
+
 // The factory of T, with the signature of ecs_component_factory. A local T takes the defaults, then the scene's fields,
-// then ecs_check; only a value that passed all of them is added, so a refusal leaves the entity as it was.
+// then ecs_check, then ecs_derive; only a value that passed all of them is added, so a refusal leaves the entity as it was.
 template <typename T>
 int ecs_component_factory_of(ecs_world &world, ecs_id id, const ecs_scene_component &component)
 {
@@ -188,6 +210,10 @@ int ecs_component_factory_of(ecs_world &world, ecs_id id, const ecs_scene_compon
         const int checked = ecs_component_check(desc, value);
         if (checked != RV_OK) {
             return checked;
+        }
+        const int derived = ecs_component_derive(desc, value);
+        if (derived != RV_OK) {
+            return derived;
         }
         const int added = ecs_component_add<T>(world, id, value);
         if (added != RV_OK) {
