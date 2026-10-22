@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <new>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -198,6 +199,53 @@ inline void ecs_loads_log_refused(const char *scene, const char *why)
         }
         world.pending_unloads.clear();
         return first_error;
+    });
+}
+
+// Calls fn(id) for each live entity of load number, in file order: the ids the load created, its made list. fn returns
+// RV_OK to go on; any other code stops the walk and is the result, so fn's own RV_ERR_NOENT is returned as is. An
+// unknown number returns RV_ERR_NOENT before fn runs. fn must not change the world; the walk iterates the load's list
+// in place. An exception from fn maps as in ecs_guard: bad_alloc is RV_ERR_NOMEM, another exception RV_ERR_INVAL, logged.
+template <typename Fn>
+[[nodiscard]] int ecs_scene_entities(const ecs_world &world, uint32_t number, Fn &&fn)
+{
+    return ecs_guard([&]() -> int {
+        const std::size_t position = ecs_load_position(world, number);
+        const bool unknown = position == world.loads.size();
+        if (unknown) {
+            return RV_ERR_NOENT;
+        }
+        for (const ecs_id id : world.loads[position].made) {
+            const bool dead = !ecs_entity_alive(world, id);
+            if (dead) {
+                continue;
+            }
+            const int code = fn(id);
+            if (code != RV_OK) {
+                return code;
+            }
+        }
+        return RV_OK;
+    });
+}
+
+// First live entity named name, the loads in table order and each load's entities in file order. Entities created
+// outside a load are not searched. RV_ERR_NOENT when none matches; out is written only on RV_OK.
+[[nodiscard]] inline int ecs_find_by_name(const ecs_world &world, std::string_view name, ecs_id &out)
+{
+    return ecs_guard([&]() -> int {
+        for (const ecs_load &load : world.loads) {
+            for (const ecs_id id : load.made) {
+                const bool live = ecs_entity_alive(world, id);
+                const ecs_component_name *named = live ? ecs_component_get<ecs_component_name>(world, id) : nullptr;
+                const bool match = named != nullptr && named->text == name;
+                if (match) {
+                    out = id;
+                    return RV_OK;
+                }
+            }
+        }
+        return RV_ERR_NOENT;
     });
 }
 
