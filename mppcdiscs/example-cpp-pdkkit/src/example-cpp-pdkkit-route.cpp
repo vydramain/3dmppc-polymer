@@ -315,7 +315,7 @@ int find_route(ecs_world &world, ecs_id &id, ecs_component_route *&route)
 // Appends the key of camera when it is a cam_NN child of route. A cam_NN camera outside the group is warned and skipped.
 int add_route_key(ecs_world &world, ecs_id camera, ecs_id route, std::vector<rv_route_key> &keys)
 {
-    const auto *transform = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_transform>(world, camera);
+    const auto *hierarchy = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_parent>(world, camera);
     const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world, camera);
     if (name == nullptr) {
         return RV_OK;
@@ -325,7 +325,7 @@ int add_route_key(ecs_world &world, ecs_id camera, ecs_id route, std::vector<rv_
     if (!named) {
         return RV_OK;
     }
-    const bool on_route = transform != nullptr && transform->parent == route;
+    const bool on_route = hierarchy != nullptr && hierarchy->parent == route;
     if (!on_route) {
         RV_LOG_WARN("scene", "camera '{}' is not in the route group: not a route key", name->text.c_str());
         return RV_OK;

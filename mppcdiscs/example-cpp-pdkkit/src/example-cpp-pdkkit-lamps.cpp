@@ -90,13 +90,12 @@ int first_near(const std::vector<rv_route_key> &keys, rv_pdklib::fx_vec3 at, int
 // Error: the entity or its parent lacks a component, a Q20.12 failure or the route math; the entity keeps its schedule.
 int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::vector<rv_route_key> &keys)
 {
-    const auto *transform = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_transform>(world, id);
-    if (transform == nullptr) {
-        RV_LOG_ERR("lamps", "lamp_light entity has no transform: not scheduled");
-        return RV_ERR_NOENT;
-    }
-    const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world, transform->parent);
-    const auto *place = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_world>(world, transform->parent);
+    const auto *hierarchy = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_parent>(world, id);
+    const bool has_parent = hierarchy != nullptr;
+    const auto *name =
+        has_parent ? rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world, hierarchy->parent) : nullptr;
+    const auto *place =
+        has_parent ? rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_world>(world, hierarchy->parent) : nullptr;
     if (name == nullptr || place == nullptr) {
         RV_LOG_ERR("lamps", "lamp_light entity has no parent with a name and a world matrix: not scheduled");
         return RV_ERR_NOENT;
