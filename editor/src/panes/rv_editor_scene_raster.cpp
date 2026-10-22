@@ -50,6 +50,12 @@ constexpr float color_channel_max = 255.0f;
 constexpr double normalize_epsilon = 1e-12;
 // Bytes per pixel of the picture: RGBA8, as the z-buffer and the SDL texture both are.
 constexpr int rgba_channels = 4;
+// The shade as a raw 0..255 factor, converted once where it is computed; E12c makes it integer from the normal.
+constexpr int RV_EDITOR_SHADE_SCALE = 255;
+// A colour channel as a raw 0..255 factor (u8 at the source). The vertex colour is four such factors, so its
+// divisor is 255 cubed; the console's scale_channel divides three factors by 255 squared.
+constexpr int64_t RV_EDITOR_COLOUR_SCALE = 255;
+constexpr int64_t RV_EDITOR_COLOUR_DIVISOR = RV_EDITOR_COLOUR_SCALE * RV_EDITOR_COLOUR_SCALE * RV_EDITOR_COLOUR_SCALE;
 
 vec3 cross(const vec3 &a, const vec3 &b)
 {
@@ -176,7 +182,8 @@ struct rv_editor_piece_style {
     rv_pdklib::rv_gte_viewport screen{};
     // A .glb's triangle: its base is white and the tint applies, flat too.
     bool from_model = false;
-    float shade = 1.0f;
+    // The shade, raw 0..255 (RV_EDITOR_SHADE_SCALE).
+    int shade = RV_EDITOR_SHADE_SCALE;
     const rv_editor_cpu_image *texture = nullptr; // null: flat
 };
 
@@ -189,6 +196,22 @@ void rv_editor_refuse_once(bool &reported, const char *what)
     }
     reported = true;
     std::fprintf(stderr, "3dmppc-editor: filled triangle refused: %s\n", what);
+}
+
+// A unit colour as its raw 0..255 value: lround undoes the float division. Exact for over, tint and base (ImGui
+// colours from u8). A model part is already a byte product rounded in glb.cpp, so as a factor it can differ by up to
+// 1 LSB from the exact four-factor rule.
+int64_t raw_unit(float unit)
+{
+    return std::lround(unit * static_cast<float>(RV_EDITOR_COLOUR_SCALE));
+}
+
+// One vertex colour channel: over, tint, shade and part as raw factors, rounded half up to a byte. The console's
+// scale_channel (src/rv_pconsole/cg/rv_pccg_sw_put.cpp) is the same rule with three factors; the shade is the fourth.
+uint8_t colour_channel(float over, float tint, int shade, float part)
+{
+    const int64_t product = raw_unit(over) * raw_unit(tint) * shade * raw_unit(part);
+    return static_cast<uint8_t>((product + RV_EDITOR_COLOUR_DIVISOR / 2) / RV_EDITOR_COLOUR_DIVISOR);
 }
 
 // Whether a uv component is a finite int16 4.12 value once scaled to raw (the model's range).
@@ -250,18 +273,19 @@ int rv_editor_raster_piece(rv_editor_zbuf &buf, const rv_editor_fx_tri &piece, c
         rv_editor_zbuf_vertex &c = zt.corner[k];
         c.x = s.x;
         c.y = s.y;
-        c.z = static_cast<float>(static_cast<double>(piece.v[k].p.z) / rv_editor_gte_units_per_metre);
         // Exact for model uv: raw / 4096 in float, so the rounding only undoes that division. The cube's uv are the
         // unit square's corners, 0 or 1 (quad_uv_corners in rv_editor_scene_mesh.cpp), raw 0 or 4096.
         c.u = flat ? 0 : static_cast<int32_t>(std::lround(uv.x * static_cast<float>(RV_EDITOR_ZBUF_UV_ONE)));
         c.v = flat ? 0 : static_cast<int32_t>(std::lround(uv.y * static_cast<float>(RV_EDITOR_ZBUF_UV_ONE)));
-        c.r = over.x * tint.x * st.shade * part.x;
-        c.g = over.y * tint.y * st.shade * part.y;
-        c.b = over.z * tint.z * st.shade * part.z;
-        c.a = over.w;
+        c.r = colour_channel(over.x, tint.x, st.shade, part.x);
+        c.g = colour_channel(over.y, tint.y, st.shade, part.y);
+        c.b = colour_channel(over.z, tint.z, st.shade, part.z);
+        c.a = static_cast<uint8_t>(raw_unit(over.w));
     }
-    // A texture without texels or size cannot reach here: the decoder guarantees w, h > 0.
     if (rv_editor_zbuf_draw(buf, zt) != RV_OK) {
+        // Once per process, see rv_editor_refuse_once; rv_editor_zbuf_draw has logged the cause.
+        static bool reported = false;
+        rv_editor_refuse_once(reported, "the z-buffer rejected a piece's input (its own log names the check)");
         return RV_ERR_INVAL;
     }
     return RV_OK;
@@ -419,7 +443,9 @@ void rv_editor_draw_filled(ImDrawList *dl,
             // Shade by the source triangle's normal; its cut pieces share it.
             const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
             const double facing = std::abs(dot(n, mul(v.forward, -1.0)));
-            st.shade = static_cast<float>(std::max(static_cast<double>(min_shade_value), facing));
+            // The shade's boundary: float until E12c, converted once to raw 0..255 here, clamped so the byte cannot wrap.
+            const long shade_raw = std::lround(std::max(static_cast<double>(min_shade_value), facing) * RV_EDITOR_SHADE_SCALE);
+            st.shade = static_cast<int>(std::min<long>(shade_raw, RV_EDITOR_SHADE_SCALE));
             // A part's own picture wins. A .glb part without one stays flat, as in the console; other meshes keep the object's.
             const rv_editor_cpu_image *piece_tex = tri.cpu_tex != nullptr ? tri.cpu_tex : (tri.from_model ? nullptr : tex);
             st.texture = textured ? piece_tex : nullptr;

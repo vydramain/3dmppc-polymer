@@ -1,15 +1,16 @@
 // CPU z-buffer rasteriser. Coverage mirrors src/rv_pconsole/cv/rv_pcraster_poly.cpp in int64: edge_at,
 // is_top_left and clip_bounds, and normalize_winding inline in rv_editor_zbuf_draw. Samples are pixel
 // centres, not the console's corners (decision D4): the corners are doubled, so a centre is an integer.
-// uv mirrors the console's texel_uvs (src/rv_pconsole/cg/rv_pccg_sw_put.cpp) and setup_uv
-// (src/rv_pconsole/cv/rv_pcraster_poly.cpp): integer texels with a per-triangle TILE shift, affine in
-// screen space. Colour keeps perspective weights. Texel alpha 0 is the console's transparent texel 0000h
-// (pdk/include/pdk/cv/rv_texel.h); TILE wraps the texel integer as rv_pctexel::wrap does.
+// uv mirrors texel_uvs (src/rv_pconsole/cg/rv_pccg_sw_put.cpp) and setup_uv (src/rv_pconsole/cv/rv_pcraster_poly.cpp):
+// integer texels, affine in screen space. Colour is the console's Gouraud rule in integers: screen-linear weights,
+// each channel rounded half up. The console's shade_gouraud uses double weights, so the editor may differ by 1 LSB.
+// Texel alpha 0 is the console's transparent texel 0000h (pdk/include/pdk/cv/rv_texel.h); TILE wraps the texel
+// integer as rv_pctexel::wrap does.
 
 #include "panes/rv_editor_zbuf.hpp"
 
 #include <algorithm>
-#include <cmath>
+#include <bit>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -25,8 +26,13 @@ namespace rv_editor
 namespace
 {
 
-// Colour channels: 0..1 per vertex, 0..255 per texel and in the buffer.
-constexpr double RV_EDITOR_ZBUF_CHANNEL_MAX = 255.0;
+// Colour values are 0..255; a product of two is divided by this, rounding half up.
+constexpr int64_t RV_EDITOR_ZBUF_BYTE_MAX = 255;
+
+// Interpolation keeps the top 40 bits of the edge values: an area2 wider than that is shifted down first, so the
+// weighted sum (at most 255 times the area) stays in int64. With the shift the weighted mean is off by under 2e-9 LSB,
+// so a value within that of a half-LSB step may round either way.
+constexpr int RV_EDITOR_ZBUF_MIX_BITS = 40;
 
 // Flat colour: an opaque white texel, so the vertex colour is the pixel colour.
 constexpr rv_editor_zbuf_rgba RV_EDITOR_ZBUF_FLAT_TEXEL = { 255, 255, 255, 255 };
@@ -60,14 +66,6 @@ constexpr int RV_EDITOR_ZBUF_HALF_STEP_SHIFT = 1;
 struct rv_zbuf_point {
     int64_t x = 0;
     int64_t y = 0;
-};
-
-// The corner colours interpolated over a triangle with the perspective weights, before the texel and the tint.
-struct rv_zbuf_attr {
-    double r = 0.0;
-    double g = 0.0;
-    double b = 0.0;
-    double a = 0.0;
 };
 
 // A textured triangle's texel coordinates per corner, and the 16.16 steps per pixel (affine in screen space).
@@ -118,30 +116,21 @@ bool covers(int64_t edge, int64_t dx, int64_t dy)
 
 bool corner_valid(const rv_editor_zbuf_vertex &corner)
 {
-    const float values[] = { corner.z, corner.r, corner.g, corner.b, corner.a };
     const bool in_range = std::abs(static_cast<int64_t>(corner.x)) <= RV_EDITOR_ZBUF_COORD_LIMIT &&
         std::abs(static_cast<int64_t>(corner.y)) <= RV_EDITOR_ZBUF_COORD_LIMIT;
-    return in_range && corner.z > 0.0f && std::all_of(std::begin(values), std::end(values), [](float value) {
-        return std::isfinite(value);
-    });
+    return in_range;
 }
 
-// Logs once why a corner was refused: x or y beyond the coordinate limit, or else a value that is
-// not finite or a z <= 0. Logged once per process; the per-frame count in rv_editor_draw_filled shows that it recurs.
-void report_corner_refusal(const rv_editor_zbuf_triangle &tri)
+// Logs once why a corner was refused: x or y beyond the coordinate limit. Logged once per process; the per-frame
+// count in rv_editor_draw_filled shows that it recurs.
+void report_corner_refusal()
 {
     static bool reported = false;
     if (reported) {
         return;
     }
     reported = true;
-    const bool beyond = std::any_of(std::begin(tri.corner), std::end(tri.corner), [](const rv_editor_zbuf_vertex &corner) {
-        return std::abs(static_cast<int64_t>(corner.x)) > RV_EDITOR_ZBUF_COORD_LIMIT ||
-            std::abs(static_cast<int64_t>(corner.y)) > RV_EDITOR_ZBUF_COORD_LIMIT;
-    });
-    std::fprintf(stderr,
-        "3dmppc-editor: z-buffer corner refused: %s\n",
-        beyond ? "x or y beyond RV_EDITOR_ZBUF_COORD_LIMIT" : "a value is not finite or z <= 0");
+    std::fprintf(stderr, "3dmppc-editor: z-buffer corner refused: x or y beyond RV_EDITOR_ZBUF_COORD_LIMIT\n");
 }
 
 // Logs once why a textured triangle was refused: a texel coordinate above RV_EDITOR_ZBUF_TEXEL_MAX.
@@ -154,6 +143,30 @@ void report_texel_refusal()
     }
     reported = true;
     std::fprintf(stderr, "3dmppc-editor: z-buffer triangle refused: a texel coordinate is above RV_EDITOR_ZBUF_TEXEL_MAX\n");
+}
+
+// Logs once why a draw was refused for its setup: the buffer is not sized, or a texture has no texels or a
+// non-positive size. Logged once per process, as the corner refusal is.
+void report_setup_refusal()
+{
+    static bool reported = false;
+    if (reported) {
+        return;
+    }
+    reported = true;
+    std::fprintf(stderr,
+        "3dmppc-editor: z-buffer draw refused: the buffer is not sized, or a texture has no texels or a non-positive size\n");
+}
+
+// Logs once why a buffer was not sized: a non-positive width or height.
+void report_size_refusal()
+{
+    static bool reported = false;
+    if (reported) {
+        return;
+    }
+    reported = true;
+    std::fprintf(stderr, "3dmppc-editor: z-buffer not sized: width and height must be positive\n");
 }
 
 bool texture_valid(const rv_editor_zbuf_texture *texture)
@@ -212,9 +225,8 @@ void texel_gradient(const rv_zbuf_tri &tri, const int64_t (&t)[RV_EDITOR_ZBUF_CO
         num_x += (static_cast<int64_t>(tri.corner[b].y) - tri.corner[a].y) * t[j];
         num_y -= (static_cast<int64_t>(tri.corner[b].x) - tri.corner[a].x) * t[j];
     }
-    // tri.area2 is in doubled units: four times the pixel area2, which is twice the triangle's area. Dividing by four
-    // gives the pixel area2; the ratio is the same either way. Invariant: area2 > 0 here, since the flat-area case
-    // returns before any texel setup.
+    // num is in pixel units, so the divisor is the pixel area2 (doubled area2 / 4); undivided, every gradient would be
+    // four times too small. Invariant: area2 > 0 here, since the flat-area case returns before any texel setup.
     const int64_t area2 = tri.area2 / (RV_EDITOR_ZBUF_DOUBLING * RV_EDITOR_ZBUF_DOUBLING);
     dx = std::clamp(num_x * RV_EDITOR_ZBUF_TEXEL_ONE / area2, -RV_EDITOR_ZBUF_GRADIENT_LIMIT, RV_EDITOR_ZBUF_GRADIENT_LIMIT);
     dy = std::clamp(num_y * RV_EDITOR_ZBUF_TEXEL_ONE / area2, -RV_EDITOR_ZBUF_GRADIENT_LIMIT, RV_EDITOR_ZBUF_GRADIENT_LIMIT);
@@ -251,10 +263,36 @@ rv_editor_zbuf_rgba texel_at(const rv_editor_zbuf_texture &texture, int64_t tx, 
     return { p[0], p[1], p[2], p[3] };
 }
 
-// A unit colour times a 0..255 texel channel, rounded to a byte.
-uint8_t channel(double unit, uint8_t texel)
+// A product of two colour values, rounded half up to a byte: (a * b + 127) / 255.
+uint8_t scale_byte(int64_t a, int64_t b)
 {
-    return static_cast<uint8_t>(std::clamp(std::round(unit * texel), 0.0, RV_EDITOR_ZBUF_CHANNEL_MAX));
+    return static_cast<uint8_t>((a * b + RV_EDITOR_ZBUF_BYTE_MAX / 2) / RV_EDITOR_ZBUF_BYTE_MAX);
+}
+
+// One channel of a pixel: the corner values c mixed by the covered edge values w (each >= 0, summing to area2),
+// that is sum(w * c) / area2 rounded half up. A wide area2 is shifted down first, so the sum stays in int64.
+uint8_t mix_channel(const int64_t (&c)[RV_EDITOR_ZBUF_CORNERS], const int64_t (&w)[RV_EDITOR_ZBUF_CORNERS], int64_t area2)
+{
+    const int shift = std::max(0, static_cast<int>(std::bit_width(static_cast<uint64_t>(area2))) - RV_EDITOR_ZBUF_MIX_BITS);
+    const int64_t den = area2 >> shift;
+    int64_t sum = 0;
+    for (int j = 0; j < RV_EDITOR_ZBUF_CORNERS; ++j) {
+        sum += (w[j] >> shift) * c[j];
+    }
+    return static_cast<uint8_t>((sum + den / 2) / den);
+}
+
+// The interpolated colour of a pixel, all four channels, from its covered edge values w.
+rv_editor_zbuf_rgba mix_colour(const rv_zbuf_tri &tri, const int64_t (&w)[RV_EDITOR_ZBUF_CORNERS])
+{
+    const int64_t red[RV_EDITOR_ZBUF_CORNERS] = { tri.corner[0].r, tri.corner[1].r, tri.corner[2].r };
+    const int64_t green[RV_EDITOR_ZBUF_CORNERS] = { tri.corner[0].g, tri.corner[1].g, tri.corner[2].g };
+    const int64_t blue[RV_EDITOR_ZBUF_CORNERS] = { tri.corner[0].b, tri.corner[1].b, tri.corner[2].b };
+    const int64_t alpha[RV_EDITOR_ZBUF_CORNERS] = { tri.corner[0].a, tri.corner[1].a, tri.corner[2].a };
+    return { mix_channel(red, w, tri.area2),
+        mix_channel(green, w, tri.area2),
+        mix_channel(blue, w, tri.area2),
+        mix_channel(alpha, w, tri.area2) };
 }
 
 // The texel under pixel (x, y) of a textured triangle, as the console's shade_textured: u_fx >> 16 at the pixel.
@@ -279,44 +317,31 @@ void shade_pixel(rv_editor_zbuf &buf, const rv_zbuf_tri &tri, int x, int y)
     // The centre of pixel (x, y) in doubled units.
     const rv_zbuf_point centre = { RV_EDITOR_ZBUF_DOUBLING * x + RV_EDITOR_ZBUF_CENTRE_OFFSET,
         RV_EDITOR_ZBUF_DOUBLING * y + RV_EDITOR_ZBUF_CENTRE_OFFSET };
-    double perspective[RV_EDITOR_ZBUF_CORNERS] = {};
-    double inv_z = 0.0;
+    int64_t edge[RV_EDITOR_ZBUF_CORNERS] = {};
     for (int i = 0; i < RV_EDITOR_ZBUF_CORNERS; ++i) {
-        // The edge opposite corner i runs from corner i + 1 to corner i + 2.
+        // The edge opposite corner i runs from corner i + 1 to corner i + 2; its value is corner i's weight.
         const int a = (i + 1) % RV_EDITOR_ZBUF_CORNERS;
         const int b = (i + 2) % RV_EDITOR_ZBUF_CORNERS;
-        const int64_t edge = edge_at(tri.point[a], tri.point[b], centre);
-        if (!covers(edge, tri.point[b].x - tri.point[a].x, tri.point[b].y - tri.point[a].y)) {
+        edge[i] = edge_at(tri.point[a], tri.point[b], centre);
+        if (!covers(edge[i], tri.point[b].x - tri.point[a].x, tri.point[b].y - tri.point[a].y)) {
             return;
         }
-        // Screen-linear weight, divided by the corner depth: 1/z interpolates linearly on screen.
-        perspective[i] = static_cast<double>(edge) / static_cast<double>(tri.area2) / tri.corner[i].z;
-        inv_z += perspective[i];
     }
 
-    const double z = 1.0 / inv_z;
     const size_t index = static_cast<size_t>(y) * static_cast<size_t>(buf.width) + static_cast<size_t>(x);
     // Mirrors depth_accept (src/rv_pconsole/cv/rv_pcfbuf.hpp): a key below the stored one is refused, an equal one passes.
     if (tri.depth < buf.depth[index]) {
         return;
     }
 
-    // Normalised perspective weights: the colour is mixed with them, not with screen weights.
-    rv_zbuf_attr attr;
-    for (int i = 0; i < RV_EDITOR_ZBUF_CORNERS; ++i) {
-        const rv_editor_zbuf_vertex &corner = tri.corner[i];
-        const double k = perspective[i] * z;
-        attr.r += k * corner.r;
-        attr.g += k * corner.g;
-        attr.b += k * corner.b;
-        attr.a += k * corner.a;
-    }
-
+    // The colour modulates the texel: an editor lighting rule (tint, shade). The console's shade_textured emits the
+    // texel alone; for a flat pixel the texel is white and the colour is the pixel.
+    const rv_editor_zbuf_rgba colour = mix_colour(tri, edge);
     const rv_editor_zbuf_rgba texel = tri.texture != nullptr ? textured_texel(tri, x, y) : RV_EDITOR_ZBUF_FLAT_TEXEL;
-    const rv_editor_zbuf_rgba out = { channel(attr.r, texel.r),
-        channel(attr.g, texel.g),
-        channel(attr.b, texel.b),
-        channel(attr.a, texel.a) };
+    const rv_editor_zbuf_rgba out = { scale_byte(colour.r, texel.r),
+        scale_byte(colour.g, texel.g),
+        scale_byte(colour.b, texel.b),
+        scale_byte(colour.a, texel.a) };
     if (out.a == 0) {
         return;
     }
@@ -343,6 +368,7 @@ bool clip_bounds(const rv_zbuf_tri &tri, int width, int height, int64_t &min_x, 
 int rv_editor_zbuf_init(rv_editor_zbuf &buf, int width, int height)
 {
     if (width <= 0 || height <= 0) {
+        report_size_refusal();
         return RV_ERR_INVAL;
     }
     buf.width = width;
@@ -362,13 +388,12 @@ int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri)
 {
     const bool sized = buf.width > 0 && buf.height > 0 && buf.colour.size() == pixel_count(buf.width, buf.height) &&
         buf.depth.size() == buf.colour.size();
-    const bool corners_ok = std::all_of(std::begin(tri.corner), std::end(tri.corner), corner_valid);
-    if (!corners_ok) {
-        report_corner_refusal(tri);
+    if (!std::all_of(std::begin(tri.corner), std::end(tri.corner), corner_valid)) {
+        report_corner_refusal();
+        return RV_ERR_INVAL;
     }
-    // Only a corner is logged: the caller sizes the target before drawing, and the decoder guarantees
-    // a texture's w, h > 0, so the sized and texture checks cannot fail in practice.
-    if (!sized || !corners_ok || !texture_valid(tri.texture)) {
+    if (!sized || !texture_valid(tri.texture)) {
+        report_setup_refusal();
         return RV_ERR_INVAL;
     }
 

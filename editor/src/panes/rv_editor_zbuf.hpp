@@ -36,18 +36,17 @@ struct rv_editor_zbuf_texture {
 constexpr int RV_EDITOR_ZBUF_UV_FRAC_BITS = 12;
 constexpr int32_t RV_EDITOR_ZBUF_UV_ONE = int32_t{ 1 } << RV_EDITOR_ZBUF_UV_FRAC_BITS;
 
-// One corner. x, y are buffer pixels, integers as rv_gte_project gives them; z is view depth and
-// must be > 0; u, v are the model's raw int16 4.12 uv, repeated (TILE); r, g, b, a are 0..1.
+// One corner. x, y are buffer pixels, integers as rv_gte_project gives them; u, v are the model's raw int16 4.12
+// uv, repeated (TILE); r, g, b, a are colour values 0..255. The depth is the triangle's key, not a corner's z.
 struct rv_editor_zbuf_vertex {
     int32_t x = 0;
     int32_t y = 0;
-    float z = 1.0f;
     int32_t u = 0;
     int32_t v = 0;
-    float r = 1.0f;
-    float g = 1.0f;
-    float b = 1.0f;
-    float a = 1.0f;
+    uint8_t r = 255;
+    uint8_t g = 255;
+    uint8_t b = 255;
+    uint8_t a = 255;
 };
 
 struct rv_editor_zbuf_triangle {
@@ -75,7 +74,7 @@ void rv_editor_zbuf_clear(rv_editor_zbuf &buf, rv_editor_zbuf_rgba background = 
 // Rasterises one triangle. A pixel keeps the larger key: a triangle draws over a pixel whose stored key
 // is not larger than its own, so on equal keys the later triangle wins, as the console's depth_accept. A pixel whose output
 // alpha is 0 writes neither colour nor depth. Winding is not culled. RV_ERR_INVAL, nothing drawn, for: an uninitialised buffer;
-// a corner with non-finite values, z <= 0, or x or y beyond RV_EDITOR_ZBUF_COORD_LIMIT; a texture without texels or with a
+// a corner with x or y beyond RV_EDITOR_ZBUF_COORD_LIMIT; a texture without texels or with a
 // non-positive size.
 int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri);
 
