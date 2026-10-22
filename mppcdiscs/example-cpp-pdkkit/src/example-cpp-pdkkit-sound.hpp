@@ -90,8 +90,8 @@ int64_t rv_music_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
 
 // Footsteps: one per 0.95 m of horizontal eye path, on the floor of the frame's area, A and B alternating.
 // rv_steps_init tabulates the distance (rv_sound_init calls it) and returns RV_OK or the route or fx error, with
-// state.error_asset set; rv_steps_update plays the step of a new frame (rv_sound_update calls it). Both need
-// state.areas, which rv_sound_init fills first.
+// state.error_asset set; rv_steps_update would play the step of a new frame, but rv_sound_update does not call it:
+// the call is commented out, so no step sounds. Both need state.areas, which rv_sound_init fills first.
 int64_t rv_steps_init(const std::vector<rv_route_key> &keys, rv_sound_state &state);
 int64_t rv_steps_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
 
