@@ -55,24 +55,21 @@ int64_t ceil_div(int64_t a, int64_t b)
 }
 
 // The most host bytes any one record kind takes per .mppcmod byte, rounded up to a whole
-// number so the bound is an integer. A model keeps two decoded copies, the integer model
-// and the float copy: transitional, E11g-2 returns one copy, so each kind counts both.
-// Counted: the struct sizes and the heap bytes of names that outgrow the string's inline
-// buffer. Not counted: allocator overhead.
-// A part is C = 2*sizeof(rv_mppcmod_part) + sizeof(rv_pccg_part_texture), plus the heap
-// bytes of its two names, len+1 each, against the 12 fixed bytes. The +2 is taken at zero
-// length, which bounds every length since (C+2+2len)/(12+len) never exceeds (C+2)/12 for
-// C >= 22. Vertices and triangles are both copies' struct sizes against their record size.
+// number so the bound is an integer. Counted: the struct sizes and the heap bytes of every
+// name, len+1 each (an over-count for a name inside the inline buffer). Not counted:
+// allocator overhead.
+// A part is C = sizeof(rv_mppcmod_part) + sizeof(rv_pccg_part_texture), plus the heap bytes
+// of its name, len+1, against the 12 fixed bytes. The +1 is taken at zero length, which
+// bounds every length since (C+1+len)/(12+len) never exceeds (C+1)/12 for C >= 11.
+// Vertices and triangles are their struct sizes against their record size.
 int64_t host_bytes_per_file_byte()
 {
-    const int64_t part =
-        ceil_div(static_cast<int64_t>(2 * sizeof(rv_pdklib::rv_mppcmod_part) + sizeof(rv_pccg_part_texture) + 2),
-            rv_pdklib::RV_MPPCMOD_PART_FIXED_BYTES);
+    const int64_t part_bytes = static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_part) + sizeof(rv_pccg_part_texture) + 1);
+    const int64_t part = ceil_div(part_bytes, rv_pdklib::RV_MPPCMOD_PART_FIXED_BYTES);
     const int64_t vertex =
-        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_int_vertex) + sizeof(rv_pdklib::rv_mppcmod_vertex)),
-            rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES);
+        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_int_vertex)), rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES);
     const int64_t triangle =
-        ceil_div(static_cast<int64_t>(2 * sizeof(rv_pdklib::rv_mppcmod_triangle)), rv_pdklib::rv_mppcmod_triangle_bytes);
+        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_triangle)), rv_pdklib::rv_mppcmod_triangle_bytes);
     return std::max({ part, vertex, triangle });
 }
 
@@ -258,7 +255,6 @@ int64_t rv_pccg_sw::frame_camera(const rv_cg_camera *camera)
     if (gte_camera_make(*camera, height, gte_camera) != RV_OK) {
         return RV_ERR_INVAL;
     }
-    camera_ = *camera;
     gte_camera_ = gte_camera;
     camera_set_ = true;
     return RV_OK;
@@ -296,11 +292,7 @@ int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod_int_model &model, s
         return RV_ERR_NOMEM;
     }
     const int64_t addr = next_addr_++;
-    models_.push_back({ addr,
-        bytes,
-        model,
-        rv_pdklib::rv_mppcmod_int_to_float(model),
-        std::vector<rv_pccg_part_texture>(textures.begin(), textures.end()) });
+    models_.push_back({ addr, bytes, model, std::vector<rv_pccg_part_texture>(textures.begin(), textures.end()) });
     used_bytes_ += bytes;
     return addr;
 }

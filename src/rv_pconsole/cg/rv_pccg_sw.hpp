@@ -1,6 +1,6 @@
 // The software geometry controller: the rv_cg contract over a model memory it owns
-// and a camera it remembers. A model is kept as its decoded integer model and a float
-// copy, and charged by its .mppcmod size against model_memory_size. Not an rv_pcpool: a pool
+// and a camera it remembers. A model is kept as its decoded integer model, charged by its
+// .mppcmod size against model_memory_size. Not an rv_pcpool: a pool
 // hands out bytes that a model would have to be serialized into, and nothing here
 // is ever read back from bytes.
 #pragma once
@@ -13,18 +13,10 @@
 
 #include "pdk/cg/rv_cg.h"
 #include "pdklib/rv_gte/rv_gte_camera.hpp"
-#include "pdklib/rv_models/rv_mppcmod.hpp"
 #include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "rv_pconsole/cg/rv_pccg.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
-
-namespace rv_pdklib
-{
-// Only named here: the .cpp files that build or use them include the full headers.
-struct rv_mat4;
-struct rv_xform_conf;
-} // namespace rv_pdklib
 
 namespace rv_3dmppc
 {
@@ -125,14 +117,10 @@ private:
         int64_t addr;
         int64_t bytes;
         rv_pdklib::rv_mppcmod_int_model int_model;
-        // transitional: deleted by E11g-2, the put path on rv_gte reads the int16 vertices directly
-        rv_pdklib::rv_mppcmod model;
         std::vector<rv_pccg_part_texture> textures;
     };
 
     std::vector<model_record>::iterator find(int64_t addr);
-    // The frame's xform conf: camera from camera_, screen size from cv_.
-    rv_pdklib::rv_xform_conf frame_conf(const rv_pdklib::rv_mat4 &world, int32_t depth_min, int32_t depth_max, uint32_t cull);
 
     rv_pccg_conf conf_;
     // the frame of cv the geometry puts its primitives into
@@ -142,8 +130,6 @@ private:
     int64_t used_bytes_ = 0;
     int64_t next_addr_;
 
-    rv_cg_camera camera_ = {};
-    // transitional: point reads this integer camera, camera_ stays float for model_put until E11g-2b
     rv_pdklib::rv_gte_camera gte_camera_ = {};
     bool camera_set_ = false;
     int64_t triangles_ = 0;

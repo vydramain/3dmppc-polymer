@@ -8,12 +8,9 @@
 #include "pdk/cv/rv_primitives.h"
 #include "pdk/cv/rv_vertex.h"
 #include "pdk/rv_err.h"
-#include "pdklib/rv_camera/rv_camera.hpp"
 #include "pdklib/rv_gte/rv_gte_matrix.hpp"
 #include "pdklib/rv_gte/rv_gte_project.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "pdklib/rv_math/rv_math.hpp"
-#include "pdklib/rv_math/rv_xform.hpp"
 #include "rv_pconsole/cg/rv_pccg_sw.hpp"
 
 namespace rv_3dmppc
@@ -46,11 +43,6 @@ constexpr int64_t RV_PCCG_SW_COLOUR_SCALE = 255 * 255;
 
 // rv_uv holds unsigned texels.
 constexpr int64_t RV_PCCG_SW_TEXEL_MAX = 65535;
-
-rv_pdklib::rv_vec3 to_vec3(const rv_cg_vec3 &value)
-{
-    return { value.x, value.y, value.z };
-}
 
 // The bottom row of an affine world is 0 0 0 1; rv_gte_matrix keeps no bottom row to carry the rest.
 bool world_affine(const float (&world)[16])
@@ -220,27 +212,6 @@ int build_primitives(const rv_pccg_sw_setup &setup,
 } // namespace
 
 // --- the frame ---------------------------------------------------------------
-
-rv_pdklib::rv_xform_conf
-rv_pccg_sw::frame_conf(const rv_pdklib::rv_mat4 &world, int32_t depth_min, int32_t depth_max, uint32_t cull)
-{
-    const float width = static_cast<float>(cv_.screen_width());
-    const float height = static_cast<float>(cv_.screen_height());
-    const rv_pdklib::rv_camera camera = rv_pdklib::rv_camera_make(to_vec3(camera_.eye),
-        to_vec3(camera_.target),
-        to_vec3(camera_.up),
-        camera_.fov_y,
-        width / height,
-        camera_.near_plane,
-        camera_.far_plane);
-    return rv_pdklib::rv_xform_conf_make(rv_pdklib::rv_camera_mvp(camera, world),
-        camera,
-        width,
-        height,
-        depth_min,
-        depth_max,
-        cull);
-}
 
 int64_t rv_pccg_sw::model_put(int64_t model_addr, const rv_cg_put *put)
 {
