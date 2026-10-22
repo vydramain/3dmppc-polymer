@@ -443,4 +443,18 @@ int rv_editor_gltf_write(const std::filesystem::path &gltf,
     return RV_OK;
 }
 
+int rv_editor_gltf_write(const std::filesystem::path &gltf,
+    const rv_pdklib::rv_mppcmod_int_model &model,
+    const std::vector<uint32_t> &tris,
+    const std::map<std::string, std::string> &texture_uri,
+    std::string &error)
+{
+    const int valid = rv_pdklib::rv_mppcmod_int_validate(model, error);
+    if (valid != RV_OK) {
+        return valid;
+    }
+    const rv_mppcmod float_model = rv_pdklib::rv_mppcmod_int_to_float(model);
+    return rv_editor_gltf_write(gltf, float_model, tris, texture_uri, error);
+}
+
 } // namespace rv_editor
