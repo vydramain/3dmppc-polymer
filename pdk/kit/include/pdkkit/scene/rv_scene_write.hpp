@@ -13,6 +13,7 @@
 #include <limits>
 #include <string>
 #include <system_error>
+#include <vector>
 
 #include "pdk/de/rv_dv.h"
 #include "pdkkit/scene/rv_scene.hpp"
@@ -118,6 +119,15 @@ inline std::string rv_scene_number(T v)
     return std::string(buf.data(), r.ptr);
 }
 
+// True when the source text reads back as exactly v; an in-memory edit of v makes the text stale.
+inline bool rv_scene_text_reads_back(const std::string &text, double v)
+{
+    double back = 0.0;
+    const char *end = text.data() + text.size();
+    const auto r = std::from_chars(text.data(), end, back);
+    return r.ec == std::errc{} && r.ptr == end && back == v;
+}
+
 inline std::string rv_scene_element(double v)
 {
     return rv_scene_number(v);
@@ -141,6 +151,19 @@ inline std::string rv_scene_array(const T *items, size_t count)
     for (size_t i = 0; i < count; ++i) {
         out += i == 0 ? "" : array_sep;
         out += rv_scene_element(items[i]);
+    }
+    return out + array_end;
+}
+
+// "[a, b, c]" of numbers: each element as its source text (nums_text) when that text still reads back
+// to the value, else its fixed rendering.
+inline std::string rv_scene_number_array(const std::vector<double> &nums, const std::vector<std::string> &texts)
+{
+    std::string out = array_start;
+    for (size_t i = 0; i < nums.size(); ++i) {
+        const bool has_text = i < texts.size() && rv_scene_text_reads_back(texts[i], nums[i]);
+        out += i == 0 ? "" : array_sep;
+        out += has_text ? texts[i] : rv_scene_number(nums[i]);
     }
     return out + array_end;
 }
@@ -296,11 +319,11 @@ inline std::string rv_scene_value_text(const rv_pdklib::rv_manifest_mvalue &v)
     case rv_pdklib::rv_manifest_value_kind::integer:
         return std::to_string(v.num);
     case rv_pdklib::rv_manifest_value_kind::real:
-        return detail::rv_scene_number(v.real);
+        return detail::rv_scene_text_reads_back(v.num_text, v.real) ? v.num_text : detail::rv_scene_number(v.real);
     case rv_pdklib::rv_manifest_value_kind::array:
         return detail::rv_scene_array(v.arr.data(), v.arr.size());
     case rv_pdklib::rv_manifest_value_kind::numbers:
-        return detail::rv_scene_array(v.nums.data(), v.nums.size());
+        return detail::rv_scene_number_array(v.nums, v.nums_text);
     }
     return detail::rv_scene_quote(std::string());
 }
