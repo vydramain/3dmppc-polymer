@@ -6,6 +6,7 @@
 #include "pdkkit/scene/rv_scene.hpp"
 #include "pdklib/rv_scene/rv_scene_space.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <map>
@@ -195,6 +196,27 @@ rv_scene_read_version(const rv_pdklib::rv_manifest_tree &tree, const std::string
     }
 }
 
+// An [[object]] with any of these keys is form 1 and needs a kind; one with none is form 2.
+inline constexpr std::array<const char *, 10> rv_scene_form1_keys = { {
+    "name",
+    "kind",
+    "position",
+    "rotation",
+    "scale",
+    "mesh",
+    "texture",
+    "uv",
+    "tint",
+    "tess",
+} };
+
+inline bool rv_scene_is_form1(const rv_pdklib::rv_manifest_tree_section &section)
+{
+    return std::any_of(section.entries.begin(), section.entries.end(), [](const rv_pdklib::rv_manifest_tree_entry &e) {
+        return std::find(rv_scene_form1_keys.begin(), rv_scene_form1_keys.end(), e.key) != rv_scene_form1_keys.end();
+    });
+}
+
 // A [[component]] as read: the id of the object it names, resolved to an index after all objects.
 struct rv_scene_component_ref {
     std::string object;
@@ -317,8 +339,9 @@ inline int rv_scene_parse(const std::string &text, const std::string &origin, rv
             problems += detail::rv_scene_at(origin, section.line) + "object without an id\n";
             continue;
         }
-        if (o.kind != "group" && o.kind != "camera" && o.kind != "mesh" && o.kind != "quad" && o.kind != "billboard" &&
-            o.kind != "volume") {
+        // A form-2 object has no kind to check.
+        if (detail::rv_scene_is_form1(section) && o.kind != "group" && o.kind != "camera" && o.kind != "mesh" &&
+            o.kind != "quad" && o.kind != "billboard" && o.kind != "volume") {
             problems += detail::rv_scene_at(origin, section.line) + "object '" + o.id + "' has kind '" + o.kind +
                 "': group, camera, mesh, quad, billboard or volume\n";
         }

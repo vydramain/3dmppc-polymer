@@ -242,6 +242,17 @@ inline void rv_scene_object_text(std::string &t, const rv_scene &scene, const rv
     t += line_end;
     rv_scene_header(t, object_section_name, true);
     rv_scene_field(t, object_id_key, rv_scene_quote(o.id));
+    // Precondition: an empty kind carries no form-1 fields; the reader leaves them at their defaults for a
+    // form-2 object, and a caller building one in memory must not set them, as the writer drops them.
+    // Form 2 (no kind): id, parent, entity and extra keys only; the rest is in [[component]] blocks.
+    if (o.kind.empty()) {
+        rv_scene_field(t, object_parent_key, rv_scene_quote(rv_scene_parent_id(scene, o.parent)));
+        if (!o.entity.empty()) {
+            rv_scene_field(t, object_entity_key, rv_scene_quote(o.entity));
+        }
+        rv_scene_entries(t, o.extra);
+        return;
+    }
     rv_scene_field(t, object_name_key, rv_scene_quote(o.name));
     rv_scene_field(t, object_parent_key, rv_scene_quote(rv_scene_parent_id(scene, o.parent)));
     rv_scene_field(t, object_kind_key, rv_scene_quote(o.kind));

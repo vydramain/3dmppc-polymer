@@ -28,7 +28,7 @@ struct rv_scene_object {
     std::string id; // stable: the editor gives it and never changes it
     std::string name;
     int32_t parent = -1;                    // index into rv_scene::objects; -1 at the root
-    std::string kind;                       // "group", "camera", "mesh", "quad", "billboard" or "volume"
+    std::string kind;                       // "group", "camera", "mesh", "quad", "billboard" or "volume"; empty: form 2
     std::string entity;                     // entity type name; empty: the base type
     rv_pdklib::fx_vec3 position{ 0, 0, 0 }; // Q20.12 scene units
     rv_pdklib::fx_vec3 rotation{ 0, 0, 0 }; // Q20.12 degrees; R = Ry * Rx * Rz; [x (pitch), y (yaw), z (roll)]
@@ -60,7 +60,7 @@ struct rv_scene {
 
 // 0 with the scene, or 1 with every problem in `error`, each stamped with
 // `origin`: syntax, a missing/malformed/non-compatible version, a missing or
-// repeated id, an unknown parent, a parent cycle, an unknown kind, a vector
+// repeated id, an unknown parent, a parent cycle, an unknown or missing kind on a form-1 object, a vector
 // that is not three numbers, a malformed `uv`/`tint`/`tess`, a number outside Q20.12,
 // a non-string `entity`,
 // a [[component]] without a string `object` or `name`, one on an unknown object,
