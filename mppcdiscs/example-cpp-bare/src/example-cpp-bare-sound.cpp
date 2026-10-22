@@ -226,17 +226,13 @@ int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_so
             state.span_start[static_cast<std::size_t>(f)] = start;
         }
     }
-    const int64_t steps_code = rv_steps_init(keys, state);
-    if (steps_code < 0) {
-        return steps_code;
-    }
     return RV_OK;
 }
 
 int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_sound_state &state)
 {
     const int64_t period = RV_ROUTE_PERIOD_FRAMES;
-    if (state.areas.size() != static_cast<std::size_t>(period) || state.distance.size() != static_cast<std::size_t>(period)) {
+    if (state.areas.size() != static_cast<std::size_t>(period)) {
         return fail(state, "sound tables", RV_ERR_INVAL);
     }
     // The same frame again is no transition: a pause or a repeated render plays nothing.
@@ -274,14 +270,6 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
             code = clack_code;
             asset = state.error_asset;
         }
-    }
-    // Only once the frame is committed: a failed music start is retried on the next rv_sound_update call
-    // (the next frame, or the same frame again while paused), and its step must not repeat.
-    // const int64_t steps_code = music_ok ? rv_steps_update(pdk, frame, state) : RV_OK;
-    const int64_t steps_code = RV_OK;
-    if (code == RV_OK && steps_code < 0) {
-        code = steps_code;
-        asset = state.error_asset;
     }
     state.error_asset = asset;
     return code;

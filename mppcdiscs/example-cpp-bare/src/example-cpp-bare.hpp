@@ -121,9 +121,6 @@ struct rv_sound_state {
     // Per frame of the period: its area, and the first frame of its area span (cyclic). Empty until built.
     std::vector<rv_sound_area> areas;
     std::vector<int64_t> span_start;
-    // Per frame of the period: the cumulative horizontal distance of the eye from frame 0, metres in Q20.12
-    // (fx raw, 4096 per metre). Empty until built.
-    std::vector<rv_pdklib::fx> distance;
     // Per music slot: sound RAM address, bar asset in it (nullptr when unknown).
     int64_t slot_addr[RV_SOUND_SLOTS] = {};
     const char *slot_name[RV_SOUND_SLOTS] = {};
@@ -139,17 +136,17 @@ struct rv_sound_state {
     bool loop_armed[RV_SOUND_LOOP_COUNT] = {};
     // One bar read from the disc, slot-sized.
     std::vector<uint8_t> scratch;
-    // The clack and loop samples, and the step samples once rv_steps_update runs, made resident by the sound service.
+    // The clack and loop samples, made resident by the sound service.
     rv_bare_sound_state sound;
     // The asset of the last failure, for the caller's log.
     const char *error_asset = "";
 };
 
-// Measures the music on the disc, allocates the music slots, tabulates the area and span of every frame of the
-// period, and tabulates the footstep distance (rv_steps_init) from keys (non-empty, sorted by index). Called once;
-// returns RV_OK or the first drive, ca, areas, or step-path error, with state.error_asset naming the asset,
-// "sound areas" or "step path". The route fails with RV_ERR_NOENT (no keys) or RV_ERR_INVAL (the Q20.12 math
-// leaves its range), for both the areas and the steps.
+// Measures the music on the disc, allocates the music slots, and tabulates the area and span of every frame of the
+// period from keys (non-empty, sorted by index). Called once. Returns RV_OK, or the first error of rv_music_init as it
+// is: the drive's error from opening or sizing a bar, RV_ERR_INVAL for an empty bar, or the ca's error for a slot
+// (malloc). Or the route error: RV_ERR_NOENT (no keys) or RV_ERR_INVAL (the Q20.12 math leaves its range).
+// state.error_asset names the bar, "music slot" for the slots, or "sound areas" for the route.
 int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_sound_state &state);
 
 // Plays what frame `frame` (in [0, RV_ROUTE_PERIOD_FRAMES)) needs after state.frame: the music of its area
@@ -172,14 +169,6 @@ int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
 // needs the sound tables of rv_sound_init (areas, span_start).
 int64_t rv_music_init(rv_pdko *pdk, rv_sound_state &state);
 int64_t rv_music_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
-
-// Footsteps: one per 0.95 m of horizontal eye path, on the floor of the frame's area, A and B alternating.
-// rv_steps_init tabulates the distance (rv_sound_init calls it) and returns RV_OK or the route or fx error, with
-// state.error_asset set; rv_steps_update would play the step of a new frame, but rv_sound_update does not call it: the
-// call is commented out, as in the pdkkit sample, so no step sounds. Both need state.areas, which rv_sound_init fills
-// first.
-int64_t rv_steps_init(const std::vector<rv_route_key> &keys, rv_sound_state &state);
-int64_t rv_steps_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
 
 // Draw port, in example-cpp-bare-draw.cpp. rv_draw_camera sets the camera for the puts after it. rv_draw_put puts one
 // model with its world matrix: a decal takes the decal depth window, anything else the world's. Both return RV_OK or

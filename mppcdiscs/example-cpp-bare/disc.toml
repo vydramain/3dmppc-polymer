@@ -25,7 +25,7 @@ files = ["assets/models/*.gltf"]
 
 [budget.pcca]
 voice_count = 24
-# The same 1 MiB Solid Maid declares (solid-maid/disc.toml [budget.pcca]); music slots, clack, loops and footsteps fit in it.
+# The same 1 MiB Solid Maid declares (solid-maid/disc.toml [budget.pcca]); music slots, clack and loops fit in it.
 sound_memory_size = 1048576
 
 [budget.pccv]
