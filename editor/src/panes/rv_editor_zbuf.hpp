@@ -18,6 +18,11 @@ constexpr int RV_EDITOR_ZBUF_CORNERS = 3;
 // stays below 2^61.
 constexpr int64_t RV_EDITOR_ZBUF_COORD_LIMIT = int64_t{ 1 } << 28;
 
+// Corners are scaled by DOUBLING, so a pixel's centre is DOUBLING * pixel + CENTRE_OFFSET: an integer, half a pixel
+// past its corner. Sample points for rv_editor_zbuf_covers are in these units.
+constexpr int64_t RV_EDITOR_ZBUF_DOUBLING = 2;
+constexpr int64_t RV_EDITOR_ZBUF_CENTRE_OFFSET = 1;
+
 struct rv_editor_zbuf_rgba {
     uint8_t r = 0;
     uint8_t g = 0;
@@ -77,5 +82,13 @@ void rv_editor_zbuf_clear(rv_editor_zbuf &buf, rv_editor_zbuf_rgba background = 
 // a corner with x or y beyond RV_EDITOR_ZBUF_COORD_LIMIT; a texture without texels or with a
 // non-positive size.
 int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri);
+
+// Whether the integer-pixel triangle (x[k], y[k]) covers the doubled sample point (sample_x, sample_y) by the raster's
+// rule: inside each edge function, or on a top-left edge, for either winding. A zero area covers nothing. Corners and
+// sample must lie within RV_EDITOR_ZBUF_COORD_LIMIT in both axes (doubled units for the sample); the caller checks.
+bool rv_editor_zbuf_covers(const int32_t (&x)[RV_EDITOR_ZBUF_CORNERS],
+    const int32_t (&y)[RV_EDITOR_ZBUF_CORNERS],
+    int64_t sample_x,
+    int64_t sample_y);
 
 } // namespace rv_editor

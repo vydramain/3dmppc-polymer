@@ -41,11 +41,6 @@ constexpr rv_editor_zbuf_rgba RV_EDITOR_ZBUF_FLAT_TEXEL = { 255, 255, 255, 255 }
 // RV_PCCV_DEPTH_FARTHEST in src/rv_pconsole/cv/rv_pccv_sw.cpp.
 constexpr int32_t RV_EDITOR_ZBUF_DEPTH_FARTHEST = std::numeric_limits<int32_t>::min();
 
-// Corners are scaled by this, so a pixel's centre lies on an integer: the centre of pixel p is
-// RV_EDITOR_ZBUF_DOUBLING * p + RV_EDITOR_ZBUF_CENTRE_OFFSET, half a pixel past its corner.
-constexpr int64_t RV_EDITOR_ZBUF_DOUBLING = 2;
-constexpr int64_t RV_EDITOR_ZBUF_CENTRE_OFFSET = 1;
-
 // Largest texel coordinate of a corner, as the console's RV_PCCG_SW_TEXEL_MAX (src/rv_pconsole/cg/rv_pccg_sw_put.cpp).
 // Above it the triangle is refused. It keeps the texel gradient's numerator below 2^47 (texel_gradient).
 constexpr int64_t RV_EDITOR_ZBUF_TEXEL_MAX = 65535;
@@ -88,9 +83,9 @@ struct rv_zbuf_tri {
     int32_t depth = 0;
 };
 
-rv_zbuf_point point_of(const rv_editor_zbuf_vertex &corner)
+rv_zbuf_point point_of(int32_t x, int32_t y)
 {
-    return { RV_EDITOR_ZBUF_DOUBLING * corner.x, RV_EDITOR_ZBUF_DOUBLING * corner.y };
+    return { RV_EDITOR_ZBUF_DOUBLING * x, RV_EDITOR_ZBUF_DOUBLING * y };
 }
 
 // The console's edge function: E(p) = (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x). Affine in p,
@@ -308,6 +303,24 @@ rv_editor_zbuf_rgba textured_texel(const rv_zbuf_tri &tri, int x, int y)
     return texel_at(*tri.texture, u_fx >> RV_EDITOR_ZBUF_TEXEL_FRAC, v_fx >> RV_EDITOR_ZBUF_TEXEL_FRAC);
 }
 
+// The edge values of a counter-clockwise triangle at a sample: edge[i] is corner i's weight. True when all three
+// edges cover the sample.
+bool edges_cover(const rv_zbuf_point (&point)[RV_EDITOR_ZBUF_CORNERS],
+    rv_zbuf_point sample,
+    int64_t (&edge)[RV_EDITOR_ZBUF_CORNERS])
+{
+    for (int i = 0; i < RV_EDITOR_ZBUF_CORNERS; ++i) {
+        // The edge opposite corner i runs from corner i + 1 to corner i + 2.
+        const int a = (i + 1) % RV_EDITOR_ZBUF_CORNERS;
+        const int b = (i + 2) % RV_EDITOR_ZBUF_CORNERS;
+        edge[i] = edge_at(point[a], point[b], sample);
+        if (!covers(edge[i], point[b].x - point[a].x, point[b].y - point[a].y)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // One pixel centre: covered by the triangle, with a key not below the one stored there, and with a
 // non-zero output alpha. Only then the colour and key are written.
 // ponytail: the three edge functions are evaluated for every pixel of the bounding box, no
@@ -318,14 +331,8 @@ void shade_pixel(rv_editor_zbuf &buf, const rv_zbuf_tri &tri, int x, int y)
     const rv_zbuf_point centre = { RV_EDITOR_ZBUF_DOUBLING * x + RV_EDITOR_ZBUF_CENTRE_OFFSET,
         RV_EDITOR_ZBUF_DOUBLING * y + RV_EDITOR_ZBUF_CENTRE_OFFSET };
     int64_t edge[RV_EDITOR_ZBUF_CORNERS] = {};
-    for (int i = 0; i < RV_EDITOR_ZBUF_CORNERS; ++i) {
-        // The edge opposite corner i runs from corner i + 1 to corner i + 2; its value is corner i's weight.
-        const int a = (i + 1) % RV_EDITOR_ZBUF_CORNERS;
-        const int b = (i + 2) % RV_EDITOR_ZBUF_CORNERS;
-        edge[i] = edge_at(tri.point[a], tri.point[b], centre);
-        if (!covers(edge[i], tri.point[b].x - tri.point[a].x, tri.point[b].y - tri.point[a].y)) {
-            return;
-        }
+    if (!edges_cover(tri.point, centre, edge)) {
+        return;
     }
 
     const size_t index = static_cast<size_t>(y) * static_cast<size_t>(buf.width) + static_cast<size_t>(x);
@@ -400,7 +407,7 @@ int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri)
     rv_zbuf_tri prepared;
     for (int i = 0; i < RV_EDITOR_ZBUF_CORNERS; ++i) {
         prepared.corner[i] = tri.corner[i];
-        prepared.point[i] = point_of(tri.corner[i]);
+        prepared.point[i] = point_of(tri.corner[i].x, tri.corner[i].y);
     }
     // Normalised winding, as normalize_winding: the swap keeps every edge function's sense the same.
     prepared.area2 = edge_at(prepared.point[0], prepared.point[1], prepared.point[2]);
@@ -432,6 +439,27 @@ int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri)
         }
     }
     return RV_OK;
+}
+
+bool rv_editor_zbuf_covers(const int32_t (&x)[RV_EDITOR_ZBUF_CORNERS],
+    const int32_t (&y)[RV_EDITOR_ZBUF_CORNERS],
+    int64_t sample_x,
+    int64_t sample_y)
+{
+    rv_zbuf_point point[RV_EDITOR_ZBUF_CORNERS] = {};
+    for (int k = 0; k < RV_EDITOR_ZBUF_CORNERS; ++k) {
+        point[k] = point_of(x[k], y[k]);
+    }
+    const int64_t area2 = edge_at(point[0], point[1], point[2]);
+    if (area2 == 0) {
+        return false;
+    }
+    // Normalised winding, as draw: the swap keeps every edge function's sense the same.
+    if (area2 < 0) {
+        std::swap(point[1], point[2]);
+    }
+    int64_t edge[RV_EDITOR_ZBUF_CORNERS] = {};
+    return edges_cover(point, { sample_x, sample_y }, edge);
 }
 
 } // namespace rv_editor

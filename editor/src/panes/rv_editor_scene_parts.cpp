@@ -35,12 +35,8 @@ namespace
 
 // A picked piece's edges are drawn this wide, over the object's edges.
 constexpr float line_width_picked = 2.0f;
-// The zbuf's sample grid (rv_editor_zbuf.cpp): corners on the doubled lattice, a pixel's centre at 2 * pixel + 1.
-// Mirrored here; E12d-2 moves both into rv_editor_zbuf.hpp so the two share them.
-constexpr std::int64_t zbuf_doubling = 2;
-constexpr std::int64_t zbuf_centre_offset = 1;
 
-// A point in the zbuf's doubled units.
+// A sample point in the zbuf's doubled units (rv_editor_zbuf.hpp).
 struct rv_editor_parts_point {
     std::int64_t x = 0;
     std::int64_t y = 0;
@@ -75,57 +71,20 @@ void rv_editor_parts_report(std::size_t refused)
     reported = true;
     RV_LOG_WARN(scene_log_tag,
         "{} model triangles are not picked or drawn: a corner outside Q20.12, int32 or the z-buffer's corner limit, "
-        "or a depth key that cannot be built",
+        "or a depth key that cannot be built, or a pick sample past the z-buffer's limit",
         refused);
 }
 
-// A buffer pixel's corner in doubled units, as rv_editor_zbuf.cpp's point_of.
-rv_editor_parts_point rv_editor_parts_doubled(rv_pdklib::rv_gte_screen s)
-{
-    return { zbuf_doubling * static_cast<std::int64_t>(s.x), zbuf_doubling * static_cast<std::int64_t>(s.y) };
-}
-
-// The console's edge function in doubled units: twice the signed area of (a, b, p), as rv_editor_zbuf.cpp's edge_at.
-// Exact in int64 for corners within RV_EDITOR_ZBUF_COORD_LIMIT.
-std::int64_t rv_editor_parts_edge(rv_editor_parts_point a, rv_editor_parts_point b, rv_editor_parts_point p)
-{
-    return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
-}
-
-// The console's is_top_left, as rv_editor_zbuf.cpp: a top edge is horizontal with the interior below it, a left edge has
-// the interior to its right. Only these cover a sample lying exactly on them, so a shared edge is covered by one triangle.
-bool rv_editor_parts_top_left(std::int64_t dx, std::int64_t dy)
-{
-    return dy > 0 || (dy == 0 && dx < 0);
-}
-
-// Whether the sample p is covered by the screen triangle s, as the zbuf covers a pixel (rv_editor_zbuf.cpp's shade_pixel):
-// strictly inside each edge function, or on a top-left edge. A negative triangle is flipped by its sign instead of
-// swapping its corners as the zbuf does: the edges' values and directions are both negated, so the result is the same.
-// A zero area covers nothing.
+// Whether the sample p is covered by the screen triangle s, by the zbuf's rule (rv_editor_zbuf_covers).
 bool rv_editor_parts_covers(const std::array<rv_pdklib::rv_gte_screen, tri_vertices> &s, rv_editor_parts_point p)
 {
-    std::array<rv_editor_parts_point, tri_vertices> d{};
-    for (std::size_t k = 0; k < tri_vertices; ++k) {
-        d[k] = rv_editor_parts_doubled(s[k]);
+    std::int32_t x[RV_EDITOR_ZBUF_CORNERS] = {};
+    std::int32_t y[RV_EDITOR_ZBUF_CORNERS] = {};
+    for (std::size_t k = 0; k < RV_EDITOR_ZBUF_CORNERS; ++k) {
+        x[k] = s[k].x;
+        y[k] = s[k].y;
     }
-    const std::int64_t area2 = rv_editor_parts_edge(d[0], d[1], d[2]);
-    if (area2 == 0) {
-        return false;
-    }
-    const std::int64_t side = area2 > 0 ? 1 : -1;
-    for (std::size_t k = 0; k < tri_vertices; ++k) {
-        // The edge opposite corner k runs from corner k + 1 to corner k + 2.
-        const std::size_t a = (k + 1) % tri_vertices;
-        const std::size_t b = (k + 2) % tri_vertices;
-        const std::int64_t edge = side * rv_editor_parts_edge(d[a], d[b], p);
-        const std::int64_t dx = side * (d[b].x - d[a].x);
-        const std::int64_t dy = side * (d[b].y - d[a].y);
-        if (edge < 0 || (edge == 0 && !rv_editor_parts_top_left(dx, dy))) {
-            return false;
-        }
-    }
-    return true;
+    return rv_editor_zbuf_covers(x, y, p.x, p.y);
 }
 
 // Whether the raster drops the screen triangle under `cull` (rv_editor_piece_culled, rv_editor_scene_raster.cpp): a zero
@@ -142,6 +101,15 @@ bool rv_editor_parts_beyond(rv_pdklib::rv_gte_screen s)
 {
     return std::abs(static_cast<std::int64_t>(s.x)) > RV_EDITOR_ZBUF_COORD_LIMIT ||
         std::abs(static_cast<std::int64_t>(s.y)) > RV_EDITOR_ZBUF_COORD_LIMIT;
+}
+
+// A pointer offset from the view centre, in pixels, that keeps its doubled sample within RV_EDITOR_ZBUF_COORD_LIMIT.
+// The bound is half the limit less one, so the floor, doubled and shifted to the centre, stays inside it. Checked
+// before the int64 cast: a non-finite or huge float has no defined cast.
+bool rv_editor_parts_offset_in_range(float offset)
+{
+    constexpr double half_limit = static_cast<double>(RV_EDITOR_ZBUF_COORD_LIMIT) / 2 - 1;
+    return std::isfinite(offset) && std::abs(static_cast<double>(offset)) <= half_limit;
 }
 
 // The triangle's ordering key, as rv_editor_raster_piece builds it: the console's depth key over the view z of its corners.
@@ -303,9 +271,15 @@ int rv_editor_parts_pick(const rv_editor_scene_doc &doc,
     // The sample is the centre of the pointer's pixel, in doubled units; the pixel is the floor of the pointer's offset
     // from v.center. The overlay's pixel is one ImGui point, while the raster's buffer has lround(size * framebuffer
     // scale) pixels with an integer centre: they agree at scale 1 and differ by the scale otherwise (D3, D4).
-    const rv_editor_parts_point sample = { zbuf_doubling * static_cast<std::int64_t>(std::floor(at.x - v.center.x)) +
-            zbuf_centre_offset,
-        zbuf_doubling * static_cast<std::int64_t>(std::floor(at.y - v.center.y)) + zbuf_centre_offset };
+    // An offset outside the zbuf's sample limit (rv_editor_zbuf_covers) refuses every triangle of the model.
+    const float off_x = at.x - v.center.x;
+    const float off_y = at.y - v.center.y;
+    const bool sample_in_range = rv_editor_parts_offset_in_range(off_x) && rv_editor_parts_offset_in_range(off_y);
+    rv_editor_parts_point sample{};
+    if (sample_in_range) {
+        sample = { RV_EDITOR_ZBUF_DOUBLING * static_cast<std::int64_t>(std::floor(off_x)) + RV_EDITOR_ZBUF_CENTRE_OFFSET,
+            RV_EDITOR_ZBUF_DOUBLING * static_cast<std::int64_t>(std::floor(off_y)) + RV_EDITOR_ZBUF_CENTRE_OFFSET };
+    }
     std::shared_ptr<const rv_editor_glb_model> best_glb;
     size_t best_object = 0;
     int best_tri = -1;
@@ -318,6 +292,10 @@ int rv_editor_parts_pick(const rv_editor_scene_doc &doc,
         }
         const std::shared_ptr<const rv_editor_glb_model> glb = rv_editor_parts_model(project, rv_editor_object_get_mesh(o));
         if (!glb) {
+            continue;
+        }
+        if (!sample_in_range) {
+            refused += glb->quantized.triangles.size();
             continue;
         }
         rv_pdklib::rv_gte_matrix world{};
