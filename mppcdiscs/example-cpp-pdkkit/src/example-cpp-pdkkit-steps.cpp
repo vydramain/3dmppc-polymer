@@ -7,8 +7,8 @@
 #include "pdk/ca/rv_ca.h"
 #include "pdk/ca/rv_loop.h"
 #include "pdk/ca/rv_voice_conf.h"
-#include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
+#include "pdkkit/sound/rv_pdkkit_sound.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 #include "example-cpp-pdkkit-sound.hpp"
@@ -102,10 +102,11 @@ int64_t rv_steps_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state)
     }
     const int64_t variant = step_now % RV_STEP_VARIANTS;
     const char *name = RV_STEP_ASSETS[static_cast<std::size_t>(state.areas[index])][variant];
-    const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(pdk), RV_CD_RESOURCE_AUDIO, name);
-    if (addr < 0) {
+    int64_t addr = 0;
+    const int resident_code = rv_pdkkit::sound_asset_resident(rv_pdko_cd(pdk), state.sound, name, addr);
+    if (resident_code != RV_OK) {
         state.error_asset = name;
-        return addr;
+        return resident_code;
     }
     rv_voice_conf conf = {};
     conf.voice = RV_STEP_VOICE[variant];
@@ -121,13 +122,13 @@ int64_t rv_steps_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state)
     conf.volume_r = RV_STEP_MAX_LEVEL;
     rv_ca *ca = rv_pdko_ca(pdk);
     // As the clack: setup then play restarts a voice still playing, so no stop comes first.
-    const int64_t setup_code = rv_ca_voice_setup(ca, &conf);
-    if (setup_code < 0) {
+    const int setup_code = rv_pdkkit::sound_voice_setup(ca, conf);
+    if (setup_code != RV_OK) {
         state.error_asset = name;
         return setup_code;
     }
-    const int64_t play_code = rv_ca_voice_play(ca, conf.voice);
-    if (play_code < 0) {
+    const int play_code = rv_pdkkit::sound_voice_play(ca, conf.voice);
+    if (play_code != RV_OK) {
         state.error_asset = name;
         return play_code;
     }

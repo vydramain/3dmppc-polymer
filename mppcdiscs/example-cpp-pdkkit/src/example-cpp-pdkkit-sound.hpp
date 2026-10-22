@@ -5,6 +5,7 @@
 
 #include "pdk/ca/rv_voice_conf.h"
 #include "pdk/rv_pdko.h"
+#include "pdkkit/sound/rv_pdkkit_sound.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
@@ -21,7 +22,7 @@ enum class rv_sound_area : int {
 // Music slots in sound RAM: a bar plays from one slot while the next bar is written into the other.
 constexpr int RV_SOUND_SLOTS = 2;
 
-// The factory loops: both run while the camera is in the workshop.
+// The factory loop: it runs while the camera is in the workshop.
 constexpr int RV_SOUND_LOOP_COUNT = 1;
 
 // Full level of a voice's sustain and volume: the sound module's maximum, shared by the music and the loops.
@@ -54,6 +55,8 @@ struct rv_sound_state {
     bool loop_armed[RV_SOUND_LOOP_COUNT] = {};
     // One bar read from the disc, slot-sized.
     std::vector<uint8_t> scratch;
+    // The clack and loop samples, and the step samples once rv_steps_update runs, made resident by the sound service.
+    rv_pdkkit::sound_state sound;
     // The asset of the last failure, for the caller's log.
     const char *error_asset = "";
 };

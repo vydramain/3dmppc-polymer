@@ -8,8 +8,8 @@
 #include "pdk/ca/rv_ca.h"
 #include "pdk/ca/rv_loop.h"
 #include "pdk/ca/rv_voice_conf.h"
-#include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
+#include "pdkkit/sound/rv_pdkkit_sound.hpp"
 #include "example-cpp-pdkkit-board.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
@@ -37,15 +37,12 @@ constexpr int16_t RV_SOUND_CLACK_SUSTAIN_RATE = 0;
 constexpr int16_t RV_SOUND_CLACK_RELEASE = 120;
 constexpr int16_t RV_SOUND_CLACK_SUSTAIN_LEVEL = 26000;
 
-// Volume, loop type and envelope as Solid Maid sets them for its factory loops (sm_sound.cpp:127-129, :410-452;
-// sm_game.cpp:934-936). The gating is this demo's: both loops run while the camera is in the workshop, with no
+// Volume, loop type and envelope as Solid Maid sets them for its factory loop (sm_sound.cpp:127-129, :410-452;
+// sm_game.cpp:934-936). The gating is this demo's: the loop runs while the camera is in the workshop, with no
 // assembly-working state.
-constexpr int64_t RV_SOUND_CONVEYOR_VOICE = 8;
 constexpr int64_t RV_SOUND_ASSEMBLY_VOICE = 16;
-constexpr int16_t RV_SOUND_CONVEYOR_VOLUME = 6600;
 constexpr int16_t RV_SOUND_ASSEMBLY_VOLUME = 12100;
 constexpr int16_t RV_SOUND_LOOP_ENVELOPE = 0;
-constexpr const char *RV_SOUND_CONVEYOR_LOOP = "sfx_loop_conveyor.pcm";
 constexpr const char *RV_SOUND_ASSEMBLY_LOOP = "sfx_loop_assembly.pcm";
 
 struct rv_sound_loop {
@@ -94,9 +91,10 @@ bool letters_changed(int64_t from, int64_t to)
 
 int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
 {
-    const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(pdk), RV_CD_RESOURCE_AUDIO, RV_SOUND_CLACK);
-    if (addr < 0) {
-        return fail(state, RV_SOUND_CLACK, addr);
+    int64_t addr = 0;
+    const int resident_code = rv_pdkkit::sound_asset_resident(rv_pdko_cd(pdk), state.sound, RV_SOUND_CLACK, addr);
+    if (resident_code != RV_OK) {
+        return fail(state, RV_SOUND_CLACK, resident_code);
     }
     rv_voice_conf conf = {};
     conf.voice = RV_SOUND_CLACK_VOICE;
@@ -126,16 +124,17 @@ int64_t set_loop(rv_pdko *pdk, rv_sound_state &state, int index, bool on)
         return RV_OK;
     }
     if (!on) {
-        const int64_t stop_code = rv_ca_voice_stop(rv_pdko_ca(pdk), loop.voice);
-        if (stop_code < 0) {
+        const int stop_code = rv_pdkkit::sound_voice_stop(rv_pdko_ca(pdk), loop.voice);
+        if (stop_code != RV_OK) {
             return fail(state, loop.name, stop_code);
         }
         state.loop_armed[index] = false;
         return RV_OK;
     }
-    const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(pdk), RV_CD_RESOURCE_AUDIO, loop.name);
-    if (addr < 0) {
-        return fail(state, loop.name, addr);
+    int64_t addr = 0;
+    const int resident_code = rv_pdkkit::sound_asset_resident(rv_pdko_cd(pdk), state.sound, loop.name, addr);
+    if (resident_code != RV_OK) {
+        return fail(state, loop.name, resident_code);
     }
     rv_voice_conf conf = {};
     conf.voice = loop.voice;
@@ -157,7 +156,7 @@ int64_t set_loop(rv_pdko *pdk, rv_sound_state &state, int index, bool on)
     return RV_OK;
 }
 
-// Keeps both loops playing while `in_workshop`, and silent otherwise. Both are tried; the first failure is returned.
+// Keeps the loops playing while `in_workshop`, and silent otherwise. Every loop is tried; the first failure is returned.
 int64_t set_loops(rv_pdko *pdk, rv_sound_state &state, bool in_workshop)
 {
     int64_t code = RV_OK;
@@ -187,11 +186,11 @@ int64_t fail(rv_sound_state &state, const char *asset, int64_t code)
 int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf)
 {
     rv_ca *ca = rv_pdko_ca(pdk);
-    const int64_t setup_code = rv_ca_voice_setup(ca, &conf);
-    if (setup_code < 0) {
+    const int setup_code = rv_pdkkit::sound_voice_setup(ca, conf);
+    if (setup_code != RV_OK) {
         return setup_code;
     }
-    return rv_ca_voice_play(ca, conf.voice);
+    return rv_pdkkit::sound_voice_play(ca, conf.voice);
 }
 
 int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_sound_state &state)
