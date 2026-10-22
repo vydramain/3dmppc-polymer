@@ -13,7 +13,7 @@
 namespace rv_editor
 {
 
-// Scene object kind constants: the `kind` values of a scene object, as pdklib's scene format names them.
+// Scene object kind constants: the `kind` values of a scene object, as pdkkit's scene format names them.
 inline constexpr std::string_view kind_group = "group";
 inline constexpr std::string_view kind_camera = "camera";
 inline constexpr std::string_view kind_mesh = "mesh";
@@ -24,17 +24,17 @@ inline constexpr std::string_view kind_volume = "volume";
 // The component that marks an object hidden: its row is dimmed, and it is drawn as an outline or not at all.
 inline constexpr std::string_view component_hidden = "hidden";
 
-// A scene document as the editor edits it: pdklib's rv_scene with numbers as doubles and
-// parents as ids. The file is read and written by pdklib/rv_scene. Unknown keys and sections
+// A scene document as the editor edits it: pdkkit's rv_scene with numbers as doubles and
+// parents as ids. The file is read and written by pdkkit/scene. Unknown keys and sections
 // are written back; the legacy `format` key is not (the file is written with `version`).
 
 using rv_editor_vec3 = std::array<double, 3>;
 using rv_editor_uv = std::array<double, 4>;
 using rv_editor_tint = std::array<int, 3>;
 
-// Default tint, same as pdklib when a scene object lacks a `tint` key.
+// Default tint, same as pdkkit when a scene object lacks a `tint` key.
 constexpr rv_editor_tint default_object_tint = { 255, 255, 255 };
-// Default tess, same as pdklib when a scene object lacks a `tess` key.
+// Default tess, same as pdkkit when a scene object lacks a `tess` key.
 constexpr double default_object_tess = 2.0;
 
 // A [[component]] of its object: the component type's name and its fields in file order.
@@ -65,7 +65,7 @@ struct rv_editor_scene_object {
 struct rv_editor_scene {
     std::filesystem::path path;
     // The PDK version the file was written for (rv_pdklib::rv_version_str for a fresh one);
-    // a legacy `format = 1` header reads as 0.0, same as pdklib's scene reader.
+    // a legacy `format = 1` header reads as 0.0, same as pdkkit's scene reader.
     uint32_t version_major = static_cast<uint32_t>(RV_MPPC_VER_MAJOR);
     uint32_t version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
     std::string preamble; // the comment lines before the first section, kept
