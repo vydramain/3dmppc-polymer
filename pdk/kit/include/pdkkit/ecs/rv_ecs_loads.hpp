@@ -26,18 +26,20 @@ inline constexpr const char *ecs_loads_tag = "ecs-loads";
 // Position of the load in world.loads, or loads.size() when there is none.
 inline std::size_t ecs_load_position(const ecs_world &world, uint32_t number)
 {
-    for (std::size_t i = 0; i < world.loads.size(); ++i) {
-        if (world.loads[i].number == number) {
+    const auto &state = detail::ecs_state(world);
+    for (std::size_t i = 0; i < state.loads.size(); ++i) {
+        if (state.loads[i].number == number) {
             return i;
         }
     }
-    return world.loads.size();
+    return state.loads.size();
 }
 
 // Drops dead ids from every load. A load's record stays, even empty, until its own unload removes it.
 inline void ecs_loads_prune(ecs_world &world)
 {
-    for (ecs_load &load : world.loads) {
+    auto &state = detail::ecs_state(world);
+    for (ecs_load &load : state.loads) {
         std::erase_if(load.made, [&world](ecs_id id) {
             return !ecs_entity_alive(world, id);
         });
@@ -50,12 +52,13 @@ inline void ecs_loads_prune(ecs_world &world)
 // transform-less parent ends the chain.
 inline int ecs_chain_reaches(ecs_world &world, ecs_id id, const std::vector<ecs_id> &roots, bool &reached)
 {
+    const auto &state = detail::ecs_state(world);
     const ecs_component_transform *self = ecs_component_get<ecs_component_transform>(world, id);
     reached = false;
     ecs_id parent = self == nullptr ? ecs_id{} : self->parent;
     // An acyclic chain is shorter than live_count; reaching live_count steps means a cycle.
     for (uint32_t steps = 0; !reached && parent != ecs_id{}; ++steps) {
-        const bool cycle = steps >= world.live_count;
+        const bool cycle = steps >= state.live_count;
         if (cycle) {
             RV_LOG_ERR(ecs_loads_tag, "entity {}:{}: parent chain is a cycle", id.index, id.generation);
             return RV_ERR_INVAL;
@@ -104,24 +107,25 @@ inline int ecs_subtree_collect(ecs_world &world, const std::vector<ecs_id> &root
 // with nothing destroyed.
 inline int ecs_scene_unload_now(ecs_world &world, uint32_t number)
 {
+    auto &state = detail::ecs_state(world);
     const std::size_t position = ecs_load_position(world, number);
-    if (position == world.loads.size()) {
+    if (position == state.loads.size()) {
         return RV_ERR_NOENT;
     }
     std::vector<ecs_id> doomed;
-    const int collected = ecs_subtree_collect(world, world.loads[position].made, doomed);
+    const int collected = ecs_subtree_collect(world, state.loads[position].made, doomed);
     if (collected != RV_OK) {
         return collected;
     }
     // Room for each destroy's free-list push, so none allocates. The reserve may throw, before any change.
-    world.free_slots.reserve(world.free_slots.size() + doomed.size());
+    state.free_slots.reserve(state.free_slots.size() + doomed.size());
     // Each id is alive and the room is reserved, so every destroy succeeds.
     for (const ecs_id id : doomed) {
         (void)ecs_entity_destroy(world, id);
     }
     ecs_loads_prune(world);
     // Destroying changes no record, so position still names this load.
-    world.loads.erase(world.loads.begin() + static_cast<std::ptrdiff_t>(position));
+    state.loads.erase(state.loads.begin() + static_cast<std::ptrdiff_t>(position));
     return RV_OK;
 }
 
@@ -140,26 +144,27 @@ inline void ecs_loads_log_refused(const char *scene, const char *why)
 // is left or the table cannot grow, or RV_ERR_INVAL for another exception.
 [[nodiscard]] inline int ecs_scene_load(ecs_world &world, rv_cd *cd, const char *scene, ecs_id parent, uint32_t &number)
 {
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&]() -> int {
-        const bool exhausted = world.next_load_number == ecs_load_number_limit;
+        const bool exhausted = state.next_load_number == ecs_load_number_limit;
         if (exhausted) {
             ecs_loads_log_refused(scene, "no load number is left");
             return RV_ERR_NOMEM;
         }
         // Reserved before the entities exist, so the push below cannot throw after them.
         try {
-            world.loads.reserve(world.loads.size() + 1);
+            state.loads.reserve(state.loads.size() + 1);
         } catch (const std::bad_alloc &) {
             ecs_loads_log_refused(scene, "the load table cannot grow");
             return RV_ERR_NOMEM;
         }
-        ecs_load load{ world.next_load_number, {} };
+        ecs_load load{ state.next_load_number, {} };
         const int read = ecs_scene_read(world, cd, scene, parent, load.made);
         if (read != RV_OK) {
             return read;
         }
-        world.loads.push_back(std::move(load));
-        number = world.next_load_number++;
+        state.loads.push_back(std::move(load));
+        number = state.next_load_number++;
         return RV_OK;
     });
 }
@@ -169,13 +174,14 @@ inline void ecs_loads_log_refused(const char *scene, const char *why)
 // RV_ERR_NOMEM or RV_ERR_INVAL when it cannot run (ecs_guard), with nothing changed.
 [[nodiscard]] inline int ecs_scene_unload(ecs_world &world, uint32_t number)
 {
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&]() -> int {
-        const bool unknown = ecs_load_position(world, number) == world.loads.size();
+        const bool unknown = ecs_load_position(world, number) == state.loads.size();
         if (unknown) {
             return RV_ERR_NOENT;
         }
-        if (world.in_frame) {
-            world.pending_unloads.push_back(number);
+        if (state.in_frame) {
+            state.pending_unloads.push_back(number);
             return RV_OK;
         }
         return ecs_scene_unload_now(world, number);
@@ -187,9 +193,10 @@ inline void ecs_loads_log_refused(const char *scene, const char *why)
 // already unloaded is skipped, not an error. Returns the first failure's code.
 [[nodiscard]] inline int ecs_unload_pending(ecs_world &world)
 {
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&] {
         int first_error = RV_OK;
-        for (const uint32_t number : world.pending_unloads) {
+        for (const uint32_t number : state.pending_unloads) {
             const int code = ecs_guard([&] {
                 return ecs_scene_unload_now(world, number);
             });
@@ -197,7 +204,7 @@ inline void ecs_loads_log_refused(const char *scene, const char *why)
             const bool first_failure = failed && first_error == RV_OK;
             first_error = first_failure ? code : first_error;
         }
-        world.pending_unloads.clear();
+        state.pending_unloads.clear();
         return first_error;
     });
 }
@@ -209,13 +216,14 @@ inline void ecs_loads_log_refused(const char *scene, const char *why)
 template <typename Fn>
 [[nodiscard]] int ecs_scene_entities(const ecs_world &world, uint32_t number, Fn &&fn)
 {
+    const auto &state = detail::ecs_state(world);
     return ecs_guard([&]() -> int {
         const std::size_t position = ecs_load_position(world, number);
-        const bool unknown = position == world.loads.size();
+        const bool unknown = position == state.loads.size();
         if (unknown) {
             return RV_ERR_NOENT;
         }
-        for (const ecs_id id : world.loads[position].made) {
+        for (const ecs_id id : state.loads[position].made) {
             const bool dead = !ecs_entity_alive(world, id);
             if (dead) {
                 continue;
@@ -233,8 +241,9 @@ template <typename Fn>
 // outside a load are not searched. RV_ERR_NOENT when none matches; out is written only on RV_OK.
 [[nodiscard]] inline int ecs_find_by_name(const ecs_world &world, std::string_view name, ecs_id &out)
 {
+    const auto &state = detail::ecs_state(world);
     return ecs_guard([&]() -> int {
-        for (const ecs_load &load : world.loads) {
+        for (const ecs_load &load : state.loads) {
             for (const ecs_id id : load.made) {
                 const bool live = ecs_entity_alive(world, id);
                 const ecs_component_name *named = live ? ecs_component_get<ecs_component_name>(world, id) : nullptr;
