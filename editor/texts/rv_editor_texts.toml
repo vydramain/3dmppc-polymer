@@ -1028,6 +1028,10 @@ owned_fixed_step = "use Fixed Step"
 owned_disc = "the build gives the disc"
 owned_scale = "the console opens no window here: View > Game Scale scales the Game view"
 
+[descriptions]
+no_snapshot = "no snapshot yet: components show as text"
+pdk_mismatch = "written by PDK {}, this build is PDK {}: components show as text"
+
 [project]
 player_not_set_file_settings = "No player set: File > Settings names a 3dmppc built without devtools"
 player_not_set_name = "No player set: name a 3dmppc built without devtools"
