@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -24,6 +26,9 @@ struct rv_editor_glb_model {
     // Set once per read, with the model; the triangles of each piece.
     std::vector<rv_editor_piece> pieces;
 };
+
+// Bridge until the viewport draws integer points: vertex `vertex` of `model` in metres, v / 2^shift.
+std::array<double, 3> rv_editor_glb_vertex_metres(const rv_pdklib::rv_mppcmod_int_model &model, std::size_t vertex);
 
 // Reads the .glb at `path` (absolute), once per mtime. `out` shares the cached model, so a holder
 // keeps it valid when the file changes or goes. RV_OK, or the code with the reason in `error`.

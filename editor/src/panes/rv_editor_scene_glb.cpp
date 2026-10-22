@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -29,6 +30,8 @@ namespace
 constexpr std::string_view name_separators = "/\\";
 // A colour byte's full scale, to map a part's RGB to 0..1.
 constexpr float color_channel_max = 255.0f;
+// A uv's whole texture is 2^rv_mppcmod_uv_bits steps; the division by it is exact in float, as in the float view.
+constexpr float uv_one = static_cast<float>(int64_t{ 1 } << rv_pdklib::rv_mppcmod_uv_bits);
 
 // One read of a .glb, kept until the file's mtime moves on. `rc` and `error` hold a failed read.
 struct rv_editor_glb_entry {
@@ -53,10 +56,10 @@ ImVec4 modulate(const ImVec4 &a, const ImVec4 &b)
     return { a.x * b.x, a.y * b.y, a.z * b.z, 1.0f };
 }
 
-// A .glb's triangles, flat: the project's coordinates (left-handed, Y up, metres; the glTF reader
-// has negated z) and uv (top-left origin, so no flip needed). `part_cpu` holds one picture per part
-// (null: none).
-std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod &model,
+// A .glb's triangles, flat, read from its integer model: the project's coordinates (left-handed, Y up,
+// metres; the glTF reader has negated z) and uv (top-left origin, so no flip needed). `part_cpu` holds one
+// picture per part (null: none).
+std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod_int_model &model,
     const rv_editor_affine &m,
     const std::vector<const rv_editor_cpu_image *> &part_cpu)
 {
@@ -65,9 +68,10 @@ std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod &
     for (const rv_pdklib::rv_mppcmod_triangle &t : model.triangles) {
         rv_editor_tri tri;
         for (std::size_t k = 0; k < std::size(tri.p); ++k) {
-            const rv_pdklib::rv_mppcmod_vertex &v = model.vertices[t.index[k]];
-            tri.p[k] = rv_editor_affine_point(m, { v.pos[0], v.pos[1], v.pos[2] });
-            tri.uv[k] = { v.uv[0], v.uv[1] };
+            const std::size_t vertex = t.index[k];
+            const rv_pdklib::rv_mppcmod_int_vertex &v = model.vertices[vertex];
+            tri.p[k] = rv_editor_affine_point(m, rv_editor_glb_vertex_metres(model, vertex));
+            tri.uv[k] = { static_cast<float>(v.uv[0]) / uv_one, static_cast<float>(v.uv[1]) / uv_one };
             tri.color[k] = rgb_unit(v.color);
         }
         tri.from_model = true;
@@ -139,7 +143,7 @@ const rv_editor_glb_pictures &rv_editor_glb_part_pictures(const std::string &key
         rv_editor_cpu_image_load_png(glb->images[i].png, made.images[i]);
     }
     const auto it = rv_editor_glb_picture_cache.insert_or_assign(key, std::move(made)).first;
-    for (const rv_pdklib::rv_mppcmod_part &part : glb->model.parts) {
+    for (const rv_pdklib::rv_mppcmod_part &part : glb->quantized.parts) {
         const size_t i = part_image_index(*glb, part);
         const bool decoded = i < it->second.images.size() && it->second.images[i].w > 0;
         it->second.part.push_back(decoded ? &it->second.images[i] : nullptr);
@@ -204,6 +208,16 @@ int rv_editor_glb_quantize_models(const std::string &path,
 
 } // namespace
 
+std::array<double, 3> rv_editor_glb_vertex_metres(const rv_pdklib::rv_mppcmod_int_model &model, std::size_t vertex)
+{
+    const rv_pdklib::rv_mppcmod_int_vertex &v = model.vertices[vertex];
+    std::array<double, 3> metres = {};
+    for (std::size_t k = 0; k < metres.size(); ++k) {
+        metres[k] = std::ldexp(static_cast<double>(v.pos[k]), -static_cast<int>(model.shift));
+    }
+    return metres;
+}
+
 int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const rv_editor_glb_model> &out, std::string &error)
 {
     out.reset();
@@ -234,7 +248,7 @@ int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const 
             entry.rc = rv_editor_glb_quantize_models(key, q16, model->quantized, model->model, entry.error);
         }
         if (entry.rc == RV_OK) {
-            entry.rc = rv_pdklib::rv_mppcmod_validate(model->model, entry.error);
+            entry.rc = rv_pdklib::rv_mppcmod_int_validate(model->quantized, entry.error);
         }
         if (entry.rc == RV_OK) {
             model->pieces = rv_editor_model_pieces(model->quantized);
@@ -303,7 +317,7 @@ int rv_editor_glb_object_triangles(const rv_editor_project &project,
         return rc;
     }
     const rv_editor_glb_pictures &pictures = rv_editor_glb_part_pictures(path.string(), glb);
-    tris = rv_editor_glb_triangles(glb->model, m, pictures.part);
+    tris = rv_editor_glb_triangles(glb->quantized, m, pictures.part);
     return RV_OK;
 }
 
