@@ -83,8 +83,8 @@ rv_editor_view rv_editor_view_make(const rv_editor_scene_camera &c, ImVec2 p0, I
 void rv_editor_line(ImDrawList *dl, const rv_editor_view &v, const vec3 &a, const vec3 &b, ImU32 color, float width);
 float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b);
 // Each object's edges in scene space: a mesh's real .glb triangles (or the unit cube while
-// its mesh is empty or does not load, with the reason in *error), a camera's body and lens, a group's corner
-// brackets and axis cross, a third marker for any other kind.
+// its mesh is empty or does not load, with the reason in *error; a legacy quad or billboard is that cube),
+// a camera's body and lens, a group's corner brackets and axis cross, a third marker for any other kind.
 std::vector<std::pair<vec3, vec3>>
 rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
 
@@ -110,21 +110,14 @@ struct rv_editor_tri {
 std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv_editor_tri &tri);
 
 // An object's surface in scene space: a mesh's .glb triangles (name ends in ".glb"), or the unit
-// cube while its mesh is empty or does not load (the reason in *error when given); a quad's two
-// triangles (rv_pdkkit::rv_scene_quad_corners' layout, uv the object's pixel rect); empty for
-// other kinds (a billboard's corners depend on the view: see rv_editor_billboard_triangles).
+// cube while its mesh is empty or does not load (the reason in *error when given). A legacy quad
+// or billboard has no model and is the unit cube too. Empty for other kinds.
 // Each mesh triangle carries its glTF uv (the whole unit square per face for the placeholder
-// cube); a quad's uv is raw pixels, normalized in rv_editor_draw_filled once a texture's pixel
-// size is known.
-// Each .glb part's cpu_tex is set.
+// cube). Each .glb part's cpu_tex is set.
 std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &scene,
     const rv_editor_project &project,
     int index,
     std::string *error = nullptr);
-// A billboard's two triangles: a card of world size scale.xy (a scaled parent included) centred on
-// the object's world position, facing the view's right/up (not the object's own rotation).
-std::vector<rv_editor_tri>
-rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o);
 // A flat disc texture name resolved to its project file under [textures]; empty when none matches.
 std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name);
 // Every mesh, quad and billboard shown (not outlined or absent) filled into the viewport's picture

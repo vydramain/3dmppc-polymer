@@ -28,7 +28,7 @@ constexpr rv_pdklib::fx camera_near_fx = static_cast<rv_pdklib::fx>(rv_editor_ne
 constexpr rv_pdklib::fx camera_fov_fx = static_cast<rv_pdklib::fx>(camera_fov_degrees * rv_pdklib::fx_one);
 constexpr rv_pdklib::fx camera_far_fx = static_cast<rv_pdklib::fx>(camera_far_metres * rv_pdklib::fx_one);
 
-// Half-extent of placeholder geometric primitives (unit cube and quad, local coordinates).
+// Half-extent of the placeholder unit cube (local coordinates).
 constexpr double unit_half_extent = 0.5;
 // Viewport centering: half of canvas dimension to find the center point.
 constexpr float viewport_center_half = 0.5f;
@@ -66,9 +66,6 @@ constexpr double camera_marker_up_mark_offset = 0.1;
 constexpr double camera_marker_up_mark_y = 0.25;
 // Camera marker lens: vertical position of up-mark tip.
 constexpr double camera_marker_up_mark_y_tip = 0.35;
-
-// Billboard marker: perpendicular tick length.
-constexpr double billboard_marker_tick_length = 0.3;
 
 // Octahedron marker (other kinds): half-extent on each axis.
 constexpr double octahedron_marker_half_size = 0.3;
@@ -374,25 +371,6 @@ void rv_editor_camera_edges(std::vector<std::pair<vec3, vec3>> &e, const std::fu
     e.emplace_back(p(0, um_y_tip, ld), p(um_offset, um_y, ld));
 }
 
-// The local XY unit square (-0.5..0.5): a quad's outline and a billboard's card.
-void rv_editor_quad_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
-{
-    const vec3 c[quad_vertex_count] = { p(-unit_half_extent, -unit_half_extent, 0),
-        p(unit_half_extent, -unit_half_extent, 0),
-        p(unit_half_extent, unit_half_extent, 0),
-        p(-unit_half_extent, unit_half_extent, 0) };
-    for (int i = 0; i < quad_vertex_count; ++i) {
-        e.emplace_back(c[i], c[(i + 1) % quad_vertex_count]);
-    }
-}
-
-// A billboard: the same card, plus a short tick off its face so the card does not read as flat.
-void rv_editor_billboard_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
-{
-    rv_editor_quad_edges(e, p);
-    e.emplace_back(p(0, 0, 0), p(0, 0, billboard_marker_tick_length));
-}
-
 // A volume: the unit cube's 12 edges, never filled.
 void rv_editor_volume_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
 {
@@ -453,8 +431,6 @@ struct rv_editor_edge_builder {
 constexpr rv_editor_edge_builder edge_builders[] = {
     { kind_camera, rv_editor_camera_edges },
     { kind_group, rv_editor_group_edges },
-    { kind_quad, rv_editor_quad_edges },
-    { kind_billboard, rv_editor_billboard_edges },
     { kind_volume, rv_editor_volume_edges },
 };
 
@@ -469,7 +445,8 @@ rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &pr
         return rv_editor_affine_point(m, { x, y, z });
     };
     std::vector<std::pair<vec3, vec3>> e;
-    if (kind == kind_mesh) {
+    // A legacy quad or billboard has no model: its edges are the placeholder cube's, as a mesh without one.
+    if (kind == kind_mesh || kind == kind_quad || kind == kind_billboard) {
         for (const rv_editor_tri &tri : rv_editor_object_triangles(scene, project, index, error)) {
             e.emplace_back(tri.p[0], tri.p[1]);
             e.emplace_back(tri.p[1], tri.p[2]);
