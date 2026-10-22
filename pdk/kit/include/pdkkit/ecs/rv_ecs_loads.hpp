@@ -125,60 +125,70 @@ inline void ecs_loads_log_refused(const char *scene, const char *why)
 }
 
 // Loads scene of cd under parent (ecs_id{} is the world root) and records its entities as load number.
-// On error the world and the table are as before. The code is ecs_scene_read's, or RV_ERR_NOMEM when no load
-// number is left or the table cannot grow.
-inline int ecs_scene_load(ecs_world &world, rv_cd *cd, const char *scene, ecs_id parent, uint32_t &number)
+// On error the world and the table are as before. The code is ecs_scene_read's, RV_ERR_NOMEM when no load number
+// is left or the table cannot grow, or RV_ERR_INVAL for another exception.
+[[nodiscard]] inline int ecs_scene_load(ecs_world &world, rv_cd *cd, const char *scene, ecs_id parent, uint32_t &number)
 {
-    const bool exhausted = world.next_load_number == ecs_load_number_limit;
-    if (exhausted) {
-        ecs_loads_log_refused(scene, "no load number is left");
-        return RV_ERR_NOMEM;
-    }
-    // Reserved before the entities exist, so the push below cannot throw after them.
-    try {
-        world.loads.reserve(world.loads.size() + 1);
-    } catch (const std::bad_alloc &) {
-        ecs_loads_log_refused(scene, "the load table cannot grow");
-        return RV_ERR_NOMEM;
-    }
-    ecs_load load{ world.next_load_number, {} };
-    const int read = ecs_scene_read(world, cd, scene, parent, load.made);
-    if (read != RV_OK) {
-        return read;
-    }
-    world.loads.push_back(std::move(load));
-    number = world.next_load_number++;
-    return RV_OK;
-}
-
-// Unloads load number with its descendants. In a frame the unload is queued and returns RV_OK at once.
-// RV_ERR_NOENT for an unknown number.
-inline int ecs_scene_unload(ecs_world &world, uint32_t number)
-{
-    const bool unknown = ecs_load_position(world, number) == world.loads.size();
-    if (unknown) {
-        return RV_ERR_NOENT;
-    }
-    if (world.in_frame) {
-        world.pending_unloads.push_back(number);
+    return ecs_guard([&]() -> int {
+        const bool exhausted = world.next_load_number == ecs_load_number_limit;
+        if (exhausted) {
+            ecs_loads_log_refused(scene, "no load number is left");
+            return RV_ERR_NOMEM;
+        }
+        // Reserved before the entities exist, so the push below cannot throw after them.
+        try {
+            world.loads.reserve(world.loads.size() + 1);
+        } catch (const std::bad_alloc &) {
+            ecs_loads_log_refused(scene, "the load table cannot grow");
+            return RV_ERR_NOMEM;
+        }
+        ecs_load load{ world.next_load_number, {} };
+        const int read = ecs_scene_read(world, cd, scene, parent, load.made);
+        if (read != RV_OK) {
+            return read;
+        }
+        world.loads.push_back(std::move(load));
+        number = world.next_load_number++;
         return RV_OK;
-    }
-    return ecs_scene_unload_now(world, number);
+    });
 }
 
-// Runs the unloads queued during a frame, in request order. A repeated request for a number already unloaded is
-// skipped, not an error. Returns the first other failure's code.
-inline int ecs_unload_pending(ecs_world &world)
+// Unloads load number with its descendants. In a frame the unload is queued and returns RV_OK at once; if it later
+// fails, ecs_world_frame returns that code unless the frame itself failed first. RV_ERR_NOENT for an unknown number;
+// RV_ERR_NOMEM or RV_ERR_INVAL when it cannot run (ecs_guard), with nothing changed.
+[[nodiscard]] inline int ecs_scene_unload(ecs_world &world, uint32_t number)
 {
-    int first_error = RV_OK;
-    for (const uint32_t number : world.pending_unloads) {
-        const int code = ecs_scene_unload_now(world, number);
-        const bool failed = code != RV_OK && code != RV_ERR_NOENT;
-        const bool first_failure = failed && first_error == RV_OK;
-        first_error = first_failure ? code : first_error;
-    }
-    world.pending_unloads.clear();
-    return first_error;
+    return ecs_guard([&]() -> int {
+        const bool unknown = ecs_load_position(world, number) == world.loads.size();
+        if (unknown) {
+            return RV_ERR_NOENT;
+        }
+        if (world.in_frame) {
+            world.pending_unloads.push_back(number);
+            return RV_OK;
+        }
+        return ecs_scene_unload_now(world, number);
+    });
+}
+
+// Runs the unloads queued during a frame, in request order, and clears the queue. Each request is its own unload: a
+// failed one leaves its load as it was and is not retried, and the rest still run. A repeated request for a number
+// already unloaded is skipped, not an error. Returns the first failure's code.
+[[nodiscard]] inline int ecs_unload_pending(ecs_world &world)
+{
+    return ecs_guard([&] {
+        int first_error = RV_OK;
+        for (const uint32_t number : world.pending_unloads) {
+            const int code = ecs_guard([&] {
+                return ecs_scene_unload_now(world, number);
+            });
+            const bool failed = code != RV_OK && code != RV_ERR_NOENT;
+            const bool first_failure = failed && first_error == RV_OK;
+            first_error = first_failure ? code : first_error;
+        }
+        world.pending_unloads.clear();
+        return first_error;
+    });
 }
 
 } // namespace rv_pdkkit
