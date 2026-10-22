@@ -142,18 +142,28 @@ int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::
     return RV_OK;
 }
 
-// The route component of the world, nullptr without one. rv_route_collect refuses a scene with two routes at init.
-const ecs_component_route *route_of(rv_pdkkit::ecs_world &world)
+// Lamp of a world without route keys: warned once, marked scheduled so it is not tried again, and stays dark.
+// Error: RV_ERR_NOENT only when the entity has no lamp_light component (the caller iterates those entities).
+int mark_no_keys(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id)
 {
-    const ecs_component_route *route = nullptr;
-    rv_pdkkit::ecs_component_each<ecs_component_route>(world, [&route](rv_pdkkit::ecs_id, ecs_component_route &component) {
-        route = &component;
-    });
-    return route;
+    ecs_component_lamp_light *light = rv_pdkkit::ecs_component_get<ecs_component_lamp_light>(world, id);
+    if (light == nullptr) {
+        return RV_ERR_NOENT;
+    }
+    light->scheduled = true;
+    const auto *hierarchy = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_parent>(world, id);
+    const auto *name =
+        hierarchy != nullptr ? rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world, hierarchy->parent) : nullptr;
+    if (name == nullptr) {
+        RV_LOG_WARN("lamps", "lamp_light entity has no parent with a name: no route keys, it stays dark");
+        return RV_OK;
+    }
+    RV_LOG_WARN("lamps", "{}: no route keys, it stays dark", std::string_view{ name->text });
+    return RV_OK;
 }
 
-// Schedules each lamp_light entity not yet scheduled. Error: RV_ERR_NOENT from schedule_lamp; a lamp that cannot be
-// scheduled is warned by schedule_lamp and stays dark, so the others go on.
+// Schedules each lamp_light entity not yet scheduled. Error: RV_ERR_NOENT from schedule_lamp or mark_no_keys; a lamp
+// that cannot be scheduled is warned and stays dark, so the others go on.
 int schedule_lamps(rv_pdkkit::ecs_world &world)
 {
     // Collected first, then scheduled outside the walk.
@@ -167,14 +177,11 @@ int schedule_lamps(rv_pdkkit::ecs_world &world)
     if (unscheduled.empty()) {
         return RV_OK;
     }
-    // Unreachable until the route system collects the keys during the frame (next task): today rv_route_collect
-    // refuses the scene at load when there is no route entity or no cam_NN key.
-    const ecs_component_route *route = route_of(world);
-    if (route == nullptr || route->keys.empty()) {
-        return RV_OK;
-    }
+    // Unreachable today: rv_route_collect refuses a scene without a route or a key, so read_scene fails and no frame runs.
+    const ecs_component_route *route = rv_route_of(world);
+    const bool has_keys = route != nullptr && !route->keys.empty();
     for (const rv_pdkkit::ecs_id id : unscheduled) {
-        const int code = schedule_lamp(world, id, route->keys);
+        const int code = has_keys ? schedule_lamp(world, id, route->keys) : mark_no_keys(world, id);
         if (code != RV_OK) {
             return code;
         }
