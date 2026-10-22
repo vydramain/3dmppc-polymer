@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 #include "pdk/cg/rv_cg.h"
@@ -24,7 +25,7 @@ struct rv_route_key {
 };
 
 // True, with index = NN, when name is exactly cam_NN (two digits).
-bool rv_route_key_name(const char *name, int32_t &index);
+bool rv_route_key_name(std::string_view name, int32_t &index);
 
 // v scaled to unit length in Q20.12; a zero-length v gives +z rather than a division by zero.
 // Error: the result leaves Q20.12; out is untouched.

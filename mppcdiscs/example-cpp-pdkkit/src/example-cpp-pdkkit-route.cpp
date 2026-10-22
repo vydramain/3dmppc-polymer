@@ -209,9 +209,8 @@ rv_cg_camera make_camera(const rv_cg_vec3 &eye, const rv_cg_vec3 &target)
 
 } // namespace
 
-bool rv_route_key_name(const char *name, int32_t &index)
+bool rv_route_key_name(std::string_view text, int32_t &index)
 {
-    const std::string_view text = name;
     if (text.size() != RV_ROUTE_KEY_NAME_SIZE || !text.starts_with(RV_ROUTE_KEY_PREFIX)) {
         return false;
     }
@@ -321,18 +320,18 @@ int add_route_key(ecs_world &world, ecs_id camera, ecs_id route, std::vector<rv_
         return RV_OK;
     }
     int32_t index = 0;
-    const bool named = rv_route_key_name(name->text.c_str(), index);
+    const bool named = rv_route_key_name(std::string_view{ name->text }, index);
     if (!named) {
         return RV_OK;
     }
     const bool on_route = hierarchy != nullptr && hierarchy->parent == route;
     if (!on_route) {
-        RV_LOG_WARN("scene", "camera '{}' is not in the route group: not a route key", name->text.c_str());
+        RV_LOG_WARN("scene", "camera '{}' is not in the route group: not a route key", std::string_view{ name->text });
         return RV_OK;
     }
     const auto *place = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_world>(world, camera);
     if (place == nullptr) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' has no world matrix", name->text.c_str());
+        RV_LOG_ERR("scene", "scene refused: camera '{}' has no world matrix", std::string_view{ name->text });
         return RV_ERR_INVAL;
     }
     rv_route_key key = {};
@@ -340,17 +339,17 @@ int add_route_key(ecs_world &world, ecs_id camera, ecs_id route, std::vector<rv_
     // The eye is the translation column, the view direction the z column: the entries world[] of the scene held.
     const auto &m = place->matrix.m;
     if (fx_vec3_from_floats(m[0][3], m[1][3], m[2][3], key.eye) != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' position leaves Q20.12", name->text.c_str());
+        RV_LOG_ERR("scene", "scene refused: camera '{}' position leaves Q20.12", std::string_view{ name->text });
         return RV_ERR_INVAL;
     }
     fx_vec3 dir = {};
     if (fx_vec3_from_floats(m[0][2], m[1][2], m[2][2], dir) != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", name->text.c_str());
+        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", std::string_view{ name->text });
         return RV_ERR_INVAL;
     }
     const int unit_code = rv_route_unit(dir, key.dir);
     if (unit_code != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", name->text.c_str());
+        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", std::string_view{ name->text });
         return unit_code;
     }
     keys.push_back(key);

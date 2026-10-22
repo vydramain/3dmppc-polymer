@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "pdk/cd/rv_cd.h"
@@ -202,7 +203,7 @@ int rv_dmain::collect_parts(uint32_t load_number)
             RV_LOG_ERR("scene", "scene refused: an entity has no name");
             return RV_ERR_INVAL;
         }
-        if (name->text == RV_EXAMPLE_CPP_BOARD_NAME) {
+        if (std::string_view{ name->text } == RV_EXAMPLE_CPP_BOARD_NAME) {
             board_found_ = true;
         }
         return RV_OK;

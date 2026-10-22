@@ -1,6 +1,7 @@
 #include "example-cpp-pdkkit-lamps.hpp"
 
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 #include "pdk/rv_err.h"
@@ -102,13 +103,13 @@ int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::
     }
     ecs_component_lamp_light *light = rv_pdkkit::ecs_component_get<ecs_component_lamp_light>(world, id);
     if (light == nullptr) {
-        RV_LOG_ERR("lamps", "{}: no lamp_light component: not scheduled", name->text.c_str());
+        RV_LOG_ERR("lamps", "{}: no lamp_light component: not scheduled", std::string_view{ name->text });
         return RV_ERR_NOENT;
     }
     rv_pdklib::fx_vec3 at = {};
     const int at_code = lamp_base(*place, at);
     if (at_code != RV_OK) {
-        RV_LOG_ERR("lamps", "{}: base leaves Q20.12, not scheduled: rv_err {}", name->text.c_str(), at_code);
+        RV_LOG_ERR("lamps", "{}: base leaves Q20.12, not scheduled: rv_err {}", std::string_view{ name->text }, at_code);
         return at_code;
     }
     int64_t on = -1;
@@ -116,7 +117,7 @@ int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::
     if (on_code != RV_OK) {
         RV_LOG_ERR("lamps",
             "{}: route or lamp offset leaves Q20.12 in the outward half: rv_err {}",
-            name->text.c_str(),
+            std::string_view{ name->text },
             on_code);
         return on_code;
     }
@@ -125,18 +126,18 @@ int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::
     if (off_code != RV_OK) {
         RV_LOG_ERR("lamps",
             "{}: route or lamp offset leaves Q20.12 in the return half: rv_err {}",
-            name->text.c_str(),
+            std::string_view{ name->text },
             off_code);
         return off_code;
     }
     const bool passed = on >= 0 && off >= 0;
     if (!passed) {
-        RV_LOG_WARN("lamps", "{} is not passed by the route in both halves: it stays dark", name->text.c_str());
+        RV_LOG_WARN("lamps", "{} is not passed by the route in both halves: it stays dark", std::string_view{ name->text });
         return RV_OK;
     }
     light->on_frame = on;
     light->off_frame = off;
-    RV_LOG_INFO("lamps", "{} burns from frame {} to {} of the period", name->text.c_str(), on, off);
+    RV_LOG_INFO("lamps", "{} burns from frame {} to {} of the period", std::string_view{ name->text }, on, off);
     return RV_OK;
 }
 
