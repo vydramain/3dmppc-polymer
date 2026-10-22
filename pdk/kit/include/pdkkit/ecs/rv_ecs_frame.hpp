@@ -130,7 +130,7 @@ inline void ecs_world_camera(ecs_world &world, const rv_cg_camera &camera)
     });
 }
 
-// Rebuilds world.draw_order: the loads' entities in table order, each load in file order.
+// Rebuilds the world's draw_order: the loads' entities in table order, each load in file order.
 inline void ecs_draw_order_build(ecs_world &world)
 {
     auto &state = detail::ecs_state(world);

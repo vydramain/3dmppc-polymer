@@ -23,7 +23,7 @@ namespace rv_pdkkit
 
 inline constexpr const char *ecs_loads_tag = "ecs-loads";
 
-// Position of the load in world.loads, or loads.size() when there is none.
+// Position of the load in the world's loads, or loads.size() when there is none.
 inline std::size_t ecs_load_position(const ecs_world &world, uint32_t number)
 {
     const auto &state = detail::ecs_state(world);

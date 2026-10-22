@@ -36,7 +36,7 @@ inline constexpr uint32_t ecs_first_load_number = 1;
 inline constexpr uint32_t ecs_load_number_limit = std::numeric_limits<uint32_t>::max();
 
 struct ecs_id {
-    uint32_t index = 0;      // slot number in ecs_world::slots
+    uint32_t index = 0;      // slot number in detail::ecs_world_state::slots
     uint32_t generation = 0; // equals the slot's generation while the entity lives
 
     bool operator==(const ecs_id &) const = default;
@@ -82,8 +82,11 @@ struct ecs_reason {
     char text[ecs_reason_size] = {};
 };
 
-// Fields are reached through detail::ecs_state; rv_ecs.hpp uses it now, the other kit headers move to it in later steps.
-struct ecs_world {
+namespace detail
+{
+
+// The world's data, kept in ecs_world::state_.
+struct ecs_world_state {
     std::vector<ecs_slot> slots;
     std::vector<uint32_t> free_slots; // destroyed slots, reused by the next create
     uint32_t live_count = 0;
@@ -113,19 +116,32 @@ struct ecs_world {
     ecs_reason logged_reason{};
 };
 
+// The way kit code reaches the world's data. Callers bind its result with auto, so the type behind it can change.
+[[nodiscard]] ecs_world_state &ecs_state(ecs_world &world) noexcept;
+[[nodiscard]] const ecs_world_state &ecs_state(const ecs_world &world) noexcept;
+
+} // namespace detail
+
+// The data is private: kit code reaches it through detail::ecs_state, a disc through the ecs_* functions.
+struct ecs_world {
+private:
+    detail::ecs_world_state state_;
+
+    friend detail::ecs_world_state &detail::ecs_state(ecs_world &world) noexcept;
+    friend const detail::ecs_world_state &detail::ecs_state(const ecs_world &world) noexcept;
+};
+
 namespace detail
 {
 
-// The route kit code will use to reach the world's data; rv_ecs.hpp uses it now, the other kit headers move to it in
-// later steps. Callers bind its result with auto, so the type behind it can change.
-[[nodiscard]] inline ecs_world &ecs_state(ecs_world &world) noexcept
+[[nodiscard]] inline ecs_world_state &ecs_state(ecs_world &world) noexcept
 {
-    return world;
+    return world.state_;
 }
 
-[[nodiscard]] inline const ecs_world &ecs_state(const ecs_world &world) noexcept
+[[nodiscard]] inline const ecs_world_state &ecs_state(const ecs_world &world) noexcept
 {
-    return world;
+    return world.state_;
 }
 
 } // namespace detail
