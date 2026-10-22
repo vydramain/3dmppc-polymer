@@ -78,9 +78,11 @@ std::string rv_editor_hierarchy_lower(const std::string &text)
 bool rv_editor_hierarchy_less(const rv_editor_scene_object &a, const rv_editor_scene_object &b, rv_editor_hierarchy_sort sort)
 {
     if (sort == rv_editor_hierarchy_sort::name) {
-        return rv_editor_hierarchy_lower(a.name) < rv_editor_hierarchy_lower(b.name);
+        const std::string name_a = rv_editor_hierarchy_lower(rv_editor_object_get_name(a));
+        const std::string name_b = rv_editor_hierarchy_lower(rv_editor_object_get_name(b));
+        return name_a < name_b;
     }
-    return a.entity != b.entity ? a.entity < b.entity : a.kind < b.kind;
+    return a.entity != b.entity ? a.entity < b.entity : rv_editor_object_get_kind(a) < rv_editor_object_get_kind(b);
 }
 
 // The indices in the order the pane shows them: the file's order, or stably sorted.
@@ -122,8 +124,10 @@ rv_editor_hierarchy_tree rv_editor_hierarchy_build(const rv_editor_scene_doc &do
 // The row's name: the name, kind and entity type, behind the eye mark when hidden.
 std::string rv_editor_hierarchy_name(const rv_editor_scene_object &o)
 {
-    const char *node_name = o.name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : o.name.c_str();
-    const char *kind_label_str = rv_editor_scene_kind_label(o.kind);
+    const std::string object_name = rv_editor_object_get_name(o);
+    const char *node_name = object_name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : object_name.c_str();
+    const std::string object_kind = rv_editor_object_get_kind(o);
+    const char *kind_label_str = rv_editor_scene_kind_label(object_kind);
     std::string name = o.entity.empty() ?
         rv_editor_text_format("pane_hierarchy.node_label", std::make_format_args(node_name, kind_label_str)) :
         rv_editor_text_format("pane_hierarchy.node_label_entity", std::make_format_args(node_name, kind_label_str, o.entity));
@@ -299,7 +303,7 @@ void rv_editor_hierarchy_matches(rv_editor_app &app, const rv_editor_theme &them
     const std::string query = rv_editor_hierarchy_lower(doc.hierarchy_query);
     std::vector<size_t> matches;
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
-        if (rv_editor_hierarchy_lower(doc.scene.objects[i].name).find(query) != std::string::npos) {
+        if (rv_editor_hierarchy_lower(rv_editor_object_get_name(doc.scene.objects[i])).find(query) != std::string::npos) {
             matches.push_back(i);
         }
     }

@@ -58,7 +58,7 @@ void rv_editor_hierarchy_pick_piece(rv_editor_scene_doc &doc,
         rv_editor_scene_select(doc, o.id);
     }
     doc.picked_owner = o.id;
-    doc.picked_mesh = o.mesh;
+    doc.picked_mesh = rv_editor_object_get_mesh(o);
     doc.picked_count = pieces;
     if (doc.picked_pieces.erase(number) == 0) {
         doc.picked_pieces.insert(number);
@@ -103,7 +103,8 @@ void rv_editor_hierarchy_piece_rows(rv_editor_scene_doc &doc,
 
 void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o, const rv_editor_theme &theme)
 {
-    if (o.kind != kind_mesh || o.mesh.empty()) {
+    const std::string mesh = rv_editor_object_get_mesh(o);
+    if (rv_editor_object_get_kind(o) != kind_mesh || mesh.empty()) {
         return;
     }
     rv_editor_scene_doc &doc = *app.scene;
@@ -115,7 +116,7 @@ void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object
     // Read only while open: the count is the first row, so the label needs no model.
     std::shared_ptr<const rv_editor_glb_model> glb;
     std::string error;
-    if (const int rc = rv_editor_pieces_model(app.project, o.mesh, glb, error); rc != RV_OK) {
+    if (const int rc = rv_editor_pieces_model(app.project, mesh, glb, error); rc != RV_OK) {
         rv_editor_label(error.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
         rv_editor_tree_pop();
         return;
