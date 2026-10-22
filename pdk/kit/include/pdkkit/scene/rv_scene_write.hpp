@@ -65,7 +65,7 @@ inline constexpr int zero_point_bytes = 2;
 // Room for the longest fixed text of a Q20.12 value: the sign, the six digits of 524288, the point
 // and fx_shift decimals.
 inline constexpr int unit_integer_digits = 6;
-inline constexpr size_t unit_buffer_bytes = static_cast<size_t>(sign_bytes + unit_integer_digits + 1 + fx_shift);
+inline constexpr size_t unit_buffer_bytes = static_cast<size_t>(sign_bytes + unit_integer_digits + 1 + rv_pdklib::fx_shift);
 
 // Room for the longest fixed text of T: the digits of the smallest subnormal after "0.",
 // or the digits of the largest magnitude. Covers every value, so to_chars never fails.
@@ -147,23 +147,23 @@ inline std::string rv_scene_array(const T *items, size_t count)
 
 // Shortest fixed decimal text of a Q20.12 value that reads back, rounded as rv_scene_parse
 // rounds, as the same value; fx_shift digits are always exact, as the step is 1/4096.
-inline std::string rv_scene_units(fx v)
+inline std::string rv_scene_units(rv_pdklib::fx v)
 {
     std::array<char, unit_buffer_bytes> buf{};
-    const double units = static_cast<double>(v) / fx_one; // exact: a double holds every fx
+    const double units = static_cast<double>(v) / rv_pdklib::fx_one; // exact: a double holds every fx
     for (int digits = 0;; ++digits) {
         const auto r = std::to_chars(buf.data(), buf.data() + buf.size(), units, std::chars_format::fixed, digits);
         double back = 0.0;
         const bool read = std::from_chars(buf.data(), r.ptr, back).ec == std::errc{};
-        fx q = 0;
-        if (digits == fx_shift || (read && fx_from_double(back, q) == RV_OK && q == v)) {
+        rv_pdklib::fx q = 0;
+        if (digits == rv_pdklib::fx_shift || (read && rv_pdklib::fx_from_double(back, q) == RV_OK && q == v)) {
             return std::string(buf.data(), r.ptr);
         }
     }
 }
 
 // "[a, b, c]" of Q20.12 values, each written by rv_scene_units.
-inline std::string rv_scene_unit_array(const fx *items, size_t count)
+inline std::string rv_scene_unit_array(const rv_pdklib::fx *items, size_t count)
 {
     std::string out = array_start;
     for (size_t i = 0; i < count; ++i) {
@@ -173,9 +173,9 @@ inline std::string rv_scene_unit_array(const fx *items, size_t count)
     return out + array_end;
 }
 
-inline std::string rv_scene_vec3(const fx_vec3 &v)
+inline std::string rv_scene_vec3(const rv_pdklib::fx_vec3 &v)
 {
-    const fx parts[vec3_size] = { v.x, v.y, v.z };
+    const rv_pdklib::fx parts[vec3_size] = { v.x, v.y, v.z };
     return rv_scene_unit_array(parts, vec3_size);
 }
 
@@ -191,9 +191,9 @@ inline void rv_scene_field(std::string &t, const std::string &key, const std::st
     t += key + entry_sep + value + line_end;
 }
 
-inline void rv_scene_entries(std::string &t, const std::vector<rv_manifest_tree_entry> &entries)
+inline void rv_scene_entries(std::string &t, const std::vector<rv_pdklib::rv_manifest_tree_entry> &entries)
 {
-    for (const rv_manifest_tree_entry &e : entries) {
+    for (const rv_pdklib::rv_manifest_tree_entry &e : entries) {
         rv_scene_field(t, e.key, rv_scene_value_text(e.value));
     }
 }
@@ -277,18 +277,18 @@ inline void rv_scene_component_text(std::string &t, const std::string &object_id
 
 } // namespace detail
 
-inline std::string rv_scene_value_text(const rv_manifest_mvalue &v)
+inline std::string rv_scene_value_text(const rv_pdklib::rv_manifest_mvalue &v)
 {
     switch (v.kind) {
-    case rv_manifest_value_kind::string:
+    case rv_pdklib::rv_manifest_value_kind::string:
         return detail::rv_scene_quote(v.str);
-    case rv_manifest_value_kind::integer:
+    case rv_pdklib::rv_manifest_value_kind::integer:
         return std::to_string(v.num);
-    case rv_manifest_value_kind::real:
+    case rv_pdklib::rv_manifest_value_kind::real:
         return detail::rv_scene_number(v.real);
-    case rv_manifest_value_kind::array:
+    case rv_pdklib::rv_manifest_value_kind::array:
         return detail::rv_scene_array(v.arr.data(), v.arr.size());
-    case rv_manifest_value_kind::numbers:
+    case rv_pdklib::rv_manifest_value_kind::numbers:
         return detail::rv_scene_array(v.nums.data(), v.nums.size());
     }
     return detail::rv_scene_quote(std::string());
@@ -317,7 +317,7 @@ inline std::string rv_scene_render(const rv_scene &scene)
             }
         }
     }
-    for (const rv_manifest_tree_section &s : scene.other_sections) {
+    for (const rv_pdklib::rv_manifest_tree_section &s : scene.other_sections) {
         t += detail::line_end;
         detail::rv_scene_header(t, s.name, s.array);
         detail::rv_scene_entries(t, s.entries);

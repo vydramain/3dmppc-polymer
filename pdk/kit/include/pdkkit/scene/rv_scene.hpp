@@ -27,35 +27,35 @@ namespace rv_pdklib
 struct rv_scene_object {
     std::string id; // stable: the editor gives it and never changes it
     std::string name;
-    int32_t parent = -1;                       // index into rv_scene::objects; -1 at the root
-    std::string kind;                          // "group", "camera", "mesh", "quad", "billboard" or "volume"
-    std::string entity;                        // entity type name; empty: the base type
-    fx_vec3 position{ 0, 0, 0 };               // Q20.12 scene units
-    fx_vec3 rotation{ 0, 0, 0 };               // Q20.12 degrees; R = Ry * Rx * Rz; [x (pitch), y (yaw), z (roll)]
-    fx_vec3 scale{ fx_one, fx_one, fx_one };   // Q20.12, 1.0 is fx_one
-    std::string mesh;                          // a disc asset for kind "mesh"; empty: a unit cube
-    std::string texture;                       // a disc texture, or empty
-    fx uv[4]{ 0, 0, 0, 0 };                    // Q20.12 quad/billboard texture rect, pixels: u0,v0,u1,v1
-    rv_color tint{ 255, 255, 255 };            // quad/billboard modulation
-    fx tess = 2 * fx_one;                      // Q20.12 quad/billboard subdivision density, 2.0
-    std::vector<rv_manifest_tree_entry> extra; // keys the loader does not know, in file order
+    int32_t parent = -1;                    // index into rv_scene::objects; -1 at the root
+    std::string kind;                       // "group", "camera", "mesh", "quad", "billboard" or "volume"
+    std::string entity;                     // entity type name; empty: the base type
+    rv_pdklib::fx_vec3 position{ 0, 0, 0 }; // Q20.12 scene units
+    rv_pdklib::fx_vec3 rotation{ 0, 0, 0 }; // Q20.12 degrees; R = Ry * Rx * Rz; [x (pitch), y (yaw), z (roll)]
+    rv_pdklib::fx_vec3 scale{ rv_pdklib::fx_one, rv_pdklib::fx_one, rv_pdklib::fx_one }; // Q20.12, 1.0 is fx_one
+    std::string mesh;                                     // a disc asset for kind "mesh"; empty: a unit cube
+    std::string texture;                                  // a disc texture, or empty
+    rv_pdklib::fx uv[4]{ 0, 0, 0, 0 };                    // Q20.12 quad/billboard texture rect, pixels: u0,v0,u1,v1
+    rv_color tint{ 255, 255, 255 };                       // quad/billboard modulation
+    rv_pdklib::fx tess = 2 * rv_pdklib::fx_one;           // Q20.12 quad/billboard subdivision density, 2.0
+    std::vector<rv_pdklib::rv_manifest_tree_entry> extra; // keys the loader does not know, in file order
 };
 
 // A [[component]]: the index of its object, the component type's name, and the field values as the file gives them.
 struct rv_scene_component {
     int32_t object = -1; // index into rv_scene::objects
     std::string name;
-    std::vector<rv_manifest_tree_entry> fields; // in file order
+    std::vector<rv_pdklib::rv_manifest_tree_entry> fields; // in file order
 };
 
 struct rv_scene {
     uint32_t version_major = 0;
     uint32_t version_minor = 0;
     std::vector<rv_scene_object> objects;
-    std::vector<rv_scene_component> components;           // in file order
-    std::string preamble;                                 // the comment lines before the first section, as written
-    std::vector<rv_manifest_tree_entry> scene_extra;      // [scene] keys not read as version or format
-    std::vector<rv_manifest_tree_section> other_sections; // sections other than [scene] and [[object]]
+    std::vector<rv_scene_component> components;                      // in file order
+    std::string preamble;                                            // the comment lines before the first section, as written
+    std::vector<rv_pdklib::rv_manifest_tree_entry> scene_extra;      // [scene] keys not read as version or format
+    std::vector<rv_pdklib::rv_manifest_tree_section> other_sections; // sections other than [scene] and [[object]]
 };
 
 // 0 with the scene, or 1 with every problem in `error`, each stamped with
@@ -75,17 +75,17 @@ inline int rv_scene_parse(const std::string &text, const std::string &origin, rv
 inline std::string rv_scene_render(const rv_scene &scene);
 
 // One value as rv_scene_render writes it: a quoted string, [a, b] for an array, the shortest fixed number.
-inline std::string rv_scene_value_text(const rv_manifest_mvalue &value);
+inline std::string rv_scene_value_text(const rv_pdklib::rv_manifest_mvalue &value);
 
 // Object `index`'s local transform: T * Ry * Rx * Rz * S.
-inline rv_mat4 rv_scene_local(const rv_scene_object &object);
+inline rv_pdklib::rv_mat4 rv_scene_local(const rv_scene_object &object);
 
 // Object `index`'s transform in scene space: its parents' applied outside its own.
-inline rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index);
+inline rv_pdklib::rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index);
 
 // A "quad" object's four scene-space corners, PDK Z order (top-left, top-right,
 // bottom-left, bottom-right of its local XY square), for the game and the editor alike.
-inline void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_vec3 out[4]);
+inline void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_pdklib::rv_vec3 out[4]);
 
 } // namespace rv_pdklib
 
