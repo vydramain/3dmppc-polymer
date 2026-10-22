@@ -131,6 +131,51 @@ int rv_editor_camera_build(const rv_editor_scene_camera &c, float height, rv_pdk
         out);
 }
 
+// A view-space point in Q20.12. Error: a coordinate outside Q20.12; p is untouched.
+int rv_editor_fx_of_view(const vec3 &v, rv_pdklib::fx_vec3 &p)
+{
+    rv_pdklib::fx_vec3 raw{};
+    if (rv_pdklib::fx_from_double(v[0], raw.x) != RV_OK || rv_pdklib::fx_from_double(v[1], raw.y) != RV_OK ||
+        rv_pdklib::fx_from_double(v[2], raw.z) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    p = raw;
+    return RV_OK;
+}
+
+// Centre-relative pixels of a Q20.12 view point, rounded as the console's rv_gte_project; the float centre is added after.
+// Precondition: p.z > 0; a failure returns the centre.
+ImVec2 rv_editor_screen_of_fx(const rv_editor_view &v, const rv_pdklib::fx_vec3 &p)
+{
+    rv_pdklib::rv_gte_screen s{};
+    if (rv_pdklib::rv_gte_project(p, { v.camera.h, 0, 0 }, s) != RV_OK) {
+        return v.center;
+    }
+    return ImVec2(v.center.x + static_cast<float>(s.x), v.center.y + static_cast<float>(s.y));
+}
+
+// Cuts the behind end of an edge that crosses the near plane to the plane; an edge wholly on one side is left as it is.
+// Error: never for a crossing edge (t is in [0, 4096]); the behind end is then untouched.
+int rv_editor_cut_edge(rv_pdklib::fx_vec3 &a, rv_pdklib::fx_vec3 &b)
+{
+    const bool a_behind = a.z < camera_near_fx;
+    if (a_behind == (b.z < camera_near_fx)) {
+        return RV_OK;
+    }
+    rv_pdklib::fx_vec3 &behind = a_behind ? a : b;
+    const rv_pdklib::fx_vec3 front = a_behind ? b : a;
+    return rv_pdklib::rv_gte_near_clip(behind, front, camera_near_fx, behind);
+}
+
+// Both ends of an edge in Q20.12, the crossing one cut to the near plane. Error: a view point outside Q20.12.
+int rv_editor_edge_fx(const rv_editor_view &v, const vec3 &a, const vec3 &b, rv_pdklib::fx_vec3 &pa, rv_pdklib::fx_vec3 &pb)
+{
+    if (rv_editor_fx_of_view(v.to_view(a), pa) != RV_OK || rv_editor_fx_of_view(v.to_view(b), pb) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    return rv_editor_cut_edge(pa, pb);
+}
+
 } // namespace
 
 vec3 sub(const vec3 &a, const vec3 &b)
@@ -172,25 +217,17 @@ ImVec2 rv_editor_view::to_screen(const vec3 &v) const
 {
     // Precondition: v[2] > 0 (the callers clip at the near plane); a failure returns the centre.
     rv_pdklib::fx_vec3 p{};
-    if (rv_pdklib::fx_from_double(v[0], p.x) != RV_OK || rv_pdklib::fx_from_double(v[1], p.y) != RV_OK ||
-        rv_pdklib::fx_from_double(v[2], p.z) != RV_OK) {
-        return center;
-    }
-    // Centre-relative pixels, rounded as the console's rv_gte_project; the float centre is added after.
-    rv_pdklib::rv_gte_screen s{};
-    if (rv_pdklib::rv_gte_project(p, { camera.h, 0, 0 }, s) != RV_OK) {
-        return center;
-    }
-    return ImVec2(center.x + static_cast<float>(s.x), center.y + static_cast<float>(s.y));
+    return rv_editor_fx_of_view(v, p) == RV_OK ? rv_editor_screen_of_fx(*this, p) : center;
 }
 
 bool rv_editor_view::point(const vec3 &p, ImVec2 &out) const
 {
-    const vec3 v = to_view(p);
-    if (v[2] < rv_editor_near) {
+    // A point outside Q20.12 is not on screen: it returns false.
+    rv_pdklib::fx_vec3 v{};
+    if (rv_editor_fx_of_view(to_view(p), v) != RV_OK || v.z < camera_near_fx) {
         return false;
     }
-    out = to_screen(v);
+    out = rv_editor_screen_of_fx(*this, v);
     return true;
 }
 
@@ -220,16 +257,21 @@ rv_editor_view rv_editor_view_make(const rv_editor_scene_camera &c, ImVec2 p0, I
 
 void rv_editor_line(ImDrawList *dl, const rv_editor_view &v, const vec3 &a, const vec3 &b, ImU32 color, float width)
 {
-    vec3 va = v.to_view(a), vb = v.to_view(b);
-    if (va[2] < rv_editor_near && vb[2] < rv_editor_near) {
+    // View-space overflow skips the edge; input overflow counts as behind, as in to_view.
+    static bool reported = false;
+    rv_pdklib::fx_vec3 pa{};
+    rv_pdklib::fx_vec3 pb{};
+    if (rv_editor_edge_fx(v, a, b, pa, pb) != RV_OK) {
+        if (!reported) {
+            reported = true;
+            RV_LOG_WARN(scene_log_tag, "a scene edge is outside Q20.12: the edge is not drawn");
+        }
         return;
     }
-    if (va[2] < rv_editor_near || vb[2] < rv_editor_near) {
-        const double t = (rv_editor_near - va[2]) / (vb[2] - va[2]);
-        const vec3 cut = add(va, mul(sub(vb, va), t));
-        (va[2] < rv_editor_near ? va : vb) = cut;
+    if (pa.z < camera_near_fx && pb.z < camera_near_fx) {
+        return;
     }
-    dl->AddLine(v.to_screen(va), v.to_screen(vb), color, width);
+    dl->AddLine(rv_editor_screen_of_fx(v, pa), rv_editor_screen_of_fx(v, pb), color, width);
 }
 
 namespace
