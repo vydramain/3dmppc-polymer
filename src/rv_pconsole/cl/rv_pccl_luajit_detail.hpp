@@ -108,11 +108,14 @@ private:
 // run away independent of the live one.
 //
 // One unit is one table visited OR one key examined: counting tables alone
-// left a flat table with a huge key count costing one unit. The number is set
-// so it cannot fire before [budget.pccl] script_memory_size does - a table
-// entry costs LuaJIT tens of bytes, so a 256 KiB script heap runs out at
-// roughly eight thousand entries, and a cap that refused a state table the
-// machine was willing to hold would diagnose the wrong problem.
+// left a flat table with a huge key count costing one unit.
+// The limit bounds the walk's work, not memory. Measured on LuaJIT 2.1, which
+// cmake/luajit.cmake finds or builds, 16384 units is about 130 KiB for a flat
+// number array, about 1.1 MiB for a table with string keys, about 1.9 MiB for
+// one-field tables. So on cheap entries the limit can fire first: with
+// script_memory_size at 256 KiB, a flat number array hits it at about 130 KiB,
+// before the heap runs out, and the state is refused with "state has too many
+// fields", not a memory error.
 constexpr int kShapeMaxDepth = 16;
 constexpr int kShapeMaxNodes = 16384;
 
