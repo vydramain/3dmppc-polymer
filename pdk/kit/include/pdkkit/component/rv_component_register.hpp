@@ -5,6 +5,7 @@
 // fields, and ecs_component_register<T> puts both in the world's registry.
 
 #include <algorithm>
+#include <array>
 #include <concepts>
 #include <cstdint>
 #include <string>
@@ -262,29 +263,49 @@ int ecs_builtin_register(ecs_world &world)
     return code;
 }
 
+// A list of component types; ecs_builtin_types is the only place the built-in types are named.
+template <typename... T>
+struct ecs_type_list {};
+
+// The built-in components of rv_ecs_component.hpp, the ones with a PDKKIT_COMPONENT description: not
+// ecs_component_parent, which the loader sets from an object's parent. In registration order.
+using ecs_builtin_types = ecs_type_list<ecs_component_name,
+    ecs_component_transform,
+    ecs_component_model,
+    ecs_component_camera,
+    ecs_component_volume,
+    ecs_component_hidden,
+    ecs_component_decal,
+    ecs_component_two_sided,
+    ecs_component_face_camera>;
+
 // Registers the types in order, stopping at the first refusal, and returns its code.
 template <typename... T>
-int ecs_builtins_register_list(ecs_world &world)
+int ecs_builtins_register_list(ecs_world &world, ecs_type_list<T...>)
 {
     int code = RV_OK;
     static_cast<void>((((code = ecs_builtin_register<T>(world)) == RV_OK) && ...));
     return code;
 }
 
-// Registers the built-in components of rv_ecs_component.hpp, the ones with a PDKKIT_COMPONENT description: not
-// ecs_component_parent, which the loader sets from an object's parent. A disc calls it before its own
-// ecs_component_register calls; a disc that registers one of these names itself gets RV_ERR_ALREADY from that call.
+// Registers the built-in components. A disc calls it before its own ecs_component_register calls; a disc that
+// registers one of these names itself gets RV_ERR_ALREADY from that call.
 [[nodiscard]] inline int ecs_builtins_register(ecs_world &world)
 {
-    return ecs_builtins_register_list<ecs_component_name,
-        ecs_component_transform,
-        ecs_component_model,
-        ecs_component_camera,
-        ecs_component_volume,
-        ecs_component_hidden,
-        ecs_component_decal,
-        ecs_component_two_sided,
-        ecs_component_face_camera>(world);
+    return ecs_builtins_register_list(world, ecs_builtin_types{});
+}
+
+// The descriptions of the types of a list, in the list's order.
+template <typename... T>
+constexpr std::array<const ecs_component_desc *, sizeof...(T)> ecs_descs_of(ecs_type_list<T...>)
+{
+    return { &ecs_component_traits<T>::desc... };
+}
+
+// The descriptions of the built-in components, in ecs_builtins_register's order.
+inline constexpr auto ecs_builtin_descs()
+{
+    return ecs_descs_of(ecs_builtin_types{});
 }
 
 } // namespace rv_pdkkit

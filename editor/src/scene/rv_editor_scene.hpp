@@ -11,6 +11,12 @@
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "pdklib/rv_version/rv_version.hpp"
 
+namespace rv_pdkkit
+{
+struct ecs_component_desc;
+struct ecs_component_record;
+} // namespace rv_pdkkit
+
 namespace rv_editor
 {
 
@@ -124,5 +130,39 @@ rv_editor_tint rv_editor_object_get_tint(const rv_editor_scene_object &o);
 void rv_editor_object_set_tint(rv_editor_scene_object &o, const rv_editor_tint &value);
 double rv_editor_object_get_tess(const rv_editor_scene_object &o);
 void rv_editor_object_set_tess(rv_editor_scene_object &o, double value);
+
+// One row of a component in the Inspector. A described field has its type name and text: the file's value, or the
+// default's with is_default. A field the description does not name, and every field of an undescribed component,
+// has the text as the file holds it and no type.
+struct rv_editor_scene_field_row {
+    std::string name;
+    std::string type; // the type's name from ecs_field_types; empty when undescribed
+    std::string text;
+    bool described = false;
+    bool is_default = false; // the file has no value for the field: text is the default
+    std::string note;        // "repeated field" on a second key of a described field; empty otherwise
+};
+
+// The description of the component named name: the snapshot's records when records is given (the snapshot is loaded),
+// else the built-ins'. nullptr when the one that applies does not describe it.
+const rv_pdkkit::ecs_component_desc *rv_editor_scene_desc_find(std::string_view name,
+    const std::vector<rv_pdkkit::ecs_component_record> *records);
+
+// The rows of c: the described fields in description order, then the fields desc does not name, in file order.
+// A null desc leaves every field undescribed.
+std::vector<rv_editor_scene_field_row> rv_editor_scene_field_rows(const rv_editor_scene_component &c,
+    const rv_pdkkit::ecs_component_desc *desc);
+
+// Sets field key of c to text, read by pdkkit's field parser (the console's rules). A value whose bytes equal the
+// default's removes the field; any other is written as its value. RV_ERR_NOENT if desc does not name key;
+// RV_ERR_INVAL with the reason if the text does not read, and c is then unchanged.
+int rv_editor_scene_field_set(rv_editor_scene_component &c,
+    const rv_pdkkit::ecs_component_desc &desc,
+    std::string_view key,
+    const std::string &text,
+    std::string &error);
+
+// Removes field key of c, so the default applies again.
+void rv_editor_scene_field_reset(rv_editor_scene_component &c, std::string_view key);
 
 } // namespace rv_editor
