@@ -17,7 +17,7 @@
 #include "pdk/de/rv_dv.h"
 #include "pdkkit/scene/rv_scene.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 namespace detail
@@ -325,4 +325,4 @@ inline std::string rv_scene_render(const rv_scene &scene)
     return t;
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

@@ -117,7 +117,7 @@ void rv_editor_components_field(rv_editor_scene_doc &doc,
         return;
     case rv_pdklib::rv_manifest_value_kind::array:
     case rv_pdklib::rv_manifest_value_kind::numbers:
-        rv_editor_label(rv_pdklib::rv_scene_value_text(v).c_str(), rv_editor_label_kind::normal, theme);
+        rv_editor_label(rv_pdkkit::rv_scene_value_text(v).c_str(), rv_editor_label_kind::normal, theme);
         return;
     }
 }

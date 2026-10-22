@@ -16,7 +16,7 @@
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
 #include "pdklib/rv_version/rv_version.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 namespace detail
@@ -420,4 +420,4 @@ rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_pdklib::rv_ve
     }
 }
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit

@@ -1,4 +1,4 @@
-// Scene documents: pdklib's rv_scene reads and writes the file; this file maps it to the
+// Scene documents: pdkkit's rv_scene reads and writes the file; this file maps it to the
 // editor's model and back, so the editor keeps no parser of its own.
 
 #include "scene/rv_editor_scene.hpp"
@@ -111,10 +111,10 @@ int rv_editor_scene_color(const rv_editor_scene_object &o, rv_color &out, std::s
     return RV_OK;
 }
 
-// One object as pdklib's scene object; `error` names the object and field that do not fit Q20.12.
+// One object as pdkkit's scene object; `error` names the object and field that do not fit Q20.12.
 int rv_editor_scene_object_to_pdk(const rv_editor_scene &scene,
     const rv_editor_scene_object &o,
-    rv_pdklib::rv_scene_object &p,
+    rv_pdkkit::rv_scene_object &p,
     std::string &error)
 {
     std::array<rv_pdklib::fx, uv_size> uv{};
@@ -153,8 +153,8 @@ int rv_editor_scene_object_to_pdk(const rv_editor_scene &scene,
     return RV_OK;
 }
 
-// The model as pdklib's scene: each object's components follow the object, in object order.
-int rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdklib::rv_scene &pdk, std::string &error)
+// The model as pdkkit's scene: each object's components follow the object, in object order.
+int rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdkkit::rv_scene &pdk, std::string &error)
 {
     pdk.version_major = scene.version_major;
     pdk.version_minor = scene.version_minor;
@@ -162,7 +162,7 @@ int rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdklib::rv_scene &pd
     pdk.scene_extra = scene.scene_extra;
     pdk.other_sections = scene.other_sections;
     for (const rv_editor_scene_object &o : scene.objects) {
-        rv_pdklib::rv_scene_object p;
+        rv_pdkkit::rv_scene_object p;
         if (rv_editor_scene_object_to_pdk(scene, o, p, error) != RV_OK) {
             return RV_ERR_INVAL;
         }
@@ -170,7 +170,7 @@ int rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdklib::rv_scene &pd
     }
     for (size_t i = 0; i < scene.objects.size(); ++i) {
         for (const rv_editor_scene_component &c : scene.objects[i].components) {
-            rv_pdklib::rv_scene_component p;
+            rv_pdkkit::rv_scene_component p;
             p.object = static_cast<int32_t>(i);
             p.name = c.name;
             p.fields = c.fields;
@@ -181,7 +181,7 @@ int rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdklib::rv_scene &pd
 }
 
 // One object of a parsed scene as the editor's model; its parent index is already in range.
-rv_editor_scene_object rv_editor_scene_object_from_pdk(const rv_pdklib::rv_scene &pdk, const rv_pdklib::rv_scene_object &p)
+rv_editor_scene_object rv_editor_scene_object_from_pdk(const rv_pdkkit::rv_scene &pdk, const rv_pdkkit::rv_scene_object &p)
 {
     rv_editor_scene_object o;
     o.id = p.id;
@@ -212,8 +212,8 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
         error = path.string() + ": cannot read";
         return RV_ERR_INVAL;
     }
-    rv_pdklib::rv_scene pdk;
-    if (rv_pdklib::rv_scene_parse(rv_editor_file_text(path), path.string(), pdk, error) != 0) {
+    rv_pdkkit::rv_scene pdk;
+    if (rv_pdkkit::rv_scene_parse(rv_editor_file_text(path), path.string(), pdk, error) != 0) {
         return RV_ERR_INVAL;
     }
     rv_editor_scene s;
@@ -223,10 +223,10 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
     s.preamble = pdk.preamble;
     s.scene_extra = pdk.scene_extra;
     s.other_sections = pdk.other_sections;
-    for (const rv_pdklib::rv_scene_object &p : pdk.objects) {
+    for (const rv_pdkkit::rv_scene_object &p : pdk.objects) {
         s.objects.push_back(rv_editor_scene_object_from_pdk(pdk, p));
     }
-    for (const rv_pdklib::rv_scene_component &p : pdk.components) {
+    for (const rv_pdkkit::rv_scene_component &p : pdk.components) {
         rv_editor_scene_component c;
         c.name = p.name;
         c.fields = p.fields;
@@ -242,11 +242,11 @@ int rv_editor_scene_save(const rv_editor_scene &scene, std::string &error)
         error = "read-only: " + scene.read_only;
         return RV_ERR_INVAL;
     }
-    rv_pdklib::rv_scene pdk;
+    rv_pdkkit::rv_scene pdk;
     if (rv_editor_scene_to_pdk(scene, pdk, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
-    const int code = rv_editor_file_replace(scene.path, rv_pdklib::rv_scene_render(pdk), error);
+    const int code = rv_editor_file_replace(scene.path, rv_pdkkit::rv_scene_render(pdk), error);
     if (code != RV_OK) {
         return code;
     }

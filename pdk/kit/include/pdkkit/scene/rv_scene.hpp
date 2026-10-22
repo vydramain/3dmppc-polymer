@@ -10,7 +10,7 @@
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "pdklib/rv_math/rv_math.hpp"
 
-namespace rv_pdklib
+namespace rv_pdkkit
 {
 
 // A scene document as a disc reads it:
@@ -87,7 +87,7 @@ inline rv_pdklib::rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t inde
 // bottom-left, bottom-right of its local XY square), for the game and the editor alike.
 inline void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_pdklib::rv_vec3 out[4]);
 
-} // namespace rv_pdklib
+} // namespace rv_pdkkit
 
 #include "pdkkit/scene/rv_scene_read.hpp"
 #include "pdkkit/scene/rv_scene_write.hpp"
