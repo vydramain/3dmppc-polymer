@@ -28,6 +28,7 @@ namespace
 {
 
 using detail::entries_within;
+using detail::find_attribute;
 using detail::lanes_to_q16;
 using detail::q16_matrix;
 using detail::RV_MPPCMOD_GLTF_ENTRY_LIMIT;
@@ -66,6 +67,10 @@ using q16_point = std::array<int64_t, RV_MPPCMOD_GLTF_POS_LANES>;
 struct flatten_state {
     rv_mppcmod_q16_model *model = nullptr;
     detail::image_sink sink;
+    // Null unless the caller asks for the source; the baker never reads it.
+    std::vector<rv_mppcmod_gltf_source_vertex> *source = nullptr;
+    // World matrix of the node being walked, as cgltf gives it, widened to double.
+    std::array<double, RV_MPPCMOD_GLTF_MATRIX_FLOATS> node_world = {};
 };
 
 uint8_t to_channel(float v)
@@ -84,17 +89,6 @@ std::array<uint8_t, 3> base_color(const cgltf_material *material)
         return RV_MPPCMOD_GLTF_WHITE;
     }
     return to_rgb(material->pbr_metallic_roughness.base_color_factor);
-}
-
-// The accessor of the attribute `type`, set 0; null if the primitive has none.
-const cgltf_accessor *find_attribute(const cgltf_primitive &prim, cgltf_attribute_type type)
-{
-    for (size_t a = 0; a < prim.attributes_count; ++a) {
-        if (prim.attributes[a].type == type && prim.attributes[a].index == 0) {
-            return prim.attributes[a].data;
-        }
-    }
-    return nullptr;
 }
 
 // The identity in Q.16: 1.0 on the diagonal.
@@ -284,6 +278,23 @@ int read_vertices(const cgltf_primitive &prim,
     return RV_OK;
 }
 
+// Appends the source vertices of one primitive, in the order of its model vertices. Called before the model's vertices
+// are appended, so a refusal leaves source and model.vertices the same size.
+int append_source(flatten_state &st, const cgltf_primitive &prim, const std::string &where, std::string &error)
+{
+    if (st.source == nullptr) {
+        return RV_OK;
+    }
+    // read_source_vertices assigns its output, so each primitive is read apart and appended.
+    std::vector<rv_mppcmod_gltf_source_vertex> part;
+    const int rc = detail::read_source_vertices(prim, st.node_world, where, part, error);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    st.source->insert(st.source->end(), part.begin(), part.end());
+    return RV_OK;
+}
+
 // Appends one primitive as one part: its own vertices, its triangles, its colour and texture.
 int append_primitive(flatten_state &st,
     const cgltf_primitive &prim,
@@ -327,6 +338,10 @@ int append_primitive(flatten_state &st,
     }
     rv_mppcmod_part part;
     rc = detail::bake_texture(st.sink, prim.material, where, part.texture, error);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    rc = append_source(st, prim, where, error);
     if (rc != RV_OK) {
         return rc;
     }
@@ -426,6 +441,11 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
         if (world_rc != RV_OK) {
             return world_rc;
         }
+        if (st.source != nullptr) {
+            std::array<float, RV_MPPCMOD_GLTF_MATRIX_FLOATS> float_world = {};
+            cgltf_node_transform_world(node, float_world.data());
+            std::copy(float_world.begin(), float_world.end(), st.node_world.begin());
+        }
         for (size_t p = 0; p < node->mesh->primitives_count; ++p) {
             const std::string where = "node " + std::to_string(n) + ", primitive " + std::to_string(p);
             const int rc = append_primitive(st, node->mesh->primitives[p], world, where, error);
@@ -441,12 +461,12 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
     return RV_OK;
 }
 
-} // namespace
-
-int rv_mppcmod_read_gltf(const std::string &path,
+// Both overloads land here. A null `source` leaves the source unread, so the baker's output is the same as before.
+int read_model(const std::string &path,
     const std::string &stem,
     rv_mppcmod_q16_model &model,
     std::vector<rv_mppcmod_gltf_image> &images,
+    std::vector<rv_mppcmod_gltf_source_vertex> *source,
     std::string &error)
 {
     model = rv_mppcmod_q16_model{};
@@ -457,12 +477,35 @@ int rv_mppcmod_read_gltf(const std::string &path,
     st.sink.dir = path.substr(0, path.find_last_of("/\\") + 1);
     st.model = &model;
     st.sink.images = &images;
+    st.source = source;
     const int rc = read_gltf(path, st, error);
     if (rc != RV_OK) {
         error = "'" + path + "' " + error;
         return rc;
     }
     return RV_OK;
+}
+
+} // namespace
+
+int rv_mppcmod_read_gltf(const std::string &path,
+    const std::string &stem,
+    rv_mppcmod_q16_model &model,
+    std::vector<rv_mppcmod_gltf_image> &images,
+    std::string &error)
+{
+    return read_model(path, stem, model, images, nullptr, error);
+}
+
+int rv_mppcmod_read_gltf(const std::string &path,
+    const std::string &stem,
+    rv_mppcmod_q16_model &model,
+    std::vector<rv_mppcmod_gltf_image> &images,
+    std::vector<rv_mppcmod_gltf_source_vertex> &source,
+    std::string &error)
+{
+    source.clear();
+    return read_model(path, stem, model, images, &source, error);
 }
 
 } // namespace rv_pdklib

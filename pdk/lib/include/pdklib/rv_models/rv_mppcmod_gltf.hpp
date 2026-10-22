@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "pdklib/rv_models/rv_mppcmod.hpp"
+#include "pdklib/rv_models/rv_mppcmod_gltf_accessor.hpp"
 #include "pdklib/rv_models/rv_mppcmod_quant.hpp"
 
 namespace rv_pdklib
@@ -27,6 +28,16 @@ int rv_mppcmod_read_gltf(const std::string &path,
     const std::string &stem,
     rv_mppcmod_q16_model &model,
     std::vector<rv_mppcmod_gltf_image> &images,
+    std::string &error);
+
+// As above, and `source` gets one entry per model vertex, in the same order: the glTF floats
+// transformed by the node's world matrix, not yet quantized. On failure, `model`, `images` and `source` hold what was
+// read before the refusal; use only the returned error.
+int rv_mppcmod_read_gltf(const std::string &path,
+    const std::string &stem,
+    rv_mppcmod_q16_model &model,
+    std::vector<rv_mppcmod_gltf_image> &images,
+    std::vector<rv_mppcmod_gltf_source_vertex> &source,
     std::string &error);
 
 } // namespace rv_pdklib

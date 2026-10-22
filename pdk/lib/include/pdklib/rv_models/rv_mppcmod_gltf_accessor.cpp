@@ -97,17 +97,6 @@ int read_indices(const cgltf_accessor &acc,
     return check_corners(out, vertex_count, where, error);
 }
 
-// The attribute of set 0 with `type`, or null. Same rule as rv_mppcmod_gltf.cpp's copy.
-const cgltf_accessor *find_attribute(const cgltf_primitive &prim, cgltf_attribute_type type)
-{
-    for (size_t a = 0; a < prim.attributes_count; ++a) {
-        if (prim.attributes[a].type == type && prim.attributes[a].index == 0) {
-            return prim.attributes[a].data;
-        }
-    }
-    return nullptr;
-}
-
 // world * (x, y, z, 1) in double, depth negated, then each lane rounded to float once.
 // Fails when a lane is not finite or leaves float range: the cast past it is undefined.
 int transform_position(const std::array<double, RV_MPPCMOD_GLTF_MATRIX_FLOATS> &world,
@@ -183,10 +172,20 @@ int read_corners(const cgltf_primitive &prim,
     return check_corners(out, vertex_count, where, error);
 }
 
+const cgltf_accessor *find_attribute(const cgltf_primitive &prim, int type)
+{
+    for (size_t a = 0; a < prim.attributes_count; ++a) {
+        if (prim.attributes[a].type == type && prim.attributes[a].index == 0) {
+            return prim.attributes[a].data;
+        }
+    }
+    return nullptr;
+}
+
 int read_source_vertices(const cgltf_primitive &prim,
     const std::array<double, RV_MPPCMOD_GLTF_MATRIX_FLOATS> &world,
     const std::string &where,
-    std::vector<source_vertex> &out,
+    std::vector<rv_pdklib::rv_mppcmod_gltf_source_vertex> &out,
     std::string &error)
 {
     const cgltf_accessor *pos_acc = find_attribute(prim, cgltf_attribute_type_position);
@@ -216,9 +215,9 @@ int read_source_vertices(const cgltf_primitive &prim,
     }
     // Decided once, before the loop: a missing TEXCOORD_0 leaves every uv at (0, 0).
     const bool has_uv = uv_acc != nullptr;
-    out.assign(count, source_vertex{});
+    out.assign(count, rv_pdklib::rv_mppcmod_gltf_source_vertex{});
     for (size_t i = 0; i < count; ++i) {
-        source_vertex &vertex = out[i];
+        rv_pdklib::rv_mppcmod_gltf_source_vertex &vertex = out[i];
         if (transform_position(world, &pos[i * RV_MPPCMOD_GLTF_POS_LANES], vertex.pos) != RV_OK) {
             error =
                 where + " vertex " + std::to_string(i) + " has a transformed position that is not finite or leaves float range";
