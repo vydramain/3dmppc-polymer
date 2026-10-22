@@ -5,6 +5,7 @@
 // is ever read back from bytes.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <span>
 #include <string>
@@ -31,8 +32,8 @@ namespace rv_3dmppc
 // The integer point of rv_pccg_sw::point: view by rv_gte_point, screen by rv_gte_project, depth by
 // rv_gte_depth_key. Free, so a probe runs it without the console. Error: RV_ERR_INVAL for a point nearer
 // than the near plane or a view value that leaves int32; screen and depth are then untouched.
-// frame_camera refuses a camera whose far minus near is above gte_key_span_max, so no point of such a
-// frame gets here.
+// frame_camera refuses a camera whose three times (far minus near) is above gte_key_span_max, the triangle
+// key, so no point of such a frame is refused for its span.
 int rv_pccg_sw_point_int(const rv_pdklib::rv_gte_camera &camera,
     rv_pdklib::rv_gte_viewport viewport,
     rv_pdklib::fx_vec3 world,
@@ -46,6 +47,42 @@ int rv_pccg_sw_fx_vec3(const rv_cg_vec3 &value, rv_pdklib::fx_vec3 &out);
 
 // A screen side as int32. Error: the side is outside (0, INT32_MAX]; out is untouched.
 int rv_pccg_sw_screen_side(int64_t side, int32_t &out);
+
+// Corners of a triangle, and of a triangle cut at the near plane.
+constexpr int RV_PCCG_SW_TRI_CORNERS = 3;
+constexpr int RV_PCCG_SW_CUT_CORNERS = 4;
+
+// A vertex in view space. colour (0..255 per channel, before the tint) and uv (4.12) are interpolated
+// with the position at the near cut.
+struct rv_pccg_sw_clip_vertex {
+    rv_pdklib::fx_vec3 view;
+    std::array<int32_t, 3> colour;
+    std::array<int32_t, 2> uv;
+};
+
+// A model vertex in view space. A vertex outside int32 is not valid: its triangles are skipped.
+struct rv_pccg_sw_view_vertex {
+    rv_pdklib::fx_vec3 view;
+    bool valid;
+};
+
+// A float world to rv_gte's integer form: row-major 4x4, the bottom row not taken, so the caller
+// checks the world is affine. Error: an element leaves its integer type; out is untouched.
+int rv_pccg_sw_world_matrix(const float (&world)[16], rv_pdklib::rv_gte_matrix &out);
+
+// View-space Q20.12 of every model vertex: rv_gte_compose(camera view, world), then rv_gte_vertex.
+// Error: the composed matrix leaves rv_gte's range. A vertex that rv_gte_vertex refuses is marked, not an error.
+int rv_pccg_sw_view_vertexes(const rv_pdklib::rv_gte_matrix &camera_view,
+    const rv_pdklib::rv_gte_matrix &world,
+    const rv_pdklib::rv_mppcmod_int_model &model,
+    std::vector<rv_pccg_sw_view_vertex> &out);
+
+// Sutherland-Hodgman against z == near_plane; a vertex is in when z >= near_plane, the side
+// rv_gte_near_clip cuts to. Returns 0, 3 or 4 vertices in `out`, through `count`.
+int rv_pccg_sw_clip_near(const rv_pccg_sw_clip_vertex (&in)[RV_PCCG_SW_TRI_CORNERS],
+    rv_pdklib::fx near_plane,
+    rv_pccg_sw_clip_vertex (&out)[RV_PCCG_SW_CUT_CORNERS],
+    int &count);
 
 class rv_pccg_sw final : public rv_pccg
 {

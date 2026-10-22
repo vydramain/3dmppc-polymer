@@ -107,8 +107,8 @@ bool textures_per_part(const rv_pdklib::rv_mppcmod_int_model &model, std::span<c
 constexpr double RV_PCCG_SW_DEGREES_PER_RADIAN = 180.0 / std::numbers::pi;
 
 // The integer camera of the frame. transitional until E11e-2: rv_cg.h is float, so the conversion
-// to Q20.12 happens here, once per frame. Error: a value leaves Q20.12, the depth span is above
-// gte_key_span_max, or rv_gte_camera_make refuses the camera; out is untouched.
+// to Q20.12 happens here, once per frame. Error: a value leaves Q20.12, the triangle depth key span is
+// above gte_key_span_max, or rv_gte_camera_make refuses the camera; out is untouched.
 int gte_camera_make(const rv_cg_camera &camera, int32_t screen_height, rv_pdklib::rv_gte_camera &out)
 {
     rv_pdklib::fx_vec3 eye = {};
@@ -141,12 +141,14 @@ int gte_camera_make(const rv_cg_camera &camera, int32_t screen_height, rv_pdklib
         RV_LOG_WARN("pccg", "camera refused: far plane leaves Q20.12");
         return RV_ERR_INVAL;
     }
-    // rv_gte_depth_key refuses a span above gte_key_span_max, so every point of such a frame would refuse.
+    // rv_gte_depth_key takes count * (far minus near) and refuses above gte_key_span_max. A triangle takes
+    // RV_PCCG_SW_TRI_CORNERS points, so a larger span would refuse every triangle of the frame.
     const int64_t span = static_cast<int64_t>(far_plane) - near_plane;
-    if (span > rv_pdklib::gte_key_span_max) {
+    const int64_t triangle_span = span * RV_PCCG_SW_TRI_CORNERS;
+    if (triangle_span > rv_pdklib::gte_key_span_max) {
         RV_LOG_WARN("pccg",
-            "camera refused: far minus near is {} in Q20.12, above the depth key span {}",
-            span,
+            "camera refused: three times far minus near is {} in Q20.12, above the depth key span {}",
+            triangle_span,
             rv_pdklib::gte_key_span_max);
         return RV_ERR_INVAL;
     }

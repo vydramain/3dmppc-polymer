@@ -106,6 +106,15 @@ inline std::int64_t rv_gte_lerp(fx a, fx b, std::int64_t t)
     return static_cast<std::int64_t>(a) + rv_gte_round_frac((static_cast<std::int64_t>(b) - a) * t);
 }
 
+// Fraction of the edge a_z -> b_z at which z crosses near_plane, Q20.12 (0..4096), truncated. Lerp
+// the other components of the edge with it to get the cut point's colour and uv.
+// Precondition: a_z < near_plane <= b_z.
+inline std::int64_t rv_gte_near_t(fx a_z, fx b_z, fx near_plane)
+{
+    const std::int64_t num = (static_cast<std::int64_t>(near_plane) - a_z) << gte_frac_bits;
+    return num / (static_cast<std::int64_t>(b_z) - a_z);
+}
+
 // Point where the edge a -> b crosses z = near_plane; z is set to near_plane exactly.
 // Precondition: a.z < near_plane <= b.z. t is truncated to Q20.12, so each component can be off the exact
 // crossing: x by at most |b.x - a.x| / 4096 + 0.5 raw, y by at most |b.y - a.y| / 4096 + 0.5 raw.
@@ -116,8 +125,7 @@ inline std::int64_t rv_gte_lerp(fx a, fx b, std::int64_t t)
     if (!crosses) {
         return RV_ERR_INVAL;
     }
-    const std::int64_t num = (static_cast<std::int64_t>(near_plane) - a.z) << gte_frac_bits;
-    const std::int64_t t = num / (static_cast<std::int64_t>(b.z) - a.z);
+    const std::int64_t t = rv_gte_near_t(a.z, b.z, near_plane);
     const int rc = fx_vec3_store(rv_gte_lerp(a.x, b.x, t), rv_gte_lerp(a.y, b.y, t), near_plane, out);
     if (rc != RV_OK) {
         return rc;
