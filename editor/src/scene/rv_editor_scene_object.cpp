@@ -16,6 +16,7 @@
 #include "pdkkit/scene/rv_scene.hpp"
 #include "pdkkit/scene/rv_scene_migrate.hpp"
 #include "scene/rv_editor_scene_fields.hpp"
+#include "scene/rv_editor_scene_object_detail.hpp"
 
 namespace rv_editor
 {
@@ -23,51 +24,11 @@ namespace rv_editor
 namespace
 {
 
-// Vector component count (x, y, z).
-constexpr size_t vec3_size = 3;
-// UV coordinate component count (u, v, u2, v2).
-constexpr size_t uv_size = 4;
-
-// Tess of a sprite whose tess field is absent, as pdkkit gives it.
-constexpr double default_tess = 2.0;
-
 // Reasons the refusals and warnings give; each names what was refused, after the object and field.
 constexpr std::string_view reason_outside_q20_12 = "is outside Q20.12";
 // The words of fields_err_channel in rv_editor_scene_fields.hpp, without its leading space.
 constexpr std::string_view reason_tint_outside = "is outside 0..255";
-constexpr std::string_view reason_no_sprite = "has no quad or billboard component";
-constexpr std::string_view reason_tess_positive = "must be a number greater than zero";
 constexpr std::string_view reason_model_source_missing = "model source is missing";
-
-namespace migrate = rv_pdkkit::detail;
-
-// The component and field names the accessors use: pdkkit's descriptions, and the sprites' legacy names as the
-// migration writes them.
-struct scene_names {
-    std::string name = migrate::migrate_name_of<rv_pdkkit::ecs_component_name>();
-    std::string name_text = migrate::migrate_field_of<rv_pdkkit::ecs_component_name>(0);
-    std::string transform = migrate::migrate_name_of<rv_pdkkit::ecs_component_transform>();
-    std::string position = migrate::migrate_field_of<rv_pdkkit::ecs_component_transform>(0);
-    std::string rotation = migrate::migrate_field_of<rv_pdkkit::ecs_component_transform>(1);
-    std::string scale = migrate::migrate_field_of<rv_pdkkit::ecs_component_transform>(2);
-    std::string camera = migrate::migrate_name_of<rv_pdkkit::ecs_component_camera>();
-    std::string volume = migrate::migrate_name_of<rv_pdkkit::ecs_component_volume>();
-    std::string model = migrate::migrate_name_of<rv_pdkkit::ecs_component_model>();
-    std::string model_source = migrate::migrate_field_of<rv_pdkkit::ecs_component_model>(0);
-    std::string model_tint = migrate::migrate_field_of<rv_pdkkit::ecs_component_model>(1);
-    std::string legacy_quad = migrate::legacy_quad_name;
-    std::string legacy_billboard = migrate::legacy_billboard_name;
-    std::string legacy_texture = migrate::legacy_texture_key;
-    std::string legacy_uv = migrate::legacy_uv_key;
-    std::string legacy_tint = migrate::legacy_tint_key;
-    std::string legacy_tess = migrate::legacy_tess_key;
-};
-
-const scene_names &names()
-{
-    static const scene_names n{};
-    return n;
-}
 
 // A kind marker: a component whose presence gives the object its kind. A mesh's kind is its model.
 struct kind_row {
@@ -94,12 +55,6 @@ struct data_row {
     std::string component;
     check_fn check;
 };
-
-// A refused edit leaves the field as it was and logs why, naming the object and the field.
-void refuse(const rv_editor_scene_object &o, std::string_view field, std::string_view why)
-{
-    RV_LOG_WARN(scene_log_tag, "object '{}': '{}' {}, not changed", o.id, field, why);
-}
 
 // Model numbers of Q20.12 values; exact, the file's units are 1/4096.
 template <size_t count>
@@ -128,20 +83,6 @@ int to_fx(const rv_editor_scene_object &o,
     return RV_OK;
 }
 
-// The model numbers of a field of component c; def when c or the field is absent. Load refuses a field that
-// does not read, so an unreadable field cannot reach here.
-template <size_t count>
-std::array<double, count>
-read_units(const rv_editor_scene_component *c, std::string_view key, const std::array<double, count> &def)
-{
-    std::array<rv_pdklib::fx, count> raw{};
-    std::string error;
-    if (c == nullptr || rv_editor_fields_read_fx<count>(*c, key, raw, error) != RV_OK) {
-        return def;
-    }
-    return units_of(raw);
-}
-
 // The text of field key in c; "" when c or the field is absent.
 std::string read_text(const rv_editor_scene_component *c, std::string_view key)
 {
@@ -157,25 +98,6 @@ std::string read_text(const rv_editor_scene_component *c, std::string_view key)
 bool read_ok(int code)
 {
     return code == RV_OK || code == RV_ERR_NOENT;
-}
-
-// The object's first component named one of wanted, or nullptr.
-template <typename Object>
-auto find_first(Object &o, std::initializer_list<std::string_view> wanted) -> decltype(&o.components.front())
-{
-    for (auto &c : o.components) {
-        if (std::ranges::find(wanted, c.name) != wanted.end()) {
-            return &c;
-        }
-    }
-    return nullptr;
-}
-
-// The sprite's component (quad or billboard), or nullptr.
-template <typename Object>
-auto sprite_of(Object &o) -> decltype(&o.components.front())
-{
-    return find_first(o, { names().legacy_quad, names().legacy_billboard });
 }
 
 // The component that holds the tint (the model or a sprite), or nullptr.
@@ -343,7 +265,7 @@ void rv_editor_object_set_kind(rv_editor_scene_object &o, const std::string &val
 
 rv_editor_vec3 rv_editor_object_get_position(const rv_editor_scene_object &o)
 {
-    return read_units<vec3_size>(rv_editor_scene_component_find(o, names().transform), names().position, { 0, 0, 0 });
+    return units_of(array_of(rv_editor_object_get_position_fx(o)));
 }
 
 void rv_editor_object_set_position(rv_editor_scene_object &o, const rv_editor_vec3 &value)
@@ -357,7 +279,7 @@ void rv_editor_object_set_position(rv_editor_scene_object &o, const rv_editor_ve
 
 rv_editor_vec3 rv_editor_object_get_rotation(const rv_editor_scene_object &o)
 {
-    return read_units<vec3_size>(rv_editor_scene_component_find(o, names().transform), names().rotation, { 0, 0, 0 });
+    return units_of(array_of(rv_editor_object_get_rotation_fx(o)));
 }
 
 void rv_editor_object_set_rotation(rv_editor_scene_object &o, const rv_editor_vec3 &value)
@@ -371,7 +293,7 @@ void rv_editor_object_set_rotation(rv_editor_scene_object &o, const rv_editor_ve
 
 rv_editor_vec3 rv_editor_object_get_scale(const rv_editor_scene_object &o)
 {
-    return read_units<vec3_size>(rv_editor_scene_component_find(o, names().transform), names().scale, { 1, 1, 1 });
+    return units_of(array_of(rv_editor_object_get_scale_fx(o)));
 }
 
 void rv_editor_object_set_scale(rv_editor_scene_object &o, const rv_editor_vec3 &value)
@@ -417,21 +339,16 @@ void rv_editor_object_set_texture(rv_editor_scene_object &o, const std::string &
 
 rv_editor_uv rv_editor_object_get_uv(const rv_editor_scene_object &o)
 {
-    return read_units<uv_size>(sprite_of(o), names().legacy_uv, { 0, 0, 0, 0 });
+    return units_of(rv_editor_object_get_uv_fx(o));
 }
 
 void rv_editor_object_set_uv(rv_editor_scene_object &o, const rv_editor_uv &value)
 {
-    rv_editor_scene_component *c = sprite_of(o);
-    if (c == nullptr) {
-        refuse(o, names().legacy_uv, reason_no_sprite);
-        return;
-    }
     std::array<rv_pdklib::fx, uv_size> raw{};
     if (to_fx(o, names().legacy_uv, value, raw) != RV_OK) {
         return;
     }
-    rv_editor_fields_write_fx(*c, names().legacy_uv, raw);
+    rv_editor_object_set_uv_fx(o, raw);
 }
 
 rv_editor_tint rv_editor_object_get_tint(const rv_editor_scene_object &o)
@@ -463,25 +380,16 @@ void rv_editor_object_set_tint(rv_editor_scene_object &o, const rv_editor_tint &
 
 double rv_editor_object_get_tess(const rv_editor_scene_object &o)
 {
-    return read_units<1>(sprite_of(o), names().legacy_tess, { default_tess })[0];
+    return static_cast<double>(rv_editor_object_get_tess_fx(o)) / rv_pdklib::fx_one;
 }
 
 void rv_editor_object_set_tess(rv_editor_scene_object &o, double value)
 {
-    rv_editor_scene_component *c = sprite_of(o);
-    if (c == nullptr) {
-        refuse(o, names().legacy_tess, reason_no_sprite);
-        return;
-    }
     std::array<rv_pdklib::fx, 1> raw{};
     if (to_fx<1>(o, names().legacy_tess, { value }, raw) != RV_OK) {
         return;
     }
-    if (raw[0] <= 0) {
-        refuse(o, names().legacy_tess, reason_tess_positive);
-        return;
-    }
-    rv_editor_fields_write_fx(*c, names().legacy_tess, raw);
+    rv_editor_object_set_tess_fx(o, raw[0]);
 }
 
 } // namespace rv_editor

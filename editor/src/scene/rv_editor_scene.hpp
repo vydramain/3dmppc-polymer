@@ -131,6 +131,21 @@ void rv_editor_object_set_tint(rv_editor_scene_object &o, const rv_editor_tint &
 double rv_editor_object_get_tess(const rv_editor_scene_object &o);
 void rv_editor_object_set_tess(rv_editor_scene_object &o, double value);
 
+// Q20.12 twins of the accessors above: raw values, no conversion. Transitional; callers move to them and the double
+// ones go, then the suffix goes. A set refuses only a sprite-less object (uv, tess) or a tess not above zero;
+// position, rotation and scale never refuse, since fx holds every Q20.12 value. The double setters still refuse
+// input outside Q20.12.
+rv_pdklib::fx_vec3 rv_editor_object_get_position_fx(const rv_editor_scene_object &o);
+void rv_editor_object_set_position_fx(rv_editor_scene_object &o, const rv_pdklib::fx_vec3 &value);
+rv_pdklib::fx_vec3 rv_editor_object_get_rotation_fx(const rv_editor_scene_object &o);
+void rv_editor_object_set_rotation_fx(rv_editor_scene_object &o, const rv_pdklib::fx_vec3 &value);
+rv_pdklib::fx_vec3 rv_editor_object_get_scale_fx(const rv_editor_scene_object &o);
+void rv_editor_object_set_scale_fx(rv_editor_scene_object &o, const rv_pdklib::fx_vec3 &value);
+std::array<rv_pdklib::fx, 4> rv_editor_object_get_uv_fx(const rv_editor_scene_object &o);
+void rv_editor_object_set_uv_fx(rv_editor_scene_object &o, const std::array<rv_pdklib::fx, 4> &value);
+rv_pdklib::fx rv_editor_object_get_tess_fx(const rv_editor_scene_object &o);
+void rv_editor_object_set_tess_fx(rv_editor_scene_object &o, rv_pdklib::fx value);
+
 // One row of a component in the Inspector. A described field has its type name and text: the file's value, or the
 // default's with is_default. A field the description does not name, and every field of an undescribed component,
 // has the text as the file holds it and no type.
