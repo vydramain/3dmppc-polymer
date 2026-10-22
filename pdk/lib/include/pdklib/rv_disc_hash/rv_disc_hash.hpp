@@ -10,6 +10,9 @@ namespace rv_pdklib
 // Size of the checksum written into rv_mppc_note_desc::magic.
 inline constexpr std::size_t RV_DISC_HASH_BYTES = 8;
 
+// ELF specification value of SHT_NOBITS (a section with no bytes in the image); elf.h stays in the .cpp.
+inline constexpr std::uint32_t RV_ELF_SHT_NOBITS = 8;
+
 // Compute the disc code checksum over the ELF64 image in `elf` (`elf_size`
 // bytes) and write RV_DISC_HASH_BYTES bytes into `out`. Returns RV_OK on
 // success; on failure returns RV_ERR_INVAL and fills `error` with one sentence.
