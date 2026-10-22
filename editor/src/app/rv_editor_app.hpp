@@ -41,6 +41,8 @@ struct rv_editor_app_descriptions {
     // Code entries of the map of the build the snapshot came from, relative to the project root; empty when that
     // build had no map, and until a build ends in this session.
     std::vector<std::string> sources;
+    // A code source changed after the snapshot's build: the descriptions may be out of date.
+    bool sources_newer = false;
     bool build_failed = false; // the last development build failed: the snapshot is the previous one
     bool no_records = false;   // the last build had no component records: no snapshot
     std::string shown_text;    // the state text last logged; empty when no text applies
@@ -379,6 +381,9 @@ void rv_editor_app_descriptions_open(rv_editor_app &app);
 void rv_editor_app_descriptions_build_ended(rv_editor_app &app);
 // Question for state 3: `changed`, relative to the project root, is a code source of the snapshot's build.
 bool rv_editor_app_descriptions_sources_changed(const rv_editor_app &app, const std::filesystem::path &changed);
+// A changed file, absolute as the watcher gives it: a source of the snapshot's build marks the descriptions as possibly
+// out of date and logs it once. Other files do nothing.
+void rv_editor_app_descriptions_file_changed(rv_editor_app &app, const std::filesystem::path &changed);
 // Refuse: the build a waiting Run waited for did not succeed; logs why. RV_ERR_BUSY.
 int rv_editor_app_run_after_build_refuse(rv_editor_app &app);
 // Start: runs the last successful build for a waiting Run. RV_OK or rv_editor_app_run_session's RV_ERR_*;

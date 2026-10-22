@@ -48,11 +48,13 @@ std::string state_text(const rv_editor_app_descriptions &d)
     if (d.snapshot.state == rv_editor_descriptions_state::none) {
         return rv_editor_text(d.no_records ? "descriptions.no_records" : "descriptions.no_snapshot");
     }
-    if (!d.build_failed) {
+    if (!d.build_failed && !d.sources_newer) {
         return {};
     }
+    // A failed build wins over a source change: its failure is logged when it ends, and the mark must not hide it.
+    const char *key = d.build_failed ? "descriptions.build_failed" : "descriptions.sources_newer";
     const std::string built = build_time_text(d.snapshot.mark.time);
-    return rv_editor_text_format("descriptions.build_failed", std::make_format_args(built));
+    return rv_editor_text_format(key, std::make_format_args(built));
 }
 
 // Logs the state's text once per change of state; an empty text is not logged.
@@ -126,6 +128,7 @@ void take_snapshot(rv_editor_app &app, const std::filesystem::path &build_dir)
         return;
     }
     app.descriptions.build_failed = false;
+    app.descriptions.sources_newer = false;
     app.descriptions.no_records = no_records;
     remember_sources(app, build_dir);
     if (no_records) {
@@ -177,6 +180,17 @@ bool rv_editor_app_descriptions_sources_changed(const rv_editor_app &app, const 
 {
     const std::string rel = changed.generic_string();
     return std::find(app.descriptions.sources.begin(), app.descriptions.sources.end(), rel) != app.descriptions.sources.end();
+}
+
+void rv_editor_app_descriptions_file_changed(rv_editor_app &app, const std::filesystem::path &changed)
+{
+    // Sources are named relative to the root, as the map names them; the same lexical form as the change plan.
+    const std::filesystem::path rel = changed.lexically_normal().lexically_relative(app.project.root.lexically_normal());
+    if (!rv_editor_app_descriptions_sources_changed(app, rel)) {
+        return;
+    }
+    app.descriptions.sources_newer = true;
+    show(app);
 }
 
 } // namespace rv_editor
