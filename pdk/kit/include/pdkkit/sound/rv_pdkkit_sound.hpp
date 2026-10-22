@@ -70,7 +70,7 @@ inline void sound_asset_fail(sound_asset &asset, int64_t code)
         addr = asset.addr;
         return RV_OK;
     }
-    const int64_t drive_addr = cd ? rv_cd_resource_addr(cd, RV_CD_RESOURCE_AUDIO, name) : RV_ERR_INVAL;
+    const int64_t drive_addr = cd ? rv_cd_resource_addr(cd, RV_CD_RESOURCE_AUDIO, name) : static_cast<int64_t>(RV_ERR_INVAL);
     if (drive_addr < 0) {
         sound_asset_fail(asset, drive_addr);
         return static_cast<int>(drive_addr);
@@ -91,19 +91,19 @@ inline int sound_voice_result(int64_t code)
 // Sets up the voice from conf (sample address, loop, envelope, volumes). conf is passed through unchanged.
 [[nodiscard]] inline int sound_voice_setup(rv_ca *ca, const rv_voice_conf &conf)
 {
-    return sound_voice_result(ca ? rv_ca_voice_setup(ca, &conf) : RV_ERR_INVAL);
+    return sound_voice_result(ca ? rv_ca_voice_setup(ca, &conf) : static_cast<int64_t>(RV_ERR_INVAL));
 }
 
 // Starts the voices in `voice` (a mask), as set up by sound_voice_setup.
 [[nodiscard]] inline int sound_voice_play(rv_ca *ca, int64_t voice)
 {
-    return sound_voice_result(ca ? rv_ca_voice_play(ca, voice) : RV_ERR_INVAL);
+    return sound_voice_result(ca ? rv_ca_voice_play(ca, voice) : static_cast<int64_t>(RV_ERR_INVAL));
 }
 
 // Stops the voices in `voice` (a mask).
 [[nodiscard]] inline int sound_voice_stop(rv_ca *ca, int64_t voice)
 {
-    return sound_voice_result(ca ? rv_ca_voice_stop(ca, voice) : RV_ERR_INVAL);
+    return sound_voice_result(ca ? rv_ca_voice_stop(ca, voice) : static_cast<int64_t>(RV_ERR_INVAL));
 }
 
 } // namespace rv_pdkkit

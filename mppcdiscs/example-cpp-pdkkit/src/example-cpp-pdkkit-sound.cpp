@@ -96,7 +96,8 @@ int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
     if (resident_code != RV_OK) {
         return fail(state, RV_SOUND_CLACK, resident_code);
     }
-    rv_voice_conf conf = {};
+    // The click is off: its play_voice call below is commented out; conf is kept for when it comes back.
+    [[maybe_unused]] rv_voice_conf conf = {};
     conf.voice = RV_SOUND_CLACK_VOICE;
     conf.loop_type = RV_LOOP_NONE;
     conf.sample_address = addr;

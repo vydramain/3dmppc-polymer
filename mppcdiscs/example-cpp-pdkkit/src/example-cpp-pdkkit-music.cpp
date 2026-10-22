@@ -304,7 +304,7 @@ int64_t rv_music_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state)
     // A first frame mid-bar fills the slots and waits: the bar it is in is not played from its head.
     const bool silent = first && span_offset % RV_SOUND_BAR_FRAMES != 0;
     // A chain whose last step failed is finished first: its voice already plays, so a restart would be wrong.
-    int64_t music_code = state.music_on && !state.music_armed ? arm_chain(pdk, state) : RV_OK;
+    int64_t music_code = state.music_on && !state.music_armed ? arm_chain(pdk, state) : static_cast<int64_t>(RV_OK);
     if (music_code < 0) {
         return music_code;
     }
