@@ -21,7 +21,7 @@ struct model_texture {
 ///
 /// Each entry in the plan's model range is passed to mppcmodbaker, whose output lands
 /// at that entry's `payload`. The baked file is read back whole and checked with
-/// rv_mppcmod_parse, the same parser the console uses. The plan is only read.
+/// rv_mppcmod_int_parse, the same parser the console uses. The plan is only read.
 ///
 /// @param baker_hint  value of `--baker` (a directory, or a file in one); empty searches for mppcmodbaker
 /// @param disc_dir    absolute disc directory the sources are relative to

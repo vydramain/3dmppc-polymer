@@ -1,6 +1,7 @@
 // rv_pccd_fs MODEL residency: a .mppcmod read from the disc, its textures made
 // resident through the TEXTURE path, and the whole model uploaded to the
 // geometry controller. Kept out of rv_pccd_fs.cpp, which is at its size limit.
+#include <cmath>
 #include <new>
 #include <utility>
 #include <string>
@@ -9,11 +10,41 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_models/rv_mppcmod.hpp"
+#include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cg/rv_pccg.hpp"
 
 namespace rv_3dmppc
 {
+
+namespace
+{
+// 4.12 uv fixed point: 4096 is the whole texture.
+constexpr float RV_PCCD_MODEL_UV_ONE = 4096.0f;
+
+// Integer model -> float model, the input of the float renderer. This is the transition step: it goes
+// away when the renderer takes the integer layout. Position is v / 2^shift and uv is u / 4096; both
+// divisions are exact in float, so no rounding is added here.
+rv_pdklib::rv_mppcmod int_to_float_model(const rv_pdklib::rv_mppcmod_int_model &in)
+{
+    rv_pdklib::rv_mppcmod out;
+    out.parts = in.parts;
+    out.triangles = in.triangles;
+    out.vertices.resize(in.vertices.size());
+    for (size_t v = 0; v < in.vertices.size(); ++v) {
+        const rv_pdklib::rv_mppcmod_int_vertex &src = in.vertices[v];
+        rv_pdklib::rv_mppcmod_vertex &dst = out.vertices[v];
+        for (size_t k = 0; k < dst.pos.size(); ++k) {
+            dst.pos[k] = std::ldexp(static_cast<float>(src.pos[k]), -static_cast<int>(in.shift));
+        }
+        for (size_t k = 0; k < dst.uv.size(); ++k) {
+            dst.uv[k] = static_cast<float>(src.uv[k]) / RV_PCCD_MODEL_UV_ONE;
+        }
+        dst.color = src.color;
+    }
+    return out;
+}
+} // namespace
 
 int64_t rv_pccd_fs::resident_model_(const char *resname, model_record *&model_out)
 {
@@ -40,12 +71,13 @@ int64_t rv_pccd_fs::model_resolve_(const char *resname, model_record *&record_ou
         return read_rc;
     }
 
-    rv_pdklib::rv_mppcmod model;
+    rv_pdklib::rv_mppcmod_int_model int_model;
     std::string error;
-    if (rv_pdklib::rv_mppcmod_parse(bytes, model, error) != RV_OK) {
+    if (rv_pdklib::rv_mppcmod_int_parse(bytes, int_model, error) != RV_OK) {
         RV_LOG_WARN("pccd", "model '{}' refused: it {}", rv_pdklib::rv_log_escape(resname), error);
         return RV_ERR_INVAL;
     }
+    const rv_pdklib::rv_mppcmod model = int_to_float_model(int_model);
 
     // One entry per part, in part order, as model_upload() requires; a part
     // without a texture keeps addr_texture 0 and texture index -1.

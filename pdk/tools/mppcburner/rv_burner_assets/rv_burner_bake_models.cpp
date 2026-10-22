@@ -11,6 +11,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_models/rv_mppcmod.hpp"
+#include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "rv_burner_assets/rv_burner_bake.hpp"
 #include "rv_burner_assets/rv_burner_baker_path.hpp"
 #include "rv_burner_common/rv_burner_process.hpp"
@@ -25,9 +26,9 @@ namespace rv_pdktools
 static constexpr const char *k_model_baker = "mppcmodbaker";
 
 // Read back the WHOLE .mppcmod mppcmodbaker just wrote and hand it to
-// rv_pdklib::rv_mppcmod_parse(). A partial check would let a truncated model
+// rv_pdklib::rv_mppcmod_int_parse(). A partial check would let a truncated model
 // pass here and fail only on a player's console.
-static int read_mppcmod(const fs::path &path, rv_pdklib::rv_mppcmod &model, std::string &error)
+static int read_mppcmod(const fs::path &path, rv_pdklib::rv_mppcmod_int_model &model, std::string &error)
 {
     std::ifstream file(path, std::ios::binary);
     if (!file) {
@@ -50,7 +51,7 @@ static int read_mppcmod(const fs::path &path, rv_pdklib::rv_mppcmod &model, std:
     }
 
     std::string reason;
-    if (rv_pdklib::rv_mppcmod_parse(bytes, model, reason) != RV_OK) {
+    if (rv_pdklib::rv_mppcmod_int_parse(bytes, model, reason) != RV_OK) {
         error = "baked model '" + path.string() + "' " + reason;
         return RV_ERR_INVAL;
     }
@@ -60,7 +61,8 @@ static int read_mppcmod(const fs::path &path, rv_pdklib::rv_mppcmod &model, std:
 // Adds the textures one model names, each name once across all models. A colour-only
 // part names no texture and is skipped. The PNG is the one mppcmodbaker left beside the
 // model under the same stem, so the .mppctex and its source follow from the name alone.
-static void collect_textures(const rv_pdklib::rv_mppcmod &model, const archive_item &item, std::vector<model_texture> &found)
+static void
+collect_textures(const rv_pdklib::rv_mppcmod_int_model &model, const archive_item &item, std::vector<model_texture> &found)
 {
     const fs::path model_dir = fs::path(item.payload).parent_path();
     for (const rv_pdklib::rv_mppcmod_part &part : model.parts) {
@@ -118,7 +120,7 @@ int rv_pdktools::bake_models(const std::string &baker_hint,
             return RV_ERR_IO;
         }
 
-        rv_pdklib::rv_mppcmod model;
+        rv_pdklib::rv_mppcmod_int_model model;
         const int read_err = read_mppcmod(item.payload, model, error);
         if (read_err != RV_OK) {
             return read_err;

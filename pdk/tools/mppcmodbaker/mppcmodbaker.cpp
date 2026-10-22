@@ -13,6 +13,8 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_models/rv_mppcmod.hpp"
 #include "pdklib/rv_models/rv_mppcmod_gltf.hpp"
+#include "pdklib/rv_models/rv_mppcmod_int.hpp"
+#include "pdklib/rv_models/rv_mppcmod_quant.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 namespace
@@ -173,8 +175,13 @@ int run(int argc, char **argv)
         error.message = bake_error;
         return report(error);
     }
+    rv_pdklib::rv_mppcmod_int_model int_model;
+    if (rv_pdklib::rv_mppcmod_quantize(model, int_model, bake_error) != RV_OK) {
+        error.message = "'" + args.input + "' " + bake_error;
+        return report(error);
+    }
     std::vector<uint8_t> bytes;
-    if (rv_pdklib::rv_mppcmod_write(model, &bytes, bake_error) != RV_OK) {
+    if (rv_pdklib::rv_mppcmod_int_write(int_model, &bytes, bake_error) != RV_OK) {
         error.message = "'" + args.input + "' " + bake_error;
         return report(error);
     }
@@ -185,14 +192,15 @@ int run(int argc, char **argv)
         return report(error);
     }
 
-    std::printf("%s: %s -> %s (%zu parts, %zu vertices, %zu triangles, %zu PNG)\n",
+    std::printf("%s: %s -> %s (%zu parts, %zu vertices, %zu triangles, %zu PNG, vertex shift %d)\n",
         RV_MODBAKER_PROGNAME,
         args.input.c_str(),
         args.output.c_str(),
         model.parts.size(),
         model.vertices.size(),
         model.triangles.size(),
-        images.size());
+        images.size(),
+        static_cast<int>(int_model.shift));
     return RV_MODBAKER_EXIT_SUCCESS;
 }
 

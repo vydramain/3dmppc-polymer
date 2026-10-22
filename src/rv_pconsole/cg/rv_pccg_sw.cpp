@@ -9,6 +9,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
 
 namespace rv_3dmppc
@@ -26,11 +27,11 @@ constexpr int64_t RV_PCCG_SW_FIRST_ADDR = 16;
 // a disc fits the console; the decoded copy kept in host memory is not what is charged.
 int64_t model_cost(const rv_pdklib::rv_mppcmod &model)
 {
-    int64_t bytes = rv_pdklib::rv_mppcmod_header_size;
+    int64_t bytes = rv_pdklib::rv_mppcmod_int_header_size;
     for (const rv_pdklib::rv_mppcmod_part &part : model.parts) {
         bytes += rv_pdklib::RV_MPPCMOD_PART_FIXED_BYTES + static_cast<int64_t>(part.texture.size());
     }
-    bytes += static_cast<int64_t>(model.vertices.size()) * rv_pdklib::RV_MPPCMOD_VERT_BYTES;
+    bytes += static_cast<int64_t>(model.vertices.size()) * rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES;
     bytes += static_cast<int64_t>(model.triangles.size()) * rv_pdklib::rv_mppcmod_triangle_bytes;
     return bytes;
 }
@@ -39,7 +40,7 @@ int64_t model_cost(const rv_pdklib::rv_mppcmod &model)
 // with no part is valid, so no part is counted. Every accepted model costs at least this,
 // so the record array sized from it is never outgrown.
 constexpr int64_t RV_PCCG_SW_MIN_MODEL_BYTES =
-    rv_pdklib::rv_mppcmod_header_size + rv_pdklib::RV_MPPCMOD_VERT_BYTES + rv_pdklib::rv_mppcmod_triangle_bytes;
+    rv_pdklib::rv_mppcmod_int_header_size + rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES + rv_pdklib::rv_mppcmod_triangle_bytes;
 
 // The most models model_memory_size can hold, each costing at least the minimum.
 int64_t max_models(int64_t model_memory_size)
@@ -63,7 +64,7 @@ int64_t host_bytes_per_file_byte()
     const int64_t part = ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_part) + sizeof(rv_pccg_part_texture) + 1),
         rv_pdklib::RV_MPPCMOD_PART_FIXED_BYTES);
     const int64_t vertex =
-        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_vertex)), rv_pdklib::RV_MPPCMOD_VERT_BYTES);
+        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_vertex)), rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES);
     const int64_t triangle =
         ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_triangle)), rv_pdklib::rv_mppcmod_triangle_bytes);
     return std::max({ part, vertex, triangle });
