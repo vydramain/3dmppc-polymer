@@ -1,25 +1,16 @@
 #pragma once
 
-// The records of a scene document, built from the asset's bytes. A disc builds them here, so its loader needs no
-// console.
+// The records of a form-2 scene document, flattened from its parsed form. A disc builds them here, so its loader needs no
+// console. Reading the asset and migrating it to form 2 is ecs_scene_records_read in rv_ecs_scene.hpp.
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <iterator>
-#include <limits>
-#include <new>
-#include <stdexcept>
 #include <string>
-#include <string_view>
-#include <utility>
 #include <vector>
 
-#include "pdk/cd/rv_cd.h"
-#include "pdk/cv/rv_vertex.h" // rv_color: object tint
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "pdklib/rv_math/rv_fx.hpp"
 #include "pdkkit/component/rv_component_capacity.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
 
@@ -28,30 +19,10 @@ namespace rv_pdkkit
 
 inline constexpr const char *ecs_scene_records_tag = "ecs-scene";
 
-// Kinds of objects in a scene: the object kinds of the editor's scene.
-enum class ecs_scene_kind {
-    group = 1,
-    camera,
-    mesh,
-    quad,
-    billboard,
-    volume,
-};
-
-// One object of a scene. Names are NUL-terminated inside their arrays; an empty model or texture means none.
+// One object of a scene: its id and parent, the only fields of form 2. Its components are in ecs_scene_records::components.
 struct ecs_scene_object {
-    char id[ecs_name_capacity];
-    char name[ecs_name_capacity];
+    char id[ecs_name_capacity]; // NUL-terminated
     int64_t parent; // index of the parent object, -1 for a root
-    ecs_scene_kind kind;
-    // row-major: element (row, col) is world[row*4+col]; column vectors multiplied
-    // from the right, the layout of pdklib's rv_mat4
-    float world[16];
-    char model[ecs_name_capacity]; // mesh as written, e.g. "factory.gltf"; the model component derives its disc name
-    char texture[ecs_name_capacity];
-    float uv[4]; // u0, v0, u1, v1 in pixels; quad and billboard only
-    rv_color tint;
-    float tess; // quad/billboard subdivision density, as the editor's scene
 };
 
 // One field of a component, as text. Key is NUL-terminated; value keeps the text rv_scene_render writes: strings in
@@ -74,48 +45,12 @@ struct ecs_scene_entity {
     char type[ecs_name_capacity];
 };
 
-// Local transform as Q20.12 numbers of the scene document, relative to the parent: position x, y, z; rotation pitch,
-// yaw, roll in degrees; scale.
-struct ecs_scene_local {
-    int32_t position[3];
-    int32_t rotation[3];
-    int32_t scale[3];
-};
-
-// The kind words pdklib reads, and the ecs_scene_kind each one is.
-struct ecs_scene_kind_entry {
-    std::string_view word;
-    ecs_scene_kind kind;
-};
-
-inline constexpr ecs_scene_kind_entry ecs_scene_kinds[] = {
-    { "group", ecs_scene_kind::group },
-    { "camera", ecs_scene_kind::camera },
-    { "mesh", ecs_scene_kind::mesh },
-    { "quad", ecs_scene_kind::quad },
-    { "billboard", ecs_scene_kind::billboard },
-    { "volume", ecs_scene_kind::volume },
-};
-
-// One record per object, entity and local in file order; components flattened over the scene in document order.
+// One record per object: id, parent and entity in file order; components flattened over the scene in document order.
 struct ecs_scene_records {
     std::vector<ecs_scene_object> objects;
     std::vector<ecs_scene_entity> entities;
-    std::vector<ecs_scene_local> locals;
     std::vector<ecs_scene_component> components;
 };
-
-// True, with `kind_out` set, when `word` is a kind; false otherwise.
-inline bool ecs_scene_kind_of(std::string_view word, ecs_scene_kind &kind_out)
-{
-    for (const ecs_scene_kind_entry &entry : ecs_scene_kinds) {
-        if (entry.word == word) {
-            kind_out = entry.kind;
-            return true;
-        }
-    }
-    return false;
-}
 
 // Copies `value` into `dst` of `capacity` bytes, NUL included. RV_ERR_INVAL when it does not fit or holds a NUL
 // byte: a C reader would see the text cut short.
@@ -129,97 +64,18 @@ inline int ecs_scene_copy_text(const std::string &value, char *dst, std::size_t 
     return RV_OK;
 }
 
-// A drive's negative code as this file's int. Codes are small; one outside int's range is not a code the contract has.
-inline int ecs_scene_drive_code(int64_t code)
+// The id and parent of `object` into `out`. An id that does not fit or holds a NUL refuses the scene.
+inline int ecs_scene_object_fill(const std::string &scene, const rv_scene_object &object, ecs_scene_object &out)
 {
-    if (code < std::numeric_limits<int>::min()) {
-        return RV_ERR_INVAL;
-    }
-    return static_cast<int>(code);
-}
-
-// The asset's bytes as text. The drive's error codes pass through; a short read means the asset changed under it.
-inline int ecs_scene_asset_text(rv_cd *cd, const char *asset, std::string &text)
-{
-    const int64_t handle = rv_cd_asset_open(cd, asset);
-    if (handle < 0) {
-        RV_LOG_ERR(ecs_scene_records_tag, "scene '{}': open failed ({})", rv_pdklib::rv_log_escape(asset), handle);
-        return ecs_scene_drive_code(handle);
-    }
-    const int64_t size = rv_cd_asset_size(cd, handle);
-    if (size < 0) {
-        RV_LOG_ERR(ecs_scene_records_tag, "scene '{}': size failed ({})", rv_pdklib::rv_log_escape(asset), size);
-        return ecs_scene_drive_code(size);
-    }
-    text.resize(static_cast<std::size_t>(size));
-    const int64_t got = rv_cd_asset_read(cd, handle, text.data(), size);
-    if (got < 0) {
-        RV_LOG_ERR(ecs_scene_records_tag, "scene '{}': read failed ({})", rv_pdklib::rv_log_escape(asset), got);
-        return ecs_scene_drive_code(got);
-    }
-    if (got != size) {
-        RV_LOG_ERR(ecs_scene_records_tag, "scene '{}': read {} of {} bytes", rv_pdklib::rv_log_escape(asset), got, size);
-        return RV_ERR_INVAL;
-    }
-    return RV_OK;
-}
-
-// The text fields of `object` into `out`. A name that does not fit or holds a NUL refuses the scene.
-inline int ecs_scene_object_text(const std::string &scene, const rv_scene_object &object, ecs_scene_object &out)
-{
-    const struct {
-        const char *label;
-        const std::string *value;
-        char *dst;
-    } fields[] = {
-        { "id", &object.id, out.id },
-        { "name", &object.name, out.name },
-        { "model", &object.mesh, out.model },
-        { "texture", &object.texture, out.texture },
-    };
-    for (const auto &field : fields) {
-        const int copied = ecs_scene_copy_text(*field.value, field.dst, ecs_name_capacity);
-        if (copied != RV_OK) {
-            RV_LOG_ERR(ecs_scene_records_tag,
-                "scene '{}' refused: object '{}' {} is longer than {} bytes or with a NUL",
-                rv_pdklib::rv_log_escape(scene.c_str()),
-                rv_pdklib::rv_log_escape(object.id.c_str()),
-                field.label,
-                ecs_name_capacity - 1);
-            return copied;
-        }
-    }
-    return RV_OK;
-}
-
-// Object `index` of `loaded` into `out`: names, kind, parent, world, uv, tint and tess. Parent and world are
-// as the document resolves them; uv and tess convert from Q20.12 to the contract's float.
-inline int ecs_scene_object_fill(const std::string &scene, const rv_scene &loaded, std::size_t index, ecs_scene_object &out)
-{
-    const rv_scene_object &object = loaded.objects[index];
-    const int text = ecs_scene_object_text(scene, object, out);
-    if (text != RV_OK) {
-        return text;
-    }
-    if (!ecs_scene_kind_of(object.kind, out.kind)) {
+    const int copied = ecs_scene_copy_text(object.id, out.id, ecs_name_capacity);
+    if (copied != RV_OK) {
         RV_LOG_ERR(ecs_scene_records_tag,
-            "scene '{}' refused: object '{}' has kind '{}'",
+            "scene '{}' refused: object id is longer than {} bytes or with a NUL",
             rv_pdklib::rv_log_escape(scene.c_str()),
-            rv_pdklib::rv_log_escape(object.id.c_str()),
-            rv_pdklib::rv_log_escape(object.kind.c_str()));
-        return RV_ERR_INVAL;
+            ecs_name_capacity - 1);
+        return copied;
     }
     out.parent = object.parent;
-    // rv_mat4 is row-major float[4][4]: the same 16 floats as ecs_scene_object::world.
-    const rv_pdklib::rv_mat4 world = rv_scene_world(loaded, index);
-    static_assert(sizeof(out.world) == sizeof(world.m), "scene world is 16 floats");
-    std::memcpy(out.world, world.m, sizeof(out.world));
-    static_assert(std::size(out.uv) == std::size(object.uv), "scene uv element count");
-    for (std::size_t i = 0; i < std::size(out.uv); ++i) {
-        out.uv[i] = rv_pdklib::fx_to_float(object.uv[i]);
-    }
-    out.tint = object.tint;
-    out.tess = rv_pdklib::fx_to_float(object.tess);
     return RV_OK;
 }
 
@@ -236,16 +92,6 @@ inline int ecs_scene_entity_fill(const std::string &scene, const rv_scene_object
         return copied;
     }
     return RV_OK;
-}
-
-// The local transform of `object` as its Q20.12 raw values: the document's numbers, no conversion.
-inline ecs_scene_local ecs_scene_local_of(const rv_scene_object &object)
-{
-    return ecs_scene_local{
-        { object.position.x, object.position.y, object.position.z },
-        { object.rotation.x, object.rotation.y, object.rotation.z },
-        { object.scale.x, object.scale.y, object.scale.z },
-    };
 }
 
 // One field of component `component` into `out`: key and value as text. Either one that does not fit refuses the scene.
@@ -315,12 +161,12 @@ inline int ecs_scene_component_fill(const std::string &scene,
     return RV_OK;
 }
 
-// Flattens `loaded` into `out`: one object, entity and local per object, then the components.
+// Flattens `loaded`, a form-2 document, into `out`: one id, parent and entity per object, then the components.
 inline int ecs_scene_flatten(const std::string &scene, const rv_scene &loaded, ecs_scene_records &out)
 {
     for (std::size_t i = 0; i < loaded.objects.size(); ++i) {
         ecs_scene_object object{};
-        const int filled = ecs_scene_object_fill(scene, loaded, i, object);
+        const int filled = ecs_scene_object_fill(scene, loaded.objects[i], object);
         if (filled != RV_OK) {
             return filled;
         }
@@ -331,7 +177,6 @@ inline int ecs_scene_flatten(const std::string &scene, const rv_scene &loaded, e
         }
         out.objects.push_back(object);
         out.entities.push_back(entity);
-        out.locals.push_back(ecs_scene_local_of(loaded.objects[i]));
     }
     for (const rv_scene_component &component : loaded.components) {
         ecs_scene_component flat{};
@@ -340,52 +185,6 @@ inline int ecs_scene_flatten(const std::string &scene, const rv_scene &loaded, e
             return filled;
         }
         out.components.push_back(flat);
-    }
-    return RV_OK;
-}
-
-// Best effort: the code is the result. Logging may need the memory that just ran out, and then the line is lost.
-inline int ecs_scene_no_memory(const char *asset)
-{
-    try {
-        RV_LOG_ERR(ecs_scene_records_tag, "scene '{}' refused: out of memory", rv_pdklib::rv_log_escape(asset));
-    } catch (const std::bad_alloc &) {
-        // the line is lost; the caller still returns RV_ERR_NOMEM
-    }
-    return RV_ERR_NOMEM;
-}
-
-// Reads scene document `asset` of `cd` into `out`, which is written only on success. Every refusal is logged
-// with its reason: the drive's error for a failed read, RV_ERR_INVAL for a document the records cannot hold,
-// RV_ERR_NOMEM for a failed allocation.
-[[nodiscard]] inline int ecs_scene_records_read(rv_cd *cd, const char *asset, ecs_scene_records &out)
-{
-    try {
-        std::string text;
-        const int read = ecs_scene_asset_text(cd, asset, text);
-        if (read != RV_OK) {
-            return read;
-        }
-        rv_scene loaded;
-        std::string error;
-        if (rv_scene_parse(text, asset, loaded, error) != 0) {
-            RV_LOG_ERR(ecs_scene_records_tag,
-                "scene '{}' refused: {}",
-                rv_pdklib::rv_log_escape(asset),
-                rv_pdklib::rv_log_escape(error.c_str(), error.size()));
-            return RV_ERR_INVAL;
-        }
-        ecs_scene_records built;
-        const int flat = ecs_scene_flatten(asset, loaded, built);
-        if (flat != RV_OK) {
-            return flat;
-        }
-        out = std::move(built);
-    } catch (const std::bad_alloc &) {
-        return ecs_scene_no_memory(asset);
-    } catch (const std::length_error &) {
-        // text.resize with a size the string cannot hold
-        return ecs_scene_no_memory(asset);
     }
     return RV_OK;
 }

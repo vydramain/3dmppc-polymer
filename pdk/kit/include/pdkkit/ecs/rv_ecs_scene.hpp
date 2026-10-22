@@ -1,13 +1,14 @@
 #pragma once
 
-// Loads a scene of the disc into the ECS world. The records come from the scene asset's bytes (rv_ecs_scene_records.hpp),
-// not from the console. A failed load destroys its own entities and components: live ones are as before the call, while
-// slot numbers and generations may differ.
+// Loads a scene of the disc into the ECS world. The scene asset is read here (ecs_scene_records_read), migrated to form 2
+// in memory, and its records (rv_ecs_scene_records.hpp) become entities and components. A failed load destroys its own
+// entities and components: live ones are as before the call, while slot numbers and generations may differ.
 
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
+#include <limits>
 #include <new>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -20,8 +21,9 @@
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
 #include "pdkkit/ecs/rv_ecs_scene_records.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
+#include "pdkkit/scene/rv_scene.hpp"
+#include "pdkkit/scene/rv_scene_migrate.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "pdklib/rv_math/rv_fx.hpp"
 
 namespace rv_pdkkit
 {
@@ -43,23 +45,6 @@ template <std::size_t N>
 std::string ecs_scene_text(const char (&text)[N])
 {
     return std::string(text, ecs_name_length(text));
-}
-
-// Copies a scene name into a component's array, zeroing the rest so the same name gives the same bytes. The static_assert
-// keeps every source name whole (N is at least M, the source's capacity). A source with no NUL that fills its array is
-// refused, not cut: RV_ERR_INVAL, logged, out untouched.
-template <std::size_t N, std::size_t M>
-int ecs_scene_copy_name(const char *scene, const char (&text)[M], char (&out)[N])
-{
-    static_assert(N >= M, "a component's name array must hold a whole scene name: its size is at least the source's size");
-    const std::size_t length = ecs_name_length(text);
-    if (length >= N) {
-        RV_LOG_ERR(ecs_scene_tag, "scene '{}': name has no NUL within {} bytes", rv_pdklib::rv_log_escape(scene), M);
-        return RV_ERR_INVAL;
-    }
-    std::memset(out, 0, N);
-    std::memcpy(out, text, length);
-    return RV_OK;
 }
 
 // Logged once: an entity the load has just made is not alive.
@@ -95,100 +80,7 @@ inline const ecs_scene_object &ecs_scene_object_at(const ecs_scene_reading &load
     return load.records.objects[static_cast<std::size_t>(index)];
 }
 
-// Marker component T: no data, kept when already present.
-template <typename T>
-int ecs_scene_mark(ecs_scene_reading &load, ecs_id id)
-{
-    T *marker = nullptr;
-    const int ensured = ecs_component_ensure<T>(load.world, id, marker);
-    if (ensured != RV_OK) {
-        return ecs_scene_ensure_failed(load, ensured);
-    }
-    return RV_OK;
-}
-
-// A mesh's model with its tint: the scene's mesh text is the source, and ecs_derive gives the disc name. A mesh without
-// a model gets none, with a warning; a source ecs_derive refuses fails the load.
-inline int ecs_scene_add_model(ecs_scene_reading &load, const ecs_scene_object &object, ecs_id id)
-{
-    const bool named = object.model[0] != '\0';
-    if (!named) {
-        RV_LOG_WARN(ecs_scene_tag,
-            "scene '{}' object '{}': mesh has no model",
-            rv_pdklib::rv_log_escape(load.scene),
-            ecs_scene_text(object.name));
-        return RV_OK;
-    }
-    ecs_component_model *model = nullptr;
-    const int ensured = ecs_component_ensure<ecs_component_model>(load.world, id, model);
-    if (ensured != RV_OK) {
-        return ecs_scene_ensure_failed(load, ensured);
-    }
-    const int copied = ecs_scene_copy_name(load.scene, object.model, model->source);
-    if (copied != RV_OK) {
-        return copied;
-    }
-    model->tint = object.tint;
-    std::string reason;
-    const int derived = ecs_component_model::ecs_derive(*model, reason);
-    if (derived != RV_OK) {
-        RV_LOG_ERR(ecs_scene_tag,
-            "scene '{}' object '{}': model refused: {}",
-            rv_pdklib::rv_log_escape(load.scene),
-            ecs_scene_text(object.name),
-            reason);
-        return RV_ERR_INVAL;
-    }
-    return RV_OK;
-}
-
-// Components of an object's kind. Groups have none.
-inline int ecs_scene_add_kind(ecs_scene_reading &load, const ecs_scene_object &object, ecs_id id)
-{
-    switch (object.kind) {
-    case ecs_scene_kind::group:
-        return RV_OK;
-    case ecs_scene_kind::camera:
-        return ecs_scene_mark<ecs_component_camera>(load, id);
-    case ecs_scene_kind::mesh:
-        return ecs_scene_add_model(load, object, id);
-    // Scene files may still hold quads and billboards from older editors: pdkkit has no sprite component, so the object keeps
-    // its transform and name, and is not drawn.
-    case ecs_scene_kind::quad:
-    case ecs_scene_kind::billboard:
-        RV_LOG_WARN(ecs_scene_tag,
-            "scene '{}' object '{}': quad or billboard is not drawn, pdkkit has no sprite",
-            rv_pdklib::rv_log_escape(load.scene),
-            ecs_scene_text(object.name));
-        return RV_OK;
-    case ecs_scene_kind::volume:
-        return ecs_scene_mark<ecs_component_volume>(load, id);
-    }
-    RV_LOG_ERR(ecs_scene_tag,
-        "scene '{}' object '{}': unknown kind {}",
-        rv_pdklib::rv_log_escape(load.scene),
-        ecs_scene_text(object.name),
-        static_cast<int>(object.kind));
-    return RV_ERR_INVAL;
-}
-
-// Transform from the local Q20.12 values. The hierarchy is set later by ecs_scene_link, once every object has an entity.
-inline int ecs_scene_add_transform(ecs_scene_reading &load, int64_t index, ecs_id id)
-{
-    const ecs_scene_local &local = load.records.locals[static_cast<std::size_t>(index)];
-    ecs_component_transform *transform = nullptr;
-    const int ensured = ecs_component_ensure<ecs_component_transform>(load.world, id, transform);
-    if (ensured != RV_OK) {
-        return ecs_scene_ensure_failed(load, ensured);
-    }
-    // Q20.12 int32 is fx: the values are copied as they are.
-    transform->position = rv_pdklib::fx_vec3{ local.position[0], local.position[1], local.position[2] };
-    transform->rotation = rv_pdklib::fx_vec3{ local.rotation[0], local.rotation[1], local.rotation[2] };
-    transform->scale = rv_pdklib::fx_vec3{ local.scale[0], local.scale[1], local.scale[2] };
-    return RV_OK;
-}
-
-// Creates the entity of object `index` with its type, transform, name and kind components.
+// Creates the entity of object `index` with its type. Its components come from their factories, in ecs_scene_add_component.
 inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
 {
     const ecs_scene_object &object = ecs_scene_object_at(load, index);
@@ -200,26 +92,13 @@ inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' object '{}': entity type '{}' failed ({})",
             rv_pdklib::rv_log_escape(load.scene),
-            ecs_scene_text(object.name),
+            ecs_scene_text(object.id),
             rv_pdklib::rv_log_escape(type.type),
             created);
         return created;
     }
     load.made.push_back(id); // reserved in advance: no allocation
-    const int placed = ecs_scene_add_transform(load, index, id);
-    if (placed != RV_OK) {
-        return placed;
-    }
-    ecs_component_name *name = nullptr;
-    const int named = ecs_component_ensure<ecs_component_name>(load.world, id, name);
-    if (named != RV_OK) {
-        return ecs_scene_ensure_failed(load, named);
-    }
-    const int copied = ecs_scene_copy_name(load.scene, object.name, name->text);
-    if (copied != RV_OK) {
-        return copied;
-    }
-    return ecs_scene_add_kind(load, object, id);
+    return RV_OK;
 }
 
 // Parent of object `index`: the entity of its parent object, or `parent` for a root. ecs_component_parent is the
@@ -232,7 +111,7 @@ inline int ecs_scene_link(ecs_scene_reading &load, int64_t index, ecs_id parent)
         RV_LOG_ERR(ecs_scene_tag,
             "scene '{}' object '{}': parent index {} is out of range",
             rv_pdklib::rv_log_escape(load.scene),
-            ecs_scene_text(object.name),
+            ecs_scene_text(object.id),
             object.parent);
         return RV_ERR_INVAL;
     }
@@ -320,6 +199,120 @@ inline void ecs_scene_rollback(ecs_world &world, const std::vector<ecs_id> &made
     for (const ecs_id id : made) {
         (void)ecs_entity_destroy(world, id);
     }
+}
+
+// A drive's negative code as this file's int. Codes are small; one outside int's range is not a code the contract has.
+inline int ecs_scene_drive_code(int64_t code)
+{
+    if (code < std::numeric_limits<int>::min()) {
+        return RV_ERR_INVAL;
+    }
+    return static_cast<int>(code);
+}
+
+// The asset's bytes as text. The drive's error codes pass through; a short read means the asset changed under it.
+inline int ecs_scene_asset_text(rv_cd *cd, const char *asset, std::string &text)
+{
+    const int64_t handle = rv_cd_asset_open(cd, asset);
+    if (handle < 0) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': open failed ({})", rv_pdklib::rv_log_escape(asset), handle);
+        return ecs_scene_drive_code(handle);
+    }
+    const int64_t size = rv_cd_asset_size(cd, handle);
+    if (size < 0) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': size failed ({})", rv_pdklib::rv_log_escape(asset), size);
+        return ecs_scene_drive_code(size);
+    }
+    text.resize(static_cast<std::size_t>(size));
+    const int64_t got = rv_cd_asset_read(cd, handle, text.data(), size);
+    if (got < 0) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': read failed ({})", rv_pdklib::rv_log_escape(asset), got);
+        return ecs_scene_drive_code(got);
+    }
+    if (got != size) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': read {} of {} bytes", rv_pdklib::rv_log_escape(asset), got, size);
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
+// Best effort: the code is the result. Logging may need the memory that just ran out, and then the line is lost.
+inline int ecs_scene_no_memory(const char *asset)
+{
+    try {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}' refused: out of memory", rv_pdklib::rv_log_escape(asset));
+    } catch (const std::bad_alloc &) {
+        // the line is lost; the caller still returns RV_ERR_NOMEM
+    }
+    return RV_ERR_NOMEM;
+}
+
+// Logs migrate's warnings, one RV_LOG_WARN line each with the scene name. Each line ends with '\n' and is escaped whole.
+// Best effort per line: a bad_alloc while logging loses that line, and the next lines and the load go on.
+inline void ecs_scene_log_warnings(const char *asset, const std::string &warnings)
+{
+    std::size_t begin = 0;
+    while (begin < warnings.size()) {
+        std::size_t end = warnings.find('\n', begin);
+        if (end == std::string::npos) {
+            end = warnings.size();
+        }
+        try {
+            const std::string line = warnings.substr(begin, end - begin);
+            RV_LOG_WARN(ecs_scene_tag,
+                "scene '{}': {}",
+                rv_pdklib::rv_log_escape(asset),
+                rv_pdklib::rv_log_escape(line.c_str(), line.size()));
+        } catch (const std::bad_alloc &) {
+            // the line is lost; the next line and the load go on
+        }
+        begin = end + 1;
+    }
+}
+
+// Reads scene document `asset` of `cd` into `out` as form 2: parsed, migrated in memory, then flattened. out is written
+// only on success. Every refusal is logged with its reason: the drive's error for a failed read, RV_ERR_INVAL for a
+// document the records cannot hold, the migration's code for a refused migration, RV_ERR_NOMEM for a failed allocation.
+[[nodiscard]] inline int ecs_scene_records_read(rv_cd *cd, const char *asset, ecs_scene_records &out)
+{
+    try {
+        std::string text;
+        const int read = ecs_scene_asset_text(cd, asset, text);
+        if (read != RV_OK) {
+            return read;
+        }
+        rv_scene loaded;
+        std::string error;
+        if (rv_scene_parse(text, asset, loaded, error) != 0) {
+            RV_LOG_ERR(ecs_scene_tag,
+                "scene '{}' refused: {}",
+                rv_pdklib::rv_log_escape(asset),
+                rv_pdklib::rv_log_escape(error.c_str(), error.size()));
+            return RV_ERR_INVAL;
+        }
+        std::string warnings;
+        const int migrated = rv_scene_migrate(loaded, warnings);
+        if (migrated != RV_OK) {
+            RV_LOG_ERR(ecs_scene_tag,
+                "scene '{}' refused: {}",
+                rv_pdklib::rv_log_escape(asset),
+                rv_pdklib::rv_log_escape(warnings.c_str(), warnings.size()));
+            return migrated;
+        }
+        ecs_scene_log_warnings(asset, warnings);
+        ecs_scene_records built;
+        const int flat = ecs_scene_flatten(asset, loaded, built);
+        if (flat != RV_OK) {
+            return flat;
+        }
+        out = std::move(built);
+    } catch (const std::bad_alloc &) {
+        return ecs_scene_no_memory(asset);
+    } catch (const std::length_error &) {
+        // text.resize with a size the string cannot hold
+        return ecs_scene_no_memory(asset);
+    }
+    return RV_OK;
 }
 
 // Parent is checked and the records are read before any entity exists; then the load runs into made.
