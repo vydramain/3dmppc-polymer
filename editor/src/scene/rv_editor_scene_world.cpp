@@ -5,7 +5,6 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_gte/rv_gte_matrix.hpp"
 #include "pdklib/rv_gte/rv_gte_trs.hpp"
-#include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_editor
 {
@@ -17,7 +16,6 @@ int rv_editor_scene_local_gte(const rv_editor_scene_object &o, rv_pdklib::rv_gte
     const rv_pdklib::fx_vec3 scale = rv_editor_object_get_scale_fx(o);
     rv_pdklib::rv_gte_matrix local{};
     if (rv_pdklib::rv_gte_trs(position, rotation, scale, local) != RV_OK) {
-        RV_LOG_WARN(scene_log_tag, "object '{}': |R*S| leaves 4.12, no world matrix", o.id);
         return RV_ERR_INVAL;
     }
     out = local;
@@ -28,7 +26,6 @@ int rv_editor_scene_world_gte(const rv_editor_scene &scene, int index, rv_pdklib
 {
     const bool outside = index < 0 || static_cast<size_t>(index) >= scene.objects.size();
     if (outside) {
-        RV_LOG_WARN(scene_log_tag, "object index {} is outside the scene of {}, no world matrix", index, scene.objects.size());
         return RV_ERR_INVAL;
     }
     const rv_editor_scene_object &first = scene.objects[static_cast<size_t>(index)];
@@ -45,7 +42,6 @@ int rv_editor_scene_world_gte(const rv_editor_scene &scene, int index, rv_pdklib
         }
         rv_pdklib::rv_gte_matrix next{};
         if (rv_pdklib::rv_gte_compose(up_local, m, next) != RV_OK) {
-            RV_LOG_WARN(scene_log_tag, "object '{}': the world matrix leaves its range, no world matrix", first.id);
             return RV_ERR_INVAL;
         }
         m = next;
@@ -53,7 +49,6 @@ int rv_editor_scene_world_gte(const rv_editor_scene &scene, int index, rv_pdklib
     }
     // An acyclic chain has fewer ancestors than objects, so a parent left after the steps is a cycle.
     if (p >= 0) {
-        RV_LOG_WARN(scene_log_tag, "object '{}': parent chain is a cycle, no world matrix", first.id);
         return RV_ERR_INVAL;
     }
     out = m;

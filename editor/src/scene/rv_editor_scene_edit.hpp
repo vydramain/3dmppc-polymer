@@ -103,7 +103,8 @@ void rv_editor_scene_set_visible(rv_editor_scene_doc &doc, size_t at, bool visib
 using rv_editor_affine = std::array<std::array<double, 4>, 3>;
 rv_editor_affine rv_editor_scene_local(const rv_editor_scene_object &o);
 rv_editor_affine rv_editor_scene_world(const rv_editor_scene &scene, int index);
-// Integer twins of the two above, in Q20.12 and 4.12. RV_OK, or RV_ERR_INVAL with the reason logged; out is then untouched.
+// Integer twins of the two above, in Q20.12 and 4.12. RV_OK, or RV_ERR_INVAL (range, a missing object or a parent cycle); out
+// is then untouched and the caller shows the reason.
 int rv_editor_scene_local_gte(const rv_editor_scene_object &o, rv_pdklib::rv_gte_matrix &out);
 int rv_editor_scene_world_gte(const rv_editor_scene &scene, int index, rv_pdklib::rv_gte_matrix &out);
 rv_editor_affine rv_editor_affine_mul(const rv_editor_affine &a, const rv_editor_affine &b);
