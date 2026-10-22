@@ -282,11 +282,18 @@ void rv_editor_parts_highlight(ImDrawList *dl,
     const rv_editor_scene_doc &doc,
     const rv_editor_parts_target &target,
     ImU32 color);
-// The Move gizmo's axis under the mouse, or -1.
+// The selected object's world origin in Q20.12: the translation of the integer world chain (rv_editor_scene_world_gte),
+// the chain the mesh is drawn with. For rotated nested chains it can differ from the old affine point by the 4.12 rounding.
+// RV_OK, or the code of rv_editor_scene_world_gte (a bad index, an overflow or a parent cycle): no gizmo, logged once.
+int rv_editor_gizmo_origin(const rv_editor_scene &scene, int at, rv_pdklib::fx_vec3 &o);
+// The tip of the gizmo arm on `axis` (0..2): the origin moved by `length` raw along it. RV_OK, or RV_ERR_INVAL when the
+// tip leaves Q20.12: that arm is left out, logged once.
+int rv_editor_gizmo_tip(const rv_pdklib::fx_vec3 &o, int axis, rv_pdklib::fx length, rv_pdklib::fx_vec3 &tip);
+// The Move gizmo's axis under the mouse, or -1. `length` is the arm's length in Q20.12 raw.
 int rv_editor_gizmo_axis(const rv_editor_scene &scene,
     const std::string &selected,
     const rv_editor_view &v,
     ImVec2 mouse,
-    double length);
+    rv_pdklib::fx length);
 
 } // namespace rv_editor

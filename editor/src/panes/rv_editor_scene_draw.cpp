@@ -262,8 +262,7 @@ void rv_editor_line_fx(ImDrawList *dl,
     ImU32 color,
     float width)
 {
-    // Its own once flag, apart from rv_editor_line's. A view-space overflow is reported here, where the double
-    // route counts it as behind; the edge is skipped either way.
+    // Its own once flag, apart from rv_editor_line's: a view-space overflow is skipped and logged once, as there.
     static bool reported = false;
     ImVec2 sa{};
     ImVec2 sb{};

@@ -47,6 +47,8 @@ constexpr float gizmo_circle_radius = 40.0f;
 constexpr int gizmo_circle_segments = 32;
 constexpr float gizmo_circle_line_width = 1.5f;
 constexpr double gizmo_size_factor = 0.15;
+// The same factor in Q20.12, rounded to the nearest raw; the gizmo length is the camera distance times it.
+constexpr rv_pdklib::fx gizmo_size_fx = static_cast<rv_pdklib::fx>(gizmo_size_factor * rv_pdklib::fx_one + 0.5);
 constexpr float gizmo_click_threshold = 40.0f;
 constexpr float text_wrap_width = 28.0f;
 constexpr float status_text_offset = 2.0f;
@@ -58,12 +60,27 @@ rv_editor_gizmo_drag tool_drag;
 // The camera's sub-raw navigation rest, carried to the next frame; shared by the Scene tiles, like tool_drag.
 rv_editor_camera_carry camera_carry;
 
+// The origin's screen point, the rotate and scale circle's centre (a zero-length edge). NOENT, behind the near plane,
+// is silent; INVAL, outside Q20.12, logs once.
+int rv_editor_origin_screen(const rv_editor_view &v, const rv_pdklib::fx_vec3 &o, ImVec2 &so)
+{
+    static bool reported = false;
+    ImVec2 unused;
+    const int rc = rv_editor_edge_screen_fx(v, o, o, so, unused);
+    if (rc != RV_ERR_INVAL || reported) {
+        return rc;
+    }
+    reported = true;
+    RV_LOG_WARN(scene_log_tag, "the gizmo's origin is outside Q20.12 in the view: no circle for this object");
+    return rc;
+}
+
 // The gizmo axis under the mouse for the active tool; -1 when none.
 int rv_editor_tool_axis(rv_editor_scene_tool tool,
     const rv_editor_scene_doc &doc,
     const rv_editor_view &v,
     const ImVec2 &mouse,
-    double gizmo,
+    rv_pdklib::fx gizmo,
     int at)
 {
     switch (tool) {
@@ -73,12 +90,13 @@ int rv_editor_tool_axis(rv_editor_scene_tool tool,
         return -1;
     case rv_editor_scene_tool::rotate:
     case rv_editor_scene_tool::scale: {
+        rv_pdklib::fx_vec3 o{};
         ImVec2 so;
-        const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
-        if (v.point(o, so) && std::hypot(mouse.x - so.x, mouse.y - so.y) < gizmo_click_threshold) {
-            return 0;
+        if (rv_editor_gizmo_origin(doc.scene, at, o) != RV_OK || rv_editor_origin_screen(v, o, so) != RV_OK) {
+            return -1;
         }
-        return -1;
+        const bool on_circle = std::hypot(mouse.x - so.x, mouse.y - so.y) < gizmo_click_threshold;
+        return on_circle ? 0 : -1;
     }
     }
     return -1;
@@ -188,7 +206,12 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     // A failed read is logged by rv_editor_camera_read_units and leaves the units at zero.
     rv_editor_camera_units units{};
     (void)rv_editor_camera_read_units(cam, units);
-    const double gizmo = units.distance * gizmo_size_factor;
+    // The gizmo's arm in raw: the camera distance times gizmo_size_fx. The factor is below one, so the product always fits.
+    rv_pdklib::fx camera_distance = 0;
+    rv_pdklib::fx gizmo = 0;
+    // The inline getter only returns RV_OK.
+    (void)rv_editor_camera_get_distance_fx(cam, camera_distance);
+    (void)rv_pdklib::fx_mul(camera_distance, gizmo_size_fx, gizmo);
     const bool read_only = !doc.scene.read_only.empty();
 
     // Navigation: right drag orbits, middle drag pans, the wheel dollies; keys as well.
@@ -293,20 +316,11 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     dl->AddRectFilled(p0, p1, rv_editor_col(theme.code_base));
     if (cam.grid) {
         const ImU32 grid = rv_editor_col(theme.dark);
+        const rv_pdklib::fx extent = grid_half_extent * rv_pdklib::fx_one;
         for (int i = -grid_half_extent; i <= grid_half_extent; ++i) {
-            const double f = static_cast<double>(i);
-            rv_editor_line(dl,
-                v,
-                { f, 0, -grid_half_extent },
-                { f, 0, grid_half_extent },
-                i == 0 ? rv_editor_col(theme.code_blue) : grid,
-                1.0f);
-            rv_editor_line(dl,
-                v,
-                { -grid_half_extent, 0, f },
-                { grid_half_extent, 0, f },
-                i == 0 ? rv_editor_col(theme.code_red) : grid,
-                1.0f);
+            const rv_pdklib::fx f = i * rv_pdklib::fx_one;
+            rv_editor_line_fx(dl, v, { f, 0, -extent }, { f, 0, extent }, i == 0 ? rv_editor_col(theme.code_blue) : grid, 1.0f);
+            rv_editor_line_fx(dl, v, { -extent, 0, f }, { extent, 0, f }, i == 0 ? rv_editor_col(theme.code_red) : grid, 1.0f);
         }
     }
     // Filled/Textured: the selected object is filled as unselected when rv_editor_parts_resolve draws its
@@ -374,19 +388,23 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     }
     rv_editor_parts_highlight(dl, v, doc, parts, rv_editor_col(theme.selection));
     const int at = rv_editor_selected_index(doc);
-    if (at >= 0 && cam.tool == rv_editor_scene_tool::move) {
-        const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
+    // No origin, no gizmo: rv_editor_gizmo_origin logs why.
+    rv_pdklib::fx_vec3 o{};
+    const bool anchored = at >= 0 && rv_editor_gizmo_origin(doc.scene, at, o) == RV_OK;
+    if (anchored && cam.tool == rv_editor_scene_tool::move) {
         const uint32_t colors[] = { theme.code_red, theme.code_green, theme.code_blue };
         for (int a = 0; a < std::ssize(colors); ++a) {
-            vec3 tip = o;
-            tip[static_cast<size_t>(a)] += gizmo;
+            rv_pdklib::fx_vec3 tip{};
+            if (rv_editor_gizmo_tip(o, a, gizmo, tip) != RV_OK) {
+                continue;
+            }
             const bool hot = (tool_drag.dragging && tool_drag.axis == a) ||
                 (!tool_drag.dragging && hovered && rv_editor_gizmo_axis(doc.scene, doc.selected, v, mouse, gizmo) == a);
-            rv_editor_line(dl, v, o, tip, rv_editor_col(colors[a]), hot ? gizmo_line_width_hot : gizmo_line_width_normal);
+            rv_editor_line_fx(dl, v, o, tip, rv_editor_col(colors[a]), hot ? gizmo_line_width_hot : gizmo_line_width_normal);
         }
-    } else if (at >= 0 && cam.tool != rv_editor_scene_tool::select) {
+    } else if (anchored && cam.tool != rv_editor_scene_tool::select) {
         ImVec2 so;
-        if (v.point(rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 }), so)) {
+        if (rv_editor_origin_screen(v, o, so) == RV_OK) {
             dl->AddCircle(so,
                 gizmo_circle_radius,
                 rv_editor_col(theme.selection),
