@@ -24,6 +24,7 @@
 
 #include "imgui.h"
 
+#include "pdk/cv/rv_primitives.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_gte/rv_gte_matrix.hpp"
 #include "pdklib/rv_gte/rv_gte_project.hpp"
@@ -193,8 +194,11 @@ void rv_editor_refuse_once(bool &reported, const char *what)
 // does, coloured as the console draws it and rasterised into `buf`. Colour: the selection colour when
 // selected (no tint); a plain flat piece its base colour, untinted; else white times the object's tint;
 // each times the shade and the corner's colour. A flat piece samples an opaque white texel, so the
-// corner colour is the pixel. RV_ERR_INVAL when a corner does not project or the z-buffer refuses the
-// piece; the caller counts it as refused.
+// corner colour is the pixel. The piece's ordering key is the console's (rv_gte_depth_key, as make_primitive
+// in src/rv_pconsole/cg/rv_pccg_sw_put.cpp), over the editor's near and far planes and the default window
+// RV_DEPTH_MIN..RV_DEPTH_MAX: the editor has no disc put, so it draws as a put with the default range does.
+// RV_ERR_INVAL when a corner does not project, the key cannot be built, or the z-buffer rejects its input;
+// the caller counts it as refused.
 int rv_editor_raster_piece(rv_editor_zbuf &buf, const rv_editor_fx_tri &piece, const rv_editor_piece_style &st)
 {
     const bool flat = st.texture == nullptr;
@@ -209,6 +213,14 @@ int rv_editor_raster_piece(rv_editor_zbuf &buf, const rv_editor_fx_tri &piece, c
     }
     rv_editor_zbuf_triangle zt;
     zt.texture = flat ? nullptr : &picture;
+    const rv_pdklib::fx depth_z[tri_vertices] = { piece.v[0].p.z, piece.v[1].p.z, piece.v[2].p.z };
+    const rv_pdklib::rv_gte_depth_range range = { rv_editor_near_fx, rv_editor_camera_far_fx, RV_DEPTH_MIN, RV_DEPTH_MAX };
+    if (rv_pdklib::rv_gte_depth_key(depth_z, tri_vertices, range, zt.depth) != RV_OK) {
+        // Once per process, see rv_editor_refuse_once.
+        static bool reported = false;
+        rv_editor_refuse_once(reported, "a piece's depth key cannot be built (far <= near, or the span is too large)");
+        return RV_ERR_INVAL;
+    }
     for (int k = 0; k < tri_vertices; ++k) {
         rv_pdklib::rv_gte_screen s{};
         if (rv_pdklib::rv_gte_project(piece.v[k].p, st.screen, s) != RV_OK) {

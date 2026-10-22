@@ -28,6 +28,10 @@ constexpr double RV_EDITOR_ZBUF_CHANNEL_MAX = 255.0;
 // Flat colour: an opaque white texel, so the vertex colour is the pixel colour.
 constexpr rv_editor_zbuf_rgba RV_EDITOR_ZBUF_FLAT_TEXEL = { 255, 255, 255, 255 };
 
+// Cleared depth: the farthest key, so the first triangle to touch a pixel always passes. Mirrors
+// RV_PCCV_DEPTH_FARTHEST in src/rv_pconsole/cv/rv_pccv_sw.cpp.
+constexpr int32_t RV_EDITOR_ZBUF_DEPTH_FARTHEST = std::numeric_limits<int32_t>::min();
+
 // Corners are scaled by this, so a pixel's centre lies on an integer: the centre of pixel p is
 // RV_EDITOR_ZBUF_DOUBLING * p + RV_EDITOR_ZBUF_CENTRE_OFFSET, half a pixel past its corner.
 constexpr int64_t RV_EDITOR_ZBUF_DOUBLING = 2;
@@ -55,6 +59,7 @@ struct rv_zbuf_tri {
     rv_zbuf_point point[RV_EDITOR_ZBUF_CORNERS];
     int64_t area2 = 0;
     const rv_editor_zbuf_texture *texture = nullptr;
+    int32_t depth = 0;
 };
 
 rv_zbuf_point point_of(const rv_editor_zbuf_vertex &corner)
@@ -151,8 +156,8 @@ uint8_t channel(double unit, uint8_t texel)
     return static_cast<uint8_t>(std::clamp(std::round(unit * texel), 0.0, RV_EDITOR_ZBUF_CHANNEL_MAX));
 }
 
-// One pixel centre: covered by the triangle, nearer than the depth stored there, and with a
-// non-zero output alpha. Only then the colour and depth are written.
+// One pixel centre: covered by the triangle, with a key not below the one stored there, and with a
+// non-zero output alpha. Only then the colour and key are written.
 // ponytail: the three edge functions are evaluated for every pixel of the bounding box, no
 // stepping along the edges. Ceiling not measured; upgrade: incremental edge stepping per row.
 void shade_pixel(rv_editor_zbuf &buf, const rv_zbuf_tri &tri, int x, int y)
@@ -177,7 +182,8 @@ void shade_pixel(rv_editor_zbuf &buf, const rv_zbuf_tri &tri, int x, int y)
 
     const double z = 1.0 / inv_z;
     const size_t index = static_cast<size_t>(y) * static_cast<size_t>(buf.width) + static_cast<size_t>(x);
-    if (!(z < buf.depth[index])) {
+    // Mirrors depth_accept (src/rv_pconsole/cv/rv_pcfbuf.hpp): a key below the stored one is refused, an equal one passes.
+    if (tri.depth < buf.depth[index]) {
         return;
     }
 
@@ -202,7 +208,8 @@ void shade_pixel(rv_editor_zbuf &buf, const rv_zbuf_tri &tri, int x, int y)
     if (out.a == 0) {
         return;
     }
-    buf.depth[index] = static_cast<float>(z);
+    // Mirrors depth_store (src/rv_pconsole/cv/rv_pcfbuf.hpp).
+    buf.depth[index] = tri.depth;
     buf.colour[index] = out;
 }
 
@@ -229,14 +236,14 @@ int rv_editor_zbuf_init(rv_editor_zbuf &buf, int width, int height)
     buf.width = width;
     buf.height = height;
     buf.colour.assign(pixel_count(width, height), rv_editor_zbuf_rgba{});
-    buf.depth.assign(pixel_count(width, height), std::numeric_limits<float>::infinity());
+    buf.depth.assign(pixel_count(width, height), RV_EDITOR_ZBUF_DEPTH_FARTHEST);
     return RV_OK;
 }
 
 void rv_editor_zbuf_clear(rv_editor_zbuf &buf, rv_editor_zbuf_rgba background)
 {
     std::fill(buf.colour.begin(), buf.colour.end(), background);
-    std::fill(buf.depth.begin(), buf.depth.end(), std::numeric_limits<float>::infinity());
+    std::fill(buf.depth.begin(), buf.depth.end(), RV_EDITOR_ZBUF_DEPTH_FARTHEST);
 }
 
 int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri)
@@ -266,6 +273,7 @@ int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri)
         prepared.area2 = -prepared.area2;
     }
     prepared.texture = tri.texture;
+    prepared.depth = tri.depth;
     if (prepared.area2 == 0) {
         return RV_OK;
     }
