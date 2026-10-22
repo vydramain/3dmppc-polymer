@@ -10,6 +10,7 @@
 
 #include "pdk/cv/rv_vertex.h"
 #include "pdk/rv_err.h"
+#include "pdkkit/component/rv_component_capacity.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
 #include "pdkkit/ecs/rv_ecs_scene_records.hpp"
@@ -37,14 +38,16 @@ struct ecs_component_parent {
     ecs_id parent{};
 };
 
-// Entity name from the scene.
+// Entity name from the scene. A char array keeps the component a POD that a description can fill. NUL-terminated,
+// empty by default; sized as ecs_value_capacity (ecs_scene_copy_name static_asserts it holds a whole scene name).
 struct ecs_component_name {
-    std::string text;
+    char text[ecs_value_capacity]{};
 };
 
-// A .mppcmod model on the disc, with its tint.
+// A .mppcmod model on the disc, with its tint. name is NUL-terminated, empty by default; sized as ecs_value_capacity,
+// like ecs_component_name::text.
 struct ecs_component_model {
-    std::string name;
+    char name[ecs_value_capacity]{};
     rv_color tint = ecs_tint_white;
 };
 

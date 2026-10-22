@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <new>
 #include <string>
 #include <string_view>
@@ -76,6 +77,23 @@ std::string ecs_scene_text(const char (&text)[N])
     return std::string(text, ecs_name_length(text));
 }
 
+// Copies a scene name into a component's array, zeroing the rest so the same name gives the same bytes. The static_assert
+// keeps every source name whole (N is at least M, the source's capacity). A source with no NUL that fills its array is
+// refused, not cut: RV_ERR_INVAL, logged, out untouched.
+template <std::size_t N, std::size_t M>
+int ecs_scene_copy_name(const char *scene, const char (&text)[M], char (&out)[N])
+{
+    static_assert(N >= M, "a component's name array must hold a whole scene name: its size is at least the source's size");
+    const std::size_t length = ecs_name_length(text);
+    if (length >= N) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': name has no NUL within {} bytes", rv_pdklib::rv_log_escape(scene), M);
+        return RV_ERR_INVAL;
+    }
+    std::memset(out, 0, N);
+    std::memcpy(out, text, length);
+    return RV_OK;
+}
+
 // Logged once: an entity the load has just made is not alive.
 inline int ecs_scene_no_entity(const char *scene)
 {
@@ -137,7 +155,10 @@ inline int ecs_scene_add_model(ecs_scene_reading &load, const ecs_scene_object &
     if (ensured != RV_OK) {
         return ecs_scene_ensure_failed(load, ensured);
     }
-    model->name = ecs_scene_text(object.model);
+    const int copied = ecs_scene_copy_name(load.scene, object.model, model->name);
+    if (copied != RV_OK) {
+        return copied;
+    }
     model->tint = object.tint;
     return RV_OK;
 }
@@ -242,7 +263,10 @@ inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
     if (named != RV_OK) {
         return ecs_scene_ensure_failed(load, named);
     }
-    name->text = ecs_scene_text(object.name);
+    const int copied = ecs_scene_copy_name(load.scene, object.name, name->text);
+    if (copied != RV_OK) {
+        return copied;
+    }
     return ecs_scene_add_kind(load, object, id);
 }
 
