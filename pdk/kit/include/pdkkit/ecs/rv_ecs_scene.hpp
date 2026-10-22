@@ -246,7 +246,8 @@ inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
     return ecs_scene_add_kind(load, object, id);
 }
 
-// Parent of object `index`: the entity of its parent object, or `parent` for a root.
+// Parent of object `index`: the entity of its parent object, or `parent` for a root. The transform keeps the parent for
+// its readers; ecs_component_parent is set too, and only when there is a parent entity (a world root has none).
 inline int ecs_scene_link(ecs_scene_reading &load, int64_t index, ecs_id parent)
 {
     const ecs_scene_object &object = ecs_scene_object_at(load, index);
@@ -261,12 +262,22 @@ inline int ecs_scene_link(ecs_scene_reading &load, int64_t index, ecs_id parent)
     }
     const bool root = object.parent < 0;
     const ecs_id entity_parent = root ? parent : load.made[static_cast<std::size_t>(object.parent)];
-    ecs_component_transform *transform =
-        ecs_component_get<ecs_component_transform>(load.world, load.made[static_cast<std::size_t>(index)]);
+    const ecs_id id = load.made[static_cast<std::size_t>(index)];
+    ecs_component_transform *transform = ecs_component_get<ecs_component_transform>(load.world, id);
     if (transform == nullptr) {
         return ecs_scene_no_entity(load.scene);
     }
     transform->parent = entity_parent;
+    const bool has_parent = entity_parent != ecs_id{};
+    if (!has_parent) {
+        return RV_OK;
+    }
+    ecs_component_parent *link = nullptr;
+    const int ensured = ecs_component_ensure<ecs_component_parent>(load.world, id, link);
+    if (ensured != RV_OK) {
+        return ecs_scene_ensure_failed(load, ensured);
+    }
+    link->parent = entity_parent;
     return RV_OK;
 }
 

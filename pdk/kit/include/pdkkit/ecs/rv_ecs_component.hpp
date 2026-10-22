@@ -32,6 +32,11 @@ struct ecs_component_transform {
     ecs_id parent{};
 };
 
+// The entity's parent in the hierarchy; an entity without it is a root of the world.
+struct ecs_component_parent {
+    ecs_id parent{};
+};
+
 // Entity name from the scene.
 struct ecs_component_name {
     std::string text;
