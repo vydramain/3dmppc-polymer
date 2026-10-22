@@ -103,6 +103,9 @@ int rv_editor_scene_object_check(const rv_editor_scene_object &o, std::string &e
 // True for the components the accessors below own (name, transform, model, camera, volume, legacy_quad, legacy_billboard).
 bool rv_editor_scene_component_is_data(std::string_view name);
 
+// True for a kind marker's component (camera, volume, model, legacy_quad, legacy_billboard): its presence gives the kind.
+bool rv_editor_scene_component_is_kind(std::string_view name);
+
 // New code reaches an object's data through these accessors, which read and write its components; getters
 // return by value. A setter given a number outside Q20.12 keeps the field and logs one warning.
 // id, parent, entity, components and extra are the object's structure and stay direct fields,
@@ -110,8 +113,8 @@ bool rv_editor_scene_component_is_data(std::string_view name);
 std::string rv_editor_object_get_name(const rv_editor_scene_object &o);
 void rv_editor_object_set_name(rv_editor_scene_object &o, const std::string &value);
 std::string rv_editor_object_get_kind(const rv_editor_scene_object &o);
-// Creation only: adds the kind's marker, never removes one; a kind the object does not end up with is logged,
-// except a mesh, which is a group until its source is set.
+// Creation only: adds the kind's marker, never removes one; a kind the object does not end up with is logged.
+// A mesh's marker is its model component, so the object is a mesh as soon as the model is added, source or not.
 void rv_editor_object_set_kind(rv_editor_scene_object &o, const std::string &value);
 rv_editor_vec3 rv_editor_object_get_position(const rv_editor_scene_object &o);
 void rv_editor_object_set_position(rv_editor_scene_object &o, const rv_editor_vec3 &value);

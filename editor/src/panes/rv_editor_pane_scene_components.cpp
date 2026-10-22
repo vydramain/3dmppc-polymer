@@ -88,14 +88,17 @@ desc_list rv_editor_components_descs(const rv_editor_app &app)
     return descs;
 }
 
-// The described components Add offers to `o`. Hidden is left out: Visible sets it. Data components are left out too:
-// the Inspector edits them by their own rows, and kinds are added from the Hierarchy.
+// The described components Add offers to `o`. Hidden is left out: Visible sets it. Data components are left out too,
+// except a kind marker while `o` is a group: the object's kind is its first marker, so a second one would not show.
 std::vector<std::string> rv_editor_components_candidates(const desc_list &descs, const rv_editor_scene_object &o)
 {
+    const bool is_group = rv_editor_object_get_kind(o) == kind_group;
     std::vector<std::string> names;
     for (const rv_pdkkit::ecs_component_desc *desc : descs) {
         const std::string_view name = rv_editor_scene_desc_name(*desc);
-        if (name == component_hidden || rv_editor_scene_component_is_data(name) || rv_editor_scene_has_component(o, name)) {
+        const bool offered_kind = is_group && rv_editor_scene_component_is_kind(name);
+        if (name == component_hidden || rv_editor_scene_has_component(o, name) ||
+            (rv_editor_scene_component_is_data(name) && !offered_kind)) {
             continue;
         }
         names.emplace_back(name);
@@ -103,8 +106,8 @@ std::vector<std::string> rv_editor_components_candidates(const desc_list &descs,
     return names;
 }
 
-// Add component: a button that opens the list of described components the object lacks. A pick adds the component
-// with no fields, so the scene keeps only what differs from the description.
+// Add component: a button that opens the list of described components the object lacks; a group also gets the kind
+// markers. A pick adds the component with no fields, so the scene keeps only what differs from the description.
 void rv_editor_components_add(const rv_editor_app &app, rv_editor_scene_doc &doc, size_t at, const rv_editor_theme &theme)
 {
     const std::vector<const rv_pdkkit::ecs_component_desc *> descs = rv_editor_components_descs(app);

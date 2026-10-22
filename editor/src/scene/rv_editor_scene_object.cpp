@@ -207,6 +207,16 @@ int rv_editor_scene_object_check(const rv_editor_scene_object &o, std::string &e
     return RV_OK;
 }
 
+bool rv_editor_scene_component_is_kind(std::string_view name)
+{
+    for (const kind_row &row : kind_rows()) {
+        if (row.component == name) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool rv_editor_scene_component_is_data(std::string_view name)
 {
     for (const data_row &row : data_rows()) {
@@ -214,12 +224,7 @@ bool rv_editor_scene_component_is_data(std::string_view name)
             return true;
         }
     }
-    for (const kind_row &row : kind_rows()) {
-        if (row.component == name) {
-            return true;
-        }
-    }
-    return false;
+    return rv_editor_scene_component_is_kind(name);
 }
 
 std::string rv_editor_object_get_name(const rv_editor_scene_object &o)
@@ -244,8 +249,8 @@ std::string rv_editor_object_get_kind(const rv_editor_scene_object &o)
     return std::string(kind_group);
 }
 
-// Creation only: adds the kind's marker to an object without one; a marker is never removed. A group has no marker,
-// so no row matches it. The object's kind after the call is logged when it is not the one asked.
+// Creation only: adds the kind's marker to an object without one; a marker is never removed. A group has no row, so
+// asking for one adds nothing. The kind after the call is logged when it is not the one asked.
 void rv_editor_object_set_kind(rv_editor_scene_object &o, const std::string &value)
 {
     for (const kind_row &row : kind_rows()) {
