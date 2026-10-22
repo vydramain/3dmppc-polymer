@@ -86,6 +86,22 @@ bool letters_changed(int64_t from, int64_t to)
     return false;
 }
 
+// The first failure of a sequence of steps and the asset it named; RV_OK and "" until one fails.
+struct rv_first_error {
+    int64_t code = RV_OK;
+    const char *asset = "";
+};
+
+// Keeps `code` and `asset` when they are the first failure; later failures are not returned.
+void keep_first_error(rv_first_error &first, int64_t code, const char *asset)
+{
+    if (code >= 0 || first.code != RV_OK) {
+        return;
+    }
+    first.code = code;
+    first.asset = asset;
+}
+
 int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
 {
     int64_t addr = 0;
@@ -157,17 +173,13 @@ int64_t set_loop(rv_pdko *pdk, rv_sound_state &state, int index, bool on)
 // Keeps the loops playing while `in_workshop`, and silent otherwise. Every loop is tried; the first failure is returned.
 int64_t set_loops(rv_pdko *pdk, rv_sound_state &state, bool in_workshop)
 {
-    int64_t code = RV_OK;
-    const char *asset = "";
+    rv_first_error first = {};
     for (int i = 0; i < RV_SOUND_LOOP_COUNT; ++i) {
         const int64_t loop_code = set_loop(pdk, state, i, in_workshop);
-        if (code == RV_OK && loop_code < 0) {
-            code = loop_code;
-            asset = state.error_asset;
-        }
+        keep_first_error(first, loop_code, state.error_asset);
     }
-    state.error_asset = asset;
-    return code;
+    state.error_asset = first.asset;
+    return first.code;
 }
 
 } // namespace
@@ -242,16 +254,15 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
     const rv_sound_area area = state.areas[static_cast<std::size_t>(frame)];
     // Decided against the previous frame before the music takes this one.
     const bool first = state.frame < 0;
-    const bool clack = board_present && !first && area == rv_sound_area::workshop && letters_changed(state.frame, frame);
+    const bool in_workshop = area == rv_sound_area::workshop;
+    // The letters are compared with the previous frame, so the first frame does not compare them: it has none.
+    const bool letters_moved = !first && letters_changed(state.frame, frame);
+    const bool clack = board_present && in_workshop && letters_moved;
     // The loops always run. The clack runs only after the music step succeeded: otherwise the same clack would
     // repeat every frame. The first failure is returned with its asset.
-    int64_t code = RV_OK;
-    const char *asset = "";
+    rv_first_error error = {};
     const int64_t music_code = rv_music_update(pdk, frame, state);
-    if (music_code < 0) {
-        code = music_code;
-        asset = state.error_asset;
-    }
+    keep_first_error(error, music_code, state.error_asset);
     // Recorded only after the music start: a failed start is retried on the next rv_sound_update call
     // (the next frame, or the same frame again while paused).
     const bool music_ok = music_code == RV_OK;
@@ -259,20 +270,15 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
         state.frame = frame;
     }
     // Checked every new frame, not only on a change: a failed start is then retried, and a loop already right does nothing.
-    const int64_t loops_code = set_loops(pdk, state, area == rv_sound_area::workshop);
-    if (code == RV_OK && loops_code < 0) {
-        code = loops_code;
-        asset = state.error_asset;
-    }
-    if (music_ok && clack) {
+    const int64_t loops_code = set_loops(pdk, state, in_workshop);
+    keep_first_error(error, loops_code, state.error_asset);
+    const bool clack_now = music_ok && clack;
+    if (clack_now) {
         const int64_t clack_code = play_clack(pdk, state);
-        if (code == RV_OK && clack_code < 0) {
-            code = clack_code;
-            asset = state.error_asset;
-        }
+        keep_first_error(error, clack_code, state.error_asset);
     }
-    state.error_asset = asset;
-    return code;
+    state.error_asset = error.asset;
+    return error.code;
 }
 
 } // namespace example_cpp_bare

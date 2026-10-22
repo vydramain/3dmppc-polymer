@@ -241,6 +241,27 @@ int64_t advance(rv_pdko *pdk, rv_sound_state &state)
     return RV_OK;
 }
 
+// Reads the mark of a running chain and advances the chain when the voice has reached it.
+int64_t mark_step(rv_pdko *pdk, rv_sound_state &state)
+{
+    bool reached = false;
+    const int64_t mark_code = at_mark(pdk, state, reached);
+    if (mark_code < 0) {
+        return mark_code;
+    }
+    if (!reached) {
+        return RV_OK;
+    }
+    return advance(pdk, state);
+}
+
+// What a frame does to the music: nothing, starts the area's chain at a bar, or moves a running chain on at its mark.
+enum class rv_music_step {
+    idle,
+    start,
+    mark,
+};
+
 // Frees the first `count` slots of a failed init; a slot that will not free is logged, the init error is kept.
 void free_slots(rv_ca *ca, const rv_sound_state &state, int count)
 {
@@ -303,20 +324,23 @@ int64_t rv_music_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state)
     // A first frame mid-bar fills the slots and waits: the bar it is in is not played from its head.
     const bool silent = first && span_offset % RV_SOUND_BAR_FRAMES != 0;
     // A chain whose last step failed is finished first: its voice already plays, so a restart would be wrong.
-    int64_t music_code = state.music_on && !state.music_armed ? arm_chain(pdk, state) : static_cast<int64_t>(RV_OK);
+    const bool unarmed = state.music_on && !state.music_armed;
+    // Before the chain runs it starts at a table bar start; once running, the voice's marks move it on.
+    const bool starts = area_changed || (!state.music_on && bar != state.bar);
+    const rv_music_step step = starts ? rv_music_step::start : (state.music_on ? rv_music_step::mark : rv_music_step::idle);
+    int64_t music_code = unarmed ? arm_chain(pdk, state) : static_cast<int64_t>(RV_OK);
     if (music_code < 0) {
         return music_code;
     }
-    // Before the chain runs it starts at a table bar start; once running, the voice's marks move it on.
-    const bool starts = area_changed || (!state.music_on && bar != state.bar);
-    if (starts) {
+    switch (step) {
+    case rv_music_step::start:
         music_code = start_chain(pdk, state, area, bar, !silent);
-    } else if (state.music_on) {
-        bool reached = false;
-        music_code = at_mark(pdk, state, reached);
-        if (music_code == RV_OK && reached) {
-            music_code = advance(pdk, state);
-        }
+        break;
+    case rv_music_step::mark:
+        music_code = mark_step(pdk, state);
+        break;
+    case rv_music_step::idle:
+        break;
     }
     if (music_code < 0) {
         return music_code;
