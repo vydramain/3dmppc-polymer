@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -294,6 +295,30 @@ inline int rv_mppcmod_int_write(const rv_mppcmod_int_model &model, std::vector<u
         }
     }
     return RV_OK;
+}
+
+/// Float view of an integer model for the float renderers, until they take the integer layout.
+/// Position is v / 2^shift and uv is u / 2^rv_mppcmod_uv_bits; both divisions are exact in float,
+/// so no rounding is added here.
+inline rv_mppcmod rv_mppcmod_int_to_float(const rv_mppcmod_int_model &in)
+{
+    const float uv_one = static_cast<float>(int64_t{ 1 } << rv_mppcmod_uv_bits);
+    rv_mppcmod out;
+    out.parts = in.parts;
+    out.triangles = in.triangles;
+    out.vertices.resize(in.vertices.size());
+    for (size_t v = 0; v < in.vertices.size(); ++v) {
+        const rv_mppcmod_int_vertex &src = in.vertices[v];
+        rv_mppcmod_vertex &dst = out.vertices[v];
+        for (size_t k = 0; k < dst.pos.size(); ++k) {
+            dst.pos[k] = std::ldexp(static_cast<float>(src.pos[k]), -static_cast<int>(in.shift));
+        }
+        for (size_t k = 0; k < dst.uv.size(); ++k) {
+            dst.uv[k] = static_cast<float>(src.uv[k]) / uv_one;
+        }
+        dst.color = src.color;
+    }
+    return out;
 }
 
 } // namespace rv_pdklib
