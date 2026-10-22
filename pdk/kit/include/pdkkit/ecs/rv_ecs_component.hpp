@@ -4,7 +4,6 @@
 
 #include <charconv>
 #include <cstdint>
-#include <string>
 #include <string_view>
 #include <system_error>
 
@@ -20,10 +19,8 @@
 namespace rv_pdkkit
 {
 
-// Default tint: white, no change of the model's or sprite's colours.
+// Default tint: white, no change of the model's colours.
 inline constexpr rv_color ecs_tint_white{ 255, 255, 255 };
-// Default sprite tessellation: two subdivisions per unit, as the editor's scene.
-inline constexpr rv_pdklib::fx ecs_sprite_tess_default = 2 * rv_pdklib::fx_one;
 
 // Position, rotation (Q20.12 degrees) and scale relative to the entity's parent in the hierarchy (ecs_component_parent);
 // a world root is relative to the world.
@@ -49,20 +46,6 @@ struct ecs_component_name {
 struct ecs_component_model {
     char name[ecs_value_capacity]{};
     rv_color tint = ecs_tint_white;
-};
-
-enum class ecs_sprite_kind : uint8_t {
-    quad,
-    billboard,
-};
-
-// A textured quad or billboard; uv holds u0, v0, u1, v1 in pixels.
-struct ecs_component_sprite {
-    ecs_sprite_kind kind = ecs_sprite_kind::quad;
-    std::string texture;
-    rv_pdklib::fx uv[4]{};
-    rv_color tint = ecs_tint_white;
-    rv_pdklib::fx tess = ecs_sprite_tess_default;
 };
 
 // Marks the entity as a camera.

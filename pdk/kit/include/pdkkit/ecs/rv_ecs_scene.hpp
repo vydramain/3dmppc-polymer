@@ -50,26 +50,6 @@ struct ecs_scene_reading {
     std::vector<ecs_id> &made;
 };
 
-// Boundary: a float of the scene contract to fx (uv in pixels, tess as subdivision density, ecs_scene_object in
-// rv_ecs_scene_records.hpp). The only float entry.
-[[nodiscard]] inline int ecs_scene_unit_from_float(float value, rv_pdklib::fx &out)
-{
-    return rv_pdklib::fx_from_double(static_cast<double>(value), out);
-}
-
-// Boundary: a float array of the PDK contract to fx. On error out may be partly written; the load then rolls back.
-template <std::size_t N>
-int ecs_scene_units_from_float(const float (&in)[N], rv_pdklib::fx (&out)[N])
-{
-    for (std::size_t i = 0; i < N; ++i) {
-        const int converted = ecs_scene_unit_from_float(in[i], out[i]);
-        if (converted != RV_OK) {
-            return converted;
-        }
-    }
-    return RV_OK;
-}
-
 // Name from a NUL-terminated scene array.
 template <std::size_t N>
 std::string ecs_scene_text(const char (&text)[N])
@@ -163,38 +143,6 @@ inline int ecs_scene_add_model(ecs_scene_reading &load, const ecs_scene_object &
     return RV_OK;
 }
 
-// Sprite of a quad or billboard. uv (pixels) and tess (subdivision density) convert at the boundary.
-inline int ecs_scene_add_sprite(ecs_scene_reading &load, const ecs_scene_object &object, ecs_id id, ecs_sprite_kind kind)
-{
-    ecs_component_sprite *sprite = nullptr;
-    const int ensured = ecs_component_ensure<ecs_component_sprite>(load.world, id, sprite);
-    if (ensured != RV_OK) {
-        return ecs_scene_ensure_failed(load, ensured);
-    }
-    const int uv_status = ecs_scene_units_from_float(object.uv, sprite->uv);
-    if (uv_status != RV_OK) {
-        RV_LOG_ERR(ecs_scene_tag,
-            "scene '{}' object '{}': uv does not fit ({})",
-            rv_pdklib::rv_log_escape(load.scene),
-            ecs_scene_text(object.name),
-            uv_status);
-        return uv_status;
-    }
-    const int tess_status = ecs_scene_unit_from_float(object.tess, sprite->tess);
-    if (tess_status != RV_OK) {
-        RV_LOG_ERR(ecs_scene_tag,
-            "scene '{}' object '{}': tess does not fit ({})",
-            rv_pdklib::rv_log_escape(load.scene),
-            ecs_scene_text(object.name),
-            tess_status);
-        return tess_status;
-    }
-    sprite->kind = kind;
-    sprite->texture = ecs_scene_text(object.texture);
-    sprite->tint = object.tint;
-    return RV_OK;
-}
-
 // Components of an object's kind. Groups have none.
 inline int ecs_scene_add_kind(ecs_scene_reading &load, const ecs_scene_object &object, ecs_id id)
 {
@@ -205,10 +153,15 @@ inline int ecs_scene_add_kind(ecs_scene_reading &load, const ecs_scene_object &o
         return ecs_scene_mark<ecs_component_camera>(load, id);
     case ecs_scene_kind::mesh:
         return ecs_scene_add_model(load, object, id);
+    // Scene files may still hold quads and billboards from older editors: pdkkit has no sprite component, so the object keeps
+    // its transform and name, and is not drawn.
     case ecs_scene_kind::quad:
-        return ecs_scene_add_sprite(load, object, id, ecs_sprite_kind::quad);
     case ecs_scene_kind::billboard:
-        return ecs_scene_add_sprite(load, object, id, ecs_sprite_kind::billboard);
+        RV_LOG_WARN(ecs_scene_tag,
+            "scene '{}' object '{}': quad or billboard is not drawn, pdkkit has no sprite",
+            rv_pdklib::rv_log_escape(load.scene),
+            ecs_scene_text(object.name));
+        return RV_OK;
     case ecs_scene_kind::volume:
         return ecs_scene_mark<ecs_component_volume>(load, id);
     }
