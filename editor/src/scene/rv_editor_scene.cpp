@@ -23,10 +23,12 @@ namespace
 constexpr std::string_view default_camera_name = "Camera";
 constexpr std::string_view default_mesh_name = "Box";
 
-// Initial camera properties in new scenes: y 0.8 (the setter rounds it to 1/4096), z -4.0, rot x 8.0 degrees.
-constexpr double initial_camera_y = 0.8;
-constexpr double initial_camera_z = -4.0;
-constexpr double initial_camera_rot_x = 8.0;
+// Initial camera height in new scenes in Q20.12: 0.8 m, rounded to the nearest 1/4096.
+constexpr rv_pdklib::fx initial_camera_y = 3277;
+// Initial camera z in new scenes in Q20.12: -4.0 m.
+constexpr rv_pdklib::fx initial_camera_z = -4 * rv_pdklib::fx_one;
+// Initial camera rotation x in new scenes in Q20.12: 8.0 degrees.
+constexpr rv_pdklib::fx initial_camera_rot_x = 8 * rv_pdklib::fx_one;
 
 // Mask for random ID generation to ensure minimum value.
 constexpr uint32_t id_generation_mask = 0x10000000u;
@@ -155,8 +157,8 @@ rv_editor_scene rv_editor_scene_make(const std::filesystem::path &path)
     rv_editor_scene_object camera;
     camera.id = rv_editor_scene_new_id(s);
     rv_editor_object_set_name(camera, std::string(default_camera_name));
-    rv_editor_object_set_position(camera, { 0, initial_camera_y, initial_camera_z });
-    rv_editor_object_set_rotation(camera, { initial_camera_rot_x, 0, 0 });
+    rv_editor_object_set_position_fx(camera, rv_pdklib::fx_vec3{ 0, initial_camera_y, initial_camera_z });
+    rv_editor_object_set_rotation_fx(camera, rv_pdklib::fx_vec3{ initial_camera_rot_x, 0, 0 });
     rv_editor_object_set_kind(camera, std::string(kind_camera));
     s.objects.push_back(camera);
     // No model yet: an entity without one is shown as a box (plan 4.7, E10f).
