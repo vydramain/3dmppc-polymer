@@ -58,8 +58,9 @@ screen's size and the frame plumbing — `frame_begin`/`frame_end`,
 the disc's own class derives from before being handed to `RV_MPPC_DISC_ENTRY_DEF`.
 It has less to carry than the Lua one - a C++
 disc's own class already is its `rv_de`, so this macro lives in pdklib alone
-and a disc is just as free to skip it and write all five hooks by hand, the
-way `mppcdiscs/example-cpp-pdkkit/` did before this macro existed. A
+and a disc is just as free to skip it and write all five hooks by hand.
+`mppcdiscs/example-cpp-bare/` uses this macro; `mppcdiscs/example-cpp-pdkkit/`
+derives `rv_pdkkit::pdkkit_disc` from `pdk/kit` instead. A
 script pulls in another with `require("name")`, which
 reads `name.luac` (`name.lua` in an `--unpacked` directory) off the disc, runs
 it once and hands every caller the same table.
@@ -79,7 +80,7 @@ than by discipline.
 | Tree | What it is | Depends on |
 | --- | --- | --- |
 | [`pdk/`](pdk/) | **the contract** — the headers describing what the console can do | nothing |
-| [`pdklib/`](pdk/lib/) | **disc-side conveniences** written against the contract: matrices, camera, text | `pdk/` |
+| [`pdklib/`](pdk/lib/) | **disc-side conveniences** written against the contract: matrices, camera, integer geometry (`rv_gte`), text, `.mppcmod` models (`rv_models`) | `pdk/` |
 | `src/` | **the console** — the concrete machine that implements the contract | `pdk/` |
 | [`pdk/tools/`](pdk/tools/) | **authoring tools** that turn a directory into a disc | `pdk/` |
 | [`mppcdiscs/`](mppcdiscs/) | **the games** | `pdk/`, `pdklib/` |
@@ -110,7 +111,7 @@ build-dev/pconsole/
     3dmppc          the development console: --dev, loose disc directories, reload
     mppctexbaker    bakes a PNG into a console texture (.mppctex)
     mppcmusbaker    bakes a WAV into console sound (.pcm)
-    mppcmodbaker    bakes a glTF 2.0 .glb model into a .mppcmod and its PNG textures
+    mppcmodbaker    bakes a glTF 2.0 model (.glb, or .gltf with its .bin and PNGs) into a .mppcmod and its PNG textures
     mppcburner      compiles a disc directory and burns a .mppcdisc
     3dmppc-editor   the editor
 ```
@@ -517,7 +518,7 @@ mygame/
   assets/          PNGs and WAVs get baked into texels and samples; the rest is copied in
 ```
 
-Start by copying [`mppcdiscs/example-cpp-pdkkit/`](mppcdiscs/example-cpp-pdkkit/) — it is the smallest
+Start by copying [`mppcdiscs/example-cpp-pdkkit/`](mppcdiscs/example-cpp-pdkkit/) — it is a
 complete disc and its README walks through what each piece is for.
 
 ### disc.toml
@@ -544,7 +545,7 @@ format = "idx8"
 files = ["assets/*.wav"]
 
 [models]
-files = ["models/*.glb"]
+files = ["assets/models/*.gltf"]
 ```
 
 `[sounds]` is optional, like `[textures]`: each listed WAV is baked by
@@ -553,9 +554,12 @@ files = ["models/*.glb"]
 be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
 else is refused, not resampled.
 
-`[models]` is optional the same way: each listed `.glb` (glTF 2.0) is baked by
-`mppcmodbaker` into a `<name>.mppcmod`; its embedded PNG textures are baked
-into `<stem>-<n>.mppctex` in the same texture directory as `[textures]`.
+`[models]` is optional the same way: each listed `.glb` or `.gltf` (glTF 2.0) is baked by
+`mppcmodbaker` into a `<name>.mppcmod`. The baker writes each PNG texture beside it as
+`<stem>-<n>.png`: a `.glb` embeds them, a `.gltf` reads them from the relative URIs of its
+`.bin` and PNG files. The burner then bakes those PNGs into `<stem>-<n>.mppctex` in the same
+texture directory as `[textures]`; for a model it never opens the disc's own PNG files.
+A JPEG texture is refused.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
 both. Every `[budget.*]` section is optional - a disc that states none is held to the
@@ -620,11 +624,12 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | Document | What it covers |
 | --- | --- |
 | [`pdk/README.md`](pdk/README.md) | the contract: the facade, the five controllers, why the boundary is where it is |
-| [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, text |
+| [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, integer geometry, text, `.mppcmod` models |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppctexbaker/README.md`](pdk/tools/mppctexbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
 | [`editor/README.md`](editor/README.md) | the editor: what it is, how it builds, where its requirements live |
 | [`mppcdiscs/example-cpp-pdkkit/README.md`](mppcdiscs/example-cpp-pdkkit/README.md) | the sample disc |
+| [`mppcdiscs/README.md`](mppcdiscs/README.md) | `example-cpp-bare`: the same demo in C++ on pdklib alone; it has no README of its own |
 | [`mppcdiscs/example-lua-bare/README.md`](mppcdiscs/example-lua-bare/README.md) | the scripting disc |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
 
@@ -632,11 +637,15 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 
 ## Where it stands
 
-- **Contract** — closed. Video, audio, drive, memory card, I/O, plus the binary
-  ABI a packaged disc is loaded through.
+- **Contract** — closed. Video, audio, geometry, drive, memory card, I/O, plus the
+  binary ABI a packaged disc is loaded through.
 - **Video** — virtual VRAM pool, ordering table, rasterizer for lines / sprites
   / triangles / quads, Gouraud interpolation, affine texture sampling (4/8-bit
   paletted + 15-bit direct, PSX cut-out transparency), 4×4 ordered dithering.
+- **Geometry** - `rv_cg` transforms a model by its world matrix and the frame's
+  camera, cuts triangles at the near plane, culls per put (none or back) and puts
+  them into video's frame; `rv_cg_point` projects one point. Integer throughout:
+  Q20.12 metres, 4.12 rotation.
 - **Audio** — sound-RAM pool, 24 voices with ADSR, saturating mixer, rendered
   on the console thread once per frame.
 - **Drive** — mounts a directory or a `.mppcdisc` archive behind one interface.
