@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "pdklib/rv_manifest/detail/rv_manifest_tree.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
 #include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_editor
@@ -24,18 +25,21 @@ inline constexpr std::string_view kind_volume = "volume";
 // The component that marks an object hidden: its row is dimmed, and it is drawn as an outline or not at all.
 inline constexpr std::string_view component_hidden = "hidden";
 
-// A scene document as the editor edits it: pdkkit's rv_scene with numbers as doubles and
+// A scene document as the editor edits it: pdkkit's rv_scene with numbers as raw Q20.12 and
 // parents as ids. The file is read and written by pdkkit/scene. Unknown keys and sections
 // are written back; the legacy `format` key is not (the file is written with `version`).
 
 using rv_editor_vec3 = std::array<double, 3>;
 using rv_editor_uv = std::array<double, 4>;
 using rv_editor_tint = std::array<int, 3>;
+// Raw Q20.12 in int64: storage is unchecked; setters saturate to +/-2^62; the save refuses what does not fit fx.
+using rv_editor_vec3_raw = std::array<int64_t, 3>;
+using rv_editor_uv_raw = std::array<int64_t, 4>;
 
 // Default tint, same as pdkkit when a scene object lacks a `tint` key.
 constexpr rv_editor_tint default_object_tint = { 255, 255, 255 };
-// Default tess, same as pdkkit when a scene object lacks a `tess` key.
-constexpr double default_object_tess = 2.0;
+// Default tess, same as pdkkit when a scene object lacks a `tess` key: 2.0 in raw Q20.12.
+constexpr int64_t default_object_tess_raw = 2 * rv_pdklib::fx_one;
 
 // A [[component]] of its object: the component type's name and its fields in file order.
 struct rv_editor_scene_component {
@@ -49,14 +53,14 @@ struct rv_editor_scene_object {
     std::string parent; // the parent's id, empty at the root
     std::string kind;   // "group", "camera", "mesh", "quad", "billboard" or "volume"
     std::string entity; // entity type name, empty: the base type
-    rv_editor_vec3 position{ 0.0, 0.0, 0.0 };
-    rv_editor_vec3 rotation{ 0.0, 0.0, 0.0 }; // degrees; R = Ry * Rx * Rz
-    rv_editor_vec3 scale{ 1.0, 1.0, 1.0 };
+    rv_editor_vec3_raw position_raw{ 0, 0, 0 };
+    rv_editor_vec3_raw rotation_raw{ 0, 0, 0 }; // degrees; R = Ry * Rx * Rz
+    rv_editor_vec3_raw scale_raw{ rv_pdklib::fx_one, rv_pdklib::fx_one, rv_pdklib::fx_one };
     std::string mesh;
     std::string texture;
-    rv_editor_uv uv{ 0.0, 0.0, 0.0, 0.0 };     // quad/billboard texture rect, pixels: u0,v0,u1,v1
+    rv_editor_uv_raw uv_raw{ 0, 0, 0, 0 };     // quad/billboard texture rect, pixels: u0,v0,u1,v1
     rv_editor_tint tint = default_object_tint; // quad/billboard modulation
-    double tess = default_object_tess;         // quad/billboard subdivision density
+    int64_t tess_raw = default_object_tess_raw;        // quad/billboard subdivision density
     std::vector<rv_editor_scene_component> components; // in file order
     // Keys the editor does not know, written back as they were read.
     std::vector<rv_pdklib::rv_manifest_tree_entry> extra;
@@ -102,7 +106,8 @@ const rv_editor_scene_component *rv_editor_scene_component_find(const rv_editor_
 bool rv_editor_scene_has_component(const rv_editor_scene_object &o, std::string_view name);
 
 // New code reaches an object's data through these accessors; the storage behind them will change
-// (raw Q20.12, then pdkkit components), so getters return by value. The fields stay public until then.
+// (pdkkit components), so getters return by value. The fields stay public until then.
+// A value a setter saturated reads back as +/-2^50 (NaN reads as +2^50).
 // id, parent, entity, components and extra are the object's structure in both forms and stay direct
 // fields, so a whole-object copy (duplicate) stays valid.
 std::string rv_editor_object_get_name(const rv_editor_scene_object &o);

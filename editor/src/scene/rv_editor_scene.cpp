@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cmath>
 #include <fstream>
 #include <iterator>
 #include <random>
@@ -35,10 +36,14 @@ constexpr size_t uv_size = 4;
 constexpr int tint_min = 0;
 constexpr int tint_max = 255;
 
-// Initial camera properties in new scenes.
-constexpr double initial_camera_y = 0.8;
-constexpr double initial_camera_z = -4.0;
-constexpr double initial_camera_rot_x = 8.0;
+// Initial camera properties in new scenes, raw Q20.12: y 0.8 (rounded to 1/4096), z -4.0, rot x 8.0 degrees.
+constexpr int64_t initial_camera_y = 3277;
+constexpr int64_t initial_camera_z = -4 * rv_pdklib::fx_one;
+constexpr int64_t initial_camera_rot_x = 8 * rv_pdklib::fx_one;
+
+// Limit of a raw value: far outside Q20.12, so the save refuses it with the object's and field's name, as it refused
+// such a double before. A non-finite number saturates to it too (NaN to plus).
+constexpr int64_t object_raw_limit = int64_t{ 1 } << 62;
 
 // Mask for random ID generation to ensure minimum value.
 constexpr uint32_t id_generation_mask = 0x10000000u;
@@ -50,21 +55,52 @@ constexpr size_t hex_id_buffer_bytes = 16;
 // Default preamble for new scene files.
 constexpr std::string_view scene_preamble = "# A scene: 3dmppc-editor's Scene layout edits it.\n\n";
 
-// The model number of a raw Q20.12 value; exact, the file's units are 1/4096.
-double rv_editor_scene_units(rv_pdklib::fx raw)
+// Model number of a raw Q20.12 value; exact, the file's units are 1/4096.
+double rv_editor_scene_units(int64_t raw)
 {
     return static_cast<double>(raw) / rv_pdklib::fx_one;
 }
 
-rv_editor_vec3 rv_editor_scene_vec3_units(const rv_pdklib::fx_vec3 &v)
+// Model numbers of raw Q20.12 values.
+template <size_t count>
+std::array<double, count> rv_editor_scene_units_list(const std::array<int64_t, count> &raw)
 {
-    return { rv_editor_scene_units(v.x), rv_editor_scene_units(v.y), rv_editor_scene_units(v.z) };
+    std::array<double, count> out{};
+    for (size_t i = 0; i < count; ++i) {
+        out[i] = rv_editor_scene_units(raw[i]);
+    }
+    return out;
 }
 
-// Q20.12 of a model number; RV_ERR_INVAL names the object and field when it does not fit.
-int rv_editor_scene_fx(const std::string &object, const char *field, double value, rv_pdklib::fx &out, std::string &error)
+// Raw Q20.12 of a model number: nearest, half away from zero, as rv_pdklib::fx_from_double rounds.
+// NaN and values at or beyond the limit saturate; the save refuses them.
+int64_t rv_editor_scene_raw_from_units(double value)
 {
-    if (rv_pdklib::fx_from_double(value, out) != RV_OK) {
+    const double raw = std::round(value * rv_pdklib::fx_one);
+    const double limit = static_cast<double>(object_raw_limit);
+    if (std::isnan(raw) || raw >= limit) {
+        return object_raw_limit;
+    }
+    if (raw <= -limit) {
+        return -object_raw_limit;
+    }
+    return static_cast<int64_t>(raw);
+}
+
+template <size_t count>
+std::array<int64_t, count> rv_editor_scene_raw_list(const std::array<double, count> &in)
+{
+    std::array<int64_t, count> out{};
+    for (size_t i = 0; i < count; ++i) {
+        out[i] = rv_editor_scene_raw_from_units(in[i]);
+    }
+    return out;
+}
+
+// Q20.12 of a raw value; RV_ERR_INVAL names the object and field when it does not fit.
+int rv_editor_scene_fx(const std::string &object, const char *field, int64_t raw, rv_pdklib::fx &out, std::string &error)
+{
+    if (rv_pdklib::fx_from_raw(raw, out) != RV_OK) {
         error = "object '" + object + "': '" + field + "' is outside Q20.12";
         return RV_ERR_INVAL;
     }
@@ -74,7 +110,7 @@ int rv_editor_scene_fx(const std::string &object, const char *field, double valu
 template <size_t count>
 int rv_editor_scene_fx_list(const std::string &object,
     const char *field,
-    const std::array<double, count> &in,
+    const std::array<int64_t, count> &in,
     std::array<rv_pdklib::fx, count> &out,
     std::string &error)
 {
@@ -88,7 +124,7 @@ int rv_editor_scene_fx_list(const std::string &object,
 
 int rv_editor_scene_fx_vec3(const std::string &object,
     const char *field,
-    const rv_editor_vec3 &in,
+    const rv_editor_vec3_raw &in,
     rv_pdklib::fx_vec3 &out,
     std::string &error)
 {
@@ -119,26 +155,26 @@ int rv_editor_scene_object_to_pdk(const rv_editor_scene &scene,
     std::string &error)
 {
     std::array<rv_pdklib::fx, uv_size> uv{};
-    if (rv_editor_scene_fx_vec3(o.id, "position", o.position, p.position, error) != RV_OK) {
+    if (rv_editor_scene_fx_vec3(o.id, "position", o.position_raw, p.position, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
-    if (rv_editor_scene_fx_vec3(o.id, "rotation", o.rotation, p.rotation, error) != RV_OK) {
+    if (rv_editor_scene_fx_vec3(o.id, "rotation", o.rotation_raw, p.rotation, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
-    if (rv_editor_scene_fx_vec3(o.id, "scale", o.scale, p.scale, error) != RV_OK) {
+    if (rv_editor_scene_fx_vec3(o.id, "scale", o.scale_raw, p.scale, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
-    if (rv_editor_scene_fx_list(o.id, "uv", o.uv, uv, error) != RV_OK) {
+    if (rv_editor_scene_fx_list(o.id, "uv", o.uv_raw, uv, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
     if (rv_editor_scene_color(o, p.tint, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
-    if (rv_editor_scene_fx(o.id, "tess", o.tess, p.tess, error) != RV_OK) {
+    if (rv_editor_scene_fx(o.id, "tess", o.tess_raw, p.tess, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
-    // Checked after rounding: a tess that rounds to 0 would not read back.
-    if (p.tess <= 0) {
+    // Checked after the range test: a tess outside Q20.12 keeps its range error.
+    if (o.tess_raw <= 0) {
         error = "object '" + o.id + "': 'tess' must be a number greater than zero";
         return RV_ERR_INVAL;
     }
@@ -190,14 +226,14 @@ rv_editor_scene_object rv_editor_scene_object_from_pdk(const rv_pdkkit::rv_scene
     o.parent = p.parent < 0 ? std::string() : pdk.objects[static_cast<size_t>(p.parent)].id;
     o.kind = p.kind;
     o.entity = p.entity;
-    o.position = rv_editor_scene_vec3_units(p.position);
-    o.rotation = rv_editor_scene_vec3_units(p.rotation);
-    o.scale = rv_editor_scene_vec3_units(p.scale);
+    o.position_raw = { p.position.x, p.position.y, p.position.z };
+    o.rotation_raw = { p.rotation.x, p.rotation.y, p.rotation.z };
+    o.scale_raw = { p.scale.x, p.scale.y, p.scale.z };
     for (size_t i = 0; i < uv_size; ++i) {
-        o.uv[i] = rv_editor_scene_units(p.uv[i]);
+        o.uv_raw[i] = p.uv[i];
     }
     o.tint = { p.tint.r, p.tint.g, p.tint.b };
-    o.tess = rv_editor_scene_units(p.tess);
+    o.tess_raw = p.tess;
     o.mesh = p.mesh;
     o.texture = p.texture;
     o.extra = p.extra;
@@ -268,8 +304,8 @@ rv_editor_scene rv_editor_scene_make(const std::filesystem::path &path)
     camera.id = rv_editor_scene_new_id(s);
     camera.name = std::string(default_camera_name);
     camera.kind = std::string(kind_camera);
-    camera.position = { 0.0, initial_camera_y, initial_camera_z };
-    camera.rotation = { initial_camera_rot_x, 0.0, 0.0 };
+    camera.position_raw = { 0, initial_camera_y, initial_camera_z };
+    camera.rotation_raw = { initial_camera_rot_x, 0, 0 };
     s.objects.push_back(camera);
     rv_editor_scene_object box;
     box.id = rv_editor_scene_new_id(s);
@@ -339,32 +375,32 @@ void rv_editor_object_set_kind(rv_editor_scene_object &o, const std::string &val
 
 rv_editor_vec3 rv_editor_object_get_position(const rv_editor_scene_object &o)
 {
-    return o.position;
+    return rv_editor_scene_units_list(o.position_raw);
 }
 
 void rv_editor_object_set_position(rv_editor_scene_object &o, const rv_editor_vec3 &value)
 {
-    o.position = value;
+    o.position_raw = rv_editor_scene_raw_list(value);
 }
 
 rv_editor_vec3 rv_editor_object_get_rotation(const rv_editor_scene_object &o)
 {
-    return o.rotation;
+    return rv_editor_scene_units_list(o.rotation_raw);
 }
 
 void rv_editor_object_set_rotation(rv_editor_scene_object &o, const rv_editor_vec3 &value)
 {
-    o.rotation = value;
+    o.rotation_raw = rv_editor_scene_raw_list(value);
 }
 
 rv_editor_vec3 rv_editor_object_get_scale(const rv_editor_scene_object &o)
 {
-    return o.scale;
+    return rv_editor_scene_units_list(o.scale_raw);
 }
 
 void rv_editor_object_set_scale(rv_editor_scene_object &o, const rv_editor_vec3 &value)
 {
-    o.scale = value;
+    o.scale_raw = rv_editor_scene_raw_list(value);
 }
 
 std::string rv_editor_object_get_mesh(const rv_editor_scene_object &o)
@@ -389,12 +425,12 @@ void rv_editor_object_set_texture(rv_editor_scene_object &o, const std::string &
 
 rv_editor_uv rv_editor_object_get_uv(const rv_editor_scene_object &o)
 {
-    return o.uv;
+    return rv_editor_scene_units_list(o.uv_raw);
 }
 
 void rv_editor_object_set_uv(rv_editor_scene_object &o, const rv_editor_uv &value)
 {
-    o.uv = value;
+    o.uv_raw = rv_editor_scene_raw_list(value);
 }
 
 rv_editor_tint rv_editor_object_get_tint(const rv_editor_scene_object &o)
@@ -409,12 +445,12 @@ void rv_editor_object_set_tint(rv_editor_scene_object &o, const rv_editor_tint &
 
 double rv_editor_object_get_tess(const rv_editor_scene_object &o)
 {
-    return o.tess;
+    return rv_editor_scene_units(o.tess_raw);
 }
 
 void rv_editor_object_set_tess(rv_editor_scene_object &o, double value)
 {
-    o.tess = value;
+    o.tess_raw = rv_editor_scene_raw_from_units(value);
 }
 
 } // namespace rv_editor
