@@ -13,6 +13,11 @@
 #include "project/rv_editor_project.hpp"
 #include "scene/rv_editor_model_pieces.hpp"
 
+namespace rv_pdklib
+{
+struct rv_gte_matrix;
+} // namespace rv_pdklib
+
 namespace rv_editor
 {
 
@@ -41,14 +46,16 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
     std::filesystem::path &found,
     std::string &error);
 
-// The .glb under [models] named `name` as triangles in scene space through `m`, RV_OK with `tris`
-// written. Each triangle carries its part's colour and its part's picture in memory (cpu_tex). The
-// pictures are freed by the first successful re-read after the file's mtime moved (or when the file
-// is gone), so a cpu_tex is read before the next rv_editor_object_triangles call. On failure: the code
-// with the reason in `error`, and `tris` is left alone; the caller falls back to the placeholder cube.
+// The .glb under [models] named `name` as triangles in scene space through `world` (the console's integer
+// chain, Q20.12 in metres after the divide). Each triangle carries its part's colour and its part's picture
+// in memory (cpu_tex). The pictures are freed by the first successful re-read after the file's mtime moved
+// (or when the file is gone), so a cpu_tex is read before the next rv_editor_object_triangles call. A triangle
+// with a vertex outside int32 is not drawn: RV_OK still, with `error` naming the model and the count (a
+// warning). On failure: the code with the reason in `error`, and `tris` is left alone; the caller falls back
+// to the placeholder cube.
 int rv_editor_glb_object_triangles(const rv_editor_project &project,
     const std::string &name,
-    const rv_editor_affine &m,
+    const rv_pdklib::rv_gte_matrix &world,
     std::vector<rv_editor_tri> &tris,
     std::string &error);
 

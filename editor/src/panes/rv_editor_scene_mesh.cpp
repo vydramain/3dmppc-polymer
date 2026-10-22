@@ -9,6 +9,7 @@
 #include "imgui.h"
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 
 #include "panes/rv_editor_scene_glb.hpp"
@@ -101,11 +102,21 @@ rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project
         set_error(error, rv_editor_text_format("project.mesh_not_supported", std::make_format_args(mesh)));
         return rv_editor_cube_triangles(m);
     }
+    rv_pdklib::rv_gte_matrix world = {};
+    if (rv_editor_scene_world_gte(scene, index, world) != RV_OK) {
+        const std::string name = rv_editor_object_get_name(o);
+        set_error(error, rv_editor_text_format("project.object_world_out_of_range", std::make_format_args(name)));
+        return rv_editor_cube_triangles(m);
+    }
     std::vector<rv_editor_tri> glb_tris;
     std::string glb_error;
-    if (rv_editor_glb_object_triangles(project, mesh, m, glb_tris, glb_error) != RV_OK) {
+    if (rv_editor_glb_object_triangles(project, mesh, world, glb_tris, glb_error) != RV_OK) {
         set_error(error, glb_error);
         return rv_editor_cube_triangles(m);
+    }
+    // A warning from a model with triangles not drawn; the triangles that fit are still shown.
+    if (!glb_error.empty()) {
+        set_error(error, glb_error);
     }
     return glb_tris;
 }

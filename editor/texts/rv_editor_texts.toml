@@ -1041,7 +1041,9 @@ model_not_found = "{} not found"
 model_has_folder = "{} has a folder in it; a disc model name is a bare filename"
 model_no_file = "{}: no [models] file by that name"
 model_ambiguous = "{}: more than one [models] file by that name, {} and {}"
+model_triangles_refused = "'{}': {} triangles leave the int32 range in scene space and are not drawn"
 mesh_not_supported = "{}: only .glb and .gltf meshes are supported"
+object_world_out_of_range = "'{}': its world transform cannot be built (out of range or a parent cycle); drawn as the placeholder box"
 walk_failed = "{}: cannot walk the project: {} (error {})"
 
 [pane_terminal]

@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <limits>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <unordered_map>
@@ -15,6 +17,7 @@
 
 #include "pdk/rv_err.h"
 #include "panes/rv_editor_walk.hpp"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
 #include "pdklib/rv_models/rv_mppcmod_quant.hpp"
 #include "scene/rv_editor_model_stage.hpp"
 #include "text/rv_editor_text.hpp"
@@ -32,6 +35,10 @@ constexpr std::string_view name_separators = "/\\";
 constexpr float color_channel_max = 255.0f;
 // A uv's whole texture is 2^rv_mppcmod_uv_bits steps; the division by it is exact in float.
 constexpr float uv_one = static_cast<float>(int64_t{ 1 } << rv_pdklib::rv_mppcmod_uv_bits);
+// Q20.12 units per metre: the integer point is divided by it to reach the viewport's doubles, exactly.
+constexpr double gte_units_per_metre = static_cast<double>(rv_pdklib::gte_one);
+// Marks a triangle no part owns.
+constexpr std::size_t no_part = std::numeric_limits<std::size_t>::max();
 
 // One read of a .glb, kept until the file's mtime moves on. `rc` and `error` hold a failed read.
 struct rv_editor_glb_entry {
@@ -56,39 +63,79 @@ ImVec4 modulate(const ImVec4 &a, const ImVec4 &b)
     return { a.x * b.x, a.y * b.y, a.z * b.z, 1.0f };
 }
 
-// A .glb's triangles, flat, read from its integer model: the project's coordinates (left-handed, Y up,
-// metres; the glTF reader has negated z) and uv (top-left origin, so no flip needed). `part_cpu` holds one
-// picture per part (null: none).
-std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod_int_model &model,
-    const rv_editor_affine &m,
-    const std::vector<const rv_editor_cpu_image *> &part_cpu)
+// Vertex `vertex` through `world`, in metres. rv_gte_vertex's RV_ERR_* when a component leaves int32.
+int rv_editor_glb_vertex_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
+    const rv_pdklib::rv_gte_matrix &world,
+    std::size_t vertex,
+    std::array<double, 3> &metres)
 {
+    std::int32_t q[3] = {};
+    const int rc = rv_pdklib::rv_gte_vertex(world, model.vertices[vertex].pos.data(), model.shift, q);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    for (std::size_t k = 0; k < metres.size(); ++k) {
+        metres[k] = static_cast<double>(q[k]) / gte_units_per_metre;
+    }
+    return RV_OK;
+}
+
+// A triangle of `model` through `world`: its corners' metres, uv and colour. A vertex that leaves int32 fails it.
+int rv_editor_glb_triangle_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
+    const rv_pdklib::rv_gte_matrix &world,
+    const rv_pdklib::rv_mppcmod_triangle &t,
+    rv_editor_tri &tri)
+{
+    for (std::size_t k = 0; k < std::size(tri.p); ++k) {
+        const std::size_t vertex = t.index[k];
+        const rv_pdklib::rv_mppcmod_int_vertex &v = model.vertices[vertex];
+        const int rc = rv_editor_glb_vertex_in_world(model, world, vertex, tri.p[k]);
+        if (rc != RV_OK) {
+            return rc;
+        }
+        tri.uv[k] = { static_cast<float>(v.uv[0]) / uv_one, static_cast<float>(v.uv[1]) / uv_one };
+        tri.color[k] = rgb_unit(v.color);
+    }
+    tri.from_model = true;
+    return RV_OK;
+}
+
+// A .glb's triangles, flat, read from its integer model through `world`: the project's coordinates
+// (left-handed, Y up, metres; the glTF reader has negated z) and uv (top-left origin, so no flip needed).
+// `part_cpu` holds one picture per part (null: none). `refused` counts the triangles not drawn.
+std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod_int_model &model,
+    const rv_pdklib::rv_gte_matrix &world,
+    const std::vector<const rv_editor_cpu_image *> &part_cpu,
+    std::size_t &refused)
+{
+    // A part's triangles are a run of the index list; the owner is found by model index, before any is dropped.
+    std::vector<std::size_t> owner(model.triangles.size(), no_part);
+    for (std::size_t p = 0; p < model.parts.size(); ++p) {
+        const rv_pdklib::rv_mppcmod_part &part = model.parts[p];
+        const std::size_t end = std::min(static_cast<std::size_t>(part.first_tri) + part.tri_count, owner.size());
+        for (std::size_t t = part.first_tri; t < end; ++t) {
+            owner[t] = p;
+        }
+    }
+    refused = 0;
     std::vector<rv_editor_tri> tris;
     tris.reserve(model.triangles.size());
-    for (const rv_pdklib::rv_mppcmod_triangle &t : model.triangles) {
+    for (std::size_t i = 0; i < model.triangles.size(); ++i) {
         rv_editor_tri tri;
-        for (std::size_t k = 0; k < std::size(tri.p); ++k) {
-            const std::size_t vertex = t.index[k];
-            const rv_pdklib::rv_mppcmod_int_vertex &v = model.vertices[vertex];
-            tri.p[k] = rv_editor_affine_point(m, rv_editor_glb_vertex_metres(model, vertex));
-            tri.uv[k] = { static_cast<float>(v.uv[0]) / uv_one, static_cast<float>(v.uv[1]) / uv_one };
-            tri.color[k] = rgb_unit(v.color);
+        if (rv_editor_glb_triangle_in_world(model, world, model.triangles[i], tri) != RV_OK) {
+            ++refused;
+            continue;
         }
-        tri.from_model = true;
-        tris.push_back(tri);
-    }
-    // A part's triangles are a run of the index list; each takes the part's colour and picture.
-    for (size_t p = 0; p < model.parts.size(); ++p) {
-        const rv_pdklib::rv_mppcmod_part &part = model.parts[p];
-        const ImVec4 part_color = rgb_unit(part.color);
-        const rv_editor_cpu_image *cpu = p < part_cpu.size() ? part_cpu[p] : nullptr;
-        const size_t end = std::min(static_cast<size_t>(part.first_tri) + part.tri_count, tris.size());
-        for (size_t t = part.first_tri; t < end; ++t) {
-            for (ImVec4 &c : tris[t].color) {
+        if (owner[i] != no_part) {
+            const rv_pdklib::rv_mppcmod_part &part = model.parts[owner[i]];
+            const ImVec4 part_color = rgb_unit(part.color);
+            const rv_editor_cpu_image *cpu = owner[i] < part_cpu.size() ? part_cpu[owner[i]] : nullptr;
+            for (ImVec4 &c : tri.color) {
                 c = modulate(c, part_color);
             }
-            tris[t].cpu_tex = cpu;
+            tri.cpu_tex = cpu;
         }
+        tris.push_back(tri);
     }
     return tris;
 }
@@ -301,7 +348,7 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
 // code with the reason in `error`; the placeholder cube fallback is the caller's.
 int rv_editor_glb_object_triangles(const rv_editor_project &project,
     const std::string &name,
-    const rv_editor_affine &m,
+    const rv_pdklib::rv_gte_matrix &world,
     std::vector<rv_editor_tri> &tris,
     std::string &error)
 {
@@ -314,7 +361,12 @@ int rv_editor_glb_object_triangles(const rv_editor_project &project,
         return rc;
     }
     const rv_editor_glb_pictures &pictures = rv_editor_glb_part_pictures(path.string(), glb);
-    tris = rv_editor_glb_triangles(glb->quantized, m, pictures.part);
+    std::size_t refused = 0;
+    tris = rv_editor_glb_triangles(glb->quantized, world, pictures.part, refused);
+    // A warning, not a failure: the model's other triangles are drawn.
+    if (refused != 0) {
+        error = rv_editor_text_format("project.model_triangles_refused", std::make_format_args(name, refused));
+    }
     return RV_OK;
 }
 
