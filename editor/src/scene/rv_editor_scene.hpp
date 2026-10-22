@@ -164,6 +164,9 @@ struct rv_editor_scene_field_row {
 const rv_pdkkit::ecs_component_desc *rv_editor_scene_desc_find(std::string_view name,
     const std::vector<rv_pdkkit::ecs_component_record> *records);
 
+// The name of a description, as a view.
+std::string_view rv_editor_scene_desc_name(const rv_pdkkit::ecs_component_desc &desc);
+
 // The rows of c: the described fields in description order, then the fields desc does not name, in file order.
 // A null desc leaves every field undescribed.
 std::vector<rv_editor_scene_field_row> rv_editor_scene_field_rows(const rv_editor_scene_component &c,

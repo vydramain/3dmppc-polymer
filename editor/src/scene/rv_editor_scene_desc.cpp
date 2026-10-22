@@ -39,12 +39,6 @@ constexpr std::string_view desc_err_entry = "pane_scene_fields.desc_err_entry";
 // A field's bytes, as pdkkit's parser and the factory write them; a field is at most ecs_value_capacity bytes.
 using desc_bytes = std::array<unsigned char, rv_pdkkit::ecs_value_capacity>;
 
-// The name of a description, as a view.
-std::string_view desc_name(const rv_pdkkit::ecs_component_desc &desc)
-{
-    return { desc.name, rv_pdkkit::ecs_name_length(desc.name) };
-}
-
 // The bytes of field's default, as the factory writes them into a component.
 desc_bytes desc_default_bytes(const rv_pdkkit::ecs_field_desc &field, const rv_pdkkit::ecs_field_type_entry &entry)
 {
@@ -109,7 +103,7 @@ const rv_pdkkit::ecs_component_desc *desc_record_find(const std::vector<rv_pdkki
     std::string_view name)
 {
     for (const rv_pdkkit::ecs_component_record &record : records) {
-        if (desc_name(record.desc) == name) {
+        if (rv_editor_scene_desc_name(record.desc) == name) {
             return &record.desc;
         }
     }
@@ -118,6 +112,11 @@ const rv_pdkkit::ecs_component_desc *desc_record_find(const std::vector<rv_pdkki
 
 } // namespace
 
+std::string_view rv_editor_scene_desc_name(const rv_pdkkit::ecs_component_desc &desc)
+{
+    return { desc.name, rv_pdkkit::ecs_name_length(desc.name) };
+}
+
 const rv_pdkkit::ecs_component_desc *rv_editor_scene_desc_find(std::string_view name,
     const std::vector<rv_pdkkit::ecs_component_record> *records)
 {
@@ -125,7 +124,7 @@ const rv_pdkkit::ecs_component_desc *rv_editor_scene_desc_find(std::string_view 
         return desc_record_find(*records, name);
     }
     for (const rv_pdkkit::ecs_component_desc *desc : rv_pdkkit::ecs_builtin_descs()) {
-        if (desc_name(*desc) == name) {
+        if (rv_editor_scene_desc_name(*desc) == name) {
             return desc;
         }
     }

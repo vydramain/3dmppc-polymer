@@ -11,6 +11,10 @@
 
 #include "imgui.h"
 
+#include "pdkkit/component/rv_component_desc.hpp"
+#include "pdkkit/component/rv_component_record.hpp"
+#include "pdkkit/component/rv_component_register.hpp"
+#include "scene/rv_editor_scene.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
@@ -27,17 +31,6 @@ constexpr float label_column_em = 6.0f;
 
 // Field width ImGui takes for the rest of the row.
 constexpr float fill_width = -1.0f;
-
-// Blanks that do not count in a component name.
-constexpr std::string_view blank_chars = " \t";
-
-// The Add component name being typed, for the object it was typed for.
-struct rv_editor_add_draft {
-    std::string shown;
-    char name[identifier_field_size] = {};
-};
-
-rv_editor_add_draft add_draft;
 
 // A label column, then the field.
 void rv_editor_components_label(const char *label, const rv_editor_theme &theme)
@@ -75,54 +68,69 @@ void rv_editor_components_visible(rv_editor_scene_doc &doc, size_t at, const rv_
     rv_editor_scene_set_visible(doc, at, visible);
 }
 
-// The name without blanks at either end; all blanks leave an empty name.
-std::string_view rv_editor_components_trim(const char *name)
+// Descriptions by pointer: the snapshot's records or the built-ins'.
+using desc_list = std::vector<const rv_pdkkit::ecs_component_desc *>;
+
+// The descriptions Add chooses from: the snapshot's when it is loaded, else the built-ins'.
+desc_list rv_editor_components_descs(const rv_editor_app &app)
 {
-    const std::string_view view(name);
-    const size_t first = view.find_first_not_of(blank_chars);
-    if (first == std::string_view::npos) {
-        return {};
+    desc_list descs;
+    const std::vector<rv_pdkkit::ecs_component_record> *records = rv_editor_descs_records(app);
+    if (records != nullptr) {
+        for (const rv_pdkkit::ecs_component_record &record : *records) {
+            descs.push_back(&record.desc);
+        }
+        return descs;
     }
-    const size_t last = view.find_last_not_of(blank_chars);
-    return view.substr(first, last - first + 1);
+    for (const rv_pdkkit::ecs_component_desc *desc : rv_pdkkit::ecs_builtin_descs()) {
+        descs.push_back(desc);
+    }
+    return descs;
 }
 
-// Why `name` cannot be added to `o` as a component, or nullptr when it can.
-const char *rv_editor_components_add_reason(const rv_editor_scene_object &o, std::string_view name)
+// The described components Add offers to `o`. Hidden is left out: Visible sets it. Data components are left out too:
+// the Inspector edits them by their own rows, and kinds are added from the Hierarchy.
+std::vector<std::string> rv_editor_components_candidates(const desc_list &descs, const rv_editor_scene_object &o)
 {
-    if (name.empty()) {
-        return rv_editor_text("pane_scene_components.add_empty");
+    std::vector<std::string> names;
+    for (const rv_pdkkit::ecs_component_desc *desc : descs) {
+        const std::string_view name = rv_editor_scene_desc_name(*desc);
+        if (name == component_hidden || rv_editor_scene_component_is_data(name) || rv_editor_scene_has_component(o, name)) {
+            continue;
+        }
+        names.emplace_back(name);
     }
-    if (name == component_hidden) {
-        return rv_editor_text("pane_scene_components.add_hidden");
-    }
-    if (rv_editor_scene_component_is_data(name)) {
-        return rv_editor_text("pane_scene_components.add_data");
-    }
-    if (rv_editor_scene_has_component(o, name)) {
-        return rv_editor_text("pane_scene_components.add_exists");
-    }
-    return nullptr;
+    return names;
 }
 
-// Add component: a name and a button; the new component has no fields, so the scene keeps only what differs.
-void rv_editor_components_add(rv_editor_scene_doc &doc, size_t at, const rv_editor_theme &theme)
+// Add component: a button that opens the list of described components the object lacks. A pick adds the component
+// with no fields, so the scene keeps only what differs from the description.
+void rv_editor_components_add(const rv_editor_app &app, rv_editor_scene_doc &doc, size_t at, const rv_editor_theme &theme)
 {
+    const std::vector<const rv_pdkkit::ecs_component_desc *> descs = rv_editor_components_descs(app);
+    if (descs.empty()) {
+        rv_editor_label(rv_editor_text("pane_scene_components.add_no_descs"), rv_editor_label_kind::dim, theme);
+        return;
+    }
     rv_editor_scene_object &o = doc.scene.objects[at];
-    rv_editor_components_label(rv_editor_text("pane_scene_components.add_name_label"), theme);
-    rv_editor_text_field("##add_name", add_draft.name, sizeof(add_draft.name), theme);
-    const std::string_view name = rv_editor_components_trim(add_draft.name);
-    const char *reason = rv_editor_components_add_reason(o, name);
-    const bool clicked = rv_editor_button(rv_editor_text("pane_scene_components.add_button"), theme, { .disabled = reason });
-    if (reason != nullptr) {
+    const std::vector<std::string> names = rv_editor_components_candidates(descs, o);
+    if (names.empty()) {
+        rv_editor_label(rv_editor_text("pane_scene_components.add_none_left"), rv_editor_label_kind::dim, theme);
         return;
     }
-    if (!clicked) {
+    if (rv_editor_button(rv_editor_text("pane_scene_components.add_button"), theme)) {
+        ImGui::OpenPopup("##add_component");
+    }
+    if (!rv_editor_popup_begin("##add_component")) {
         return;
     }
-    rv_editor_scene_step(doc);
-    o.components.push_back(rv_editor_scene_component{ std::string(name), {} });
-    add_draft.name[0] = '\0';
+    for (const std::string &name : names) {
+        if (rv_editor_menu_item(name.c_str(), nullptr, nullptr)) {
+            rv_editor_scene_step(doc);
+            o.components.push_back(rv_editor_scene_component{ name, {} });
+        }
+    }
+    rv_editor_popup_end();
 }
 
 } // namespace
@@ -136,11 +144,6 @@ void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &t
         return;
     }
     const size_t at = static_cast<size_t>(found);
-    // The name being typed belongs to the object it was typed for.
-    if (add_draft.shown != id) {
-        add_draft.shown = id;
-        add_draft.name[0] = '\0';
-    }
     ImGui::BeginDisabled(read_only);
     rv_editor_components_label(rv_editor_text("pane_scene_components.entity_label"), theme);
     rv_editor_components_string(doc, "##entity", doc.scene.objects[at].entity, theme);
@@ -148,7 +151,7 @@ void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &t
     rv_editor_components_visible(doc, at, theme);
     rv_editor_section(rv_editor_text("pane_scene_components.components_header"));
     rv_editor_inspector_fields(app, theme, at);
-    rv_editor_components_add(doc, at, theme);
+    rv_editor_components_add(app, doc, at, theme);
     ImGui::EndDisabled();
 }
 

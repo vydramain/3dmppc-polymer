@@ -7,6 +7,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <SDL3/SDL.h>
 #include "imgui.h"
@@ -168,6 +169,8 @@ void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv
 std::span<const std::string_view> rv_editor_hierarchy_kinds();
 const char *rv_editor_scene_kind_label(const std::string &kind);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// The snapshot's description records when it is loaded, else nullptr: the built-ins apply (rv_editor_pane_scene_fields.cpp).
+const std::vector<rv_pdkkit::ecs_component_record> *rv_editor_descs_records(const rv_editor_app &app);
 // The components of the object at `at`, each a section of its fields by their descriptions (rv_editor_pane_scene_fields.cpp).
 void rv_editor_inspector_fields(rv_editor_app &app, const rv_editor_theme &theme, size_t at);
 // The selected object's entity type, Visible and Add component (rv_editor_pane_scene_components.cpp).

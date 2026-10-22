@@ -41,9 +41,7 @@ constexpr const char *value_id = "##value";
 // The description that applies to c: the snapshot's when it is loaded, else the built-ins'.
 const rv_pdkkit::ecs_component_desc *rv_editor_fields_desc(const rv_editor_app &app, const rv_editor_scene_component &c)
 {
-    const bool loaded = app.descriptions.snapshot.state == rv_editor_descriptions_state::loaded;
-    const std::vector<rv_pdkkit::ecs_component_record> *records = loaded ? &app.descriptions.snapshot.records : nullptr;
-    return rv_editor_scene_desc_find(c.name, records);
+    return rv_editor_scene_desc_find(c.name, rv_editor_descs_records(app));
 }
 
 // True when the last refused edit was of field `key` of the component at `index` of the object at `at`, and no step,
@@ -228,6 +226,12 @@ void rv_editor_fields_row(rv_editor_scene_doc &doc,
 }
 
 } // namespace
+
+const std::vector<rv_pdkkit::ecs_component_record> *rv_editor_descs_records(const rv_editor_app &app)
+{
+    const bool loaded = app.descriptions.snapshot.state == rv_editor_descriptions_state::loaded;
+    return loaded ? &app.descriptions.snapshot.records : nullptr;
+}
 
 void rv_editor_inspector_fields(rv_editor_app &app, const rv_editor_theme &theme, size_t at)
 {
