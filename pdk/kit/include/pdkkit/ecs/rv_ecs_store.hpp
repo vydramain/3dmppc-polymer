@@ -70,6 +70,12 @@ struct ecs_pool final : ecs_pool_base {
         return pos == ecs_absent ? nullptr : &values[pos];
     }
 
+    const T *value(ecs_id id) const
+    {
+        const uint32_t pos = find(id);
+        return pos == ecs_absent ? nullptr : &values[pos];
+    }
+
     // Preconditions: id holds no T yet and is alive. A throw (bad_alloc or T's constructor) leaves the pool unchanged:
     // every allocation runs before the sizes change.
     template <typename... Args>
@@ -123,13 +129,27 @@ struct ecs_pool final : ecs_pool_base {
     }
 };
 
+// World is ecs_world or const ecs_world; constness of the world sets constness of the pool.
+template <typename T, typename World>
+auto *ecs_pool_lookup(World &world)
+{
+    using Pool = std::conditional_t<std::is_const_v<World>, const ecs_pool<T>, ecs_pool<T>>;
+    const std::size_t number = ecs_type_number<T>();
+    const bool present = number < world.pools.size() && world.pools[number];
+    return present ? static_cast<Pool *>(world.pools[number].get()) : nullptr;
+}
+
 // Pool of T in the world, or nullptr when no T was ever added.
 template <typename T>
 ecs_pool<T> *ecs_pool_find(ecs_world &world)
 {
-    const std::size_t number = ecs_type_number<T>();
-    const bool present = number < world.pools.size() && world.pools[number];
-    return present ? static_cast<ecs_pool<T> *>(world.pools[number].get()) : nullptr;
+    return ecs_pool_lookup<T>(world);
+}
+
+template <typename T>
+const ecs_pool<T> *ecs_pool_find(const ecs_world &world)
+{
+    return ecs_pool_lookup<T>(world);
 }
 
 // Installs a new pool of T. Precondition: the world has no pool of T yet (ecs_component_add checks it first).
@@ -186,12 +206,25 @@ template <typename T>
     });
 }
 
+// World is ecs_world or const ecs_world; constness of the world sets constness of the value.
+template <typename T, typename World>
+auto *ecs_component_lookup(World &world, ecs_id id)
+{
+    auto *pool = ecs_pool_find<T>(world);
+    return pool ? pool->value(id) : nullptr;
+}
+
 // Value of T held by id, or nullptr for a stale id or a missing T.
 template <typename T>
 T *ecs_component_get(ecs_world &world, ecs_id id)
 {
-    ecs_pool<T> *pool = ecs_pool_find<T>(world);
-    return pool ? pool->value(id) : nullptr;
+    return ecs_component_lookup<T>(world, id);
+}
+
+template <typename T>
+const T *ecs_component_get(const ecs_world &world, ecs_id id)
+{
+    return ecs_component_lookup<T>(world, id);
 }
 
 // Pool with the fewest holders; nullptr when a type has no pool, as nothing can match then.
