@@ -35,8 +35,6 @@ constexpr std::string_view name_separators = "/\\";
 constexpr float color_channel_max = 255.0f;
 // A uv's whole texture is 2^rv_mppcmod_uv_bits steps; the division by it is exact in float.
 constexpr float uv_one = static_cast<float>(int64_t{ 1 } << rv_pdklib::rv_mppcmod_uv_bits);
-// Q20.12 units per metre: the integer point is divided by it to reach the viewport's doubles, exactly.
-constexpr double gte_units_per_metre = static_cast<double>(rv_pdklib::gte_one);
 // Marks a triangle no part owns.
 constexpr std::size_t no_part = std::numeric_limits<std::size_t>::max();
 
@@ -75,7 +73,7 @@ int rv_editor_glb_vertex_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
         return rc;
     }
     for (std::size_t k = 0; k < metres.size(); ++k) {
-        metres[k] = static_cast<double>(q[k]) / gte_units_per_metre;
+        metres[k] = static_cast<double>(q[k]) / rv_editor_gte_units_per_metre;
     }
     return RV_OK;
 }

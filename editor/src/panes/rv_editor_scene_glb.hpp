@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
 #include "pdklib/rv_models/rv_mppcmod_gltf.hpp"
 #include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
@@ -31,6 +32,10 @@ struct rv_editor_glb_model {
     // Set once per read, with the model; the triangles of each piece.
     std::vector<rv_editor_piece> pieces;
 };
+
+// Q20.12 raw units per metre: the exact divisor from an integer scene point to the viewport's double metres;
+// the bridge until the viewport draws integer points.
+inline constexpr double rv_editor_gte_units_per_metre = static_cast<double>(rv_pdklib::gte_one);
 
 // Bridge until the viewport draws integer points: vertex `vertex` of `model` in metres, v / 2^shift.
 std::array<double, 3> rv_editor_glb_vertex_metres(const rv_pdklib::rv_mppcmod_int_model &model, std::size_t vertex);

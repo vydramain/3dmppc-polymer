@@ -28,8 +28,6 @@ namespace
 constexpr double unit_half_extent = 0.5;
 // The same half-extent in Q20.12: exact, so the cube's corners are integer points before the world matrix.
 constexpr std::int32_t cube_half_raw = static_cast<std::int32_t>(unit_half_extent * static_cast<double>(rv_pdklib::gte_one));
-// Q20.12 units per metre, as in rv_editor_scene_glb.cpp: the division by it is exact.
-constexpr double gte_units_per_metre = static_cast<double>(rv_pdklib::gte_one);
 // Corners of a unit cube.
 constexpr int cube_corner_count = 8;
 // Signs of each corner's x, y, z, in the order cube_faces indexes them.
@@ -96,7 +94,7 @@ int rv_editor_cube_gte_triangles(const rv_pdklib::rv_gte_matrix &world,
             return RV_ERR_INVAL;
         }
         for (size_t k = 0; k < c[i].size(); ++k) {
-            c[i][k] = static_cast<double>(q[k]) / gte_units_per_metre;
+            c[i][k] = static_cast<double>(q[k]) / rv_editor_gte_units_per_metre;
         }
     }
     tris = cube_triangles(c);
