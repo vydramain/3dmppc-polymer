@@ -56,6 +56,8 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot open: " + error);
         return err;
     }
+    // The old project's scene and pending models go before its root is replaced: the cleanup works in that root.
+    (void)rv_editor_app_scene_close(app);
     app.project = std::move(project);
     // Candidates, Observe's pins and findings belong to the project they came from.
     app.release = {};
@@ -372,6 +374,8 @@ int rv_editor_app_build_cancel(rv_editor_app &app)
 
 void rv_editor_app_shutdown(rv_editor_app &app)
 {
+    // The window closes with the scene, saved or not: its leftover pending models go while the project is open.
+    (void)rv_editor_app_scene_close(app);
     const bool cancel_needed = app.build.state() == rv_editor_build_state::building;
     if (cancel_needed) {
         rv_editor_app_build_cancel(app);

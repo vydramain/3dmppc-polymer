@@ -141,6 +141,10 @@ std::string rv_editor_app_scene_name(const rv_editor_app &app);
 // RV_ERR_BUSY when an unsaved scene refuses; the load's RV_ERR_* otherwise. ALREADY writes its own
 // warning to the log.
 int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
+// Drops the open scene (none: RV_OK) and deletes every pending model: a saved file names only models its save
+// already moved into the models folder, and the undo and redo names die with the scene. Used for a discarded or
+// replaced scene. A failed cleanup is a warning in the log; the scene is dropped anyway, and the result is RV_OK.
+int rv_editor_app_scene_close(rv_editor_app &app);
 // The next free name ("main", else "sceneN") a new scene would get today.
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
 // Longest scene name in bytes, without ".scene.toml": the editor's convention from the old console limit;

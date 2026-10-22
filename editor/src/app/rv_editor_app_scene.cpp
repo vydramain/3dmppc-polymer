@@ -82,12 +82,9 @@ void rv_editor_app_add_mesh_names(const std::vector<rv_editor_scene_object> &obj
     }
 }
 
-// Moves the pending models the scene's meshes name into the project's models folder, before the scene is
-// written. Names only in the undo or redo history stay pending.
-int rv_editor_app_models_settle(const rv_editor_app &app, const rv_editor_scene_doc &doc, std::string &error)
+// The mesh names of the scene as it is (`current`) and of its undo and redo snapshots (`history`).
+void rv_editor_app_scene_names(const rv_editor_scene_doc &doc, std::set<std::string> &current, std::set<std::string> &history)
 {
-    std::set<std::string> current;
-    std::set<std::string> history;
     rv_editor_app_add_mesh_names(doc.scene.objects, current);
     for (const std::vector<rv_editor_scene_object> &snapshot : doc.undo) {
         rv_editor_app_add_mesh_names(snapshot, history);
@@ -95,6 +92,15 @@ int rv_editor_app_models_settle(const rv_editor_app &app, const rv_editor_scene_
     for (const std::vector<rv_editor_scene_object> &snapshot : doc.redo) {
         rv_editor_app_add_mesh_names(snapshot, history);
     }
+}
+
+// Moves the pending models named in `current` into the project's models folder. Names only in `history` stay
+// pending; the rest of the pending folder is deleted.
+int rv_editor_app_models_settle(const rv_editor_app &app,
+    const std::set<std::string> &current,
+    const std::set<std::string> &history,
+    std::string &error)
+{
     std::filesystem::path models_dir;
     if (rv_editor_model_target_dir(app.project.root, app.project.models_patterns, models_dir, error) != RV_OK) {
         error.clear(); // no models folder: no pending one to move
@@ -149,6 +155,23 @@ std::string rv_editor_app_scene_name(const rv_editor_app &app)
     return app.scene == nullptr ? std::string() : rv_editor_scene_label(app, app.scene->scene.path);
 }
 
+int rv_editor_app_scene_close(rv_editor_app &app)
+{
+    if (app.scene == nullptr) {
+        return RV_OK;
+    }
+    // Empty names, also on discard: the saved file's models were moved by its save, so it needs none pending, and
+    // the undo and redo names die with the scene. A failure is a warning; the close goes on.
+    const std::set<std::string> none;
+    std::string error;
+    const int rc = rv_editor_app_models_settle(app, none, none, error);
+    if (rc != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "pending models not cleaned: " + error);
+    }
+    app.scene.reset();
+    return RV_OK;
+}
+
 int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path)
 {
     const bool dirty = rv_editor_app_scene_dirty(app);
@@ -178,6 +201,7 @@ int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &pa
     }
     auto doc = std::make_unique<rv_editor_scene_doc>();
     doc->scene = std::move(scene);
+    (void)rv_editor_app_scene_close(app); // the clean scene it replaces: its leftover pending models go
     app.scene = std::move(doc);
     app.scene_error.clear();
     app.scene_move_note.clear();
@@ -276,8 +300,11 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
         return RV_ERR_ALREADY; // nothing unsaved: nothing written
     }
     // Models are moved before the scene is written; if the write then fails, the moved models stay in the models folder.
+    std::set<std::string> current;
+    std::set<std::string> history;
+    rv_editor_app_scene_names(*app.scene, current, history);
     std::string stage_error;
-    const int stage_code = rv_editor_app_models_settle(app, *app.scene, stage_error);
+    const int stage_code = rv_editor_app_models_settle(app, current, history, stage_error);
     if (stage_code != RV_OK) {
         error = "scene not saved: " + stage_error;
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, error);
@@ -295,7 +322,9 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
 
 int rv_editor_app_scene_first(rv_editor_app &app)
 {
-    app.scene.reset();
+    // rv_editor_app_open closed the old scene before its root changed, so app.scene is null here and this does nothing;
+    // a scene left open here would clean the new project's models folder.
+    (void)rv_editor_app_scene_close(app);
     app.scene_error.clear();
     app.scene_move_note.clear();
     const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
