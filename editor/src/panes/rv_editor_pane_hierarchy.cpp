@@ -150,7 +150,7 @@ void rv_editor_hierarchy_marks(const rv_editor_scene_object &o, const rv_editor_
 {
     std::string marks;
     for (const rv_editor_scene_component &c : o.components) {
-        if (c.name == component_hidden) {
+        if (c.name == component_hidden || rv_editor_scene_component_is_data(c.name)) {
             continue;
         }
         marks += marks.empty() ? c.name : std::string(rv_editor_text("pane_hierarchy.components_sep")) + c.name;

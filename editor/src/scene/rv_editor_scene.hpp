@@ -14,7 +14,7 @@
 namespace rv_editor
 {
 
-// Scene object kind constants: the `kind` values of a scene object, as pdkkit's scene format names them.
+// Scene object kind constants: the kind an object has from its components, as pdkkit's scene format names them.
 inline constexpr std::string_view kind_group = "group";
 inline constexpr std::string_view kind_camera = "camera";
 inline constexpr std::string_view kind_mesh = "mesh";
@@ -25,21 +25,19 @@ inline constexpr std::string_view kind_volume = "volume";
 // The component that marks an object hidden: its row is dimmed, and it is drawn as an outline or not at all.
 inline constexpr std::string_view component_hidden = "hidden";
 
-// A scene document as the editor edits it: pdkkit's rv_scene with numbers as raw Q20.12 and
-// parents as ids. The file is read and written by pdkkit/scene. Unknown keys and sections
-// are written back; the legacy `format` key is not (the file is written with `version`).
+// Log tag of the scene's warnings, shared by the scene and object sources.
+inline constexpr const char *scene_log_tag = "scene";
+
+// A scene document as the editor edits it: pdkkit's rv_scene in form 2, where an object's data lives in its
+// components. Unknown keys and sections are written back; the legacy `format` key is not (the file is written
+// with `version`).
 
 using rv_editor_vec3 = std::array<double, 3>;
 using rv_editor_uv = std::array<double, 4>;
 using rv_editor_tint = std::array<int, 3>;
-// Raw Q20.12 in int64: storage is unchecked; setters saturate to +/-2^62; the save refuses what does not fit fx.
-using rv_editor_vec3_raw = std::array<int64_t, 3>;
-using rv_editor_uv_raw = std::array<int64_t, 4>;
 
-// Default tint, same as pdkkit when a scene object lacks a `tint` key.
+// Default tint, same as pdkkit when a model or sprite lacks a `tint` field.
 constexpr rv_editor_tint default_object_tint = { 255, 255, 255 };
-// Default tess, same as pdkkit when a scene object lacks a `tess` key: 2.0 in raw Q20.12.
-constexpr int64_t default_object_tess_raw = 2 * rv_pdklib::fx_one;
 
 // A [[component]] of its object: the component type's name and its fields in file order.
 struct rv_editor_scene_component {
@@ -49,18 +47,8 @@ struct rv_editor_scene_component {
 
 struct rv_editor_scene_object {
     std::string id; // stable; never changes once given
-    std::string name;
     std::string parent; // the parent's id, empty at the root
-    std::string kind;   // "group", "camera", "mesh", "quad", "billboard" or "volume"
     std::string entity; // entity type name, empty: the base type
-    rv_editor_vec3_raw position_raw{ 0, 0, 0 };
-    rv_editor_vec3_raw rotation_raw{ 0, 0, 0 }; // degrees; R = Ry * Rx * Rz
-    rv_editor_vec3_raw scale_raw{ rv_pdklib::fx_one, rv_pdklib::fx_one, rv_pdklib::fx_one };
-    std::string mesh;
-    std::string texture;
-    rv_editor_uv_raw uv_raw{ 0, 0, 0, 0 };     // quad/billboard texture rect, pixels: u0,v0,u1,v1
-    rv_editor_tint tint = default_object_tint; // quad/billboard modulation
-    int64_t tess_raw = default_object_tess_raw;        // quad/billboard subdivision density
     std::vector<rv_editor_scene_component> components; // in file order
     // Keys the editor does not know, written back as they were read.
     std::vector<rv_pdklib::rv_manifest_tree_entry> extra;
@@ -76,17 +64,16 @@ struct rv_editor_scene {
     std::vector<rv_editor_scene_object> objects;
     std::vector<rv_pdklib::rv_manifest_tree_entry> scene_extra;      // unknown [scene] keys
     std::vector<rv_pdklib::rv_manifest_tree_section> other_sections; // unknown sections
-    // Non-empty: save refuses to write. Load sets it for an object with no kind (component form, not edited yet).
-    // An unreadable, malformed or incompatible file fails to open.
+    // Non-empty: save refuses to write and the panes show why. Load sets none; an unreadable file fails to load.
     std::string read_only;
 };
 
-// RV_OK on success; RV_ERR_INVAL if the file is unreadable, malformed or of a version
-// that is not rv_version_compatible (reason in error).
+// RV_OK on success; RV_ERR_INVAL if the file is unreadable, malformed or of a version that is not
+// rv_version_compatible, or a number or text of a data component does not read (reason in error).
+// A form-1 file is migrated to form 2 on the way in.
 int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error);
 
-// Numbers are rounded to the nearest 1/4096. RV_OK on success; RV_ERR_INVAL if read-only, if a
-// number lies outside Q20.12, or if tess is not above zero after rounding (reason in error);
+// RV_OK on success; RV_ERR_INVAL if read-only, if a data component does not read or tess is not above zero (reason in error);
 // RV_ERR_IO if file write fails. Writes through a temporary file and a rename.
 int rv_editor_scene_save(const rv_editor_scene &scene, std::string &error);
 
@@ -105,14 +92,21 @@ const rv_editor_scene_component *rv_editor_scene_component_find(const rv_editor_
 // True if the object has a component named `name`.
 bool rv_editor_scene_has_component(const rv_editor_scene_object &o, std::string_view name);
 
-// New code reaches an object's data through these accessors; the storage behind them will change
-// (pdkkit components), so getters return by value. The fields stay public until then.
-// A value a setter saturated reads back as +/-2^50 (NaN reads as +2^50).
-// id, parent, entity, components and extra are the object's structure in both forms and stay direct
-// fields, so a whole-object copy (duplicate) stays valid.
+// RV_OK, or RV_ERR_INVAL with the reason when a data component of o does not read; load and save check every object.
+int rv_editor_scene_object_check(const rv_editor_scene_object &o, std::string &error);
+
+// True for the components the accessors below own (name, transform, model, camera, volume, legacy_quad, legacy_billboard).
+bool rv_editor_scene_component_is_data(std::string_view name);
+
+// New code reaches an object's data through these accessors, which read and write its components; getters
+// return by value. A setter given a number outside Q20.12 keeps the field and logs one warning.
+// id, parent, entity, components and extra are the object's structure and stay direct fields,
+// so a whole-object copy (duplicate) stays valid.
 std::string rv_editor_object_get_name(const rv_editor_scene_object &o);
 void rv_editor_object_set_name(rv_editor_scene_object &o, const std::string &value);
 std::string rv_editor_object_get_kind(const rv_editor_scene_object &o);
+// Creation only: adds the kind's marker, never removes one; a kind the object does not end up with is logged,
+// except a mesh, which is a group until its source is set.
 void rv_editor_object_set_kind(rv_editor_scene_object &o, const std::string &value);
 rv_editor_vec3 rv_editor_object_get_position(const rv_editor_scene_object &o);
 void rv_editor_object_set_position(rv_editor_scene_object &o, const rv_editor_vec3 &value);

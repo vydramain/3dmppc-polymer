@@ -140,7 +140,7 @@ void rv_editor_components_list(rv_editor_scene_doc &doc, size_t at, const rv_edi
     size_t removing = o.components.size();
     for (size_t c = 0; c < o.components.size(); ++c) {
         rv_editor_scene_component &comp = o.components[c];
-        if (comp.name == component_hidden) {
+        if (comp.name == component_hidden || rv_editor_scene_component_is_data(comp.name)) {
             continue;
         }
         ImGui::PushID(static_cast<int>(c));
@@ -182,6 +182,9 @@ const char *rv_editor_components_add_reason(const rv_editor_scene_object &o, std
     }
     if (name == component_hidden) {
         return rv_editor_text("pane_scene_components.add_hidden");
+    }
+    if (rv_editor_scene_component_is_data(name)) {
+        return rv_editor_text("pane_scene_components.add_data");
     }
     if (rv_editor_scene_has_component(o, name)) {
         return rv_editor_text("pane_scene_components.add_exists");
