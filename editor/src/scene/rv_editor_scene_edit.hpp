@@ -114,7 +114,8 @@ std::array<double, 3> rv_editor_affine_solve(const rv_editor_affine &a, const st
 // True when `ancestor` is `id` or above it.
 bool rv_editor_scene_under(const rv_editor_scene &scene, const std::string &id, const std::string &ancestor);
 
-// The scene's layers: each object's built-in layer by kind and its components but hidden, unique, in order of first use.
+// The scene's layers: each object's components but hidden, unique, in order of first use.
+// Layer names are ECS component names, shown as they are in the Layers menu, not interface text.
 std::vector<std::string> rv_editor_scene_layers(const rv_editor_scene &scene);
 // Visibility of `o`, an object of doc.scene: absent when a layer of it is off, or it is hidden with Hidden off;
 // an outline when it is hidden with Hidden on. Allocates nothing: called per object per frame.
