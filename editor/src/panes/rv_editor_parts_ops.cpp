@@ -184,7 +184,7 @@ int rv_editor_parts_write(const rv_editor_parts_plan &plan,
         error = "cannot create " + plan.pending.string() + ": " + ec.message();
         return RV_ERR_IO;
     }
-    return rv_editor_gltf_write(plan.pending / name, plan.glb->model, tris, plan.uris, error);
+    return rv_editor_gltf_write(plan.pending / name, plan.glb->quantized, tris, plan.uris, error);
 }
 
 // Prepares a part command: the selected object's model, its picks, and the split of its triangles.
