@@ -206,12 +206,10 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a, const rv
         rv_editor_item_tooltip((a.rel + "\n" + tooltip2).c_str());
     }
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        const std::optional<rv_editor_scene_tab> tab = rv_editor_scene_tab_build(a.path);
-        if (tab) {
-            ui_port.requests.push_back({ .kind = rv_editor_ui_request_kind::open_scene_tab, .scene_tab = *tab });
-            app.layout_request = rv_editor_layout_preset::scene;
-            app.show_request = rv_editor_pane_kind::scene;
-        } else if (a.rel.ends_with(scene_toml_suffix)) {
+        if (rv_editor_scene_tab_open(app, ui_port, a.path)) {
+            return;
+        }
+        if (a.rel.ends_with(scene_toml_suffix)) {
             rv_editor_app_scene_open(app, a.path);
             ui_port.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = 0 });
             app.layout_request = rv_editor_layout_preset::scene;
