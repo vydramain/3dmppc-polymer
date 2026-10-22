@@ -230,9 +230,9 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
             tool_drag.axis = axis;
             tool_drag.from = { mouse.x, mouse.y };
-            tool_drag.before_position = o.position;
-            tool_drag.before_rotation = o.rotation;
-            tool_drag.before_scale = o.scale;
+            tool_drag.before_position = rv_editor_object_get_position(o);
+            tool_drag.before_rotation = rv_editor_object_get_rotation(o);
+            tool_drag.before_scale = rv_editor_object_get_scale(o);
             tool_drag.dragging = true;
         } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && doc.parts_mode && !cam.seeking) {
             rv_editor_parts_click(doc, app.project, v, mouse, io.KeyShift);
@@ -256,9 +256,9 @@ void rv_editor_scene_viewport(rv_editor_app &app,
         if (found >= 0 && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             // Taken back: the values from before the press, and the step it took goes.
             rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(found)];
-            o.position = tool_drag.before_position;
-            o.rotation = tool_drag.before_rotation;
-            o.scale = tool_drag.before_scale;
+            rv_editor_object_set_position(o, tool_drag.before_position);
+            rv_editor_object_set_rotation(o, tool_drag.before_rotation);
+            rv_editor_object_set_scale(o, tool_drag.before_scale);
             if (!doc.undo.empty()) {
                 doc.undo.pop_back();
             }
@@ -319,10 +319,11 @@ void rv_editor_scene_viewport(rv_editor_app &app,
         if (vis == rv_editor_visibility::absent) {
             continue;
         }
-        const std::string &kind = obj.kind;
+        const std::string kind = rv_editor_object_get_kind(obj);
         // The owner of selected pieces is drawn unselected in the lines; the pieces are drawn over it only when
         // rv_editor_parts_resolve gave a model.
-        const bool has_picks = obj.id == doc.picked_owner && doc.picked_mesh == obj.mesh && !doc.picked_pieces.empty();
+        const bool has_picks =
+            obj.id == doc.picked_owner && doc.picked_mesh == rv_editor_object_get_mesh(obj) && !doc.picked_pieces.empty();
         const bool sel = obj.id == doc.selected && !has_picks;
         const ImU32 color = rv_editor_col(sel                                    ? theme.selection :
                 vis == rv_editor_visibility::outline                             ? theme.text_disabled :

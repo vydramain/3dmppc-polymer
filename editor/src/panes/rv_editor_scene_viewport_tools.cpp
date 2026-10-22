@@ -220,31 +220,35 @@ void rv_editor_manipulate(rv_editor_app &app,
             const rv_editor_affine pw = rv_editor_scene_world(doc.scene, parent);
             world = rv_editor_affine_solve(pw, world);
         }
-        o.position = add(drag.before_position, world);
+        rv_editor_vec3 position = add(drag.before_position, world);
         if (cam.snap) {
-            for (double &c : o.position) {
+            for (double &c : position) {
                 c = rv_editor_snap(c, cam.snap_step);
             }
         }
+        rv_editor_object_set_position(o, position);
         break;
     }
-    case rv_editor_scene_tool::rotate:
-        o.rotation = drag.before_rotation;
-        o.rotation[1] += total.x * rotation_speed_factor;
-        o.rotation[0] += total.y * rotation_speed_factor;
+    case rv_editor_scene_tool::rotate: {
+        rv_editor_vec3 rotation = drag.before_rotation;
+        rotation[1] += total.x * rotation_speed_factor;
+        rotation[0] += total.y * rotation_speed_factor;
         if (cam.snap) {
-            o.rotation[0] = rv_editor_snap(o.rotation[0], rotation_snap_degrees);
-            o.rotation[1] = rv_editor_snap(o.rotation[1], rotation_snap_degrees);
+            rotation[0] = rv_editor_snap(rotation[0], rotation_snap_degrees);
+            rotation[1] = rv_editor_snap(rotation[1], rotation_snap_degrees);
         }
+        rv_editor_object_set_rotation(o, rotation);
         break;
+    }
     case rv_editor_scene_tool::scale: {
         const double f = std::exp(-total.y * scale_sensitivity);
-        o.scale = mul(drag.before_scale, f);
+        rv_editor_vec3 scale = mul(drag.before_scale, f);
         if (cam.snap) {
-            for (double &c : o.scale) {
+            for (double &c : scale) {
                 c = std::max(scale_min, rv_editor_snap(c, scale_snap_step));
             }
         }
+        rv_editor_object_set_scale(o, scale);
         break;
     }
     case rv_editor_scene_tool::select:
