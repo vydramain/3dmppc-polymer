@@ -4,7 +4,6 @@
 #include "panes/rv_editor_scene_draw.hpp"
 
 #include <chrono>
-#include <cmath>
 #include <functional>
 
 #include "imgui.h"
@@ -23,7 +22,7 @@ namespace rv_editor
 namespace
 {
 
-// Half-extent of placeholder geometric primitives (unit cube and quad, local coordinates).
+// Half-extent of the placeholder unit cube (local coordinates).
 constexpr double unit_half_extent = 0.5;
 // Corners of a unit cube.
 constexpr int cube_corner_count = 8;
@@ -36,9 +35,9 @@ constexpr std::array<std::array<int, 4>, 6> cube_faces = { {
     { 3, 2, 6, 7 },
     { 4, 5, 1, 0 },
 } };
-// Vertices of a quad.
+// Corners of a cube face: each face's two triangles take four uv corners.
 constexpr int quad_vertex_count = 4;
-// UV of a quad's corners: (0,0), (1,0), (1,1), (0,1).
+// UV of a cube face's corners: (0,0), (1,0), (1,1), (0,1).
 constexpr std::array<ImVec2, quad_vertex_count> quad_uv_corners = { { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } } };
 
 void set_error(std::string *error, const std::string &text)
@@ -70,57 +69,7 @@ std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
     return tris;
 }
 
-// The four corners' pixel-rect uv, top-left, top-right, bottom-left, bottom-right, from an
-// object's `uv` (u0,v0,u1,v1). Raw pixels; rv_editor_draw_filled normalizes once a texture's
-// pixel size is known, or leaves them unused when the object draws flat.
-std::array<ImVec2, quad_vertex_count> rv_editor_quad_uv(const rv_editor_uv &uv)
-{
-    return { ImVec2{ static_cast<float>(uv[0]), static_cast<float>(uv[1]) },
-        ImVec2{ static_cast<float>(uv[2]), static_cast<float>(uv[1]) },
-        ImVec2{ static_cast<float>(uv[0]), static_cast<float>(uv[3]) },
-        ImVec2{ static_cast<float>(uv[2]), static_cast<float>(uv[3]) } };
-}
-
-// A quad's two triangles: rv_pdkkit::rv_scene_quad_corners' own local square and corner
-// order (top-left, top-right, bottom-left, bottom-right; scale is already in `m`).
-std::vector<rv_editor_tri> rv_editor_quad_triangles(const rv_editor_affine &m, const rv_editor_uv &uv)
-{
-    const vec3 c[4] = { rv_editor_affine_point(m, { -unit_half_extent, unit_half_extent, 0.0 }),
-        rv_editor_affine_point(m, { unit_half_extent, unit_half_extent, 0.0 }),
-        rv_editor_affine_point(m, { -unit_half_extent, -unit_half_extent, 0.0 }),
-        rv_editor_affine_point(m, { unit_half_extent, -unit_half_extent, 0.0 }) };
-    const std::array<ImVec2, quad_vertex_count> t = rv_editor_quad_uv(uv);
-    return {
-        { { c[0], c[2], c[1] }, { t[0], t[2], t[1] } },
-        { { c[1], c[2], c[3] }, { t[1], t[2], t[3] } },
-    };
-}
-
-// The world-space length of `m`'s column `col` (0: X, 1: Y): the parent chain's scale and
-// rotation folded in, unlike the object's own local `scale`.
-double rv_editor_affine_column_length(const rv_editor_affine &m, int col)
-{
-    return std::sqrt(m[0][col] * m[0][col] + m[1][col] * m[1][col] + m[2][col] * m[2][col]);
-}
-
 } // namespace
-
-std::vector<rv_editor_tri>
-rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o)
-{
-    const vec3 center = rv_editor_affine_point(m, { 0.0, 0.0, 0.0 });
-    const vec3 right = mul(v.right, rv_editor_affine_column_length(m, 0) * unit_half_extent);
-    const vec3 up = mul(v.up, rv_editor_affine_column_length(m, 1) * unit_half_extent);
-    const vec3 c[4] = { add(center, sub(up, right)),
-        add(center, add(up, right)),
-        sub(center, add(up, right)),
-        add(center, sub(right, up)) };
-    const std::array<ImVec2, quad_vertex_count> t = rv_editor_quad_uv(rv_editor_object_get_uv(o));
-    return {
-        { { c[0], c[2], c[1] }, { t[0], t[2], t[1] } },
-        { { c[1], c[2], c[3] }, { t[1], t[2], t[3] } },
-    };
-}
 
 // A scene's `texture` is a flat disc texture name (mppcburner: the source's stem plus
 // ".mppctex"), resolved to the project file under [textures] whose stem matches.
@@ -136,8 +85,9 @@ rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project
 {
     const rv_editor_scene_object &o = scene.objects[static_cast<size_t>(index)];
     const std::string kind = rv_editor_object_get_kind(o);
-    if (kind == kind_quad) {
-        return rv_editor_quad_triangles(rv_editor_scene_world(scene, index), rv_editor_object_get_uv(o));
+    if (kind == kind_quad || kind == kind_billboard) {
+        // A legacy quad or billboard has no model: the placeholder box, as a source-less mesh.
+        return rv_editor_cube_triangles(rv_editor_scene_world(scene, index));
     }
     if (kind != kind_mesh) {
         return {};

@@ -156,8 +156,6 @@ struct rv_editor_piece_style {
     ImVec4 selection;
     ImVec4 tint;
     bool selected = false;
-    // A quad or billboard: its uv is a pixel rect.
-    bool pixel_uv = false;
     // A .glb's triangle: its base is white and the tint applies, flat too.
     bool from_model = false;
     float shade = 1.0f;
@@ -194,8 +192,8 @@ void rv_editor_raster_piece(rv_editor_zbuf &buf,
         c.x = (s.x - st.origin.x) * st.scale.x;
         c.y = (s.y - st.origin.y) * st.scale.y;
         c.z = static_cast<float>(view_p[k][2]);
-        c.u = flat ? 0.0f : (st.pixel_uv ? uv.x / static_cast<float>(picture.width) : uv.x);
-        c.v = flat ? 0.0f : (st.pixel_uv ? uv.y / static_cast<float>(picture.height) : uv.y);
+        c.u = flat ? 0.0f : uv.x;
+        c.v = flat ? 0.0f : uv.y;
         c.r = over.x * tint.x * st.shade * part.x;
         c.g = over.y * tint.y * st.shade * part.y;
         c.b = over.z * tint.z * st.shade * part.z;
@@ -250,11 +248,8 @@ void rv_editor_draw_filled(ImDrawList *dl,
         const rv_editor_cpu_image *tex = textured ? rv_editor_object_cpu_texture(project, texture) : nullptr;
         const rv_editor_tint tint = rv_editor_object_get_tint(o);
         st.selected = o.id == selected;
-        st.pixel_uv = kind != kind_mesh;
         st.tint = { tint[0] / color_channel_max, tint[1] / color_channel_max, tint[2] / color_channel_max, 1.0f };
-        const std::vector<rv_editor_tri> tris = kind == kind_billboard ?
-            rv_editor_billboard_triangles(v, rv_editor_scene_world(scene, static_cast<int>(i)), o) :
-            rv_editor_object_triangles(scene, project, static_cast<int>(i));
+        const std::vector<rv_editor_tri> tris = rv_editor_object_triangles(scene, project, static_cast<int>(i));
         for (const rv_editor_tri &tri : tris) {
             // Shade by the source triangle's normal; its cut pieces share it.
             const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
