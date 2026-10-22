@@ -70,7 +70,8 @@ target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdkkit)
 # it out of 3dmppc_pdklib). cgltf is this target's own third party, SYSTEM like mppcmodbaker's.
 target_sources(3dmppc-editor PRIVATE
   ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf.cpp
-  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp)
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_image.cpp)
 target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/cgltf)
 
 # stb_image (vendored, third_party/stb) decodes the icons. The icons are read

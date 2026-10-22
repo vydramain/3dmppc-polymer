@@ -5,17 +5,15 @@
 #include "rv_mppcmod_gltf.hpp"
 
 #include "rv_mppcmod_gltf_accessor.hpp"
+#include "rv_mppcmod_gltf_image.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <filesystem>
-#include <fstream>
 #include <iterator>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "pdk/rv_err.h"
@@ -51,24 +49,11 @@ constexpr size_t RV_MPPCMOD_GLTF_MAX_TRIANGLES = 2 * static_cast<size_t>(rv_pdkl
 // glTF matrices are 4x4 and column-major; the last column holds the translation.
 constexpr size_t RV_MPPCMOD_GLTF_MATRIX_DIM = 4;
 constexpr size_t RV_MPPCMOD_GLTF_MATRIX_FLOATS = RV_MPPCMOD_GLTF_MATRIX_DIM * RV_MPPCMOD_GLTF_MATRIX_DIM;
-constexpr std::string_view RV_MPPCMOD_GLTF_MIME_PNG = "image/png";
-constexpr std::string_view RV_MPPCMOD_GLTF_MIME_JPEG = "image/jpeg";
-constexpr std::string_view RV_MPPCMOD_GLTF_TEXTURE_EXT = ".mppctex";
-// A data: URI is embedded in the file, so it is not an external buffer.
-constexpr std::string_view RV_MPPCMOD_GLTF_DATA_URI = "data:";
-// The eight bytes that open every PNG file.
-constexpr std::string_view RV_MPPCMOD_GLTF_PNG_SIGNATURE = "\x89PNG\r\n\x1a\n";
-// A PNG file is read whole, so its size is bounded; the limit is far above any console texture.
-constexpr std::uintmax_t RV_MPPCMOD_GLTF_MAX_PNG_BYTES = 8 * 1024 * 1024;
 
 // What the walk over the scene carries from one primitive to the next.
 struct flatten_state {
-    const cgltf_data *data = nullptr;
-    std::string stem;
-    std::string dir;
     rv_mppcmod *model = nullptr;
-    std::vector<rv_mppcmod_gltf_image> *images = nullptr;
-    std::vector<bool> image_seen;
+    detail::image_sink sink;
 };
 
 uint8_t to_channel(float v)
@@ -98,45 +83,6 @@ const cgltf_accessor *find_attribute(const cgltf_primitive &prim, cgltf_attribut
         }
     }
     return nullptr;
-}
-
-// The URI as cgltf reads it, with %XX escapes resolved.
-std::string decoded_uri(const char *uri)
-{
-    std::vector<char> buf(uri, uri + std::string_view(uri).size() + 1);
-    cgltf_decode_uri(buf.data());
-    return buf.data();
-}
-
-// data: is embedded. A file must be non-empty, not start with '/' or '\', and have no ':' before its first '/'.
-bool is_allowed_uri(const char *uri)
-{
-    if (uri == nullptr || std::string_view(uri).starts_with(RV_MPPCMOD_GLTF_DATA_URI)) {
-        return true;
-    }
-    const std::string path = decoded_uri(uri);
-    if (path.empty() || path[0] == '/' || path[0] == '\\') {
-        return false;
-    }
-    return path.substr(0, path.find('/')).find(':') == std::string::npos;
-}
-
-// Every buffer and image URI must pass is_allowed_uri; the error names the first that does not.
-int check_uris(const cgltf_data *data, std::string &error)
-{
-    for (size_t b = 0; b < data->buffers_count; ++b) {
-        if (!is_allowed_uri(data->buffers[b].uri)) {
-            error = "buffer " + std::to_string(b) + " has a URI that is neither a relative file path nor data:";
-            return RV_ERR_INVAL;
-        }
-    }
-    for (size_t i = 0; i < data->images_count; ++i) {
-        if (!is_allowed_uri(data->images[i].uri)) {
-            error = "image " + std::to_string(i) + " has a URI that is neither a relative file path nor data:";
-            return RV_ERR_INVAL;
-        }
-    }
-    return RV_OK;
 }
 
 // out = M * (p, 1) for the column-major matrix M.
@@ -236,100 +182,6 @@ int read_vertices(const cgltf_primitive &prim,
     return RV_OK;
 }
 
-// The PNG bytes of an image: its bufferView (a .glb embeds it), else the regular file its URI names.
-int image_bytes(const flatten_state &st,
-    const cgltf_image &image,
-    const std::string &where,
-    std::vector<uint8_t> &out,
-    std::string &error)
-{
-    const cgltf_buffer_view *view = image.buffer_view;
-    const auto *src = view != nullptr ? static_cast<const uint8_t *>(cgltf_buffer_view_data(view)) : nullptr;
-    if (src != nullptr) {
-        out.assign(src, src + view->size);
-        return RV_OK;
-    }
-    if (view != nullptr) {
-        error = where + " has no data";
-        return RV_ERR_INVAL;
-    }
-    if (image.uri == nullptr || std::string_view(image.uri).starts_with(RV_MPPCMOD_GLTF_DATA_URI)) {
-        error = where + " has no bufferView or file; the baker reads images from one (a .glb embeds them)";
-        return RV_ERR_INVAL;
-    }
-    const std::filesystem::path file = std::filesystem::path(st.dir) / decoded_uri(image.uri);
-    // Only a regular file of bounded size is read: a FIFO, a device or a directory would block or never end.
-    std::error_code ec;
-    const bool regular = std::filesystem::is_regular_file(file, ec);
-    const std::uintmax_t size = regular ? std::filesystem::file_size(file, ec) : 0;
-    if (!regular || ec || size > RV_MPPCMOD_GLTF_MAX_PNG_BYTES) {
-        error = where + " file '" + image.uri + "' is missing, not a regular file, or over the size limit";
-        return RV_ERR_INVAL;
-    }
-    std::ifstream in(file, std::ios::binary);
-    out.resize(static_cast<size_t>(size));
-    if (!in.read(reinterpret_cast<char *>(out.data()), static_cast<std::streamsize>(size))) {
-        error = where + " file '" + image.uri + "' cannot be read";
-        return RV_ERR_INVAL;
-    }
-    if (!std::string_view(reinterpret_cast<const char *>(out.data()), out.size()).starts_with(RV_MPPCMOD_GLTF_PNG_SIGNATURE)) {
-        error = where + " file '" + image.uri + "' is not PNG";
-        return RV_ERR_INVAL;
-    }
-    return RV_OK;
-}
-
-// Names the texture of `material` and keeps its PNG once. Leaves `texture` empty when
-// the material has none.
-int bake_texture(flatten_state &st,
-    const cgltf_material *material,
-    const std::string &where,
-    std::string &texture,
-    std::string &error)
-{
-    texture.clear();
-    if (material == nullptr || !material->has_pbr_metallic_roughness) {
-        return RV_OK;
-    }
-    const cgltf_texture_view &view = material->pbr_metallic_roughness.base_color_texture;
-    if (view.texture == nullptr) {
-        return RV_OK;
-    }
-    if (view.texcoord != 0) {
-        error = where + " uses TEXCOORD_" + std::to_string(view.texcoord) + " for its texture; only TEXCOORD_0 is baked";
-        return RV_ERR_INVAL;
-    }
-    const cgltf_image *image = view.texture->image;
-    if (image == nullptr) {
-        error = "has a texture with no image";
-        return RV_ERR_INVAL;
-    }
-    const size_t index = static_cast<size_t>(image - st.data->images);
-    const std::string image_where = "image " + std::to_string(index);
-    const std::string_view mime = image->mime_type != nullptr ? std::string_view(image->mime_type) : std::string_view();
-    // A file may omit its MIME type; its signature is checked when it is read.
-    const bool mime_ok = mime == RV_MPPCMOD_GLTF_MIME_PNG || (image->buffer_view == nullptr && mime.empty());
-    if (!mime_ok) {
-        const std::string kind = mime == RV_MPPCMOD_GLTF_MIME_JPEG ? "JPEG" : mime.empty() ? "no MIME type" : std::string(mime);
-        error = image_where + " is " + kind + ", not PNG; export the model with PNG textures";
-        return RV_ERR_INVAL;
-    }
-
-    const std::string name = st.stem + "-" + std::to_string(index);
-    if (!st.image_seen[index]) {
-        rv_mppcmod_gltf_image out;
-        out.name = name;
-        const int rc = image_bytes(st, *image, image_where, out.png, error);
-        if (rc != RV_OK) {
-            return rc;
-        }
-        st.images->push_back(std::move(out));
-        st.image_seen[index] = true;
-    }
-    texture = name + std::string(RV_MPPCMOD_GLTF_TEXTURE_EXT);
-    return RV_OK;
-}
-
 // Appends one primitive as one part: its own vertices, its triangles, its colour and texture.
 int append_primitive(flatten_state &st,
     const cgltf_primitive &prim,
@@ -372,7 +224,7 @@ int append_primitive(flatten_state &st,
         return RV_ERR_INVAL;
     }
     rv_mppcmod_part part;
-    rc = bake_texture(st, prim.material, where, part.texture, error);
+    rc = detail::bake_texture(st.sink, prim.material, where, part.texture, error);
     if (rc != RV_OK) {
         return rc;
     }
@@ -448,7 +300,7 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
         return RV_ERR_INVAL;
     }
     const gltf_ptr data(raw, cgltf_free);
-    if (const int rc = check_uris(raw, error); rc != RV_OK) {
+    if (const int rc = detail::check_uris(raw, error); rc != RV_OK) {
         return rc;
     }
     if (cgltf_load_buffers(&options, raw, path.c_str()) != cgltf_result_success) {
@@ -460,8 +312,8 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
         return RV_ERR_INVAL;
     }
 
-    st.data = raw;
-    st.image_seen.assign(raw->images_count, false);
+    st.sink.data = raw;
+    st.sink.image_seen.assign(raw->images_count, false);
     for (const cgltf_node *node : scene_nodes(raw)) {
         if (node->mesh == nullptr) {
             continue;
@@ -495,11 +347,11 @@ int rv_mppcmod_read_gltf(const std::string &path,
     model = rv_mppcmod{};
     images.clear();
     flatten_state st;
-    st.stem = stem;
+    st.sink.stem = stem;
     // cgltf's split: the directory runs up to the last '/' or '\'. npos + 1 wraps to 0: no directory.
-    st.dir = path.substr(0, path.find_last_of("/\\") + 1);
+    st.sink.dir = path.substr(0, path.find_last_of("/\\") + 1);
     st.model = &model;
-    st.images = &images;
+    st.sink.images = &images;
     const int rc = read_gltf(path, st, error);
     if (rc != RV_OK) {
         error = "'" + path + "' " + error;
