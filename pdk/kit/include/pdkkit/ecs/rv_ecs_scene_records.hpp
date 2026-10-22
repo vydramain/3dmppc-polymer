@@ -28,10 +28,6 @@ namespace rv_pdkkit
 
 inline constexpr const char *ecs_scene_records_tag = "ecs-scene";
 
-// An authored mesh ".glb" or ".gltf" is served from the disc as ".mppcmod" with the same stem and directory.
-inline constexpr std::string_view ecs_scene_mesh_exts[] = { ".glb", ".gltf" };
-inline constexpr std::string_view ecs_scene_model_ext = ".mppcmod";
-
 // Kinds of objects in a scene: the object kinds of the editor's scene.
 enum class ecs_scene_kind {
     group = 1,
@@ -51,7 +47,7 @@ struct ecs_scene_object {
     // row-major: element (row, col) is world[row*4+col]; column vectors multiplied
     // from the right, the layout of pdklib's rv_mat4
     float world[16];
-    char model[ecs_name_capacity]; // .mppcmod name on the disc
+    char model[ecs_name_capacity]; // mesh as written, e.g. "factory.gltf"; the model component derives its disc name
     char texture[ecs_name_capacity];
     float uv[4]; // u0, v0, u1, v1 in pixels; quad and billboard only
     rv_color tint;
@@ -121,17 +117,6 @@ inline bool ecs_scene_kind_of(std::string_view word, ecs_scene_kind &kind_out)
     return false;
 }
 
-// The disc name of a scene mesh. An empty mesh stays empty; a name ending in neither extension is already a disc name.
-inline std::string ecs_scene_model_name(const std::string &mesh)
-{
-    for (const std::string_view ext : ecs_scene_mesh_exts) {
-        if (std::string_view(mesh).ends_with(ext)) {
-            return mesh.substr(0, mesh.size() - ext.size()) + std::string(ecs_scene_model_ext);
-        }
-    }
-    return mesh;
-}
-
 // Copies `value` into `dst` of `capacity` bytes, NUL included. RV_ERR_INVAL when it does not fit or holds a NUL
 // byte: a C reader would see the text cut short.
 inline int ecs_scene_copy_text(const std::string &value, char *dst, std::size_t capacity)
@@ -182,7 +167,6 @@ inline int ecs_scene_asset_text(rv_cd *cd, const char *asset, std::string &text)
 // The text fields of `object` into `out`. A name that does not fit or holds a NUL refuses the scene.
 inline int ecs_scene_object_text(const std::string &scene, const rv_scene_object &object, ecs_scene_object &out)
 {
-    const std::string model = ecs_scene_model_name(object.mesh);
     const struct {
         const char *label;
         const std::string *value;
@@ -190,7 +174,7 @@ inline int ecs_scene_object_text(const std::string &scene, const rv_scene_object
     } fields[] = {
         { "id", &object.id, out.id },
         { "name", &object.name, out.name },
-        { "model", &model, out.model },
+        { "model", &object.mesh, out.model },
         { "texture", &object.texture, out.texture },
     };
     for (const auto &field : fields) {

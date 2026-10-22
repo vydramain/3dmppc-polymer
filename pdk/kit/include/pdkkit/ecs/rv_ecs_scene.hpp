@@ -107,7 +107,8 @@ int ecs_scene_mark(ecs_scene_reading &load, ecs_id id)
     return RV_OK;
 }
 
-// A mesh's model with its tint. A mesh without a model gets none, with a warning.
+// A mesh's model with its tint: the scene's mesh text is the source, and ecs_derive gives the disc name. A mesh without
+// a model gets none, with a warning; a source ecs_derive refuses fails the load.
 inline int ecs_scene_add_model(ecs_scene_reading &load, const ecs_scene_object &object, ecs_id id)
 {
     const bool named = object.model[0] != '\0';
@@ -123,11 +124,21 @@ inline int ecs_scene_add_model(ecs_scene_reading &load, const ecs_scene_object &
     if (ensured != RV_OK) {
         return ecs_scene_ensure_failed(load, ensured);
     }
-    const int copied = ecs_scene_copy_name(load.scene, object.model, model->name);
+    const int copied = ecs_scene_copy_name(load.scene, object.model, model->source);
     if (copied != RV_OK) {
         return copied;
     }
     model->tint = object.tint;
+    std::string reason;
+    const int derived = ecs_component_model::ecs_derive(*model, reason);
+    if (derived != RV_OK) {
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' object '{}': model refused: {}",
+            rv_pdklib::rv_log_escape(load.scene),
+            ecs_scene_text(object.name),
+            reason);
+        return RV_ERR_INVAL;
+    }
     return RV_OK;
 }
 
