@@ -158,14 +158,11 @@ void rv_editor_line_fx(ImDrawList *dl,
     ImU32 color,
     float width);
 float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b);
-// Each object's edges in scene space: a mesh's real .glb triangles (or the unit cube while
-// its mesh is empty or does not load, with the reason in *error; a legacy quad or billboard is that cube),
-// a camera's body and lens, a group's corner brackets and axis cross, a third marker for any other kind.
-std::vector<std::pair<vec3, vec3>>
-rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
-// The same edges in Q20.12 world. A mesh, quad or billboard takes its triangles' q; a triangle without q_valid is
-// skipped. A marker edge with an end outside Q20.12 is skipped, as the raster refuses such a point. `skipped` counts
-// what was left out.
+// Each object's edges in Q20.12 world. A mesh, quad or billboard takes its triangles' q; a triangle without q_valid is
+// skipped. A legacy quad or billboard, or a mesh with no model or an unloaded one, is the unit cube, or nothing when
+// the cube is refused too; *error gives the reason. A camera's body and lens, a group's corner brackets and axis
+// cross, a volume's unit-cube wire and a third marker for any other kind come from scene space; an edge with an end
+// outside Q20.12 is skipped, as the raster refuses such a point. `skipped` counts what was left out.
 std::vector<std::pair<rv_pdklib::fx_vec3, rv_pdklib::fx_vec3>> rv_editor_object_edges_fx(const rv_editor_scene &scene,
     const rv_editor_project &project,
     int index,

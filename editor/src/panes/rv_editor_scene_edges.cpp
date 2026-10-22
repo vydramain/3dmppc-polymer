@@ -202,10 +202,8 @@ int rv_editor_world_fx(const vec3 &p, rv_pdklib::fx_vec3 &out)
     return RV_OK;
 }
 
-} // namespace
-
-std::vector<std::pair<vec3, vec3>>
-rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
+// A camera, group, volume or other kind's edges in scene space: its table builder, else the marker.
+std::vector<std::pair<vec3, vec3>> rv_editor_marker_edges(const rv_editor_scene &scene, int index)
 {
     const rv_editor_affine m = rv_editor_scene_world(scene, index);
     const std::string &kind = rv_editor_object_get_kind(scene.objects[static_cast<size_t>(index)]);
@@ -213,15 +211,6 @@ rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &pr
         return rv_editor_affine_point(m, { x, y, z });
     };
     std::vector<std::pair<vec3, vec3>> e;
-    // A legacy quad or billboard has no model: its edges are the placeholder cube's, as a mesh without one.
-    if (kind == kind_mesh || kind == kind_quad || kind == kind_billboard) {
-        for (const rv_editor_tri &tri : rv_editor_object_triangles(scene, project, index, error)) {
-            e.emplace_back(tri.p[0], tri.p[1]);
-            e.emplace_back(tri.p[1], tri.p[2]);
-            e.emplace_back(tri.p[2], tri.p[0]);
-        }
-        return e;
-    }
     for (const auto &builder : edge_builders) {
         if (kind == builder.kind) {
             builder.builder(e, p);
@@ -231,6 +220,8 @@ rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &pr
     rv_editor_other_edges(e, p);
     return e;
 }
+
+} // namespace
 
 std::vector<std::pair<rv_pdklib::fx_vec3, rv_pdklib::fx_vec3>> rv_editor_object_edges_fx(const rv_editor_scene &scene,
     const rv_editor_project &project,
@@ -254,7 +245,7 @@ std::vector<std::pair<rv_pdklib::fx_vec3, rv_pdklib::fx_vec3>> rv_editor_object_
         }
         return e;
     }
-    for (const auto &[a, b] : rv_editor_object_edges(scene, project, index)) {
+    for (const auto &[a, b] : rv_editor_marker_edges(scene, index)) {
         rv_pdklib::fx_vec3 fa{};
         rv_pdklib::fx_vec3 fb{};
         // Each end is converted once. An end outside Q20.12 skips its edge, as the raster refuses such a point.
