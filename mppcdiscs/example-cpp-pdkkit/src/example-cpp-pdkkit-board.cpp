@@ -10,7 +10,6 @@
 #include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "pdkkit/ecs/rv_ecs_frame.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
-#include "pdklib/rv_logs/rv_logs.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp_pdkkit
@@ -18,10 +17,6 @@ namespace example_cpp_pdkkit
 
 namespace
 {
-
-// The scene field that names the cell of a flicker entity, and the cell it takes when the field is absent.
-constexpr const char *RV_FLICKER_CELL_KEY = "cell";
-constexpr int64_t RV_FLICKER_CELL_DEFAULT = 0;
 
 // Cell 9 of "ОСТАЛОСЬ: 5" is the space between the colon and the digit: the scene has no entity for it.
 constexpr int RV_BOARD_SPACE_CELL = 9;
@@ -64,29 +59,6 @@ bool rv_board_cell_lit(int i, int64_t frame)
     const int64_t index = (frame / RV_BOARD_FLICKER_STEP + i * RV_BOARD_FLICKER_SHIFT) % RV_BOARD_FLICKER_SIZE;
     const uint8_t level = RV_BOARD_FLICKER_TABLE[static_cast<size_t>(index)];
     return i != RV_BOARD_SPACE_CELL && level > RV_BOARD_LIT_ABOVE;
-}
-
-int ecs_flicker_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_pdkkit::ecs_scene_component &component)
-{
-    int64_t cell = RV_FLICKER_CELL_DEFAULT;
-    const int read_code = rv_pdkkit::ecs_field_int(component, RV_FLICKER_CELL_KEY, cell);
-    const bool absent = read_code == RV_ERR_NOENT;
-    if (read_code != RV_OK && !absent) {
-        RV_LOG_ERR("board", "flicker: field {} is not an integer: rv_err {}", RV_FLICKER_CELL_KEY, read_code);
-        return read_code;
-    }
-    const bool in_range = cell >= 0 && cell < RV_BOARD_CELL_COUNT;
-    if (!in_range) {
-        RV_LOG_ERR("board", "flicker: cell {} is outside 0..{}", cell, RV_BOARD_CELL_COUNT - 1);
-        return RV_ERR_INVAL;
-    }
-    const int add_code =
-        rv_pdkkit::ecs_component_add<ecs_component_flicker>(world, id, ecs_component_flicker{ static_cast<int>(cell) });
-    if (add_code != RV_OK) {
-        RV_LOG_ERR("board", "flicker: entity cannot take the component: rv_err {}", add_code);
-        return add_code;
-    }
-    return RV_OK;
 }
 
 int ecs_system_flicker(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame)

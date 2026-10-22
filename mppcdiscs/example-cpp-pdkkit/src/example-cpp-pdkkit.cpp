@@ -36,7 +36,7 @@ constexpr const char *RV_EXAMPLE_CPP_BOARD_NAME = "board";
 constexpr const char *RV_EXAMPLE_CPP_ROUTE_SYSTEM = "route";
 // The scene component of a lamp_N_light object; its factory and frame system are registered under this name.
 constexpr const char *RV_EXAMPLE_CPP_LAMP_LIGHT = "lamp_light";
-// The scene component of a board halo or letter; its factory and frame system are registered under this name.
+// The scene component of a board halo or letter: its description's name, and the name of its frame system.
 constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
@@ -153,10 +153,9 @@ int rv_dmain::register_ecs()
     if (lamp_system_code != RV_OK) {
         return lamp_system_code;
     }
-    const int flicker_factory_code =
-        rv_pdkkit::ecs_component_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_flicker_factory);
-    if (flicker_factory_code != RV_OK) {
-        return flicker_factory_code;
+    const int flicker_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_flicker>(world_);
+    if (flicker_code != RV_OK) {
+        return flicker_code;
     }
     const int flicker_system_code =
         rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_system_flicker);

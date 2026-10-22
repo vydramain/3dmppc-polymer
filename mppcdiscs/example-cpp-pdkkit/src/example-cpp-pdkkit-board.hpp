@@ -1,7 +1,10 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
+#include "pdk/rv_err.h"
+#include "pdkkit/component/rv_component_macro.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_frame.hpp"
 
@@ -15,16 +18,27 @@ constexpr int RV_BOARD_CELL_COUNT = 11;
 // the space cell never lights. The sound takes the lit set from here too, so both agree.
 bool rv_board_cell_lit(int i, int64_t frame);
 
-// A halo or a letter of the board: shown while its cell is lit.
+// A halo or a letter of the board: shown while its cell is lit. The generic factory fills cell from the scene;
+// cell is 0 when the scene omits it.
 struct ecs_component_flicker {
-    int cell = 0;
-};
+    int32_t cell = 0;
 
-// Factory of flicker: field cell, an integer in 0..RV_BOARD_CELL_COUNT-1, 0 when absent. Other values are RV_ERR_INVAL.
-int ecs_flicker_factory(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const rv_pdkkit::ecs_scene_component &component);
+    // Refuses a cell outside 0..RV_BOARD_CELL_COUNT-1; the reason names the cell and the range.
+    static int ecs_check(const ecs_component_flicker &flicker, std::string &reason)
+    {
+        const bool in_range = flicker.cell >= 0 && flicker.cell < RV_BOARD_CELL_COUNT;
+        if (!in_range) {
+            reason = "cell " + std::to_string(flicker.cell) + " is outside 0.." + std::to_string(RV_BOARD_CELL_COUNT - 1);
+            return RV_ERR_INVAL;
+        }
+        return RV_OK;
+    }
+};
 
 // Frame system: shows each flicker entity whose cell is lit at the frame's place in the route period, hides the others.
 // Error: RV_ERR_NOENT when a dark entity cannot take its hidden mark (a stale id); logged with its cell.
 int ecs_system_flicker(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
 
 } // namespace example_cpp_pdkkit
+
+PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_flicker, "flicker", PDKKIT_FIELD(cell, int32, 0));
