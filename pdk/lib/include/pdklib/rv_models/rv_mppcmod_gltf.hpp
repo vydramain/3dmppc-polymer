@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "pdklib/rv_models/rv_mppcmod.hpp"
+#include "pdklib/rv_models/rv_mppcmod_quant.hpp"
 
 namespace rv_pdklib
 {
@@ -19,8 +20,17 @@ struct rv_mppcmod_gltf_image {
 };
 
 // Flattens every mesh node of `path` into `model`: one part per primitive, moved by the
-// node's world matrix. Each PNG a part uses is appended to `images` once.
+// node's world matrix. Each glTF number goes to Q.16 once; the composition is int64. Each PNG
+// a part uses is appended to `images` once.
 // Returns RV_ERR_INVAL with `error` set to one sentence naming the cause, prefixed by the path.
+int rv_mppcmod_read_gltf(const std::string &path,
+    const std::string &stem,
+    rv_mppcmod_q16_model &model,
+    std::vector<rv_mppcmod_gltf_image> &images,
+    std::string &error);
+
+// TRANSITIONAL: the float model for the editor. Same reading; positions and uvs divided by 2^16.
+// Goes away with its last caller.
 int rv_mppcmod_read_gltf(const std::string &path,
     const std::string &stem,
     rv_mppcmod &model,

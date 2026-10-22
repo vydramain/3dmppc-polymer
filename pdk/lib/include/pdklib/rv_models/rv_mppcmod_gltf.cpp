@@ -6,6 +6,9 @@
 
 #include "rv_mppcmod_gltf_accessor.hpp"
 #include "rv_mppcmod_gltf_image.hpp"
+#include "rv_mppcmod_gltf_trs.hpp"
+
+#include "pdklib/rv_models/rv_mppcmod_quant.hpp"
 
 #include <algorithm>
 #include <array>
@@ -24,10 +27,17 @@ namespace rv_pdklib
 namespace
 {
 
-using rv_pdklib::rv_mppcmod;
+using detail::entries_within;
+using detail::lanes_to_q16;
+using detail::q16_matrix;
+using detail::RV_MPPCMOD_GLTF_ENTRY_LIMIT;
+using detail::RV_MPPCMOD_GLTF_MATRIX_DIM;
+using detail::RV_MPPCMOD_GLTF_MATRIX_FLOATS;
+using detail::within;
 using rv_pdklib::rv_mppcmod_part;
+using rv_pdklib::rv_mppcmod_q16_model;
+using rv_pdklib::rv_mppcmod_q16_vertex;
 using rv_pdklib::rv_mppcmod_triangle;
-using rv_pdklib::rv_mppcmod_vertex;
 
 using gltf_ptr = std::unique_ptr<cgltf_data, decltype(&cgltf_free)>;
 
@@ -46,13 +56,15 @@ constexpr size_t RV_MPPCMOD_GLTF_CORNERS = 3;
 // vertex limit. This is the tool's own bound, not the format's: a shared index buffer
 // repeated by many primitives would otherwise grow the model without limit.
 constexpr size_t RV_MPPCMOD_GLTF_MAX_TRIANGLES = 2 * static_cast<size_t>(rv_pdklib::rv_mppcmod_max_vertices);
-// glTF matrices are 4x4 and column-major; the last column holds the translation.
-constexpr size_t RV_MPPCMOD_GLTF_MATRIX_DIM = 4;
-constexpr size_t RV_MPPCMOD_GLTF_MATRIX_FLOATS = RV_MPPCMOD_GLTF_MATRIX_DIM * RV_MPPCMOD_GLTF_MATRIX_DIM;
+// Bound in Q.16 on a position: 2^15 m (2^31 in Q.16). An entry below 2^14 times a position below 2^15 m is below
+// 2^61, so a sum of three fits int64. The model holds at most 32767 m at shift 0 anyway, so no model that could be
+// baked is refused by this bound.
+constexpr int64_t RV_MPPCMOD_GLTF_POS_LIMIT = int64_t{ 1 } << 31;
+using q16_point = std::array<int64_t, RV_MPPCMOD_GLTF_POS_LANES>;
 
 // What the walk over the scene carries from one primitive to the next.
 struct flatten_state {
-    rv_mppcmod *model = nullptr;
+    rv_mppcmod_q16_model *model = nullptr;
     detail::image_sink sink;
 };
 
@@ -85,38 +97,114 @@ const cgltf_accessor *find_attribute(const cgltf_primitive &prim, cgltf_attribut
     return nullptr;
 }
 
-// out = M * (p, 1) for the column-major matrix M.
-void transform_point(const float *m, const float *p, float *out)
+// The identity in Q.16: 1.0 on the diagonal.
+q16_matrix identity_q16()
+{
+    q16_matrix m = {};
+    for (size_t d = 0; d < RV_MPPCMOD_GLTF_MATRIX_DIM; ++d) {
+        m[(RV_MPPCMOD_GLTF_MATRIX_DIM + 1) * d] = rv_mppcmod_q16_one;
+    }
+    return m;
+}
+
+// out = a * b for column-major matrices, each entry rounded to Q.16 half away from zero.
+// A product of two entries is below 2^60, so a sum of four is below 2^62.
+void compose(const q16_matrix &a, const q16_matrix &b, q16_matrix &out)
+{
+    for (size_t col = 0; col < RV_MPPCMOD_GLTF_MATRIX_DIM; ++col) {
+        for (size_t row = 0; row < RV_MPPCMOD_GLTF_MATRIX_DIM; ++row) {
+            int64_t sum = 0;
+            for (size_t k = 0; k < RV_MPPCMOD_GLTF_MATRIX_DIM; ++k) {
+                sum += a[RV_MPPCMOD_GLTF_MATRIX_DIM * k + row] * b[RV_MPPCMOD_GLTF_MATRIX_DIM * col + k];
+            }
+            out[RV_MPPCMOD_GLTF_MATRIX_DIM * col + row] = detail::rv_mppcmod_round_shift(sum, rv_mppcmod_q16_bits);
+        }
+    }
+}
+
+// out = M * (p, 1) in int64, rounded to Q.16. The translation is a Q.16 entry, lifted to Q.32 for the sum.
+// RV_ERR_INVAL if a lane reaches the 2^15 m bound.
+int transform_point(const q16_matrix &m, const q16_point &p, q16_point &out)
 {
     for (size_t row = 0; row < RV_MPPCMOD_GLTF_POS_LANES; ++row) {
-        float sum = m[RV_MPPCMOD_GLTF_MATRIX_DIM * RV_MPPCMOD_GLTF_POS_LANES + row];
+        int64_t sum = m[RV_MPPCMOD_GLTF_MATRIX_DIM * RV_MPPCMOD_GLTF_POS_LANES + row] * rv_mppcmod_q16_one;
         for (size_t col = 0; col < RV_MPPCMOD_GLTF_POS_LANES; ++col) {
             sum += m[RV_MPPCMOD_GLTF_MATRIX_DIM * col + row] * p[col];
         }
-        out[row] = sum;
+        out[row] = detail::rv_mppcmod_round_shift(sum, rv_mppcmod_q16_bits);
+        if (!within(out[row], RV_MPPCMOD_GLTF_POS_LIMIT)) {
+            return RV_ERR_INVAL;
+        }
     }
+    return RV_OK;
 }
 
 // glTF is right-handed (+Z toward the viewer); the project is left-handed (rv_camera.hpp:
 // right = cross(up, forward), +z in front). Negating z maps one frame onto the other. The
 // camera then sees the model from the side glTF's viewer did, so the windings and the mirror
 // test on the glTF world matrix need no change.
-void to_project_frame(float *p)
+void to_project_frame(q16_point &p)
 {
     p[RV_MPPCMOD_GLTF_DEPTH_LANE] = -p[RV_MPPCMOD_GLTF_DEPTH_LANE];
 }
 
-// Determinant of the 3x3 part of a column-major matrix; negative when the matrix mirrors.
-float determinant3(const float *m)
+// True when the 3x3 part of a column-major matrix has a negative determinant. Each of its terms is three
+// Q.16 entries, up to 2^90 in Q.48, so int64 cannot hold the sum.
+// ponytail: __int128 is the wide type. Clang and gcc provide it on every target built here (Linux, emscripten);
+// MSVC has none, and Windows is deferred. Replace it with a 64x64->128 multiply when that target arrives.
+bool is_mirrored(const q16_matrix &m)
 {
-    return m[0] * (m[5] * m[10] - m[9] * m[6]) - m[4] * (m[1] * m[10] - m[9] * m[2]) + m[8] * (m[1] * m[6] - m[5] * m[2]);
+    const auto at = [&m](size_t i) {
+        return static_cast<__int128>(m[i]);
+    };
+    const __int128 det = at(0) * (at(5) * at(10) - at(9) * at(6)) - at(4) * (at(1) * at(10) - at(9) * at(2)) +
+        at(8) * (at(1) * at(6) - at(5) * at(2));
+    return det < 0;
+}
+
+// The local matrix of `node`, each glTF number to Q.16 once. A node with a matrix keeps the file's floats; otherwise
+// its TRS is built in int64. A node with no TRS has cgltf's defaults (zero, identity quaternion, unit scale), so the
+// build gives the identity.
+int local_matrix(const cgltf_node *node, q16_matrix &local)
+{
+    if (node->has_matrix) {
+        return lanes_to_q16(node->matrix, RV_MPPCMOD_GLTF_MATRIX_FLOATS, RV_MPPCMOD_GLTF_ENTRY_LIMIT, local.data());
+    }
+    return detail::trs_to_q16(node->translation, node->rotation, node->scale, local);
+}
+
+// World matrix of `node`: the locals of its ancestors and of itself, composed root to leaf. Each composed matrix is
+// checked, so the next product stays inside int64.
+int world_matrix(const cgltf_data *data, const cgltf_node *node, q16_matrix &world, std::string &error)
+{
+    std::vector<const cgltf_node *> chain;
+    for (const cgltf_node *n = node; n != nullptr; n = n->parent) {
+        chain.push_back(n);
+    }
+    world = identity_q16();
+    for (size_t i = chain.size(); i-- > 0;) {
+        const size_t index = static_cast<size_t>(chain[i] - data->nodes);
+        q16_matrix local = {};
+        if (local_matrix(chain[i], local) != RV_OK) {
+            error = "node " + std::to_string(index) + " has a matrix entry at or beyond 2^14 in magnitude, or not finite";
+            return RV_ERR_INVAL;
+        }
+        q16_matrix composed = {};
+        compose(world, local, composed);
+        if (!entries_within(composed, RV_MPPCMOD_GLTF_ENTRY_LIMIT)) {
+            error = "node " + std::to_string(index) + " has a world matrix entry at or beyond 2^14 in magnitude";
+            return RV_ERR_INVAL;
+        }
+        world = composed;
+    }
+    return RV_OK;
 }
 
 // The vertices of one primitive in model space. A missing UV is (0,0), a missing colour white.
 int read_vertices(const cgltf_primitive &prim,
-    const float *world,
+    const q16_matrix &world,
     const std::string &where,
-    std::vector<rv_mppcmod_vertex> &out,
+    std::vector<rv_mppcmod_q16_vertex> &out,
     std::string &error)
 {
     const cgltf_accessor *pos_acc = find_attribute(prim, cgltf_attribute_type_position);
@@ -165,15 +253,29 @@ int read_vertices(const cgltf_primitive &prim,
     const bool has_uv = uv_acc != nullptr;
     const bool has_color = color_acc != nullptr;
     const size_t color_lanes = has_color ? cgltf_num_components(color_acc->type) : 0;
-    rv_mppcmod_vertex blank;
+    rv_mppcmod_q16_vertex blank;
     blank.color = RV_MPPCMOD_GLTF_WHITE;
     out.assign(count, blank);
     for (size_t i = 0; i < count; ++i) {
-        rv_mppcmod_vertex &vertex = out[i];
-        transform_point(world, &pos[i * RV_MPPCMOD_GLTF_POS_LANES], vertex.pos.data());
-        to_project_frame(vertex.pos.data());
+        rv_mppcmod_q16_vertex &vertex = out[i];
+        q16_point p = {};
+        const float *src = &pos[i * RV_MPPCMOD_GLTF_POS_LANES];
+        if (lanes_to_q16(src, RV_MPPCMOD_GLTF_POS_LANES, RV_MPPCMOD_GLTF_POS_LIMIT, p.data()) != RV_OK) {
+            error = where + " vertex " + std::to_string(i) + " has a POSITION at or beyond 2^15 m, or not finite";
+            return RV_ERR_INVAL;
+        }
+        if (transform_point(world, p, vertex.pos) != RV_OK) {
+            error = where + " vertex " + std::to_string(i) + " has a transformed position at or beyond 2^15 m";
+            return RV_ERR_INVAL;
+        }
+        to_project_frame(vertex.pos);
         if (has_uv) {
-            vertex.uv = { uv[i * RV_MPPCMOD_GLTF_UV_LANES], uv[i * RV_MPPCMOD_GLTF_UV_LANES + 1] };
+            const float *uv_src = &uv[i * RV_MPPCMOD_GLTF_UV_LANES];
+            if (lanes_to_q16(uv_src, RV_MPPCMOD_GLTF_UV_LANES, rv_mppcmod_q16_limit, vertex.uv.data()) != RV_OK) {
+                error = where + " vertex " + std::to_string(i) +
+                    " has a uv component at or beyond 2^40 in magnitude, or not finite";
+                return RV_ERR_INVAL;
+            }
         }
         if (has_color) {
             vertex.color = to_rgb(&color[i * color_lanes]);
@@ -185,7 +287,7 @@ int read_vertices(const cgltf_primitive &prim,
 // Appends one primitive as one part: its own vertices, its triangles, its colour and texture.
 int append_primitive(flatten_state &st,
     const cgltf_primitive &prim,
-    const float *world,
+    const q16_matrix &world,
     const std::string &where,
     std::string &error)
 {
@@ -197,7 +299,7 @@ int append_primitive(flatten_state &st,
         error = where + " has morph targets, which are not baked";
         return RV_ERR_INVAL;
     }
-    std::vector<rv_mppcmod_vertex> vertices;
+    std::vector<rv_mppcmod_q16_vertex> vertices;
     int rc = read_vertices(prim, world, where, vertices, error);
     if (rc != RV_OK) {
         return rc;
@@ -234,7 +336,7 @@ int append_primitive(flatten_state &st,
 
     // A mirrored node reverses the winding: glTF front faces are counter-clockwise, and the
     // console culls back faces, so corners 1 and 2 swap to keep the faces the author drew.
-    const bool mirrored = determinant3(world) < 0.0f;
+    const bool mirrored = is_mirrored(world);
     const size_t first = mirrored ? 2 : 1;
     const size_t second = mirrored ? 1 : 2;
 
@@ -319,8 +421,11 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
             continue;
         }
         const size_t n = static_cast<size_t>(node - raw->nodes);
-        float world[RV_MPPCMOD_GLTF_MATRIX_FLOATS];
-        cgltf_node_transform_world(node, world);
+        q16_matrix world = {};
+        const int world_rc = world_matrix(raw, node, world, error);
+        if (world_rc != RV_OK) {
+            return world_rc;
+        }
         for (size_t p = 0; p < node->mesh->primitives_count; ++p) {
             const std::string where = "node " + std::to_string(n) + ", primitive " + std::to_string(p);
             const int rc = append_primitive(st, node->mesh->primitives[p], world, where, error);
@@ -340,11 +445,11 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
 
 int rv_mppcmod_read_gltf(const std::string &path,
     const std::string &stem,
-    rv_mppcmod &model,
+    rv_mppcmod_q16_model &model,
     std::vector<rv_mppcmod_gltf_image> &images,
     std::string &error)
 {
-    model = rv_mppcmod{};
+    model = rv_mppcmod_q16_model{};
     images.clear();
     flatten_state st;
     st.sink.stem = stem;
@@ -356,6 +461,38 @@ int rv_mppcmod_read_gltf(const std::string &path,
     if (rc != RV_OK) {
         error = "'" + path + "' " + error;
         return rc;
+    }
+    return RV_OK;
+}
+
+// TRANSITIONAL: the editor's float caller. Reads the Q.16 model, then divides each position and uv by 2^16.
+// Goes away with its last caller.
+int rv_mppcmod_read_gltf(const std::string &path,
+    const std::string &stem,
+    rv_mppcmod &model,
+    std::vector<rv_mppcmod_gltf_image> &images,
+    std::string &error)
+{
+    rv_mppcmod_q16_model q16;
+    const int rc = rv_mppcmod_read_gltf(path, stem, q16, images, error);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    model = rv_mppcmod{};
+    model.parts = q16.parts;
+    model.triangles = q16.triangles;
+    model.vertices.resize(q16.vertices.size());
+    const float one = static_cast<float>(rv_mppcmod_q16_one);
+    for (size_t v = 0; v < q16.vertices.size(); ++v) {
+        const rv_mppcmod_q16_vertex &src = q16.vertices[v];
+        rv_mppcmod_vertex &dst = model.vertices[v];
+        for (size_t k = 0; k < dst.pos.size(); ++k) {
+            dst.pos[k] = static_cast<float>(src.pos[k]) / one;
+        }
+        for (size_t k = 0; k < dst.uv.size(); ++k) {
+            dst.uv[k] = static_cast<float>(src.uv[k]) / one;
+        }
+        dst.color = src.color;
     }
     return RV_OK;
 }

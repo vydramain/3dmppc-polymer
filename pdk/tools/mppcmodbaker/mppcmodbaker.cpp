@@ -168,7 +168,7 @@ int run(int argc, char **argv)
         return report(error);
     }
 
-    rv_pdklib::rv_mppcmod model;
+    rv_pdklib::rv_mppcmod_q16_model model;
     std::vector<rv_pdklib::rv_mppcmod_gltf_image> images;
     std::string bake_error;
     if (rv_pdklib::rv_mppcmod_read_gltf(args.input, stem, model, images, bake_error) != RV_OK) {
