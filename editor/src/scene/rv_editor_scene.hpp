@@ -72,7 +72,8 @@ struct rv_editor_scene {
     std::vector<rv_editor_scene_object> objects;
     std::vector<rv_pdklib::rv_manifest_tree_entry> scene_extra;      // unknown [scene] keys
     std::vector<rv_pdklib::rv_manifest_tree_section> other_sections; // unknown sections
-    // Non-empty: save refuses to write. Load does not set it: an unreadable, malformed or incompatible file fails to open.
+    // Non-empty: save refuses to write. Load sets it for an object with no kind (component form, not edited yet).
+    // An unreadable, malformed or incompatible file fails to open.
     std::string read_only;
 };
 

@@ -14,6 +14,7 @@
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
 #include "project/rv_editor_toml.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -232,6 +233,11 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
         c.fields = p.fields;
         s.objects[static_cast<size_t>(p.object)].components.push_back(std::move(c));
     }
+    // An object with no kind is in the component form, which the editor does not edit yet: the scene opens read-only.
+    const bool has_component_form = std::any_of(s.objects.begin(), s.objects.end(), [](const rv_editor_scene_object &o) {
+        return o.kind.empty();
+    });
+    s.read_only = has_component_form ? std::string(rv_editor_text("pane_scene.component_form_read_only")) : std::string();
     scene = std::move(s);
     return RV_OK;
 }
