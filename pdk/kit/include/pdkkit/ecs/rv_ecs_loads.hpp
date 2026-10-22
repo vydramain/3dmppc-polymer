@@ -277,7 +277,7 @@ template <typename Fn>
             for (const ecs_id id : load.made) {
                 const bool live = ecs_entity_alive(world, id);
                 const ecs_component_name *named = live ? ecs_component_get<ecs_component_name>(world, id) : nullptr;
-                const bool match = named != nullptr && named->text == name;
+                const bool match = named != nullptr && std::string_view{ named->text } == name;
                 if (match) {
                     out = id;
                     return RV_OK;

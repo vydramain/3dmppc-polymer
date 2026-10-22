@@ -87,7 +87,9 @@ inline void ecs_world_camera(ecs_world &world, const rv_cg_camera &camera)
         const int32_t depth_max = decal ? ecs_depth_decal_max : ecs_depth_world_max;
         const bool two_sided = ecs_component_get<ecs_component_two_sided>(world, id) != nullptr;
         const uint32_t cull = two_sided ? RV_CG_CULL_NONE : RV_CG_CULL_BACK;
-        const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(frame.pdk), RV_CD_RESOURCE_MODEL, model->name.c_str());
+        // The name ends in a NUL, so the view's data() is a C string.
+        const int64_t addr =
+            rv_cd_resource_addr(rv_pdko_cd(frame.pdk), RV_CD_RESOURCE_MODEL, std::string_view{ model->name }.data());
         if (addr < 0) {
             return static_cast<int>(addr);
         }
