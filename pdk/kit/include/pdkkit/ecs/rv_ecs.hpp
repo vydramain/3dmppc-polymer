@@ -82,7 +82,7 @@ struct ecs_reason {
     char text[ecs_reason_size] = {};
 };
 
-// Only the ecs_* functions touch these fields.
+// Fields are reached through detail::ecs_state; rv_ecs.hpp uses it now, the other kit headers move to it in later steps.
 struct ecs_world {
     std::vector<ecs_slot> slots;
     std::vector<uint32_t> free_slots; // destroyed slots, reused by the next create
@@ -113,17 +113,35 @@ struct ecs_world {
     ecs_reason logged_reason{};
 };
 
+namespace detail
+{
+
+// The route kit code will use to reach the world's data; rv_ecs.hpp uses it now, the other kit headers move to it in
+// later steps. Callers bind its result with auto, so the type behind it can change.
+[[nodiscard]] inline ecs_world &ecs_state(ecs_world &world) noexcept
+{
+    return world;
+}
+
+[[nodiscard]] inline const ecs_world &ecs_state(const ecs_world &world) noexcept
+{
+    return world;
+}
+
+} // namespace detail
+
 // Index for the next entity: the newest free slot, else a new slot appended.
 // Precondition: the caller has checked that an index is left (ecs_entity_create does).
 // Throws only before any state changes (vector growth).
 inline uint32_t ecs_take_slot(ecs_world &world)
 {
-    if (world.free_slots.empty()) {
-        world.slots.push_back(ecs_slot{});
-        return static_cast<uint32_t>(world.slots.size() - 1);
+    auto &state = detail::ecs_state(world);
+    if (state.free_slots.empty()) {
+        state.slots.push_back(ecs_slot{});
+        return static_cast<uint32_t>(state.slots.size() - 1);
     }
-    const uint32_t index = world.free_slots.back();
-    world.free_slots.pop_back();
+    const uint32_t index = state.free_slots.back();
+    state.free_slots.pop_back();
     return index;
 }
 
@@ -131,10 +149,11 @@ inline uint32_t ecs_take_slot(ecs_world &world)
 // The free-list push may throw, so it runs before the generation changes.
 inline void ecs_release_slot(ecs_world &world, uint32_t index)
 {
-    ecs_slot &slot = world.slots[index];
+    auto &state = detail::ecs_state(world);
+    ecs_slot &slot = state.slots[index];
     const bool reusable = slot.generation != ecs_generation_max;
     if (reusable) {
-        world.free_slots.push_back(index);
+        state.free_slots.push_back(index);
         ++slot.generation;
     }
 }
@@ -196,14 +215,15 @@ template <typename Op>
 // RV_ERR_NOMEM when every index is taken.
 [[nodiscard]] inline int ecs_entity_create(ecs_world &world, ecs_id &out)
 {
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&] {
-        if (world.free_slots.empty() && world.slots.size() >= ecs_slot_limit) {
+        if (state.free_slots.empty() && state.slots.size() >= ecs_slot_limit) {
             return RV_ERR_NOMEM;
         }
         const uint32_t index = ecs_take_slot(world);
-        ecs_slot &slot = world.slots[index];
+        ecs_slot &slot = state.slots[index];
         slot.live = true;
-        ++world.live_count;
+        ++state.live_count;
         out = ecs_id{ index, slot.generation };
         return RV_OK;
     });
@@ -211,10 +231,11 @@ template <typename Op>
 
 inline bool ecs_entity_alive(const ecs_world &world, ecs_id id)
 {
-    if (id.index >= world.slots.size()) {
+    const auto &state = detail::ecs_state(world);
+    if (id.index >= state.slots.size()) {
         return false;
     }
-    const ecs_slot &slot = world.slots[id.index];
+    const ecs_slot &slot = state.slots[id.index];
     return slot.live && slot.generation == id.generation;
 }
 
@@ -222,26 +243,27 @@ inline bool ecs_entity_alive(const ecs_world &world, ecs_id id)
 // free-list push in ecs_release_slot, before any change: pool->drop does not throw (nothrow move, rv_ecs_store.hpp).
 [[nodiscard]] inline int ecs_entity_destroy(ecs_world &world, ecs_id id)
 {
+    auto &state = detail::ecs_state(world);
     return ecs_guard([&] {
         if (!ecs_entity_alive(world, id)) {
             return RV_ERR_NOENT;
         }
         ecs_release_slot(world, id.index);
-        for (const std::unique_ptr<ecs_pool_base> &pool : world.pools) {
+        for (const std::unique_ptr<ecs_pool_base> &pool : state.pools) {
             if (pool) {
                 pool->drop(id);
             }
         }
-        ecs_slot &slot = world.slots[id.index];
+        ecs_slot &slot = state.slots[id.index];
         slot.live = false;
-        --world.live_count;
+        --state.live_count;
         return RV_OK;
     });
 }
 
 inline uint32_t ecs_world_count(const ecs_world &world)
 {
-    return world.live_count;
+    return detail::ecs_state(world).live_count;
 }
 
 } // namespace rv_pdkkit
