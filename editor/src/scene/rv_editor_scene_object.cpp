@@ -244,21 +244,18 @@ std::string rv_editor_object_get_kind(const rv_editor_scene_object &o)
     return std::string(kind_group);
 }
 
-// Creation only: adds the kind's marker to an object without one; a marker is never removed. A mesh's marker comes
-// with its model (set_mesh), so a mesh stays a group until then: no warning. A group has no marker.
-// The object's kind after the call is logged when it is not the one asked, except a mesh that is still a group.
+// Creation only: adds the kind's marker to an object without one; a marker is never removed. A group has no marker,
+// so no row matches it. The object's kind after the call is logged when it is not the one asked.
 void rv_editor_object_set_kind(rv_editor_scene_object &o, const std::string &value)
 {
-    if (value != kind_mesh && value != kind_group) {
-        for (const kind_row &row : kind_rows()) {
-            if (row.kind == value) {
-                rv_editor_fields_component_ensure(o, row.component);
-                break;
-            }
+    for (const kind_row &row : kind_rows()) {
+        if (row.kind == value) {
+            rv_editor_fields_component_ensure(o, row.component);
+            break;
         }
     }
     const std::string kind = rv_editor_object_get_kind(o);
-    if (kind != value && !(value == kind_mesh && kind == kind_group)) {
+    if (kind != value) {
         RV_LOG_WARN(scene_log_tag, "object '{}': kind '{}' asked, the object stays '{}'", o.id, value, kind);
     }
 }

@@ -4,6 +4,7 @@
 #include "scene/rv_editor_scene_edit.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 #include "pdk/rv_err.h"
@@ -29,17 +30,34 @@ constexpr int affine_cols = 4;
 // Default name for newly created camera objects.
 constexpr std::string_view default_camera_name = "Camera";
 // Default name for newly created mesh objects.
-constexpr std::string_view default_mesh_name = "Box";
-// Default name for newly created quad objects.
-constexpr std::string_view default_quad_name = "Quad";
-// Default name for newly created billboard objects.
-constexpr std::string_view default_billboard_name = "Billboard";
+constexpr std::string_view default_mesh_name = "Model";
 // Default name for newly created volume objects.
 constexpr std::string_view default_volume_name = "Volume";
 // Default name for newly created group objects.
 constexpr std::string_view default_group_name = "Group";
 // Suffix appended to duplicated object names.
 constexpr std::string_view duplicate_suffix = " copy";
+
+// The default name of a new object of each kind; a kind not listed gets the group's name.
+struct default_name_row {
+    std::string_view kind;
+    std::string_view name;
+};
+
+constexpr std::array default_names = { default_name_row{ kind_camera, default_camera_name },
+    default_name_row{ kind_mesh, default_mesh_name },
+    default_name_row{ kind_volume, default_volume_name },
+    default_name_row{ kind_group, default_group_name } };
+
+std::string_view rv_editor_default_name(const std::string &kind)
+{
+    for (const default_name_row &row : default_names) {
+        if (row.kind == kind) {
+            return row.name;
+        }
+    }
+    return default_group_name;
+}
 
 // The object's layers: its component names, the hidden marker component left out. Kind markers are components too.
 std::vector<std::string> rv_editor_object_layers(const rv_editor_scene_object &o)
@@ -377,13 +395,7 @@ std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kin
     rv_editor_scene_object o;
     o.id = rv_editor_scene_new_id(doc.scene);
     rv_editor_object_set_kind(o, kind);
-    const std::string_view name = kind == kind_camera ? default_camera_name :
-        kind == kind_mesh                             ? default_mesh_name :
-        kind == kind_quad                             ? default_quad_name :
-        kind == kind_billboard                        ? default_billboard_name :
-        kind == kind_volume                           ? default_volume_name :
-                                                        default_group_name;
-    rv_editor_object_set_name(o, std::string(name));
+    rv_editor_object_set_name(o, std::string(rv_editor_default_name(kind)));
     o.parent = rv_editor_scene_find(doc.scene, parent) >= 0 ? parent : std::string();
     doc.scene.objects.push_back(o);
     rv_editor_scene_select(doc, o.id);
