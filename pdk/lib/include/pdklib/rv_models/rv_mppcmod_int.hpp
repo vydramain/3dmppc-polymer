@@ -1,13 +1,11 @@
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <span>
 #include <string>
 #include <utility>
@@ -21,15 +19,15 @@ namespace rv_pdklib
 
 // --- the integer .mppcmod layout ---
 //
-// It replaces the old layout in rv_mppcmod.hpp; the next task deletes that one and this header
-// becomes the ONE description. Little-endian. Vertices are int16 at scale 2^-shift metres;
-// version, part and triangle records come from rv_mppcmod.hpp.
+// The integer file layout: the shift, the vertex records, and the parse and write of the integer
+// model. The common header and the part and triangle records are in rv_mppcmod.hpp.
+// Little-endian. Vertices are int16 at scale 2^-shift metres.
 
 /// Bytes of the integer header: the common 16, then the shift and 3 reserved bytes.
 inline constexpr int rv_mppcmod_int_header_size = 20;
 
-/// Magic of the integer layout. Not "MPMD": the PDK version is unchanged on this branch and the
-/// sizes alone cannot tell the two layouts apart, so the magic does.
+/// Magic of the integer layout. Not MPMD, the retired float layout's magic: the version does not
+/// tell the layouts apart, so the magic does.
 inline constexpr char rv_mppcmod_int_magic[4] = { 'M', 'P', 'M', 'I' };
 
 /// Byte offsets of the fields after the common 16-byte header.
@@ -81,7 +79,7 @@ inline int16_t rv_mppcmod_int_read_i16(const std::byte *p)
 }
 } // namespace detail
 
-// --- validate, parse, write: the ONE set once the old layout is deleted ---
+// --- validate, parse, write ---
 
 /// Checks every rule an integer model must hold. Returns RV_OK, or RV_ERR_INVAL
 /// with `error` set to one sentence naming the broken rule.
@@ -92,57 +90,9 @@ inline int rv_mppcmod_int_validate(const rv_mppcmod_int_model &model, std::strin
             std::to_string(rv_mppcmod_int_max_shift) + " the format allows";
         return RV_ERR_INVAL;
     }
-    if (model.parts.size() > rv_mppcmod_max_parts) {
-        error = "has " + std::to_string(model.parts.size()) + " parts, more than the 65535 a u16 count holds";
-        return RV_ERR_INVAL;
-    }
-    if (model.vertices.size() > rv_mppcmod_max_vertices) {
-        error = "has " + std::to_string(model.vertices.size()) + " vertices, more than the 65535 the format allows";
-        return RV_ERR_INVAL;
-    }
-    if (model.triangles.size() > std::numeric_limits<uint32_t>::max()) {
-        error = "has " + std::to_string(model.triangles.size()) + " triangles, more than a u32 count holds";
-        return RV_ERR_INVAL;
-    }
-    for (size_t t = 0; t < model.triangles.size(); ++t) {
-        for (uint16_t index : model.triangles[t].index) {
-            if (index >= model.vertices.size()) {
-                error = "triangle " + std::to_string(t) + " uses vertex " + std::to_string(index) + ", not one of the " +
-                    std::to_string(model.vertices.size());
-                return RV_ERR_INVAL;
-            }
-        }
-    }
-
-    // Parts as [first, end). Sorted by start, a part overlaps an earlier one
-    // exactly when it starts before the previous part ends.
-    std::vector<std::pair<uint64_t, uint64_t>> spans;
-    for (size_t i = 0; i < model.parts.size(); ++i) {
-        const rv_mppcmod_part &part = model.parts[i];
-        const uint64_t end = static_cast<uint64_t>(part.first_tri) + part.tri_count;
-        if (end > model.triangles.size()) {
-            error = "part " + std::to_string(i) + " ends at triangle " + std::to_string(end) + ", past the " +
-                std::to_string(model.triangles.size());
-            return RV_ERR_INVAL;
-        }
-        if (part.texture.size() > rv_mppcmod_max_name) {
-            error = "part " + std::to_string(i) + " names a texture of " + std::to_string(part.texture.size()) +
-                " bytes, more than 255";
-            return RV_ERR_INVAL;
-        }
-        if (!detail::rv_mppcmod_name_is_plain(part.texture)) {
-            error = "part " + std::to_string(i) +
-                " names a texture that is not a plain file name (no '/', '\\', ':', control bytes, '.' or '..')";
-            return RV_ERR_INVAL;
-        }
-        spans.emplace_back(part.first_tri, end);
-    }
-    std::sort(spans.begin(), spans.end());
-    for (size_t k = 1; k < spans.size(); ++k) {
-        if (spans[k].first < spans[k - 1].second) {
-            error = "parts overlap at triangle " + std::to_string(spans[k].first);
-            return RV_ERR_INVAL;
-        }
+    const int records = detail::rv_mppcmod_check_records(model.parts, model.triangles, model.vertices.size(), error);
+    if (records != RV_OK) {
+        return records;
     }
     return RV_OK;
 }
