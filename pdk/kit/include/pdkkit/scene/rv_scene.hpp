@@ -27,9 +27,9 @@ namespace rv_pdklib
 struct rv_scene_object {
     std::string id; // stable: the editor gives it and never changes it
     std::string name;
-    int32_t parent = -1; // index into rv_scene::objects; -1 at the root
-    std::string kind;    // "group", "camera", "mesh", "quad", "billboard" or "volume"
-    std::string entity;  // entity type name; empty: the base type
+    int32_t parent = -1;                       // index into rv_scene::objects; -1 at the root
+    std::string kind;                          // "group", "camera", "mesh", "quad", "billboard" or "volume"
+    std::string entity;                        // entity type name; empty: the base type
     fx_vec3 position{ 0, 0, 0 };               // Q20.12 scene units
     fx_vec3 rotation{ 0, 0, 0 };               // Q20.12 degrees; R = Ry * Rx * Rz; [x (pitch), y (yaw), z (roll)]
     fx_vec3 scale{ fx_one, fx_one, fx_one };   // Q20.12, 1.0 is fx_one
@@ -89,5 +89,5 @@ inline void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_v
 
 } // namespace rv_pdklib
 
-#include "pdklib/rv_scene/rv_scene_read.hpp"
-#include "pdklib/rv_scene/rv_scene_write.hpp"
+#include "pdkkit/scene/rv_scene_read.hpp"
+#include "pdkkit/scene/rv_scene_write.hpp"

@@ -20,7 +20,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
-#include "pdklib/rv_scene/rv_scene.hpp"
+#include "pdkkit/scene/rv_scene.hpp"
 
 namespace rv_pdkkit
 {

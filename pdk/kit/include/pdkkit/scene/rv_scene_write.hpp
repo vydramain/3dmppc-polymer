@@ -15,7 +15,7 @@
 #include <system_error>
 
 #include "pdk/de/rv_dv.h"
-#include "rv_scene.hpp"
+#include "pdkkit/scene/rv_scene.hpp"
 
 namespace rv_pdklib
 {

@@ -12,7 +12,7 @@
 
 #include "imgui.h"
 
-#include "pdklib/rv_scene/rv_scene.hpp"
+#include "pdkkit/scene/rv_scene.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_field_sizes.hpp"

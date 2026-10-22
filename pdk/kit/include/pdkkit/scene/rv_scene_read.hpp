@@ -3,8 +3,8 @@
 // The scene loader and its transforms, inline: a disc gets the SDK as headers only, with no object code.
 // Included by rv_scene.hpp first, before rv_scene_write.hpp.
 
-#include "rv_scene.hpp"
-#include "rv_scene_space.hpp"
+#include "pdkkit/scene/rv_scene.hpp"
+#include "pdklib/rv_scene/rv_scene_space.hpp"
 
 #include <array>
 #include <cmath>

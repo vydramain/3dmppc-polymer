@@ -12,7 +12,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_math/rv_fx.hpp"
-#include "pdklib/rv_scene/rv_scene.hpp"
+#include "pdkkit/scene/rv_scene.hpp"
 #include "project/rv_editor_toml.hpp"
 
 namespace rv_editor
