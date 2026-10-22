@@ -111,6 +111,12 @@ inline constexpr double rv_editor_camera_fov_degrees = 50.0;
 // The field in Q20.12, for the view and the filled raster's buffer projection.
 inline constexpr rv_pdklib::fx rv_editor_camera_fov_fx =
     static_cast<rv_pdklib::fx>(rv_editor_camera_fov_degrees * rv_pdklib::fx_one);
+// Far clip plane, metres: past the camera's largest distance (200 m, distance_max_raw in rv_editor_scene_navigate.cpp)
+// with room for the scene.
+inline constexpr double rv_editor_camera_far_metres = 1000.0;
+// The far plane in Q20.12 for rv_gte_camera_make; in the header so the filled raster's depth key can use it.
+inline constexpr rv_pdklib::fx rv_editor_camera_far_fx =
+    static_cast<rv_pdklib::fx>(rv_editor_camera_far_metres * rv_pdklib::fx_one);
 // Corners of a triangle.
 inline constexpr int tri_vertices = 3;
 // Seed of a box's min/max: lo starts at +it and hi at -it, and the first coordinate replaces it.

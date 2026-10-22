@@ -15,11 +15,6 @@ namespace rv_editor
 namespace
 {
 
-// Far clip plane, metres: past the camera's largest distance (200 m) with room for the scene.
-constexpr double camera_far_metres = 1000.0;
-// Far plane in Q20.12 for rv_gte_camera_make; the field is rv_editor_camera_fov_fx, the near plane rv_editor_near_fx.
-constexpr rv_pdklib::fx camera_far_fx = static_cast<rv_pdklib::fx>(camera_far_metres * rv_pdklib::fx_one);
-
 // Viewport centering: half of canvas dimension to find the center point.
 constexpr float viewport_center_half = 0.5f;
 
@@ -78,7 +73,7 @@ int rv_editor_camera_build(const rv_editor_scene_camera &c, float height, rv_pdk
         rv_editor_camera_fov_fx,
         static_cast<std::int32_t>(std::lround(height)),
         rv_editor_near_fx,
-        camera_far_fx,
+        rv_editor_camera_far_fx,
         out);
 }
 
