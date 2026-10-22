@@ -34,7 +34,7 @@ inline std::string rv_scene_at(const std::string &origin, int line)
 }
 
 // The lines above the first section's header, as the file has them; the whole text with no section.
-inline std::string rv_scene_preamble(const std::string &text, const rv_manifest_tree &tree)
+inline std::string rv_scene_preamble(const std::string &text, const rv_pdklib::rv_manifest_tree &tree)
 {
     if (tree.sections.empty()) {
         return text;
@@ -75,17 +75,17 @@ inline std::string rv_scene_fault_text(rv_scene_fault f)
 }
 
 // One number of a scene file: decimal units, rounded to the nearest Q20.12 value.
-inline rv_scene_fault rv_scene_number_value(double v, fx &out)
+inline rv_scene_fault rv_scene_number_value(double v, rv_pdklib::fx &out)
 {
-    return fx_from_double(v, out) == RV_OK ? rv_scene_fault::none : rv_scene_fault::out_of_range;
+    return rv_pdklib::fx_from_double(v, out) == RV_OK ? rv_scene_fault::none : rv_scene_fault::out_of_range;
 }
 
-inline rv_scene_fault rv_scene_vector(const rv_manifest_tree_entry &e, fx_vec3 &out)
+inline rv_scene_fault rv_scene_vector(const rv_pdklib::rv_manifest_tree_entry &e, rv_pdklib::fx_vec3 &out)
 {
-    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_vector_components) {
+    if (e.value.kind != rv_pdklib::rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_vector_components) {
         return rv_scene_fault::not_three_numbers;
     }
-    fx v[rv_scene_vector_components] = {};
+    rv_pdklib::fx v[rv_scene_vector_components] = {};
     for (int i = 0; i < rv_scene_vector_components; ++i) {
         const rv_scene_fault f = rv_scene_number_value(e.value.nums[static_cast<size_t>(i)], v[i]);
         if (f != rv_scene_fault::none) {
@@ -96,9 +96,9 @@ inline rv_scene_fault rv_scene_vector(const rv_manifest_tree_entry &e, fx_vec3 &
     return rv_scene_fault::none;
 }
 
-inline rv_scene_fault rv_scene_uv(const rv_manifest_tree_entry &e, fx out[rv_scene_uv_components])
+inline rv_scene_fault rv_scene_uv(const rv_pdklib::rv_manifest_tree_entry &e, rv_pdklib::fx out[rv_scene_uv_components])
 {
-    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_uv_components) {
+    if (e.value.kind != rv_pdklib::rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_uv_components) {
         return rv_scene_fault::not_four_numbers;
     }
     for (int i = 0; i < rv_scene_uv_components; ++i) {
@@ -110,9 +110,9 @@ inline rv_scene_fault rv_scene_uv(const rv_manifest_tree_entry &e, fx out[rv_sce
     return rv_scene_fault::none;
 }
 
-inline int rv_scene_tint(const rv_manifest_tree_entry &e, rv_color &out)
+inline int rv_scene_tint(const rv_pdklib::rv_manifest_tree_entry &e, rv_color &out)
 {
-    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_tint_channels) {
+    if (e.value.kind != rv_pdklib::rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_tint_channels) {
         return RV_ERR_INVAL;
     }
     for (int i = 0; i < rv_scene_tint_channels; ++i) {
@@ -127,15 +127,15 @@ inline int rv_scene_tint(const rv_manifest_tree_entry &e, rv_color &out)
     return RV_OK;
 }
 
-inline rv_scene_fault rv_scene_tess(const rv_manifest_tree_entry &e, fx &out)
+inline rv_scene_fault rv_scene_tess(const rv_pdklib::rv_manifest_tree_entry &e, rv_pdklib::fx &out)
 {
-    fx q = 0;
+    rv_pdklib::fx q = 0;
     double v = 0.0;
     rv_scene_fault f = rv_scene_fault::not_a_number;
-    if (e.value.kind == rv_manifest_value_kind::integer) {
+    if (e.value.kind == rv_pdklib::rv_manifest_value_kind::integer) {
         v = static_cast<double>(e.value.num);
-        f = fx_from_units(e.value.num, q) == RV_OK ? rv_scene_fault::none : rv_scene_fault::out_of_range;
-    } else if (e.value.kind == rv_manifest_value_kind::real) {
+        f = rv_pdklib::fx_from_units(e.value.num, q) == RV_OK ? rv_scene_fault::none : rv_scene_fault::out_of_range;
+    } else if (e.value.kind == rv_pdklib::rv_manifest_value_kind::real) {
         v = e.value.real;
         f = rv_scene_number_value(v, q);
     }
@@ -154,39 +154,41 @@ inline rv_scene_fault rv_scene_tess(const rv_manifest_tree_entry &e, fx &out)
 
 // The [scene] version, or the pre-version `format` header, into `out`; a version that is
 // missing, malformed or not compatible is reported in `problems`.
-inline void rv_scene_read_version(const rv_manifest_tree &tree, const std::string &origin, rv_scene &out, std::string &problems)
+inline void
+rv_scene_read_version(const rv_pdklib::rv_manifest_tree &tree, const std::string &origin, rv_scene &out, std::string &problems)
 {
     bool has_version = false;
     bool has_legacy_format = false;
     std::string version_str;
-    for (const rv_manifest_tree_section &section : tree.sections) {
+    for (const rv_pdklib::rv_manifest_tree_section &section : tree.sections) {
         if (section.name != "scene" || section.array) {
             continue;
         }
-        for (const rv_manifest_tree_entry &e : section.entries) {
-            if (e.key == "version" && e.value.kind == rv_manifest_value_kind::string) {
+        for (const rv_pdklib::rv_manifest_tree_entry &e : section.entries) {
+            if (e.key == "version" && e.value.kind == rv_pdklib::rv_manifest_value_kind::string) {
                 version_str = e.value.str;
                 has_version = true;
-            } else if (e.key == "format" && e.value.kind == rv_manifest_value_kind::integer) {
+            } else if (e.key == "format" && e.value.kind == rv_pdklib::rv_manifest_value_kind::integer) {
                 has_legacy_format = true;
             }
         }
     }
     if (has_version) {
         uint32_t major = 0, minor = 0;
-        if (rv_version_parse(version_str, major, minor) != RV_OK) {
+        if (rv_pdklib::rv_version_parse(version_str, major, minor) != RV_OK) {
             problems += origin + ": malformed [scene] version '" + version_str + "'\n";
-        } else if (!rv_version_compatible(major, minor)) {
+        } else if (!rv_pdklib::rv_version_compatible(major, minor)) {
             problems += origin + ": scene version " + std::to_string(major) + "." + std::to_string(minor) +
-                " is not compatible with this PDK's " + rv_version_str + "\n";
+                " is not compatible with this PDK's " + rv_pdklib::rv_version_str + "\n";
         } else {
             out.version_major = major;
             out.version_minor = minor;
         }
     } else if (has_legacy_format) {
         // The pre-version header: read as 0.0, compatible only while the PDK major is 0.
-        if (!rv_version_compatible(0, 0)) {
-            problems += origin + ": scene version 0.0 is not compatible with this PDK's " + std::string(rv_version_str) + "\n";
+        if (!rv_pdklib::rv_version_compatible(0, 0)) {
+            problems += origin + ": scene version 0.0 is not compatible with this PDK's " +
+                std::string(rv_pdklib::rv_version_str) + "\n";
         }
     } else {
         problems += origin + ": no [scene] version\n";
@@ -202,14 +204,14 @@ struct rv_scene_component_ref {
 
 // `object` and `name` are required strings; every other key is a field of the component.
 inline int rv_scene_component_read(const std::string &origin,
-    const rv_manifest_tree_section &section,
+    const rv_pdklib::rv_manifest_tree_section &section,
     rv_scene_component_ref &out,
     std::string &problems)
 {
     out.line = section.line;
     bool ok = true;
-    for (const rv_manifest_tree_entry &e : section.entries) {
-        const bool text_value = e.value.kind == rv_manifest_value_kind::string;
+    for (const rv_pdklib::rv_manifest_tree_entry &e : section.entries) {
+        const bool text_value = e.value.kind == rv_pdklib::rv_manifest_value_kind::string;
         std::string *field = e.key == "object" ? &out.object : e.key == "name" ? &out.component.name : nullptr;
         if (field == nullptr) {
             out.component.fields.push_back(e);
