@@ -37,7 +37,7 @@ namespace rv_pdktools
 /// Nothing is accumulated across textures.
 ///
 /// @param baker_hint  value of `--baker` (a directory, or a file in one); empty searches for mppctexbaker
-/// @param manifest    the validated manifest; `textures_files.format` and `budget` are read
+/// @param manifest    the validated manifest; `assets_texture_format` and `budget` are read
 /// @param disc_dir    absolute disc directory the sources are relative to
 /// @param plan        the planned archive; only its texture range is touched
 /// @param error       set with the refusal, naming the file and the numbers
@@ -56,7 +56,7 @@ int bake_textures(const std::string &baker_hint,
 /// @param baker     the mppctexbaker found by find_baker()
 /// @param source    the PNG to bake
 /// @param payload   where the .mppctex is written
-/// @param manifest  `textures_files.format` is the --format; `budget` is the limit
+/// @param manifest  `assets_texture_format` is the --format; `budget` is the limit
 /// @param label     how the entry is named in messages, e.g. its disc path
 /// @param error     set with the refusal, naming the entry and the numbers
 /// @return RV_OK on success; else the RV_ERR_* of the refusing step, `error` set

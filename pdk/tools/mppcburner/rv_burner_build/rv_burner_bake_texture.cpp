@@ -58,7 +58,7 @@ static int rv_burner_bake_texture_select(const rv_pdklib::rv_manifest &manifest,
         return !item_ec && item_canonical == canonical_source;
     });
     if (found == last) {
-        error = std::format("'{}' is not in [textures]", source);
+        error = std::format("'{}' is not in [assets] or [textures]", source);
         return RV_ERR_NOENT;
     }
 

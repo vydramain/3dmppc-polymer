@@ -148,8 +148,8 @@ struct rv_manifest {
     // [assets] - globs copied into the archive verbatim
     std::vector<std::string> assets_files;
 
-    // [assets.texture] - texel format the burner will bake the PNG files of [assets] (and the model pictures) into
-    // on the next step; until then nothing reads this field. idx8 is the reference machine's.
+    // [assets.texture] - texel format the burner bakes the PNG files of [assets] and the model pictures into;
+    // idx8 is the reference machine's.
     rv_texfmt assets_texture_format = rv_texfmt::RV_TEXFMT_IDX8;
 
     // [textures] - globs baked through mppctexbaker on the way in

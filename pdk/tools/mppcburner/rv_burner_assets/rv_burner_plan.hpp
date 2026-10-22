@@ -38,15 +38,17 @@ struct archive_plan {
     std::size_t model_count = 0;         ///< how many model entries follow it
     std::size_t first_model_texture = 0; ///< index of the first texture a model names
     std::size_t model_texture_count = 0; ///< how many model texture entries follow it
+    std::vector<std::string> asset_models; ///< [assets] models; plan_models() moves them into the model block
 };
 
 /// Plan every archive entry the manifest asks for, and refuse a plan whose flat
 /// names collide.
 ///
 /// Nothing is read, baked or compiled here — only names and paths are decided.
-/// Models are not in this plan: plan_models() appends them after it.
+/// [assets] models are not in the item list: they wait in asset_models, and
+/// plan_models() places them with the [models] files.
 ///
-/// @param manifest     the validated manifest; assets, textures and scripts are read
+/// @param manifest     the validated manifest; assets, textures, sounds and scripts are read
 /// @param disc_dir     absolute, canonical disc directory the globs resolve against
 /// @param texture_dir  directory baked .mppctex files will be written to
 /// @param scripts_dir  directory compiled .luac files will be written to

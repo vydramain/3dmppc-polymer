@@ -23,7 +23,7 @@ int rv_pdktools::write_map(const std::filesystem::path &path,
     for (std::size_t i = 0; i < plan.asset_count; ++i) {
         line(plan.items[i], "file", "");
     }
-    const rv_pdklib::rv_texfmt_name *format = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
+    const rv_pdklib::rv_texfmt_name *format = rv_pdklib::rv_texfmt_name::by_format(manifest.assets_texture_format);
     for (std::size_t i = plan.first_texture; i < plan.first_texture + plan.texture_count; ++i) {
         line(plan.items[i], "texture", format != nullptr ? format->text : "");
     }

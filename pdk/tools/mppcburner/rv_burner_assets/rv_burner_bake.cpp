@@ -91,7 +91,7 @@ int rv_pdktools::bake_one_texture(const std::string &baker,
     std::string &error)
 {
     // The accepted --format spellings are the rows of rv_texfmt_names and are not restated here.
-    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
+    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.assets_texture_format);
     const std::string texfmt_text = texfmt != nullptr ? texfmt->text : "";
 
     // --- run mppctexbaker ---

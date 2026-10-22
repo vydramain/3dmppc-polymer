@@ -53,10 +53,10 @@ int plan_model_textures(const std::vector<model_texture> &textures,
 /// Bake each model texture from its PNG into the payload planned for it.
 ///
 /// Textures are baked in planned order, each through bake_one_texture, so the format
-/// and the [budget] are those of [textures].
+/// is that of [assets.texture] and the size limit is [budget] budget.pccv.texture_max_width/height.
 ///
 /// @param baker_hint  value of `--baker`; empty searches for mppctexbaker
-/// @param manifest    the validated manifest; `textures_files.format` and `budget` are read
+/// @param manifest    the validated manifest; `assets_texture_format` and `budget` are read
 /// @param textures    what bake_models collected
 /// @param plan        the plan plan_model_textures extended
 /// @param error       set with the refusal, naming the baker or the texture
