@@ -1,7 +1,7 @@
 #pragma once
 
-// The records of a scene document, built from the asset's bytes as the console's scene reads hold them:
-// the same fields, the same refusals. A disc builds them here, so its loader needs no console.
+// The records of a scene document, built from the asset's bytes. A disc builds them here, so its loader needs no
+// console.
 
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +20,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
+#include "pdkkit/component/rv_component_capacity.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
 
 namespace rv_pdkkit
@@ -30,14 +31,6 @@ inline constexpr const char *ecs_scene_records_tag = "ecs-scene";
 // An authored mesh ".glb" or ".gltf" is served from the disc as ".mppcmod" with the same stem and directory.
 inline constexpr std::string_view ecs_scene_mesh_exts[] = { ".glb", ".gltf" };
 inline constexpr std::string_view ecs_scene_model_ext = ".mppcmod";
-
-// Bytes per name, NUL included: the arrays of ecs_scene_object, ecs_scene_entity and ecs_scene_component. The
-// sizes match the console's scene reads, so a scene the drive serves loads here too.
-inline constexpr int ecs_name_capacity = 64;
-// Bytes per component field value, NUL included.
-inline constexpr int ecs_value_capacity = 64;
-// Fields per component, the fixed size of ecs_scene_component: a component with more refuses the scene.
-inline constexpr int ecs_component_field_capacity = 8;
 
 // Kinds of objects in a scene: the object kinds of the editor's scene.
 enum class ecs_scene_kind {
