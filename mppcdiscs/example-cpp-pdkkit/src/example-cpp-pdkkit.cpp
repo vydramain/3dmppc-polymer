@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "pdk/de/rv_dv.h"
@@ -29,8 +28,6 @@ namespace
 
 // The scene this disc draws, as scenes/main.scene.toml lands on the disc.
 constexpr const char *RV_EXAMPLE_CPP_SCENE_NAME = "main.scene.toml";
-// The scene object that carries the factory board lettering.
-constexpr const char *RV_EXAMPLE_CPP_BOARD_NAME = "board";
 // The frame system that sets the camera from the route keys.
 constexpr const char *RV_EXAMPLE_CPP_ROUTE_SYSTEM = "route";
 // The scene component of a lamp_N_light object: its description's name, and the name of its frame system.
@@ -40,8 +37,9 @@ constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
 
-// The route's entity type: the world keeps a pointer to it, so it has static storage, not a member of the disc.
+// The route's and the board's entity types: the world keeps pointers to them, so they have static storage.
 const ecs_entity_route route_type;
+const ecs_entity_board board_type;
 
 } // namespace
 
@@ -65,7 +63,7 @@ public:
         }
         scene_read_ = true;
         if (!board_found_) {
-            RV_LOG_WARN("scene", "no '{}' object: the board has no lettering", RV_EXAMPLE_CPP_BOARD_NAME);
+            RV_LOG_WARN("scene", "no board entity: the board has no lettering");
         }
         init_sound();
         return RV_OK;
@@ -101,7 +99,7 @@ private:
 
     // read_scene succeeded: the scene's route and board are in world_, so the disc draws and plays.
     bool scene_read_ = false;
-    // The scene has the board object; the sound takes it into account.
+    // The scene has a board entity (one with the board marker); the sound takes it into account.
     bool board_found_ = false;
     bool draw_error_logged_ = false;
     // The music and the clack; sound_ready_ is false when init_sound failed, and then nothing plays.
@@ -111,13 +109,17 @@ private:
     std::vector<std::string> sound_errors_logged_;
 };
 
-// Registers the route's entity type and frame system, then the lamp_light and flicker components with their frame
-// systems; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
+// Registers the route and board entity types, the route's frame system, then the lamp_light and flicker components with
+// their frame systems; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
 int rv_dmain::register_ecs()
 {
     const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
     if (type_code != RV_OK) {
         return type_code;
+    }
+    const int board_type_code = rv_pdkkit::ecs_entity_register(world_, board_type);
+    if (board_type_code != RV_OK) {
+        return board_type_code;
     }
     const int system_code =
         rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_ROUTE_SYSTEM, example_cpp_pdkkit::ecs_system_route);
@@ -173,24 +175,24 @@ int rv_dmain::read_scene()
     return RV_OK;
 }
 
-// The board from the entities of load load_number, in file order. A nameless entity refuses the scene.
+// Refuses the scene with a nameless entity of load load_number; then sets board_found_ from the board entities.
 int rv_dmain::collect_parts(uint32_t load_number)
 {
-    const auto find_board = [this](rv_pdkkit::ecs_id id) -> int {
+    const auto check_name = [this](rv_pdkkit::ecs_id id) -> int {
         const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world_, id);
         if (name == nullptr) {
             RV_LOG_ERR("scene", "scene refused: an entity has no name");
             return RV_ERR_INVAL;
         }
-        if (std::string_view{ name->text } == RV_EXAMPLE_CPP_BOARD_NAME) {
-            board_found_ = true;
-        }
         return RV_OK;
     };
-    const int walk_code = rv_pdkkit::ecs_scene_entities(world_, load_number, find_board);
+    const int walk_code = rv_pdkkit::ecs_scene_entities(world_, load_number, check_name);
     if (walk_code != RV_OK) {
         return walk_code;
     }
+    rv_pdkkit::ecs_component_each<ecs_component_board>(world_, [this](rv_pdkkit::ecs_id, ecs_component_board &) {
+        board_found_ = true;
+    });
     return RV_OK;
 }
 

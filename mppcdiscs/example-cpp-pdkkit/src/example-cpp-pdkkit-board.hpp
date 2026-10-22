@@ -6,6 +6,7 @@
 #include "pdk/rv_err.h"
 #include "pdkkit/component/rv_component_macro.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
+#include "pdkkit/ecs/rv_ecs_entity.hpp"
 #include "pdkkit/ecs/rv_ecs_frame.hpp"
 
 namespace example_cpp_pdkkit
@@ -33,6 +34,21 @@ struct ecs_component_flicker {
         }
         return RV_OK;
     }
+};
+
+// Marks the board entity: the scene's board object has it; the disc finds the board by it and passes the result to the sound.
+struct ecs_component_board {};
+
+// Scene entity type "board": a group that gets the board marker when it is created.
+class ecs_entity_board : public rv_pdkkit::ecs_entity
+{
+public:
+    ecs_entity_board()
+        : rv_pdkkit::ecs_entity("board")
+    {
+    }
+
+    int add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id) const override;
 };
 
 // Frame system: shows each flicker entity whose cell is lit at the frame's place in the route period, hides the others.

@@ -10,6 +10,7 @@
 #include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "pdkkit/ecs/rv_ecs_frame.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp_pdkkit
@@ -85,6 +86,17 @@ int ecs_system_flicker(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &
         if (hidden_code != RV_OK) {
             return hidden_code;
         }
+    }
+    return RV_OK;
+}
+
+int ecs_entity_board::add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id) const
+{
+    ecs_component_board *board = nullptr;
+    const int board_code = rv_pdkkit::ecs_component_ensure<ecs_component_board>(world, id, board);
+    if (board_code != RV_OK) {
+        RV_LOG_ERR("scene", "board component not added: rv_err {}", board_code);
+        return board_code;
     }
     return RV_OK;
 }
