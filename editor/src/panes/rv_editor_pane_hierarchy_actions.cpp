@@ -95,10 +95,10 @@ void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv
     }
 }
 
-// Mesh reads "box" in the editor.
+// A mesh is an entity with the model component, so it reads "model".
 const char *rv_editor_scene_kind_label(const std::string &kind)
 {
-    return kind == kind_mesh ? "box" : kind.c_str();
+    return kind == kind_mesh ? "model" : kind.c_str();
 }
 
 void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)

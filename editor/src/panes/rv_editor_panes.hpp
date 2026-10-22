@@ -165,7 +165,7 @@ void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme
 // Runs an action on a copy of the Scene camera, queuing a changed camera (rv_editor_pane_hierarchy_actions.cpp).
 void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv_editor_scene_action action);
 // The object kinds the Add menus offer, in menu order, and the label each one shows.
-// The label points into `kind` (except mesh's "box"): it lives only as long as `kind`.
+// The label points into `kind` (except mesh's "model"): it lives only as long as `kind`.
 std::span<const std::string_view> rv_editor_hierarchy_kinds();
 const char *rv_editor_scene_kind_label(const std::string &kind);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
