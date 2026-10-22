@@ -12,6 +12,9 @@
 #include "panes/rv_editor_parts_ops.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
 #include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
+#include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
@@ -29,6 +32,15 @@ double rv_editor_snap(double v, double step)
     return std::round(v / step) * step;
 }
 
+// Logs a warning once: `reported` is the caller's function-local flag, set on the first call.
+void rv_editor_warn_once(bool &reported, const char *text)
+{
+    if (!reported) {
+        reported = true;
+        RV_LOG_WARN(scene_log_tag, "{}", text);
+    }
+}
+
 constexpr int space_axes = 3;
 constexpr double half = 0.5;
 constexpr double rotation_speed_factor = 0.5;
@@ -43,19 +55,16 @@ constexpr double perspective_view_pitch = 25.0;
 constexpr double top_view_pitch = 89.9;
 constexpr double right_view_yaw = -90.0;
 constexpr float dropdown_width_factor = 5.0f;
-constexpr double snap_step_epsilon = 1e-9;
-// Preset angles are exact; a drag leaves the camera off them by more than this (degrees).
-constexpr double view_match_epsilon = 1e-6;
-constexpr double view_full_turn_degrees = 360.0;
 // Blank space between toolbar groups, in font sizes.
 constexpr float group_gap_factor = 0.5f;
 
-// Snap step labels and values for the viewport tool dropdown.
+// Snap steps in scene units. Each is rounded to raw when the camera or the dropdown takes it: 0.1 is raw 410
+// (0.10009765625), and the drag snaps to that step.
 constexpr const char *snap_step_labels[] = { "0.1", "0.25", "0.5", "1" };
 constexpr double snap_step_values[] = { 0.1, 0.25, 0.5, 1.0 };
 static_assert(std::size(snap_step_labels) == std::size(snap_step_values),
     "snap_step_labels and snap_step_values must have equal size");
-// Default snap step choice index (0.25 matches camera_snap_step_default in rv_editor_app.hpp).
+// Default snap step choice index (0.25 matches camera_snap_step_default in editor/src/app/rv_editor_app_parts.hpp).
 constexpr int default_snap_step_index = 1;
 
 // One checkbox per layer of the scene; a layer switched off is not drawn or selected.
@@ -99,19 +108,23 @@ constexpr rv_editor_scene_shading_option scene_shadings[] = {
     { "scene_tools.shading_textured", "scene_tools.shading_textured_tooltip", rv_editor_scene_shading::textured },
 };
 
-// The preset the camera is at, or -1 when it is at none.
-int rv_editor_scene_view_index(const rv_editor_scene_camera &cam)
+// The preset the camera is at. Yaw may arrive wrapped (cam-1) or not: rv_editor_camera_at_view compares it modulo a
+// full turn. Index is set only on a match: untouched on no match and on error (warning logged once); the caller pre-sets -1.
+[[nodiscard]] int rv_editor_scene_view_index(const rv_editor_scene_camera &cam, int &index)
 {
+    static bool reported = false;
     for (int i = 0; i < std::ssize(scene_views); ++i) {
-        // The camera's yaw is not wrapped: a turn of 360 degrees is still the same view.
-        const bool at_yaw =
-            std::fabs(std::remainder(cam.yaw - scene_views[i].yaw, view_full_turn_degrees)) < view_match_epsilon;
-        const bool at_pitch = std::fabs(cam.pitch - scene_views[i].pitch) < view_match_epsilon;
-        if (at_yaw && at_pitch) {
-            return i;
+        bool at = false;
+        if (rv_editor_camera_at_view(cam, scene_views[i].yaw, scene_views[i].pitch, at) != RV_OK) {
+            rv_editor_warn_once(reported, "the camera or a scene view preset is outside Q20.12: no scene view is shown");
+            return RV_ERR_INVAL;
+        }
+        if (at) {
+            index = i;
+            return RV_OK;
         }
     }
-    return -1;
+    return RV_OK;
 }
 
 // Width a dropdown needs for its longest item: the text, the arrow button and the frame padding.
@@ -133,13 +146,18 @@ void rv_editor_scene_view_select(rv_editor_scene_camera &cam, const rv_editor_th
     for (size_t i = 0; i < std::size(scene_views); ++i) {
         names[i] = rv_editor_text(scene_views[i].label_id);
     }
-    int view = rv_editor_scene_view_index(cam);
+    int view = -1;
+    // On error no view is shown (the warning is logged).
+    if (rv_editor_scene_view_index(cam, view) != RV_OK) {
+        view = -1;
+    }
     const float width = rv_editor_scene_dropdown_width(names, std::ssize(scene_views));
     rv_editor_flow(width);
     ImGui::SetNextItemWidth(width);
     if (rv_editor_dropdown("##scene_view", &view, names, std::ssize(scene_views), theme)) {
-        cam.yaw = scene_views[view].yaw;
-        cam.pitch = scene_views[view].pitch;
+        if (rv_editor_camera_turn_to(cam, scene_views[view].yaw, scene_views[view].pitch) != RV_OK) {
+            RV_LOG_WARN(scene_log_tag, "the picked scene view is outside Q20.12: the camera is not turned");
+        }
     }
 }
 
@@ -176,10 +194,40 @@ void rv_editor_scene_group_gap()
 }
 
 // Aims the camera at the middle of the box lo..hi, backed off far enough to fit its diagonal.
-void rv_editor_frame_box(rv_editor_scene_camera &cam, const vec3 &lo, const vec3 &hi)
+// RV_ERR_INVAL when the target or the distance leaves Q20.12; the camera is then unchanged.
+[[nodiscard]] int rv_editor_frame_box(rv_editor_scene_camera &cam, const vec3 &lo, const vec3 &hi)
 {
-    cam.target = mul(add(lo, hi), half);
-    cam.distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
+    const vec3 middle = mul(add(lo, hi), half);
+    const double distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
+    rv_pdklib::fx_vec3 target{};
+    rv_pdklib::fx reach = 0;
+    if (rv_editor_frame_to_fx(middle, distance, target, reach) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    rv_editor_camera_set_target_fx(cam, target);
+    rv_editor_camera_set_distance_fx(cam, reach);
+    return RV_OK;
+}
+
+// The dropdown item the camera's snap step is at, by raw match. Index is set only on a match: untouched on no match
+// and on error (warning logged once); the caller pre-sets the default.
+[[nodiscard]] int rv_editor_snap_step_index(const rv_editor_scene_camera &cam, int &index)
+{
+    // Once per process: the dropdown is drawn every frame.
+    static bool reported = false;
+    for (int i = 0; i < std::ssize(snap_step_values); ++i) {
+        bool at = false;
+        if (rv_editor_camera_snap_at(cam, snap_step_values[i], at) != RV_OK) {
+            rv_editor_warn_once(reported,
+                "the camera snap step or a snap value is outside Q20.12: the dropdown shows the default");
+            return RV_ERR_INVAL;
+        }
+        if (at) {
+            index = i;
+            return RV_OK;
+        }
+    }
+    return RV_OK;
 }
 
 } // namespace
@@ -222,8 +270,15 @@ void rv_editor_manipulate(rv_editor_app &app,
         }
         rv_editor_vec3 position = add(drag.before_position, world);
         if (cam.snap) {
+            static bool step_reported = false; // Once per process: a drag would repeat it each frame.
+            rv_pdklib::fx step_fx = 0;
+            if (rv_editor_camera_get_snap_step_fx(cam, step_fx) != RV_OK) {
+                rv_editor_warn_once(step_reported, "camera snap step is outside Q20.12: the object is not moved");
+                break;
+            }
+            const double step = rv_editor_camera_units_of(step_fx);
             for (double &c : position) {
-                c = rv_editor_snap(c, cam.snap_step);
+                c = rv_editor_snap(c, step);
             }
         }
         rv_editor_object_set_position(o, position);
@@ -263,7 +318,9 @@ void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool
         hi{ -bounding_box_infinity, -bounding_box_infinity, -bounding_box_infinity };
     // The selected object's drawn pieces frame alone; without them, its edges (or all objects for View All).
     if (!all && rv_editor_parts_bounds(doc, rv_editor_parts_resolve(doc, app.project), lo, hi)) {
-        rv_editor_frame_box(cam, lo, hi);
+        if (rv_editor_frame_box(cam, lo, hi) != RV_OK) {
+            RV_LOG_WARN(scene_log_tag, "the frame is outside Q20.12: the camera is not moved");
+        }
         return;
     }
     bool any = false;
@@ -287,7 +344,9 @@ void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool
     if (!any) {
         return;
     }
-    rv_editor_frame_box(cam, lo, hi);
+    if (rv_editor_frame_box(cam, lo, hi) != RV_OK) {
+        RV_LOG_WARN(scene_log_tag, "the frame is outside Q20.12: the camera is not moved");
+    }
 }
 
 // Scene toolbar, one row at 1280x720: View and the framing buttons, Hidden, Parts and Layers, then Shade.
@@ -319,7 +378,7 @@ void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, co
             theme.code_blue,
             rv_editor_text("scene_tools.toolbar_home_tooltip"),
             theme)) {
-        cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
+        cam = rv_editor_camera_home(cam);
     }
     rv_editor_flow(side);
     bool seek_val = cam.seeking;
@@ -386,12 +445,15 @@ void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port
     rv_editor_checkbox(snap_label, &cam.snap, theme);
     rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_tooltip"));
     int step = default_snap_step_index;
-    for (int i = 0; i < std::ssize(snap_step_values); ++i) {
-        step = std::fabs(cam.snap_step - snap_step_values[i]) < snap_step_epsilon ? i : step;
+    // On error the dropdown keeps the default (the warning is logged).
+    if (rv_editor_snap_step_index(cam, step) != RV_OK) {
+        step = default_snap_step_index;
     }
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * dropdown_width_factor);
     if (rv_editor_dropdown("##snapstep", &step, snap_step_labels, std::ssize(snap_step_labels), theme)) {
-        cam.snap_step = snap_step_values[step];
+        if (rv_editor_camera_pick_snap(cam, snap_step_values[step]) != RV_OK) {
+            RV_LOG_WARN(scene_log_tag, "the picked snap step is outside Q20.12: the step is not changed");
+        }
     }
     rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_step_tooltip"));
     const char *grid_label = rv_editor_text("scene_tools.grid_label");

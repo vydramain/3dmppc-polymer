@@ -79,6 +79,16 @@ rv_editor_camera_pan(rv_editor_scene_camera &cam, rv_editor_camera_carry &carry,
 [[nodiscard]] int rv_editor_camera_reset_yaw(rv_editor_scene_camera &cam);
 [[nodiscard]] int rv_editor_camera_reset_pitch(rv_editor_scene_camera &cam);
 [[nodiscard]] int rv_editor_camera_reset_distance(rv_editor_scene_camera &cam);
+// The Scene tools' camera values, each number rounded to raw here. Out is untouched on error.
+// True in `at` when the camera is at the angles (yaw modulo a full turn, so wrapped or not).
+[[nodiscard]] int rv_editor_camera_at_view(const rv_editor_scene_camera &cam, double yaw_units, double pitch_units, bool &at);
+[[nodiscard]] int rv_editor_camera_turn_to(rv_editor_scene_camera &cam, double yaw_units, double pitch_units);
+// True in `at` when the camera's snap step is `units` in raw (exact match).
+[[nodiscard]] int rv_editor_camera_snap_at(const rv_editor_scene_camera &cam, double units, bool &at);
+[[nodiscard]] int rv_editor_camera_pick_snap(rv_editor_scene_camera &cam, double units);
+// The framing target and distance in Q20.12.
+[[nodiscard]] int
+rv_editor_frame_to_fx(const std::array<double, 3> &middle, double distance, rv_pdklib::fx_vec3 &target, rv_pdklib::fx &reach);
 
 // The Scene viewport's geometry (editor/src/panes/rv_editor_scene_viewport.cpp):
 // the editor camera's frame, how scene points land on screen, what each object

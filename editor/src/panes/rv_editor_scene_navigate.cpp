@@ -33,6 +33,8 @@ constexpr double pan_sensitivity = 0.002;
 constexpr size_t pan_axes = 3;
 // Largest raw a delta may reach: beyond it, or NaN, the step is refused.
 constexpr double fx_raw_max = static_cast<double>(std::numeric_limits<rv_pdklib::fx>::max());
+// view_match_epsilon (1e-6 degrees) in raw: it rounds to 0, so a view matches only at its exact raw angles.
+constexpr int64_t view_match_epsilon_raw = 0;
 
 // An operation that cannot apply its step says why and returns the code.
 int refuse(int rc, const char *what)
@@ -85,6 +87,19 @@ int64_t wrap_turn(int64_t raw)
     return rest < 0 ? rest + full_turn_raw : rest;
 }
 
+// Two units to Q20.12 raw, each rounded; out is untouched on error.
+int units_to_raw(double a, double b, rv_pdklib::fx &ra, rv_pdklib::fx &rb)
+{
+    rv_pdklib::fx fa = 0;
+    rv_pdklib::fx fb = 0;
+    if (rv_pdklib::fx_from_double(a, fa) != RV_OK || rv_pdklib::fx_from_double(b, fb) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    ra = fa;
+    rb = fb;
+    return RV_OK;
+}
+
 // Sets one value back to its home value; get and set are the value's accessors.
 template <typename Get, typename Set>
 int reset_axis(rv_editor_scene_camera &cam, Get get, Set set)
@@ -131,6 +146,92 @@ int rv_editor_camera_read_units(const rv_editor_scene_camera &cam, rv_editor_cam
 rv_editor_scene_camera rv_editor_camera_home(const rv_editor_scene_camera &cam)
 {
     return rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
+}
+
+int rv_editor_camera_at_view(const rv_editor_scene_camera &cam, double yaw_units, double pitch_units, bool &at)
+{
+    rv_pdklib::fx yaw = 0;
+    rv_pdklib::fx pitch = 0;
+    if (const int rc = rv_editor_camera_get_yaw_fx(cam, yaw); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_editor_camera_get_pitch_fx(cam, pitch); rc != RV_OK) {
+        return rc;
+    }
+    rv_pdklib::fx preset_yaw = 0;
+    rv_pdklib::fx preset_pitch = 0;
+    if (const int rc = units_to_raw(yaw_units, pitch_units, preset_yaw, preset_pitch); rc != RV_OK) {
+        return rc;
+    }
+    // Yaw modulo a full turn: the camera's yaw may be wrapped into [0, 360) (orbit does) or not, both match.
+    int64_t turn = (static_cast<int64_t>(yaw) - preset_yaw) % full_turn_raw;
+    if (turn < 0) {
+        turn += full_turn_raw;
+    }
+    const bool at_yaw = turn <= view_match_epsilon_raw || turn >= full_turn_raw - view_match_epsilon_raw;
+    const int64_t off_pitch = static_cast<int64_t>(pitch) - preset_pitch;
+    at = at_yaw && off_pitch <= view_match_epsilon_raw && off_pitch >= -view_match_epsilon_raw;
+    return RV_OK;
+}
+
+int rv_editor_camera_turn_to(rv_editor_scene_camera &cam, double yaw_units, double pitch_units)
+{
+    rv_pdklib::fx yaw = 0;
+    rv_pdklib::fx pitch = 0;
+    if (const int rc = units_to_raw(yaw_units, pitch_units, yaw, pitch); rc != RV_OK) {
+        return rc;
+    }
+    rv_editor_camera_set_yaw_fx(cam, yaw);
+    rv_editor_camera_set_pitch_fx(cam, pitch);
+    return RV_OK;
+}
+
+int rv_editor_camera_snap_at(const rv_editor_scene_camera &cam, double units, bool &at)
+{
+    rv_pdklib::fx step = 0;
+    rv_pdklib::fx value = 0;
+    if (const int rc = rv_editor_camera_get_snap_step_fx(cam, step); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(units, value); rc != RV_OK) {
+        return rc;
+    }
+    at = step == value;
+    return RV_OK;
+}
+
+int rv_editor_camera_pick_snap(rv_editor_scene_camera &cam, double units)
+{
+    rv_pdklib::fx step = 0;
+    if (const int rc = rv_pdklib::fx_from_double(units, step); rc != RV_OK) {
+        return rc;
+    }
+    rv_editor_camera_set_snap_step_fx(cam, step);
+    return RV_OK;
+}
+
+int rv_editor_frame_to_fx(const std::array<double, 3> &middle,
+    double distance,
+    rv_pdklib::fx_vec3 &target,
+    rv_pdklib::fx &reach)
+{
+    rv_pdklib::fx_vec3 t{};
+    rv_pdklib::fx r = 0;
+    if (const int rc = rv_pdklib::fx_from_double(middle[0], t.x); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(middle[1], t.y); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(middle[2], t.z); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(distance, r); rc != RV_OK) {
+        return rc;
+    }
+    target = t;
+    reach = r;
+    return RV_OK;
 }
 
 int rv_editor_camera_orbit(rv_editor_scene_camera &cam, rv_editor_camera_carry &carry, double yaw_units, double pitch_units)
