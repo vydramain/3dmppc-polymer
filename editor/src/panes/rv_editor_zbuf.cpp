@@ -1,7 +1,10 @@
 // CPU z-buffer rasteriser. Coverage mirrors src/rv_pconsole/cv/rv_pcraster_poly.cpp in int64: edge_at,
 // is_top_left and clip_bounds, and normalize_winding inline in rv_editor_zbuf_draw. Samples are pixel
-// centres, not the console's corners (decision D4): the corners are doubled, so a centre is an integer. Texel alpha 0 is the
-// console's transparent texel 0000h (pdk/include/pdk/cv/rv_texel.h); the TILE nearest-texel wrap follows rv_pctexel::wrap.
+// centres, not the console's corners (decision D4): the corners are doubled, so a centre is an integer.
+// uv mirrors the console's texel_uvs (src/rv_pconsole/cg/rv_pccg_sw_put.cpp) and setup_uv
+// (src/rv_pconsole/cv/rv_pcraster_poly.cpp): integer texels with a per-triangle TILE shift, affine in
+// screen space. Colour keeps perspective weights. Texel alpha 0 is the console's transparent texel 0000h
+// (pdk/include/pdk/cv/rv_texel.h); TILE wraps the texel integer as rv_pctexel::wrap does.
 
 #include "panes/rv_editor_zbuf.hpp"
 
@@ -37,20 +40,44 @@ constexpr int32_t RV_EDITOR_ZBUF_DEPTH_FARTHEST = std::numeric_limits<int32_t>::
 constexpr int64_t RV_EDITOR_ZBUF_DOUBLING = 2;
 constexpr int64_t RV_EDITOR_ZBUF_CENTRE_OFFSET = 1;
 
+// Largest texel coordinate of a corner, as the console's RV_PCCG_SW_TEXEL_MAX (src/rv_pconsole/cg/rv_pccg_sw_put.cpp).
+// Above it the triangle is refused. It keeps the texel gradient's numerator below 2^47 (texel_gradient).
+constexpr int64_t RV_EDITOR_ZBUF_TEXEL_MAX = 65535;
+
+// Texel coordinates per pixel are 16.16, as RV_UV_FX_SHIFT in src/rv_pconsole/cv/rv_pcraster_pixel.hpp.
+constexpr int RV_EDITOR_ZBUF_TEXEL_FRAC = 16;
+constexpr int64_t RV_EDITOR_ZBUF_TEXEL_ONE = int64_t{ 1 } << RV_EDITOR_ZBUF_TEXEL_FRAC;
+
+// Gradient clamp, texels per pixel in 16.16. The console clamps at 2^40 (RV_UV_FX_LIMIT), safe for int16 corners.
+// Mirroring that at corners up to 2^28 needs the per-pixel product in __int128; this clamp is 2^30 instead, so the
+// editor differs from the console only for slivers whose gradient exceeds 2^30. The owner decides whether to widen it.
+constexpr int64_t RV_EDITOR_ZBUF_GRADIENT_LIMIT = int64_t{ 1 } << 30;
+
+// A pixel centre is half a step past its corner: each gradient is halved by this floor shift.
+constexpr int RV_EDITOR_ZBUF_HALF_STEP_SHIFT = 1;
+
 // A point in doubled pixel units (RV_EDITOR_ZBUF_DOUBLING).
 struct rv_zbuf_point {
     int64_t x = 0;
     int64_t y = 0;
 };
 
-// The corner values interpolated over a triangle, before the texel and the tint.
+// The corner colours interpolated over a triangle with the perspective weights, before the texel and the tint.
 struct rv_zbuf_attr {
-    double u = 0.0;
-    double v = 0.0;
     double r = 0.0;
     double g = 0.0;
     double b = 0.0;
     double a = 0.0;
+};
+
+// A textured triangle's texel coordinates per corner, and the 16.16 steps per pixel (affine in screen space).
+struct rv_zbuf_texel {
+    int64_t u[RV_EDITOR_ZBUF_CORNERS] = {};
+    int64_t v[RV_EDITOR_ZBUF_CORNERS] = {};
+    int64_t du_dx = 0;
+    int64_t dv_dx = 0;
+    int64_t du_dy = 0;
+    int64_t dv_dy = 0;
 };
 
 // A triangle put in counter-clockwise order (area2 > 0), with its doubled points.
@@ -59,6 +86,7 @@ struct rv_zbuf_tri {
     rv_zbuf_point point[RV_EDITOR_ZBUF_CORNERS];
     int64_t area2 = 0;
     const rv_editor_zbuf_texture *texture = nullptr;
+    rv_zbuf_texel texel;
     int32_t depth = 0;
 };
 
@@ -90,7 +118,7 @@ bool covers(int64_t edge, int64_t dx, int64_t dy)
 
 bool corner_valid(const rv_editor_zbuf_vertex &corner)
 {
-    const float values[] = { corner.z, corner.u, corner.v, corner.r, corner.g, corner.b, corner.a };
+    const float values[] = { corner.z, corner.r, corner.g, corner.b, corner.a };
     const bool in_range = std::abs(static_cast<int64_t>(corner.x)) <= RV_EDITOR_ZBUF_COORD_LIMIT &&
         std::abs(static_cast<int64_t>(corner.y)) <= RV_EDITOR_ZBUF_COORD_LIMIT;
     return in_range && corner.z > 0.0f && std::all_of(std::begin(values), std::end(values), [](float value) {
@@ -116,6 +144,18 @@ void report_corner_refusal(const rv_editor_zbuf_triangle &tri)
         beyond ? "x or y beyond RV_EDITOR_ZBUF_COORD_LIMIT" : "a value is not finite or z <= 0");
 }
 
+// Logs once why a textured triangle was refused: a texel coordinate above RV_EDITOR_ZBUF_TEXEL_MAX.
+// Logged once per process; the per-frame count in rv_editor_draw_filled shows that it recurs.
+void report_texel_refusal()
+{
+    static bool reported = false;
+    if (reported) {
+        return;
+    }
+    reported = true;
+    std::fprintf(stderr, "3dmppc-editor: z-buffer triangle refused: a texel coordinate is above RV_EDITOR_ZBUF_TEXEL_MAX\n");
+}
+
 bool texture_valid(const rv_editor_zbuf_texture *texture)
 {
     return texture == nullptr || (texture->texels != nullptr && texture->width > 0 && texture->height > 0);
@@ -126,26 +166,87 @@ size_t pixel_count(int width, int height)
     return static_cast<size_t>(width) * static_cast<size_t>(height);
 }
 
-// TILE: the coordinate wraps into one period and the nearest texel is taken, as rv_pctexel::wrap does.
-int texel_index(double coord, int size)
+// Floor of n / d for d > 0, as the console's floor_div: integer division truncates toward zero.
+int64_t floor_div(int64_t n, int64_t d)
 {
-    const double period = static_cast<double>(size);
-    double texel = std::fmod(coord * period, period);
-    if (texel < 0.0) {
-        texel += period;
+    const int64_t q = n / d;
+    return n % d < 0 ? q - 1 : q;
+}
+
+// The console's texel_uvs: uv * size in 4.12 texels, moved by whole periods so the smallest corner lies in
+// [0, period), then shifted to whole texels. RV_ERR_INVAL when a corner's texel is above RV_EDITOR_ZBUF_TEXEL_MAX.
+int corner_texels(const rv_zbuf_tri &tri, rv_zbuf_texel &out)
+{
+    const rv_editor_zbuf_texture &texture = *tri.texture;
+    const int64_t period_u = static_cast<int64_t>(texture.width) << RV_EDITOR_ZBUF_UV_FRAC_BITS;
+    const int64_t period_v = static_cast<int64_t>(texture.height) << RV_EDITOR_ZBUF_UV_FRAC_BITS;
+    int64_t raw_u[RV_EDITOR_ZBUF_CORNERS] = {};
+    int64_t raw_v[RV_EDITOR_ZBUF_CORNERS] = {};
+    for (int k = 0; k < RV_EDITOR_ZBUF_CORNERS; ++k) {
+        raw_u[k] = static_cast<int64_t>(tri.corner[k].u) * texture.width;
+        raw_v[k] = static_cast<int64_t>(tri.corner[k].v) * texture.height;
     }
-    return std::clamp(static_cast<int>(std::floor(texel)), 0, size - 1);
+    const int64_t shift_u = -floor_div(*std::min_element(std::begin(raw_u), std::end(raw_u)), period_u) * period_u;
+    const int64_t shift_v = -floor_div(*std::min_element(std::begin(raw_v), std::end(raw_v)), period_v) * period_v;
+    for (int k = 0; k < RV_EDITOR_ZBUF_CORNERS; ++k) {
+        out.u[k] = (raw_u[k] + shift_u) >> RV_EDITOR_ZBUF_UV_FRAC_BITS;
+        out.v[k] = (raw_v[k] + shift_v) >> RV_EDITOR_ZBUF_UV_FRAC_BITS;
+        if (out.u[k] > RV_EDITOR_ZBUF_TEXEL_MAX || out.v[k] > RV_EDITOR_ZBUF_TEXEL_MAX) {
+            return RV_ERR_INVAL;
+        }
+    }
+    return RV_OK;
+}
+
+// The console's setup_uv: a texel coordinate is affine in screen space, the weight of corner j being the edge
+// opposite it over area2. Its steps per pixel, in 16.16, are the edge's dy (x) and -dx (y). Numerators stay
+// below 2^47 because texels are at most RV_EDITOR_ZBUF_TEXEL_MAX and corners at most 2^29 apart.
+void texel_gradient(const rv_zbuf_tri &tri, const int64_t (&t)[RV_EDITOR_ZBUF_CORNERS], int64_t &dx, int64_t &dy)
+{
+    int64_t num_x = 0;
+    int64_t num_y = 0;
+    for (int j = 0; j < RV_EDITOR_ZBUF_CORNERS; ++j) {
+        // The edge opposite corner j runs from corner j + 1 to corner j + 2.
+        const int a = (j + 1) % RV_EDITOR_ZBUF_CORNERS;
+        const int b = (j + 2) % RV_EDITOR_ZBUF_CORNERS;
+        num_x += (static_cast<int64_t>(tri.corner[b].y) - tri.corner[a].y) * t[j];
+        num_y -= (static_cast<int64_t>(tri.corner[b].x) - tri.corner[a].x) * t[j];
+    }
+    // tri.area2 is in doubled units: four times the pixel area2, which is twice the triangle's area. Dividing by four
+    // gives the pixel area2; the ratio is the same either way. Invariant: area2 > 0 here, since the flat-area case
+    // returns before any texel setup.
+    const int64_t area2 = tri.area2 / (RV_EDITOR_ZBUF_DOUBLING * RV_EDITOR_ZBUF_DOUBLING);
+    dx = std::clamp(num_x * RV_EDITOR_ZBUF_TEXEL_ONE / area2, -RV_EDITOR_ZBUF_GRADIENT_LIMIT, RV_EDITOR_ZBUF_GRADIENT_LIMIT);
+    dy = std::clamp(num_y * RV_EDITOR_ZBUF_TEXEL_ONE / area2, -RV_EDITOR_ZBUF_GRADIENT_LIMIT, RV_EDITOR_ZBUF_GRADIENT_LIMIT);
+}
+
+// The texel setup of a textured triangle. RV_ERR_INVAL when the triangle does not fit (see corner_texels).
+int texel_setup(rv_zbuf_tri &tri)
+{
+    const int rc = corner_texels(tri, tri.texel);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    texel_gradient(tri, tri.texel.u, tri.texel.du_dx, tri.texel.du_dy);
+    texel_gradient(tri, tri.texel.v, tri.texel.dv_dx, tri.texel.dv_dy);
+    return RV_OK;
+}
+
+// TILE, as rv_pctexel::wrap: the texel integer wraps into one period; floor-mod, so a negative one wraps too.
+int wrap_tile(int64_t coord, int size)
+{
+    const int64_t m = coord % size;
+    return static_cast<int>(m < 0 ? m + size : m);
 }
 
 // Bytes per texel in a texture: RGBA8.
 constexpr size_t RV_EDITOR_ZBUF_TEXEL_BYTES = 4;
 
 // Read byte by byte: the texture's bytes are not rv_editor_zbuf_rgba objects, so no reinterpret.
-rv_editor_zbuf_rgba texel_at(const rv_editor_zbuf_texture &texture, double u, double v)
+rv_editor_zbuf_rgba texel_at(const rv_editor_zbuf_texture &texture, int64_t tx, int64_t ty)
 {
-    const int x = texel_index(u, texture.width);
-    const int y = texel_index(v, texture.height);
-    const size_t texel = static_cast<size_t>(y) * static_cast<size_t>(texture.width) + static_cast<size_t>(x);
+    const size_t texel = static_cast<size_t>(wrap_tile(ty, texture.height)) * static_cast<size_t>(texture.width) +
+        static_cast<size_t>(wrap_tile(tx, texture.width));
     const uint8_t *p = texture.texels + texel * RV_EDITOR_ZBUF_TEXEL_BYTES;
     return { p[0], p[1], p[2], p[3] };
 }
@@ -154,6 +255,19 @@ rv_editor_zbuf_rgba texel_at(const rv_editor_zbuf_texture &texture, double u, do
 uint8_t channel(double unit, uint8_t texel)
 {
     return static_cast<uint8_t>(std::clamp(std::round(unit * texel), 0.0, RV_EDITOR_ZBUF_CHANNEL_MAX));
+}
+
+// The texel under pixel (x, y) of a textured triangle, as the console's shade_textured: u_fx >> 16 at the pixel.
+// The texel is affine on screen: the base at corner 0 plus the steps.
+rv_editor_zbuf_rgba textured_texel(const rv_zbuf_tri &tri, int x, int y)
+{
+    const int64_t off_x = static_cast<int64_t>(x) - tri.corner[0].x;
+    const int64_t off_y = static_cast<int64_t>(y) - tri.corner[0].y;
+    const int64_t u_fx = tri.texel.u[0] * RV_EDITOR_ZBUF_TEXEL_ONE + off_x * tri.texel.du_dx + off_y * tri.texel.du_dy +
+        (tri.texel.du_dx >> RV_EDITOR_ZBUF_HALF_STEP_SHIFT) + (tri.texel.du_dy >> RV_EDITOR_ZBUF_HALF_STEP_SHIFT);
+    const int64_t v_fx = tri.texel.v[0] * RV_EDITOR_ZBUF_TEXEL_ONE + off_x * tri.texel.dv_dx + off_y * tri.texel.dv_dy +
+        (tri.texel.dv_dx >> RV_EDITOR_ZBUF_HALF_STEP_SHIFT) + (tri.texel.dv_dy >> RV_EDITOR_ZBUF_HALF_STEP_SHIFT);
+    return texel_at(*tri.texture, u_fx >> RV_EDITOR_ZBUF_TEXEL_FRAC, v_fx >> RV_EDITOR_ZBUF_TEXEL_FRAC);
 }
 
 // One pixel centre: covered by the triangle, with a key not below the one stored there, and with a
@@ -187,20 +301,18 @@ void shade_pixel(rv_editor_zbuf &buf, const rv_zbuf_tri &tri, int x, int y)
         return;
     }
 
-    // Normalised perspective weights: the attributes are mixed with them, not with screen weights.
+    // Normalised perspective weights: the colour is mixed with them, not with screen weights.
     rv_zbuf_attr attr;
     for (int i = 0; i < RV_EDITOR_ZBUF_CORNERS; ++i) {
         const rv_editor_zbuf_vertex &corner = tri.corner[i];
         const double k = perspective[i] * z;
-        attr.u += k * corner.u;
-        attr.v += k * corner.v;
         attr.r += k * corner.r;
         attr.g += k * corner.g;
         attr.b += k * corner.b;
         attr.a += k * corner.a;
     }
 
-    const rv_editor_zbuf_rgba texel = tri.texture ? texel_at(*tri.texture, attr.u, attr.v) : RV_EDITOR_ZBUF_FLAT_TEXEL;
+    const rv_editor_zbuf_rgba texel = tri.texture != nullptr ? textured_texel(tri, x, y) : RV_EDITOR_ZBUF_FLAT_TEXEL;
     const rv_editor_zbuf_rgba out = { channel(attr.r, texel.r),
         channel(attr.g, texel.g),
         channel(attr.b, texel.b),
@@ -276,6 +388,10 @@ int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri)
     prepared.depth = tri.depth;
     if (prepared.area2 == 0) {
         return RV_OK;
+    }
+    if (prepared.texture != nullptr && texel_setup(prepared) != RV_OK) {
+        report_texel_refusal();
+        return RV_ERR_INVAL;
     }
 
     int64_t min_x = 0;

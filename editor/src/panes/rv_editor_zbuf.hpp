@@ -4,8 +4,8 @@
 #include <vector>
 
 // CPU z-buffer for the Scene viewport: triangles go into an RGBA8 colour buffer and an int32
-// depth buffer of ordering keys (larger = nearer, as the console's). Plain data, no ImGui or SDL, so the rasteriser is checked
-// on its own.
+// depth buffer of ordering keys (larger = nearer, as the console's). Plain data, no ImGui or SDL,
+// so the rasteriser is checked on its own.
 
 namespace rv_editor
 {
@@ -32,14 +32,18 @@ struct rv_editor_zbuf_texture {
     int height = 0;
 };
 
+// The model's raw uv is int16 4.12 (its uv_bits): RV_EDITOR_ZBUF_UV_ONE is one texture.
+constexpr int RV_EDITOR_ZBUF_UV_FRAC_BITS = 12;
+constexpr int32_t RV_EDITOR_ZBUF_UV_ONE = int32_t{ 1 } << RV_EDITOR_ZBUF_UV_FRAC_BITS;
+
 // One corner. x, y are buffer pixels, integers as rv_gte_project gives them; z is view depth and
-// must be > 0; u, v are glTF uv, repeated (TILE); r, g, b, a are 0..1.
+// must be > 0; u, v are the model's raw int16 4.12 uv, repeated (TILE); r, g, b, a are 0..1.
 struct rv_editor_zbuf_vertex {
     int32_t x = 0;
     int32_t y = 0;
     float z = 1.0f;
-    float u = 0.0f;
-    float v = 0.0f;
+    int32_t u = 0;
+    int32_t v = 0;
     float r = 1.0f;
     float g = 1.0f;
     float b = 1.0f;

@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <limits>
 #include <string>
 #include <system_error>
 #include <unordered_map>
@@ -190,6 +191,14 @@ void rv_editor_refuse_once(bool &reported, const char *what)
     std::fprintf(stderr, "3dmppc-editor: filled triangle refused: %s\n", what);
 }
 
+// Whether a uv component is a finite int16 4.12 value once scaled to raw (the model's range).
+bool uv_fits(float component)
+{
+    const float raw = component * static_cast<float>(RV_EDITOR_ZBUF_UV_ONE);
+    return std::isfinite(raw) && raw >= static_cast<float>(std::numeric_limits<int16_t>::min()) &&
+        raw <= static_cast<float>(std::numeric_limits<int16_t>::max());
+}
+
 // One cut piece, its corners in view space as Q20.12: projected onto the buffer's pixels as rv_gte_project
 // does, coloured as the console draws it and rasterised into `buf`. Colour: the selection colour when
 // selected (no tint); a plain flat piece its base colour, untinted; else white times the object's tint;
@@ -231,12 +240,21 @@ int rv_editor_raster_piece(rv_editor_zbuf &buf, const rv_editor_fx_tri &piece, c
         }
         const ImVec4 part = st.selected ? ImVec4(1, 1, 1, 1) : piece.v[k].color;
         const ImVec2 uv = piece.v[k].uv;
+        // A textured uv must be a finite int16 4.12 value; a flat piece never reads it.
+        if (!flat && (!uv_fits(uv.x) || !uv_fits(uv.y))) {
+            // Once per process, see rv_editor_refuse_once.
+            static bool reported = false;
+            rv_editor_refuse_once(reported, "a textured piece's uv is not finite or outside the int16 4.12 range");
+            return RV_ERR_INVAL;
+        }
         rv_editor_zbuf_vertex &c = zt.corner[k];
         c.x = s.x;
         c.y = s.y;
         c.z = static_cast<float>(static_cast<double>(piece.v[k].p.z) / rv_editor_gte_units_per_metre);
-        c.u = flat ? 0.0f : uv.x;
-        c.v = flat ? 0.0f : uv.y;
+        // Exact for model uv: raw / 4096 in float, so the rounding only undoes that division. The cube's uv are the
+        // unit square's corners, 0 or 1 (quad_uv_corners in rv_editor_scene_mesh.cpp), raw 0 or 4096.
+        c.u = flat ? 0 : static_cast<int32_t>(std::lround(uv.x * static_cast<float>(RV_EDITOR_ZBUF_UV_ONE)));
+        c.v = flat ? 0 : static_cast<int32_t>(std::lround(uv.y * static_cast<float>(RV_EDITOR_ZBUF_UV_ONE)));
         c.r = over.x * tint.x * st.shade * part.x;
         c.g = over.y * tint.y * st.shade * part.y;
         c.b = over.z * tint.z * st.shade * part.z;
