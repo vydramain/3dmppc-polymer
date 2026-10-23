@@ -515,7 +515,7 @@ whoever wrote the script:
 mygame/
   disc.toml        the manifest: what to compile, what to bake, what to copy
   src/*.cpp        the game — implements rv_de, exports itself with RV_MPPC_DISC_ENTRY_DEF
-  assets/          PNGs and WAVs get baked into texels and samples; the rest is copied in
+  assets/          PNGs, WAVs and glTF models get baked into texels, samples and models; the rest is copied in
 ```
 
 Start by copying [`mppcdiscs/example-cpp-pdkkit/`](mppcdiscs/example-cpp-pdkkit/) — it is a
@@ -535,30 +535,26 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-files = ["scenes/*.scene.toml"]
+files = ["scenes/*.scene.toml", "assets/*.png", "assets/*.wav", "assets/models/*.gltf"]
 
-[textures]
-files = ["assets/*.png"]
+[assets.texture]
 format = "idx8"
-
-[sounds]
-files = ["assets/*.wav"]
-
-[models]
-files = ["assets/models/*.gltf"]
 ```
 
-`[sounds]` is optional, like `[textures]`: each listed WAV is baked by
-`mppcmusbaker` into a headerless `<name>.pcm` - the console's raw S16LE mono
-44100 Hz samples - and put on the disc beside the textures. The WAV must already
-be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
+`[assets]` is optional. Each file in `files` is sorted by its extension: `.png` is a
+texture, `.wav` a sound, `.gltf` and `.glb` a model, and anything else is copied as is.
+`[assets.texture] format` is the format of the textures; it defaults to `idx8`.
+
+Each listed WAV is baked by `mppcmusbaker` into a headerless `<name>.pcm` - the console's
+raw S16LE mono 44100 Hz samples - and put on the disc beside the textures. The WAV must
+already be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
 else is refused, not resampled.
 
-`[models]` is optional the same way: each listed `.glb` or `.gltf` (glTF 2.0) is baked by
-`mppcmodbaker` into a `<name>.mppcmod`. The baker writes each PNG texture beside it as
-`<stem>-<n>.png`: a `.glb` embeds them, a `.gltf` reads them from the relative URIs of its
-`.bin` and PNG files. The burner then bakes those PNGs into `<stem>-<n>.mppctex` in the same
-texture directory as `[textures]`; for a model it never opens the disc's own PNG files.
+Each listed `.glb` or `.gltf` (glTF 2.0) is baked by `mppcmodbaker` into a
+`<name>.mppcmod`. The baker writes each PNG texture beside it as `<stem>-<n>.png`: a
+`.glb` embeds them, a `.gltf` reads them from the relative URIs of its `.bin` and PNG
+files. The burner then bakes those PNGs into `<stem>-<n>.mppctex` in the same texture
+directory as the `[assets]` textures; for a model it never opens the disc's own PNG files.
 A JPEG texture is refused.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
@@ -579,7 +575,7 @@ mppcburner bake-texture mygame assets/hero.png -o hero.mppctex [--baker PATH]
 `inspect` prints the manifest and the entry list to **stdout** (so it pipes into
 `grep` cleanly) and diagnostics to stderr.
 
-`bake-texture` bakes one `[textures]` source into a standalone `.mppctex`, the
+`bake-texture` bakes one PNG listed in `[assets]` files into a standalone `.mppctex`, the
 way `build`'s own plan would - same format and the same `[budget]` size check.
 It writes `-o` only once baking succeeds, so a refusal never leaves a partial
 file, and prints the entry's disc name (what `--map` would call it) as the
