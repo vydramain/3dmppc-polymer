@@ -19,7 +19,7 @@ local WORKSHOP = 0
 local STREET = 1
 local FLAT = 2
 
--- The bars of each area in playing order, indexed by area + 1; a list wraps. The samples are the disc's [sounds].
+-- The bars of each area in playing order, indexed by area + 1; a list wraps. The samples are the disc's [assets] sounds.
 local BARS = {
     { "mus_factory_01.pcm", "mus_factory_02.pcm", "mus_factory_03.pcm" },
     { "mus_street_01.pcm", "mus_street_02.pcm", "mus_street_03.pcm", "mus_street_04.pcm", "mus_street_05.pcm" },
