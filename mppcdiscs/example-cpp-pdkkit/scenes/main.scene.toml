@@ -37,7 +37,7 @@ text = "board"
 [[component]]
 object = "5ce00002"
 name = "transform"
-position = [-13.94, 4.3, 0]
+position = [-13.8035, 4.3, 0]
 
 [[component]]
 object = "5ce00002"
@@ -1422,8 +1422,6 @@ cell = 10
 object = "5ce31010"
 name = "hidden"
 
-# Lamp zones: invisible boxes, one per lamp; zone_lamp names the lamp an entry is meant to switch:
-# lit when the camera enters moving +X, dark when moving -X.
 [[object]]
 id = "5ce40001"
 parent = ""
@@ -1519,9 +1517,6 @@ size = [16, 10, 6]
 object = "5ce40004"
 name = "zone_lamp"
 lamp = "lamp_4"
-
-# The light parts of each lamp: children of the lamp, hidden while it is dark; meant to be shown when the lamp is lit.
-# lamp_N_light is the light model; lamp_N_pool is the light pool on the asphalt under the lamp head.
 
 [[object]]
 id = "5ce40011"
@@ -1719,8 +1714,6 @@ name = "decal"
 object = "5ce40018"
 name = "hidden"
 
-# Music zones: invisible boxes along the route, x split at the sound system's bounds (0 and 33.8 m); each box
-# includes its min and excludes its max. zone_music names the song; zone_clack marks the factory zone.
 [[object]]
 id = "5ce40005"
 parent = ""
