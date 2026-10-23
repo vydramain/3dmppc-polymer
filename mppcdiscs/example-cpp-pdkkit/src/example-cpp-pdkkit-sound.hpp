@@ -6,6 +6,8 @@
 
 #include "pdk/ca/rv_voice_conf.h"
 #include "pdk/rv_pdko.h"
+#include "pdkkit/component/rv_component_capacity.hpp"
+#include "pdkkit/component/rv_component_macro.hpp"
 #include "pdkkit/sound/rv_pdkkit_sound.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
@@ -108,4 +110,21 @@ int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
 int64_t rv_music_init(rv_pdko *pdk, const std::vector<std::string> &names, rv_sound_state &state);
 int64_t rv_music_update(rv_pdko *pdk, const char *name, int64_t span_offset, rv_sound_state &state);
 
+// Music of a zone: the place its bars come from (mus_<music>_NN.pcm) and the looped asset played there;
+// an empty loop means none.
+struct ecs_component_zone_music {
+    char music[rv_pdkkit::ecs_value_capacity]{};
+    char loop[rv_pdkkit::ecs_value_capacity]{};
+};
+
+// Marks the zone where the sign's clack is heard.
+struct ecs_component_zone_clack {
+};
+
 } // namespace example_cpp_pdkkit
+
+PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_zone_music,
+    "zone_music",
+    PDKKIT_FIELD(music, string, ""),
+    PDKKIT_FIELD(loop, string, ""));
+PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_zone_clack, "zone_clack");
