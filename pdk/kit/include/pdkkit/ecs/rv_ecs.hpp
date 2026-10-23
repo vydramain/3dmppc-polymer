@@ -106,7 +106,7 @@ struct ecs_world_state {
     std::vector<std::pair<std::string_view, ecs_component_factory>> factories;
     // Frame systems by name; the name views must outlive the world (string literals).
     std::vector<std::pair<std::string_view, ecs_system>> systems;
-    // Camera of the frame, set through ecs_world_camera; ecs_system_draw needs camera_set.
+    // Camera of the frame, set by the camera step each frame; the face camera and the draw need camera_set.
     rv_cg_camera camera{};
     bool camera_set = false;
     // Last failure ecs_frame_run logged: system, code and reason. A frame repeating all three stays silent; a frame whose
@@ -193,6 +193,14 @@ inline void ecs_reason_set(ecs_reason &reason, const char *text)
     std::strncpy(reason.text, text, ecs_reason_size - 1);
     reason.text[ecs_reason_size - 1] = '\0';
     reason.thrown = true;
+}
+
+// Writes the text of a returned refusal into reason with thrown clear: the frame logs it as returned, with the text.
+inline void ecs_reason_refuse(ecs_reason &reason, const char *text)
+{
+    std::strncpy(reason.text, text, ecs_reason_size - 1);
+    reason.text[ecs_reason_size - 1] = '\0';
+    reason.thrown = false;
 }
 
 // Runs op and maps its exception: bad_alloc is RV_ERR_NOMEM, another exception RV_ERR_INVAL. The exception's full text

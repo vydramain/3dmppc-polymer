@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-#include "pdk/cv/rv_cv.h"
 #include "pdkkit/ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_gte/rv_gte_camera.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -475,18 +474,7 @@ int ecs_system_route(ecs_world &world, const rv_pdkkit::ecs_frame &frame)
     if (route_code != RV_OK) {
         return route_code;
     }
-    const int ride_code = ride_route(world, frame.frame);
-    if (ride_code != RV_OK) {
-        return ride_code;
-    }
-    const int64_t screen_height = rv_cv_screen_height(rv_pdko_cv(frame.pdk));
-    rv_cg_camera camera = {};
-    const int camera_code = rv_route_camera_at(route->keys, frame.frame, screen_height, camera);
-    if (camera_code != RV_OK) {
-        return camera_code;
-    }
-    rv_pdkkit::ecs_world_camera(world, camera);
-    return RV_OK;
+    return ride_route(world, frame.frame);
 }
 
 } // namespace example_cpp_pdkkit
