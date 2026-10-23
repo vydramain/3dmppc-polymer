@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <string_view>
 #include <vector>
 
 #include "pdk/cg/rv_cg.h"
@@ -18,15 +17,12 @@ namespace example_cpp_pdkkit
 // The camera of a frame is a pure function of its number, so the period repeats exactly.
 constexpr int64_t RV_ROUTE_PERIOD_FRAMES = 8640;
 
-// One cam_NN key of the scene: where the camera stands and which way it looks, in Q20.12.
+// One route_key of the scene: where the camera stands and which way it looks, in Q20.12.
 struct rv_route_key {
-    int32_t index; // NN of cam_NN: the key order on the route
+    int32_t index; // order of its route_key
     rv_pdklib::fx_vec3 eye;
     rv_pdklib::fx_vec3 dir; // unit length, see rv_route_unit
 };
-
-// True, with index = NN, when name is exactly cam_NN (two digits).
-bool rv_route_key_name(std::string_view name, int32_t &index);
 
 // v scaled to unit length in Q20.12; a zero-length v gives +z rather than a division by zero.
 // Error: the result leaves Q20.12; out is untouched.
@@ -42,12 +38,12 @@ int rv_route_eye_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_pdk
 // repeats it, so the disc logs the first one.
 int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, int64_t screen_height, rv_cg_camera &out);
 
-// The route entity's component: the keys of its cam_NN children, sorted by index. rv_route_collect fills it.
+// The route entity's component: the keys of the scene, sorted by index. rv_route_collect fills it.
 struct ecs_component_route {
     std::vector<rv_route_key> keys;
 };
 
-// Place of a cam_NN key on the route; the scene sets order, the key's NN.
+// Marks an entity as a route key; order is its place on the route, the scene sets it.
 struct ecs_component_route_key {
     int32_t order = 0;
 };
@@ -74,9 +70,10 @@ public:
     int add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id) const override;
 };
 
-// Fills the route component's keys from its cam_NN children. Call after ecs_system_transform.
-// Error: RV_ERR_NOENT without one route entity or without a key, RV_ERR_ALREADY for two route entities,
-// RV_ERR_INVAL for a Q20.12 failure or a camera without a world matrix. Logged here; the component is untouched.
+// Fills the route component's keys from the route_key entities. Call after ecs_system_transform.
+// Error: RV_ERR_NOENT without one route entity or without a route_key, RV_ERR_ALREADY for two route entities or
+// two keys with one order, RV_ERR_INVAL for a Q20.12 failure or a route_key without a world matrix. Logged here;
+// the component is untouched.
 int rv_route_collect(rv_pdkkit::ecs_world &world);
 
 // The route component of the world, nullptr without one.

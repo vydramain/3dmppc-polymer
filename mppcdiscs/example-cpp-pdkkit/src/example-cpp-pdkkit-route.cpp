@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <iterator>
 #include <limits>
-#include <string_view>
+#include <string>
 #include <vector>
 
 #include "pdk/cv/rv_cv.h"
@@ -52,12 +52,6 @@ constexpr fx RV_ROUTE_CUBIC_W[RV_ROUTE_SEGMENT_KEYS] = { RV_ROUTE_NEG_ONE, RV_RO
 // The camera then looks down +z.
 constexpr fx RV_ROUTE_MIN_LENGTH = 1;
 constexpr fx_vec3 RV_ROUTE_FALLBACK_DIR = { RV_ROUTE_ZERO, RV_ROUTE_ZERO, RV_ROUTE_ONE };
-
-// The cam_NN name is "cam_" and exactly two digits.
-constexpr std::string_view RV_ROUTE_KEY_PREFIX = "cam_";
-constexpr std::size_t RV_ROUTE_KEY_DIGITS = 2;
-constexpr std::size_t RV_ROUTE_KEY_NAME_SIZE = RV_ROUTE_KEY_PREFIX.size() + RV_ROUTE_KEY_DIGITS;
-constexpr int32_t RV_ROUTE_DECIMAL_BASE = 10;
 
 // Segment of the frame: seg runs from key seg to key seg+1 and rem / PERIOD is the frame's share of it.
 // The split is exact in integers; t is rounded to Q20.12 only where fx math uses it.
@@ -179,20 +173,6 @@ int route_spline(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec3 r
 
 } // namespace
 
-bool rv_route_key_name(std::string_view text, int32_t &index)
-{
-    if (text.size() != RV_ROUTE_KEY_NAME_SIZE || !text.starts_with(RV_ROUTE_KEY_PREFIX)) {
-        return false;
-    }
-    const char tens = text[RV_ROUTE_KEY_PREFIX.size()];
-    const char ones = text[RV_ROUTE_KEY_PREFIX.size() + 1];
-    if (tens < '0' || tens > '9' || ones < '0' || ones > '9') {
-        return false;
-    }
-    index = (tens - '0') * RV_ROUTE_DECIMAL_BASE + (ones - '0');
-    return true;
-}
-
 int rv_route_unit(fx_vec3 v, fx_vec3 &out)
 {
     fx length = 0;
@@ -276,16 +256,6 @@ namespace
 using rv_pdkkit::ecs_id;
 using rv_pdkkit::ecs_world;
 
-// Entities with a camera component, in slot order.
-std::vector<ecs_id> camera_ids(ecs_world &world)
-{
-    std::vector<ecs_id> ids;
-    rv_pdkkit::ecs_component_each<rv_pdkkit::ecs_component_camera>(world, [&ids](ecs_id id, auto &) {
-        ids.push_back(id);
-    });
-    return ids;
-}
-
 // The route entity and its component. RV_ERR_NOENT without one, RV_ERR_ALREADY with two: the camera would not be unique.
 // Logs nothing: the frame system calls it every frame.
 int find_route(ecs_world &world, ecs_id &id, ecs_component_route *&route)
@@ -305,38 +275,33 @@ int find_route(ecs_world &world, ecs_id &id, ecs_component_route *&route)
     return RV_OK;
 }
 
-// Appends the key of camera when it is a cam_NN child of route. A cam_NN camera outside the group is warned and skipped.
-int add_route_key(ecs_world &world, ecs_id camera, ecs_id route, std::vector<rv_route_key> &keys)
+// Log label of a route_key entity: its name, else its order.
+std::string route_key_label(ecs_world &world, ecs_id holder, int32_t order)
 {
-    const auto *hierarchy = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_parent>(world, camera);
-    const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world, camera);
-    if (name == nullptr) {
-        return RV_OK;
+    const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world, holder);
+    if (name != nullptr && name->text[0] != '\0') {
+        return std::string{ name->text };
     }
-    int32_t index = 0;
-    const bool named = rv_route_key_name(std::string_view{ name->text }, index);
-    if (!named) {
-        return RV_OK;
-    }
-    const bool on_route = hierarchy != nullptr && hierarchy->parent == route;
-    if (!on_route) {
-        RV_LOG_WARN("scene", "camera '{}' is not in the route group: not a route key", std::string_view{ name->text });
-        return RV_OK;
-    }
-    const auto *place = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_world>(world, camera);
+    return "order " + std::to_string(order);
+}
+
+// Appends the key of a route_key entity with a world matrix. Refused entities are logged.
+int add_route_key(ecs_world &world, ecs_id holder, int32_t order, std::vector<rv_route_key> &keys)
+{
+    const auto *place = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_world>(world, holder);
     if (place == nullptr) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' has no world matrix", std::string_view{ name->text });
+        RV_LOG_ERR("scene", "scene refused: route key '{}' has no world matrix", route_key_label(world, holder, order));
         return RV_ERR_INVAL;
     }
     rv_route_key key = {};
-    key.index = index;
+    key.index = order;
     // The eye is t; the view direction is the z column of r. 4.12 and Q20.12 share the 4096 scale, so the raw values are fx.
     const auto &m = place->matrix;
     key.eye = fx_vec3{ m.t[0], m.t[1], m.t[2] };
     const fx_vec3 dir = fx_vec3{ m.r[2], m.r[5], m.r[8] };
     const int unit_code = rv_route_unit(dir, key.dir);
     if (unit_code != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", std::string_view{ name->text });
+        RV_LOG_ERR("scene", "scene refused: route key '{}' direction leaves Q20.12", route_key_label(world, holder, order));
         return unit_code;
     }
     keys.push_back(key);
@@ -364,19 +329,29 @@ int rv_route_collect(ecs_world &world)
         return route_code;
     }
     std::vector<rv_route_key> found;
-    for (const ecs_id camera : camera_ids(world)) {
-        const int key_code = add_route_key(world, camera, route_id, found);
-        if (key_code != RV_OK) {
-            return key_code;
+    int key_code = RV_OK;
+    rv_pdkkit::ecs_component_each<ecs_component_route_key>(world, [&](ecs_id holder, ecs_component_route_key &key) {
+        if (key_code == RV_OK) {
+            key_code = add_route_key(world, holder, key.order, found);
         }
+    });
+    if (key_code != RV_OK) {
+        return key_code;
     }
     if (found.empty()) {
-        RV_LOG_ERR("scene", "scene refused: the route has no cam_NN camera");
+        RV_LOG_ERR("scene", "scene refused: the route has no route_key entity");
         return RV_ERR_NOENT;
     }
     std::sort(found.begin(), found.end(), [](const rv_route_key &a, const rv_route_key &b) {
         return a.index < b.index;
     });
+    const auto repeat = std::adjacent_find(found.begin(), found.end(), [](const rv_route_key &a, const rv_route_key &b) {
+        return a.index == b.index;
+    });
+    if (repeat != found.end()) {
+        RV_LOG_ERR("scene", "scene refused: two route keys have order {}", repeat->index);
+        return RV_ERR_ALREADY;
+    }
     route->keys = found;
     return RV_OK;
 }
