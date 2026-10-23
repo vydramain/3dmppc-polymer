@@ -77,6 +77,7 @@ constexpr const char *RV_SOUND_SONGS[] = {
     "home",
 };
 static_assert(std::size(RV_SOUND_SONGS) == static_cast<std::size_t>(rv_sound_area::flat) + 1, "one song per area");
+static_assert(std::size(RV_SOUND_SONGS) <= RV_SOUND_SONG_CAPACITY, "every area's song fits the state's songs");
 
 // The area of frame `frame`, by the eye x of its camera. Error: the route fails (rv_route_eye_at); out is untouched.
 int area_of_frame(const std::vector<rv_route_key> &keys, int64_t frame, rv_sound_area &out)
@@ -204,7 +205,7 @@ int64_t set_loops(rv_pdko *pdk, rv_sound_state &state, bool in_workshop)
             asset = state.error_asset;
         }
     }
-    state.error_asset = asset;
+    set_name(state.error_asset, asset.c_str());
     return code;
 }
 
@@ -213,7 +214,7 @@ int64_t set_loops(rv_pdko *pdk, rv_sound_state &state, bool in_workshop)
 // Records `asset` as the failure's name for the caller's log and returns `code`.
 int64_t fail(rv_sound_state &state, const char *asset, int64_t code)
 {
-    state.error_asset = asset;
+    set_name(state.error_asset, asset);
     return code;
 }
 
@@ -313,7 +314,7 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, const r
             asset = state.error_asset;
         }
     }
-    state.error_asset = asset;
+    set_name(state.error_asset, asset.c_str());
     return code;
 }
 

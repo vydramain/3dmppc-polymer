@@ -1,7 +1,10 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "pdk/ca/rv_voice_conf.h"
@@ -36,9 +39,21 @@ constexpr int16_t RV_SOUND_MAX_LEVEL = 32767;
 // Seed of the clack generator (xorshift32). Zero is its fixed point, so the seed must be nonzero.
 constexpr uint32_t RV_SOUND_CLACK_SEED = 0x2545F491u;
 
+// Songs a state holds: the demo's three, one per area. rv_music_init refuses more with RV_ERR_NOMEM.
+constexpr std::size_t RV_SOUND_SONG_CAPACITY = 3;
+
+// Copies `src` into the NUL-terminated field `dst`, cut to fit. Callers check a name fits where a cut would lose it.
+template <std::size_t N>
+void set_name(char (&dst)[N], const char *src)
+{
+    std::snprintf(dst, N, "%s", src);
+}
+
 // A song the music plays: bar k (from 0) is the disc asset mus_<name>_NN.pcm, NN = k + 1 at least two digits; bars counts them.
+// For a song of up to 99 bars the name is at most 52 characters: its bar asset mus_<name>_NN.pcm adds 11 (four, one,
+// two digits, four) to fit the field. rv_music_init refuses a longer name, and a bar name that does not fit.
 struct rv_music_song {
-    std::string name;
+    char name[rv_pdkkit::ecs_value_capacity]{};
     int64_t bars = 0;
 };
 
@@ -53,13 +68,14 @@ struct rv_sound_areas {
 struct rv_sound_state {
     // The last frame the sound played for, and its song and bar; the bar counts from the area span's first frame.
     int64_t frame = -1;
-    std::string song;
+    char song[rv_pdkkit::ecs_value_capacity]{};
     int64_t bar = -1;
-    // The songs rv_music_init measured, in the order it got them.
-    std::vector<rv_music_song> songs;
+    // The songs rv_music_init measured, in the order it got them: the first song_count entries.
+    rv_music_song songs[RV_SOUND_SONG_CAPACITY] = {};
+    int64_t song_count = 0;
     // Per music slot: sound RAM address, bar asset in it (empty when unknown).
     int64_t slot_addr[RV_SOUND_SLOTS] = {};
-    std::string slot_name[RV_SOUND_SLOTS];
+    char slot_name[RV_SOUND_SLOTS][rv_pdkkit::ecs_value_capacity] = {};
     // The music chain: the voice reads the slot before music_slot and goes on into music_slot, where its mark is
     // set. music_bar is the bar in music_slot and music_name its asset; music_on is set once a bar is played,
     // music_armed once the repeat and mark on music_slot are set.
@@ -67,18 +83,21 @@ struct rv_sound_state {
     bool music_armed = false;
     int music_slot = 0;
     int64_t music_bar = 0;
-    std::string music_name;
+    char music_name[rv_pdkkit::ecs_value_capacity]{};
     // Per factory loop: whether its voice was started and not stopped since.
     bool loop_armed[RV_SOUND_LOOP_COUNT] = {};
     // The clack generator's xorshift32 state; play_clack advances it once per clack.
     uint32_t clack_rng = RV_SOUND_CLACK_SEED;
-    // One bar read from the disc, slot-sized.
-    std::vector<uint8_t> scratch;
+    // The largest bar on the disc, which is the size of each music slot: a bar read from the disc must fit it.
+    int64_t slot_bytes = 0;
     // The clack and loop samples, made resident by the sound service.
     rv_pdkkit::sound_state sound;
     // The asset of the last failure, for the caller's log.
-    std::string error_asset;
+    char error_asset[rv_pdkkit::ecs_value_capacity]{};
 };
+
+static_assert(std::is_standard_layout_v<rv_sound_state> && std::is_trivially_copyable_v<rv_sound_state>,
+    "rv_sound_state is a component's working state: standard layout and trivially copyable");
 
 // Measures the music of each area's song on the disc, allocates the music slots, and tabulates the area and span of
 // every frame of the period into areas, from keys (non-empty, sorted by index). Called once; returns RV_OK or the first error.
@@ -96,7 +115,7 @@ int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_so
 // naming the asset.
 int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, const rv_sound_areas &areas, rv_sound_state &state);
 
-// Records `asset` as the failure's name for the caller's log and returns `code`.
+// Records `asset` as the failure's name for the caller's log and returns `code`; a name longer than the field is cut.
 int64_t fail(rv_sound_state &state, const char *asset, int64_t code);
 // Sets up and starts conf.voice (defined in example-cpp-pdkkit-sound.cpp).
 int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
