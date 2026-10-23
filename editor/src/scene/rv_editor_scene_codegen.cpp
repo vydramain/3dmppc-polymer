@@ -50,10 +50,10 @@ std::string rv_editor_scene_codegen_text(std::string_view scene_name)
     text += "//\n";
     text += "// To use it: the disc builds with [build] sdk = [\"kit\"] in disc.toml. Keep one rv_pdkkit::ecs_world and call\n";
     text += "// " + id + "_scene_load(world, cd, number) once at start; number names the load for later unloads.\n";
-    text += "// Every frame call rv_pdkkit::ecs_world_frame with an rv_pdkkit::ecs_frame{ pdk, frame }. Register a\n";
-    text += "// system with rv_pdkkit::ecs_system_register that calls rv_pdkkit::ecs_world_camera every frame: without\n";
-    text += "// it, ecs_world_frame returns RV_ERR_NOENT and draws nothing. The disc logs the code\n";
-    text += "// " + id + "_scene_load returns.\n\n";
+    text += "// Every frame call rv_pdkkit::ecs_world_frame with an rv_pdkkit::ecs_frame{ pdk, frame }. The scene needs one\n";
+    text += "// live entity with the lens component, the camera: the kit builds the frame's camera from its world matrix.\n";
+    text += "// Without it ecs_world_frame returns RV_ERR_NOENT and draws nothing; with two, RV_ERR_ALREADY.\n";
+    text += "// The disc logs the code " + id + "_scene_load returns.\n\n";
     text += "#include <cstdint>\n\n";
     text += "#include \"pdk/cd/rv_cd.h\"\n";
     text += "#include \"pdkkit/ecs/rv_ecs_frame.hpp\"\n";
