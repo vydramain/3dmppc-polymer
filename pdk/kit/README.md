@@ -51,7 +51,7 @@ holds the world (`world_`), the frame counter (`frame_`) and port 0's input
 
 `pdkkit_disc` implements neither `frame_render` nor `disc_shutdown`; the disc
 writes them. A disc brackets its own `frame_render` with `frame_begin()` and
-`frame_end()` (`pdklib/rv_cppdisc/rv_cppdisc.hpp`). The example,
+`frame_end()` (`pdk/lib/include/pdklib/rv_cppdisc/rv_cppdisc.hpp`). The example,
 `mppcdiscs/example-cpp-pdkkit/src/example-cpp-pdkkit.cpp`, derives from
 `pdkkit_disc`, registers its systems by name, and calls `scene_load`.
 
@@ -71,24 +71,27 @@ scene load places a scene's entities under a parent. The headers are listed
 below.
 
 The frame runs the disc's systems in registration order, then the transform,
-the face camera and the draw. A failing system ends the frame with its code;
-`ecs_frame_run` logs it once per run of the same failure. An unload asked for
+the camera, the face camera and the draw of every live entity with a model, in
+slot order, system-made entities included. A failing system, the camera or the
+face camera ends the frame with its code, and `ecs_frame_run` logs it once per
+run of the same failure. A failing transform also ends the frame, and
+`ecs_system_transform` logs its own failure on every frame. An unload asked for
 during a frame waits for the frame's end, so the frame still draws those
 entities. A failed scene load destroys its own entities.
 
-A volume is the unit cube `[-1/2, 1/2]^3` in its own units, placed by the
-entity's world matrix (`ecs_component_world`). `ecs_volume_contains`
-(`ecs/rv_ecs_volume.hpp`) tests a point, a Q20.12 value (see The scene), in
-integers, without inverting the matrix; it is exact for perpendicular columns,
-and a skewed matrix gives a wrong answer. Each element of R*S is stored as 4.12
-(4 integer bits, 12 fraction bits), so it is below 8 in magnitude and an
-unrotated volume is under 8 units along each axis. Rounding each element moves a
-face by a few Q20.12 units, more when the axis scales differ. A zero column (a
-flat volume) tests false.
+The camera is the one live entity with a `lens` component
+(`ecs_component_lens`, `ecs/rv_ecs_component.hpp`). `ecs_system_camera`
+(`ecs/rv_ecs_frame.hpp`) builds the frame's camera from its world matrix after
+the transform: the eye is the translation, the aim is the z column and the up is
+the y column. No lens entity gives `RV_ERR_NOENT`, two give `RV_ERR_ALREADY`; in
+both cases nothing is drawn, and the frame logs the refusal by name with its
+reason. The disc sets no camera.
 
 Public functions return `int`: `RV_OK` or an `RV_ERR_*` from `pdk/rv_err.h`.
-The face-camera system (`ecs_system_face_camera`) takes an `ecs_reason`
-out-parameter; `rv_scene_parse` and the field parsers (`ecs_field_int`) take a
+The camera step and the face-camera system (`ecs_system_camera`,
+`ecs_system_face_camera`) take an `ecs_reason` out-parameter, which
+`ecs_reason_refuse` (`ecs/rv_ecs.hpp`) fills with a refusal text, without an
+exception. `rv_scene_parse` and the field parsers (`ecs_field_int`) take a
 `std::string &error`.
 
 ## Components
@@ -110,8 +113,9 @@ and only the editor reads it (`component/rv_component_records_read.hpp`).
 | `transform` | `ecs_component_transform` | `position` fixed3, `rotation` angle3, `scale` fixed3 |
 | `model` | `ecs_component_model` | `source` model, `tint` color |
 | `camera`, `hidden`, `decal`, `two_sided` | empty structs | none |
-| `volume` | `ecs_component_volume` | none; the editor draws it as a wireframe; `ecs_volume_contains` tests a point in it |
+| `volume` | `ecs_component_volume` | none; the editor draws it as a wireframe |
 | `face_camera` | `ecs_component_face_camera` | none; the model turns to face the camera |
+| `lens` | `ecs_component_lens` | fov (degrees), near_plane, far_plane (metres), fixed; defaults 60, 0.1, 100; the frame's camera |
 
 ## The scene
 
@@ -136,6 +140,8 @@ path (`scene/rv_scene.hpp`).
 
 `sound/rv_pdkkit_sound.hpp` gives a disc named samples made resident by the
 drive, with voice setup, play and stop calls. The drive owns the sample RAM.
+The samples sit in a fixed table of 8 (`sound_state`); a name is up to 63 bytes.
+A longer name, or a ninth sample, is refused with a log.
 
 ## Headers
 
@@ -149,17 +155,16 @@ drive, with voice setup, play and stop calls. The drive owns the sample RAM.
 | `component/rv_component_records_read.hpp` | reads the records back from a disc image; the editor only |
 | `component/rv_component_register.hpp` | the factory and `ecs_component_register<T>` |
 | `disc/rv_pdkkit_disc.hpp` | `pdkkit_disc`, the C++ disc base: built-ins, clock, input, world |
-| `ecs/rv_ecs.hpp` | the entity world: slots, generations, scene loads, registries |
+| `ecs/rv_ecs.hpp` | the entity world: slots, generations, scene loads, registries, `ecs_reason_refuse` |
 | `ecs/rv_ecs_component.hpp` | the built-in components and the factory registry |
 | `ecs/rv_ecs_entity.hpp` | entity types |
 | `ecs/rv_ecs_face_camera.hpp` | the face-camera system |
-| `ecs/rv_ecs_frame.hpp` | the frame record, system registry, draw and the frame order |
-| `ecs/rv_ecs_loads.hpp` | scene loads and unloads, scene queries |
+| `ecs/rv_ecs_frame.hpp` | the frame record, system registry, camera step, draw and the frame order |
+| `ecs/rv_ecs_loads.hpp` | scene loads and unloads, scene queries; `ecs_find_by_name` searches every live entity |
 | `ecs/rv_ecs_scene.hpp` | loads a scene asset into the world |
 | `ecs/rv_ecs_scene_records.hpp` | the flat records of a form-2 scene |
 | `ecs/rv_ecs_store.hpp` | per-type component storage |
 | `ecs/rv_ecs_transform.hpp` | the transform system: world matrix per entity |
-| `ecs/rv_ecs_volume.hpp` | the point-in-volume test over an entity's world matrix |
 | `scene/rv_scene.hpp` | the scene document as a disc reads it |
 | `scene/rv_scene_migrate.hpp` | in-memory migration from form 1 to form 2 |
 | `scene/rv_scene_read.hpp` | the scene loader and its transforms, inline |
