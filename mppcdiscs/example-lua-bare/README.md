@@ -3,8 +3,9 @@
 The Solid Maid demo as a Lua disc: the same scene, models, sounds and frames as
 [`example-cpp-pdkkit`](../example-cpp-pdkkit/README.md), with the logic in Lua scripts instead
 of C++. The demo loops every 4320 frames (72 s at 60 frames per second) through
-the factory, the street and the flat. A frame's camera, board letters, lamps and
-music are pure functions of its number in the period.
+the factory, the street and the flat. A frame's camera, board letters and lamps are
+pure functions of its number in the period; the music is not: it depends on the frames
+played before it.
 
 The C++ side is one line of disc code: `src/example-lua-bare.cpp` plants the
 pdklib script disc (`RV_MPPC_DISC_LUA_DEF`, `pdklib/rv_dscript/rv_dscript.hpp`)
@@ -24,7 +25,6 @@ script.
 | Street lamps: lit on the way out, dark on the way back | `scripts/example-lua-bare-lamps.lua` (`REACH_SQUARED`, `LIGHT_MODEL`), `lamp_1`..`lamp_4` entries in the layout table, `assets/models/lamp_light.gltf` | reach of a lamp, the light model, lamp positions; 4 lamps 8 m apart, alternately on both kerbs | Reload Module `example-lua-bare-lamps` for `LIGHT_MODEL` and the drawing; `REACH_SQUARED` and the schedule run only in `M.disc_initialize`, so a reach change needs Build and Restart; lamp positions come from the layout table: Build and Restart |
 | Music per area: 1-s bars through two slots (factory 3 bars, street 5, home 10) | `scripts/example-lua-bare-sound.lua` (`WORKSHOP_MAX_X`, `FLAT_MIN_X`, `BARS`), `assets/snd/*.wav` | area borders on the camera's x (workshop x < 0, flat x > 33.8), bar lists | Reload Module `example-lua-bare-sound` for the constants; track files need Build and Restart |
 | Workshop loops and board clack | `scripts/example-lua-bare-sound.lua` (`LOOPS`, `CLACK`), `assets/snd/*.wav` | loop voices and volumes, clack envelope and file | Reload Module `example-lua-bare-sound`; track files need Build and Restart |
-| Footsteps per floor | `scripts/example-lua-bare-steps.lua` (`STRIDE`, `ASSETS`, `VOICES`, `VOLUME`), `assets/snd/sfx_step_*.wav` | step stride (0.95 m of the eye's horizontal path), step pairs per floor | Reload Module `example-lua-bare-steps`; sample files need Build and Restart |
 | Frame clock and background | `scripts/example-lua-bare.lua` (`frame_update`, `BACKGROUND`) | the clock counts only frames with dt > 0 | Reload (F8) |
 | Disc setup and budgets | `disc.toml` | sections and `[budget.*]`, including `script_memory_size` | Build and Restart |
 | C++ bridge | `src/example-lua-bare.cpp` | the disc class and entry points | Build and Restart |
@@ -34,8 +34,7 @@ The terms in the table (atlas cell, tess, cut-out texels) are explained in
 same table.
 
 Build and Restart is the editor's Restart button (tooltip "Build and Restart").
-Ctrl+B builds, F5 runs. The editor's scene check says it plainly: "Scenes are
-not reloaded yet. Save, then Build and Restart."
+Ctrl+B builds, F5 runs.
 
 ## Reload and Build and Restart
 
@@ -78,27 +77,25 @@ Restart as well.
 - `scripts/example-lua-bare-board.lua`, `scripts/example-lua-bare-lamps.lua` - one episode each.
 - `scripts/example-lua-bare-sound.lua` - the music, the loops and the clack; the bars
   of an area play on two voices in turn.
-- `scripts/example-lua-bare-steps.lua` - the footsteps, one per 0.95 m of the eye's path.
-- `assets/models/*.gltf` - glTF models, each with its `.bin` beside it; `[models]` in
-  `disc.toml` names them, and the build bakes them.
+- `assets/models/*.gltf` - glTF models, each with its `.bin` beside it; `files` under
+  `[assets]` in `disc.toml` finds them, and the build bakes them.
 - `assets/tex/*.png` - the model pictures each .gltf names, except street_16's four:
   `assets/models/street_0.png`..`street_3.png`, which `street_16.gltf` names beside it.
   The model build bakes them.
-- `assets/snd/*.wav` - the music, the loops, the footsteps and the clack, baked to `.pcm`.
-- `[textures]` in `disc.toml` lists no files; it keeps only `format = "idx8"`, the
-  format the models' textures are baked in.
+- `assets/snd/*.wav` - the music, the loops and the clack, baked to `.pcm`.
+- `[assets.texture]` in `disc.toml` sets `format = "idx8"`, the format the models'
+  PNG pictures are baked in.
 
 ## Scripts and state
 
 A chunk local or a field of the module table dies with the code on reload.
-Only the `state` table survives, so the entry keeps the scene copies, the frame
-counter and the music's tables (last frame, area, bar, slots) there. `state` holds
-plain numbers, strings, booleans and tables only; a function or a coroutine in it
-would keep the old bytecode alive after a reload, and cdata is refused by the
-console's state walk, which also caps its nodes. For that reason the read buffer of
-the music (`scripts/example-lua-bare-sound.lua`) and the footstep distance table
-(`scripts/example-lua-bare-steps.lua`, 4320 numbers) are module locals: a reload drops
-them, and the next call rebuilds them.
+Only the `state` table survives, so the entry keeps the scene copies (meshes, camera
+keys, lamps, board world), the frame counter and the music's tables (last frame,
+area, bar, slots) there. `state` holds plain numbers, strings, booleans and tables
+only; a function or a coroutine in it would keep the old bytecode alive after a
+reload, and cdata is refused by the console's state walk, which also caps its nodes.
+For that reason the read buffer of the music (`scripts/example-lua-bare-sound.lua`)
+is a module local: a reload drops it, and the next call rebuilds it.
 
 A failing step returns its code, and the script logs it once (`log_error_once`); the
 loop keeps running, and a camera failure skips the picture of that frame. A Lua error
@@ -108,6 +105,8 @@ pauses at the first one and sends `event=script_error`, so a reload can fix it.
 ## Memory
 
 `[budget.pccl]` in `disc.toml` sets `script_memory_size` to 1 MiB (1048576 bytes)
-for the whole Lua machine, bootstrap included. Its comment has the measured
-range: 358332 to 659645 bytes over 4400 stepped frames with the music, loops and
-footsteps. The peak is 659645 bytes.
+for the whole Lua machine, bootstrap included. The state holds the scene copied into
+plain tables (the meshes, the cam_NN keys, the lamps and the board's world); the music's
+read buffer is a module local. The comment has the measured range: about 370 to 710 KB
+(decimal) over three runs, with the music and loops, over 4400 stepped frames; the peak
+falls in the first frames after disc_initialize (frame 6 or 7).
