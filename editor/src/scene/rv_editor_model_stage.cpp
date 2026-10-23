@@ -280,7 +280,7 @@ int rv_editor_model_target_dir(const std::filesystem::path &root,
         dir = root / path.parent_path();
         return RV_OK;
     }
-    error = "no [models] pattern names a folder as \"<folder>/*.gltf\"";
+    error = "no [assets] pattern names a folder as \"<folder>/*.gltf\"";
     return RV_ERR_INVAL;
 }
 

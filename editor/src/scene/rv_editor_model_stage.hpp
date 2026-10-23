@@ -8,7 +8,7 @@
 namespace rv_editor
 {
 
-// The project's models folder: the folder of the first [models] pattern that is a literal folder plus
+// The project's models folder: the folder of the first [assets] model pattern that is a literal folder plus
 // "/*.gltf"; a first such pattern that is absolute or has "." or ".." parts is refused. RV_OK with `dir`;
 // RV_ERR_INVAL with the reason otherwise.
 int rv_editor_model_target_dir(const std::filesystem::path &root,
