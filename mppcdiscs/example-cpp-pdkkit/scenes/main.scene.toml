@@ -1495,3 +1495,202 @@ size = [16, 10, 6]
 object = "5ce40004"
 name = "zone_lamp"
 lamp = "lamp_4"
+
+# The light parts of each lamp: children of the lamp, hidden while it is dark; meant to be shown when the lamp is lit.
+# lamp_N_light is the light model; lamp_N_pool is the light pool on the asphalt under the lamp head.
+
+[[object]]
+id = "5ce40011"
+parent = "5ce00006"
+
+[[component]]
+object = "5ce40011"
+name = "name"
+text = "lamp_1_light"
+
+[[component]]
+object = "5ce40011"
+name = "transform"
+
+[[component]]
+object = "5ce40011"
+name = "model"
+source = "lamp_light.gltf"
+
+[[component]]
+object = "5ce40011"
+name = "hidden"
+
+[[object]]
+id = "5ce40012"
+parent = "5ce00006"
+
+[[component]]
+object = "5ce40012"
+name = "name"
+text = "lamp_1_pool"
+
+[[component]]
+object = "5ce40012"
+name = "transform"
+position = [0, 0.03, 1.35]
+
+[[component]]
+object = "5ce40012"
+name = "model"
+source = "light_pool.gltf"
+
+[[component]]
+object = "5ce40012"
+name = "decal"
+
+[[component]]
+object = "5ce40012"
+name = "hidden"
+
+[[object]]
+id = "5ce40013"
+parent = "5ce00007"
+
+[[component]]
+object = "5ce40013"
+name = "name"
+text = "lamp_2_light"
+
+[[component]]
+object = "5ce40013"
+name = "transform"
+
+[[component]]
+object = "5ce40013"
+name = "model"
+source = "lamp_light.gltf"
+
+[[component]]
+object = "5ce40013"
+name = "hidden"
+
+[[object]]
+id = "5ce40014"
+parent = "5ce00007"
+
+[[component]]
+object = "5ce40014"
+name = "name"
+text = "lamp_2_pool"
+
+[[component]]
+object = "5ce40014"
+name = "transform"
+position = [0, 0.03, 1.35]
+
+[[component]]
+object = "5ce40014"
+name = "model"
+source = "light_pool.gltf"
+
+[[component]]
+object = "5ce40014"
+name = "decal"
+
+[[component]]
+object = "5ce40014"
+name = "hidden"
+
+[[object]]
+id = "5ce40015"
+parent = "5ce00008"
+
+[[component]]
+object = "5ce40015"
+name = "name"
+text = "lamp_3_light"
+
+[[component]]
+object = "5ce40015"
+name = "transform"
+
+[[component]]
+object = "5ce40015"
+name = "model"
+source = "lamp_light.gltf"
+
+[[component]]
+object = "5ce40015"
+name = "hidden"
+
+[[object]]
+id = "5ce40016"
+parent = "5ce00008"
+
+[[component]]
+object = "5ce40016"
+name = "name"
+text = "lamp_3_pool"
+
+[[component]]
+object = "5ce40016"
+name = "transform"
+position = [0, 0.03, 1.35]
+
+[[component]]
+object = "5ce40016"
+name = "model"
+source = "light_pool.gltf"
+
+[[component]]
+object = "5ce40016"
+name = "decal"
+
+[[component]]
+object = "5ce40016"
+name = "hidden"
+
+[[object]]
+id = "5ce40017"
+parent = "5ce00009"
+
+[[component]]
+object = "5ce40017"
+name = "name"
+text = "lamp_4_light"
+
+[[component]]
+object = "5ce40017"
+name = "transform"
+
+[[component]]
+object = "5ce40017"
+name = "model"
+source = "lamp_light.gltf"
+
+[[component]]
+object = "5ce40017"
+name = "hidden"
+
+[[object]]
+id = "5ce40018"
+parent = "5ce00009"
+
+[[component]]
+object = "5ce40018"
+name = "name"
+text = "lamp_4_pool"
+
+[[component]]
+object = "5ce40018"
+name = "transform"
+position = [0, 0.03, 1.35]
+
+[[component]]
+object = "5ce40018"
+name = "model"
+source = "light_pool.gltf"
+
+[[component]]
+object = "5ce40018"
+name = "decal"
+
+[[component]]
+object = "5ce40018"
+name = "hidden"
