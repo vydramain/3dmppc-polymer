@@ -247,12 +247,9 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
 
 bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel)
 {
-    for (const auto *patterns :
-        { &project.assets_patterns, &project.textures_patterns, &project.sounds_patterns, &project.models_patterns }) {
-        for (const std::string &pattern : *patterns) {
-            if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
-                return true;
-            }
+    for (const std::string &pattern : project.assets_patterns) {
+        if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
+            return true;
         }
     }
     return false;

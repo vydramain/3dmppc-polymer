@@ -25,14 +25,12 @@ constexpr std::chrono::seconds walk_ttl{ 1 };
 // The walk does not enter a directory whose name starts with this: dotfiles and build outputs,
 // and any other folder with such a prefix (build_assets too). Its files are not candidates.
 constexpr std::string_view skip_build_dir_prefix = "build";
-// One pattern list per rv_editor_name_section.
-constexpr std::size_t section_count = 3;
-static_assert(static_cast<std::size_t>(rv_editor_name_section::assets) == 0 &&
-        static_cast<std::size_t>(rv_editor_name_section::textures) == 1 &&
-        static_cast<std::size_t>(rv_editor_name_section::models) + 1 == section_count,
-    "rv_editor_name_section must list the sections in this order, one per pattern list");
+// The index's pattern lists: every [assets] pattern, and the [assets] patterns of the model kind.
+constexpr std::size_t assets_list = 0;
+constexpr std::size_t models_list = 1;
+constexpr std::size_t list_count = 2;
 
-using section_patterns = std::array<std::vector<std::string>, section_count>;
+using section_patterns = std::array<std::vector<std::string>, list_count>;
 
 // A file the walk accepted, with a bit per section whose patterns match it.
 struct indexed_file {
@@ -60,10 +58,10 @@ bool walk_skip_dir(const std::string &name)
     return !name.empty() && (name[0] == '.' || name.starts_with(skip_build_dir_prefix));
 }
 
-// The project's pattern lists by reference, in section order: nothing is copied to compare them.
-std::array<const std::vector<std::string> *, section_count> pattern_lists(const rv_editor_project &project)
+// The project's pattern lists by reference, in list order: nothing is copied to compare them.
+std::array<const std::vector<std::string> *, list_count> pattern_lists(const rv_editor_project &project)
 {
-    return { &project.assets_patterns, &project.textures_patterns, &project.models_patterns };
+    return { &project.assets_patterns, &project.models_patterns };
 }
 
 // True when the held walk is for this project's root and pattern lists.
@@ -73,7 +71,7 @@ bool held_for(const name_index &index, const rv_editor_project &project)
         return false;
     }
     const auto lists = pattern_lists(project);
-    for (std::size_t s = 0; s < section_count; ++s) {
+    for (std::size_t s = 0; s < list_count; ++s) {
         if (index.patterns[s] != *lists[s]) {
             return false;
         }
@@ -95,21 +93,26 @@ unsigned asset_kind_bit(const std::string &rel)
     }
 }
 
-unsigned section_mask(const section_patterns &patterns, const std::string &rel)
+bool matches_any(const std::vector<std::string> &patterns, const std::string &rel)
 {
-    // Left only for a copy or a sound of [assets]; a texture or model of [assets] takes its own bit below.
-    constexpr unsigned assets_bit = 1u << static_cast<unsigned>(rv_editor_name_section::assets);
-    unsigned mask = 0;
-    for (std::size_t s = 0; s < section_count; ++s) {
-        for (const std::string &pattern : patterns[s]) {
-            if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
-                mask |= 1u << s;
-                break;
-            }
+    for (const std::string &pattern : patterns) {
+        if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
+            return true;
         }
     }
-    if ((mask & assets_bit) != 0) {
-        mask = (mask & ~assets_bit) | asset_kind_bit(rel);
+    return false;
+}
+
+// The section bits of a file: an [assets] pattern gives the bit of the file's kind; a model pattern
+// also gives the models bit.
+unsigned section_mask(const section_patterns &patterns, const std::string &rel)
+{
+    unsigned mask = 0;
+    if (matches_any(patterns[assets_list], rel)) {
+        mask |= asset_kind_bit(rel);
+    }
+    if (matches_any(patterns[models_list], rel)) {
+        mask |= 1u << static_cast<unsigned>(rv_editor_name_section::models);
     }
     return mask;
 }
@@ -159,7 +162,7 @@ rv_editor_walk_name(const rv_editor_project &project, rv_editor_name_section sec
         fresh.root = project.root;
         fresh.walked = now;
         const auto lists = pattern_lists(project);
-        for (std::size_t s = 0; s < section_count; ++s) {
+        for (std::size_t s = 0; s < list_count; ++s) {
             fresh.patterns[s] = *lists[s];
         }
         fresh.error = build_index(project, fresh.patterns, fresh);

@@ -147,8 +147,6 @@ struct rv_editor_project {
     std::filesystem::path cache_dir;            // builds and logs: $XDG_CACHE_HOME/3dmppc-editor/<hash>
     std::filesystem::path state_dir;            // memory card: $XDG_STATE_HOME/3dmppc-editor/<hash>
     std::vector<std::string> assets_patterns;   // every [assets] pattern, of any kind, relative to root
-    std::vector<std::string> textures_patterns; // never filled since the old [textures] section is no longer read; empty
-    std::vector<std::string> sounds_patterns;   // never filled since the old [sounds] section is no longer read; empty
     // The [assets] patterns of the model kind (.gltf, .glb), relative to root. The import folder
     // is named only by a "<folder>/*.gltf" pattern (rv_editor_model_target_dir). An [assets] pattern like
     // "assets/models/*" is not in this list: the walk still finds its models by their own kind, but it names no folder.
@@ -157,8 +155,8 @@ struct rv_editor_project {
     rv_editor_sdk_state sdk = rv_editor_sdk_state::unknown; // pdkkit or bare; unknown until the manifest loads
 };
 
-// True when `rel` (relative to p.root, '/'-separated) matches a pattern in
-// any of the four lists above.
+// True when `rel` (relative to p.root, '/'-separated) matches an [assets] pattern.
+// The model patterns are among them, so they are not checked again.
 bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel);
 
 // The disc.toml section Add to disc writes any file to, whatever its extension: the burner sorts
