@@ -104,7 +104,7 @@ struct ecs_component_decal {};
 struct ecs_component_two_sided {};
 // Marks the entity's model to be turned to face the camera, as a billboard. ecs_system_face_camera turns it.
 struct ecs_component_face_camera {};
-// Lens defaults in Q20.12. The field of view is vertical, in degrees: 60, the demo route's RV_ROUTE_FOV_Y.
+// Lens defaults in Q20.12. The field of view is vertical, in degrees: 60, a common vertical field for a first-person view.
 inline constexpr rv_pdklib::fx ecs_lens_fov_default = 60 * rv_pdklib::fx_one;
 // Near clip plane: 0.1 m is 409.6 raw, rounded half up to 410.
 inline constexpr rv_pdklib::fx ecs_lens_near_default = 410;
