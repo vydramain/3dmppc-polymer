@@ -4,7 +4,6 @@
 // Runs after ecs_system_transform. Only the rotation of the world matrix changes; the scale and the translation stay.
 
 #include <cstdint>
-#include <cstring>
 #include <vector>
 
 #include "pdk/cg/rv_cg.h"
@@ -30,13 +29,6 @@ struct ecs_camera_axes {
     std::int16_t back[3]{};
 };
 
-// Writes the reason text of a returned refusal. thrown stays clear: the frame logs it as returned, with the text.
-inline void ecs_face_camera_refuse(ecs_reason &reason, const char *text)
-{
-    std::strncpy(reason.text, text, ecs_reason_size - 1);
-    reason.text[ecs_reason_size - 1] = '\0';
-}
-
 // Integer length of a vector of raw values, in the scale of its inputs: the root of the squares, floored.
 inline std::int64_t ecs_face_camera_length(std::int64_t x, std::int64_t y, std::int64_t z)
 {
@@ -53,7 +45,7 @@ inline std::int64_t ecs_face_camera_length(std::int64_t x, std::int64_t y, std::
         const std::int16_t *r = camera.view.r + row * 3;
         const bool zero = r[0] == 0 && r[1] == 0 && r[2] == 0;
         if (zero) {
-            ecs_face_camera_refuse(reason, ecs_face_camera_zero_row);
+            ecs_reason_refuse(reason, ecs_face_camera_zero_row);
             return RV_ERR_INVAL;
         }
     }
@@ -76,7 +68,7 @@ inline std::int64_t ecs_face_camera_length(std::int64_t x, std::int64_t y, std::
         for (int row = 0; row < 3; ++row) {
             const std::int64_t scaled = rv_pdklib::rv_gte_round_frac(static_cast<std::int64_t>(axis_of[col][row]) * own_len);
             if (!rv_pdklib::rv_gte_fits<std::int16_t>(scaled)) {
-                ecs_face_camera_refuse(reason, ecs_face_camera_turned_out_of_range);
+                ecs_reason_refuse(reason, ecs_face_camera_turned_out_of_range);
                 return RV_ERR_INVAL;
             }
             turned.r[row * 3 + col] = static_cast<std::int16_t>(scaled);
