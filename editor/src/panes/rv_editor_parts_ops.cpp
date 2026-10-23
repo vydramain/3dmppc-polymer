@@ -87,7 +87,7 @@ std::string rv_editor_parts_child_name(const rv_editor_scene &scene, const std::
     return candidate;
 }
 
-// The selected object's model: its .gltf under [models], read through the cache.
+// The selected object's model: its .gltf among the [assets] models, read through the cache.
 int rv_editor_parts_source(const rv_editor_project &project,
     const std::string &mesh,
     std::filesystem::path &source,

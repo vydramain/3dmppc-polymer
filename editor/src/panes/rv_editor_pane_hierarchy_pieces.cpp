@@ -28,7 +28,8 @@ constexpr const char *rv_editor_pieces_id = "pieces";
 // The piece row's id under its own PushID(number).
 constexpr const char *rv_editor_piece_row_id = "piece";
 
-// The .glb named `name` under [models], read (cached by mtime). RV_OK with `glb`, or the code with the reason in `error`.
+// The .glb named `name` among the [assets] models, read (cached by mtime). RV_OK with `glb`, or the code with the reason in
+// `error`.
 int rv_editor_pieces_model(const rv_editor_project &project,
     const std::string &name,
     std::shared_ptr<const rv_editor_glb_model> &glb,
