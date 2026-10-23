@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
+#include <string>
 #include <vector>
 
 #include "pdk/ca/rv_ca.h"
@@ -25,46 +25,11 @@ namespace
 // frame and needs no lead time: Solid Maid's 0.018 s lead covers the jitter of wall-clock time, not this.
 constexpr int64_t RV_SOUND_BAR_FRAMES = 60;
 
-// The bars of each area in playing order; the samples are the disc's [assets] sounds (assets/snd). A bar list
-// wraps: after its last bar the first comes again. Order follows rv_sound_area.
-constexpr const char *RV_SOUND_WORKSHOP_BARS[] = {
-    "mus_factory_01.pcm",
-    "mus_factory_02.pcm",
-    "mus_factory_03.pcm",
-};
-constexpr const char *RV_SOUND_STREET_BARS[] = {
-    "mus_street_01.pcm",
-    "mus_street_02.pcm",
-    "mus_street_03.pcm",
-    "mus_street_04.pcm",
-    "mus_street_05.pcm",
-};
-constexpr const char *RV_SOUND_FLAT_BARS[] = {
-    "mus_home_01.pcm",
-    "mus_home_02.pcm",
-    "mus_home_03.pcm",
-    "mus_home_04.pcm",
-    "mus_home_05.pcm",
-    "mus_home_06.pcm",
-    "mus_home_07.pcm",
-    "mus_home_08.pcm",
-    "mus_home_09.pcm",
-    "mus_home_10.pcm",
-};
-
-struct rv_sound_song {
-    const char *const *bars;
-    int64_t count;
-};
-
-constexpr rv_sound_song RV_SOUND_SONGS[] = {
-    { RV_SOUND_WORKSHOP_BARS, static_cast<int64_t>(std::size(RV_SOUND_WORKSHOP_BARS)) },
-    { RV_SOUND_STREET_BARS, static_cast<int64_t>(std::size(RV_SOUND_STREET_BARS)) },
-    { RV_SOUND_FLAT_BARS, static_cast<int64_t>(std::size(RV_SOUND_FLAT_BARS)) },
-};
-// One song per area: the enum's last value plus one.
-constexpr int64_t RV_SOUND_AREA_COUNT = static_cast<int64_t>(rv_sound_area::flat) + 1;
-static_assert(std::size(RV_SOUND_SONGS) == static_cast<std::size_t>(RV_SOUND_AREA_COUNT), "one song per rv_sound_area");
+// A bar's asset is mus_<song>_NN.pcm, NN the bar's number from 01, at least RV_MUSIC_NUMBER_DIGITS wide.
+constexpr const char *RV_MUSIC_PREFIX = "mus_";
+constexpr const char *RV_MUSIC_SEPARATOR = "_";
+constexpr const char *RV_MUSIC_SUFFIX = ".pcm";
+constexpr std::size_t RV_MUSIC_NUMBER_DIGITS = 2;
 
 // One music voice plays the bars of both slots: the sound module moves it on at each bar's end by the repeat, and
 // the mark tells this frame it arrived. The partner voice of the old two-voice pattern is no longer used by music.
@@ -84,45 +49,55 @@ int other_slot(int slot)
     return (slot + 1) % RV_SOUND_SLOTS;
 }
 
-// Bar `bar` of the song, wrapping like the bar list.
-const char *bar_name(const rv_sound_song &song, int64_t bar)
+// The asset of bar `number` (from 1) of song `name`.
+std::string bar_asset(const std::string &name, int64_t number)
 {
-    return song.bars[bar % song.count];
+    std::string digits = std::to_string(number);
+    if (digits.size() < RV_MUSIC_NUMBER_DIGITS) {
+        digits.insert(0, RV_MUSIC_NUMBER_DIGITS - digits.size(), '0');
+    }
+    return RV_MUSIC_PREFIX + name + RV_MUSIC_SEPARATOR + digits + RV_MUSIC_SUFFIX;
+}
+
+// Bar `bar` of the song, wrapping like the disc's bars: after the last one the first comes again.
+std::string bar_name(const rv_music_song &song, int64_t bar)
+{
+    return bar_asset(song.name, bar % song.bars + 1);
 }
 
 // Makes music slot `slot` hold bar `name`. Callers write only a slot the music voice is not reading, so no voice
 // is stopped here. The slot is unknown while the write runs, so a failed write is retried.
-int64_t write_slot(rv_pdko *pdk, rv_sound_state &state, int slot, const char *name)
+int64_t write_slot(rv_pdko *pdk, rv_sound_state &state, int slot, std::string name)
 {
     if (state.slot_name[slot] == name) {
         return RV_OK;
     }
     rv_ca *ca = rv_pdko_ca(pdk);
     rv_cd *cd = rv_pdko_cd(pdk);
-    state.slot_name[slot] = nullptr;
-    const int64_t handle = rv_cd_asset_open(cd, name);
+    state.slot_name[slot].clear();
+    const int64_t handle = rv_cd_asset_open(cd, name.c_str());
     if (handle < 0) {
-        return fail(state, name, handle);
+        return fail(state, name.c_str(), handle);
     }
     const int64_t size = rv_cd_asset_size(cd, handle);
     if (size < 0) {
-        return fail(state, name, size);
+        return fail(state, name.c_str(), size);
     }
     // An empty bar or one larger than the slot is a bad disc: the asset is malformed for the slot.
     if (size == 0 || size > static_cast<int64_t>(state.scratch.size())) {
-        return fail(state, name, RV_ERR_INVAL);
+        return fail(state, name.c_str(), RV_ERR_INVAL);
     }
     // As Solid Maid (sm_sound.cpp:184-186): the return of read is the length of the bar.
     const int64_t read = rv_cd_asset_read(cd, handle, state.scratch.data(), size);
     if (read <= 0) {
-        return fail(state, name, RV_ERR_IO);
+        return fail(state, name.c_str(), RV_ERR_IO);
     }
     rv_sample sample = {};
     sample.data = state.scratch.data();
     sample.size = read;
     const int64_t write_code = rv_ca_sound_asset_write(ca, state.slot_addr[slot], &sample);
     if (write_code < 0) {
-        return fail(state, name, write_code);
+        return fail(state, name.c_str(), write_code);
     }
     state.slot_name[slot] = name;
     return RV_OK;
@@ -144,7 +119,7 @@ int64_t at_mark(rv_pdko *pdk, rv_sound_state &state, bool &reached)
 int64_t arm(rv_pdko *pdk, rv_sound_state &state, int slot)
 {
     rv_ca *ca = rv_pdko_ca(pdk);
-    const char *name = state.slot_name[slot];
+    const char *name = state.slot_name[slot].c_str();
     const int64_t addr = state.slot_addr[slot];
     const int64_t repeat_code = rv_ca_voice_repeat(ca, RV_SOUND_MUSIC_VOICE, addr);
     if (repeat_code < 0) {
@@ -172,11 +147,10 @@ int64_t arm_chain(rv_pdko *pdk, rv_sound_state &state)
     return RV_OK;
 }
 
-// Starts bar `bar` of the area's song when `play` is set; without `play` it only fills the slots (the first frame
+// Starts bar `bar` of the song when `play` is set; without `play` it only fills the slots (the first frame
 // mid-bar waits for the next bar start). A running chain is restarted on the slot the voice is not reading.
-int64_t start_chain(rv_pdko *pdk, rv_sound_state &state, rv_sound_area area, int64_t bar, bool play)
+int64_t start_chain(rv_pdko *pdk, rv_sound_state &state, const rv_music_song &song, int64_t bar, bool play)
 {
-    const rv_sound_song &song = RV_SOUND_SONGS[static_cast<std::size_t>(area)];
     int free_slot = static_cast<int>(bar % RV_SOUND_SLOTS);
     if (state.music_on) {
         bool reached = false;
@@ -208,7 +182,7 @@ int64_t start_chain(rv_pdko *pdk, rv_sound_state &state, rv_sound_area area, int
     conf.volume_r = RV_SOUND_MAX_LEVEL;
     const int64_t play_code = play_voice(pdk, conf);
     if (play_code < 0) {
-        return fail(state, bar_name(song, bar), play_code);
+        return fail(state, bar_name(song, bar).c_str(), play_code);
     }
     // The voice reads free_slot from here on, so the next bar is written only now. The chain is running from here:
     // a failed step is finished by arm_chain, not restarted, since a restart could write the slot being read.
@@ -217,17 +191,16 @@ int64_t start_chain(rv_pdko *pdk, rv_sound_state &state, rv_sound_area area, int
     state.music_slot = next_slot;
     state.music_bar = bar + 1;
     state.music_name = bar_name(song, bar + 1);
-    // The chain plays this area and bar from here, so a retry after a failed arm sees no area change.
-    state.area = area;
+    // The chain plays this song and bar from here, so a retry after a failed arm sees no song change.
+    state.song = song.name;
     state.bar = bar;
     return arm_chain(pdk, state);
 }
 
 // The voice reached its mark: the slot it has left is free and takes the bar after the one queued in the mark's slot.
 // The mark moves to that slot only once it is armed, so a failed step is retried as the same step.
-int64_t advance(rv_pdko *pdk, rv_sound_state &state)
+int64_t advance(rv_pdko *pdk, rv_sound_state &state, const rv_music_song &song)
 {
-    const rv_sound_song &song = RV_SOUND_SONGS[static_cast<std::size_t>(state.area)];
     const int free_slot = other_slot(state.music_slot);
     const int64_t queued = state.music_bar + 1;
     const int64_t write_code = write_slot(pdk, state, free_slot, bar_name(song, queued));
@@ -255,30 +228,63 @@ void free_slots(rv_ca *ca, const rv_sound_state &state, int count)
     }
 }
 
+// Counts the bars of song `name`: mus_<name>_01.pcm, _02, ... up to the first one the drive does not have. Raises
+// `largest` to the biggest bar. Returns the count, or the first error with its bar as state.error_asset.
+int64_t count_bars(rv_cd *cd, rv_sound_state &state, const std::string &name, int64_t &largest)
+{
+    int64_t bars = 0;
+    for (;;) {
+        const std::string asset = bar_asset(name, bars + 1);
+        const int64_t handle = rv_cd_asset_open(cd, asset.c_str());
+        if (handle == RV_ERR_NOENT) {
+            break;
+        }
+        if (handle < 0) {
+            return fail(state, asset.c_str(), handle);
+        }
+        const int64_t size = rv_cd_asset_size(cd, handle);
+        if (size < 0) {
+            return fail(state, asset.c_str(), size);
+        }
+        if (size == 0) {
+            return fail(state, asset.c_str(), RV_ERR_INVAL);
+        }
+        largest = std::max(largest, size);
+        ++bars;
+    }
+    if (bars == 0) {
+        return fail(state, bar_asset(name, 1).c_str(), RV_ERR_NOENT);
+    }
+    return bars;
+}
+
+// The song rv_music_init measured under `name`, or null when there is none.
+const rv_music_song *find_song(const rv_sound_state &state, const char *name)
+{
+    for (const rv_music_song &song : state.songs) {
+        if (song.name == name) {
+            return &song;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
 
-int64_t rv_music_init(rv_pdko *pdk, rv_sound_state &state)
+int64_t rv_music_init(rv_pdko *pdk, const std::vector<std::string> &names, rv_sound_state &state)
 {
     rv_cd *cd = rv_pdko_cd(pdk);
     rv_ca *ca = rv_pdko_ca(pdk);
+    state.songs.clear();
 
     // The slots are sized to the largest bar, measured off the disc: a re-recorded bar must not overflow them.
     int64_t largest = 0;
-    for (const rv_sound_song &song : RV_SOUND_SONGS) {
-        for (int64_t i = 0; i < song.count; ++i) {
-            const int64_t handle = rv_cd_asset_open(cd, song.bars[i]);
-            if (handle < 0) {
-                return fail(state, song.bars[i], handle);
-            }
-            const int64_t size = rv_cd_asset_size(cd, handle);
-            if (size < 0) {
-                return fail(state, song.bars[i], size);
-            }
-            if (size == 0) {
-                return fail(state, song.bars[i], RV_ERR_INVAL);
-            }
-            largest = std::max(largest, size);
+    for (const std::string &name : names) {
+        const int64_t bars = count_bars(cd, state, name, largest);
+        if (bars < 0) {
+            return bars;
         }
+        state.songs.push_back({ name, bars });
     }
     for (int slot = 0; slot < RV_SOUND_SLOTS; ++slot) {
         const int64_t addr = rv_ca_sound_asset_malloc(ca, largest);
@@ -292,22 +298,21 @@ int64_t rv_music_init(rv_pdko *pdk, rv_sound_state &state)
     return RV_OK;
 }
 
-int64_t rv_music_update(rv_pdko *pdk, rv_sound_area area, int64_t span_offset, rv_sound_state &state)
+int64_t rv_music_update(rv_pdko *pdk, const char *name, int64_t span_offset, rv_sound_state &state)
 {
-    const int64_t area_index = static_cast<int64_t>(area);
-    const bool area_in_range = area_index >= 0 && area_index < RV_SOUND_AREA_COUNT;
-    const bool offset_in_range = span_offset >= 0 && span_offset < RV_ROUTE_PERIOD_FRAMES;
-    if (!area_in_range) {
-        return fail(state, "music area", RV_ERR_INVAL);
+    const rv_music_song *song = find_song(state, name);
+    if (song == nullptr) {
+        return fail(state, "music song", RV_ERR_INVAL);
     }
+    const bool offset_in_range = span_offset >= 0 && span_offset < RV_ROUTE_PERIOD_FRAMES;
     if (!offset_in_range) {
         return fail(state, "music offset", RV_ERR_INVAL);
     }
     const int64_t bar = span_offset / RV_SOUND_BAR_FRAMES;
-    // Decided against the previous frame, before this frame takes its area and bar. A running chain whose frame was
+    // Decided against the previous frame, before this frame takes its song and bar. A running chain whose frame was
     // not committed (its arm failed) is not a first frame: it is finished above, not started again.
     const bool first = state.frame < 0 && !state.music_on;
-    const bool area_changed = first || area != state.area;
+    const bool song_changed = first || name != state.song;
     // A first frame mid-bar fills the slots and waits: the bar it is in is not played from its head.
     const bool silent = first && span_offset % RV_SOUND_BAR_FRAMES != 0;
     // A chain whose last step failed is finished first: its voice already plays, so a restart would be wrong.
@@ -316,20 +321,20 @@ int64_t rv_music_update(rv_pdko *pdk, rv_sound_area area, int64_t span_offset, r
         return music_code;
     }
     // Before the chain runs it starts at a table bar start; once running, the voice's marks move it on.
-    const bool starts = area_changed || (!state.music_on && bar != state.bar);
+    const bool starts = song_changed || (!state.music_on && bar != state.bar);
     if (starts) {
-        music_code = start_chain(pdk, state, area, bar, !silent);
+        music_code = start_chain(pdk, state, *song, bar, !silent);
     } else if (state.music_on) {
         bool reached = false;
         music_code = at_mark(pdk, state, reached);
         if (music_code == RV_OK && reached) {
-            music_code = advance(pdk, state);
+            music_code = advance(pdk, state, *song);
         }
     }
     if (music_code < 0) {
         return music_code;
     }
-    state.area = area;
+    state.song = name;
     state.bar = bar;
     return RV_OK;
 }

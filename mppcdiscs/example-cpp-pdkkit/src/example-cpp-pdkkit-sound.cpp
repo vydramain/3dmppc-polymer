@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <string>
 #include <vector>
 
 #include "pdk/ca/rv_ca.h"
@@ -68,6 +69,14 @@ constexpr rv_sound_loop RV_SOUND_LOOPS[] = {
     { RV_SOUND_ASSEMBLY_LOOP, RV_SOUND_ASSEMBLY_VOICE, RV_SOUND_ASSEMBLY_VOLUME },
 };
 static_assert(std::size(RV_SOUND_LOOPS) == RV_SOUND_LOOP_COUNT, "one entry per loop");
+
+// The song each area plays: its bars are mus_<song>_NN.pcm, counted on the disc by rv_music_init. Order follows rv_sound_area.
+constexpr const char *RV_SOUND_SONGS[] = {
+    "factory",
+    "street",
+    "home",
+};
+static_assert(std::size(RV_SOUND_SONGS) == static_cast<std::size_t>(rv_sound_area::flat) + 1, "one song per area");
 
 // The area of frame `frame`, by the eye x of its camera. Error: the route fails (rv_route_eye_at); out is untouched.
 int area_of_frame(const std::vector<rv_route_key> &keys, int64_t frame, rv_sound_area &out)
@@ -187,7 +196,7 @@ int64_t set_loop(rv_pdko *pdk, rv_sound_state &state, int index, bool on)
 int64_t set_loops(rv_pdko *pdk, rv_sound_state &state, bool in_workshop)
 {
     int64_t code = RV_OK;
-    const char *asset = "";
+    std::string asset;
     for (int i = 0; i < RV_SOUND_LOOP_COUNT; ++i) {
         const int64_t loop_code = set_loop(pdk, state, i, in_workshop);
         if (code == RV_OK && loop_code < 0) {
@@ -222,7 +231,9 @@ int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf)
 
 int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_sound_state &state)
 {
-    const int64_t music_code = rv_music_init(pdk, state);
+    // The songs are measured here, one per area in area order.
+    const std::vector<std::string> songs(std::begin(RV_SOUND_SONGS), std::end(RV_SOUND_SONGS));
+    const int64_t music_code = rv_music_init(pdk, songs, state);
     if (music_code < 0) {
         return music_code;
     }
@@ -276,8 +287,9 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
     // The loops always run. The clack runs only after the music step succeeded: otherwise the same clack would
     // repeat every frame. The first failure is returned with its asset.
     int64_t code = RV_OK;
-    const char *asset = "";
-    const int64_t music_code = rv_music_update(pdk, area, span_offset, state);
+    std::string asset;
+    const char *song = RV_SOUND_SONGS[static_cast<std::size_t>(area)];
+    const int64_t music_code = rv_music_update(pdk, song, span_offset, state);
     if (music_code < 0) {
         code = music_code;
         asset = state.error_asset;
