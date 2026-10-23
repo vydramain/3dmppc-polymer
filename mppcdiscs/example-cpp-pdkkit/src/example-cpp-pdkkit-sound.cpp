@@ -15,6 +15,7 @@
 #include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "pdkkit/sound/rv_pdkkit_sound.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "example-cpp-pdkkit-board.hpp"
 #include "example-cpp-pdkkit-zones.hpp"
 
 namespace example_cpp_pdkkit
@@ -208,8 +209,7 @@ int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
     if (resident_code != RV_OK) {
         return fail(state, clack, resident_code);
     }
-    // The click is off: its play_voice call below is commented out; conf is kept for when it comes back.
-    [[maybe_unused]] rv_voice_conf conf = {};
+    rv_voice_conf conf = {};
     conf.voice = RV_SOUND_CLACK_VOICE;
     conf.loop_type = RV_LOOP_NONE;
     conf.sample_address = addr;
@@ -221,10 +221,10 @@ int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
     conf.volume = RV_SOUND_MAX_LEVEL;
     conf.volume_l = RV_SOUND_MAX_LEVEL;
     conf.volume_r = RV_SOUND_MAX_LEVEL;
-    // const int64_t play_code = play_voice(pdk, conf);
-    // if (play_code < 0) {
-    //     return fail(state, clack, play_code);
-    // }
+    const int64_t play_code = play_voice(pdk, conf);
+    if (play_code < 0) {
+        return fail(state, clack, play_code);
+    }
     return RV_OK;
 }
 
@@ -270,6 +270,28 @@ int ecs_system_music(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &fr
     const int64_t music_code = rv_music_update(frame.pdk, current->music, state);
     if (music_code != RV_OK) {
         warn_once(state, music_code);
+    }
+    return RV_OK;
+}
+
+int ecs_system_clack(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame)
+{
+    const std::vector<rv_pdkkit::ecs_id> listeners = holders_of<ecs_component_listener>(world);
+    if (listeners.empty()) {
+        return RV_OK;
+    }
+    if (listeners.size() > 1) {
+        return RV_ERR_ALREADY;
+    }
+    ecs_component_listener *listener = rv_pdkkit::ecs_component_get<ecs_component_listener>(world, listeners[0]);
+    const bool switched = !holders_of<ecs_component_flicker_switched>(world).empty();
+    const bool in_factory = rv_pdkkit::ecs_component_get<ecs_component_zone_clack>(world, listener->zone) != nullptr;
+    if (!switched || !in_factory) {
+        return RV_OK;
+    }
+    const int64_t clack_code = play_clack(frame.pdk, listener->sound);
+    if (clack_code != RV_OK) {
+        warn_once(listener->sound, clack_code);
     }
     return RV_OK;
 }

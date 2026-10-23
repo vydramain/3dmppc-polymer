@@ -98,7 +98,7 @@ static_assert(std::is_standard_layout_v<rv_sound_state> && std::is_trivially_cop
 int64_t fail(rv_sound_state &state, const char *asset, int64_t code);
 // Sets up and starts conf.voice (defined in example-cpp-pdkkit-sound.cpp).
 int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
-// Plays one board clack from clack_rng. Called by the clack system, which is not written yet (defined in the .cpp).
+// Plays one board clack from clack_rng (defined in the .cpp). ecs_system_clack calls it.
 int64_t play_clack(rv_pdko *pdk, rv_sound_state &state);
 
 // Music, in example-cpp-pdkkit-music.cpp. rv_music_init measures the bars of each named song and allocates the music
@@ -135,6 +135,11 @@ struct ecs_component_listener {
 // take over where they differ. Runs after the zones system. A sound failure is logged once per asset and not returned.
 // Error: RV_ERR_ALREADY with two listeners.
 int ecs_system_music(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
+
+// Frame system: plays one clack in the frame when a lamp switched (flicker_switched) and the listener stands in a zone
+// with zone_clack. Runs after music and flicker, so it sees this frame's zone and switches. A clack failure is logged
+// once per asset and not returned. Error: RV_ERR_ALREADY with two listeners.
+int ecs_system_clack(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
 
 } // namespace example_cpp_pdkkit
 

@@ -36,6 +36,8 @@ constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
 constexpr const char *RV_EXAMPLE_CPP_ZONES_SYSTEM = "zones";
 // The frame system that plays the listener's music and loop on the zones' zone_crossed; it runs after zones.
 constexpr const char *RV_EXAMPLE_CPP_MUSIC_SYSTEM = "music";
+// The frame system that plays a clack on a lamp's switch in the factory; it runs last, after music and flicker.
+constexpr const char *RV_EXAMPLE_CPP_CLACK_SYSTEM = "clack";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
 
@@ -93,8 +95,8 @@ private:
 
 // Registers the lamp entity type, the route's frame system, then the lamp_light, flicker and flicker_switched components
 // with the flicker frame system, then the route_key, route_rider, trail, zone, zone_crossed, zone_lamp, lamp_switched,
-// zone_music, zone_clack and listener components, then the zones, music, lamps and light frame systems in this order,
-// which is the frame's order; a scene refers to them by name. pdkkit_disc registers the built-in components before this.
+// zone_music, zone_clack and listener components, then the zones, music, lamps, light and clack frame systems in this
+// order, which is the frame's order; a scene refers to them by name. pdkkit_disc registers the built-in components before this.
 int rv_dmain::register_ecs()
 {
     const int lamp_type_code = rv_pdkkit::ecs_entity_register(world_, lamp_type);
@@ -183,6 +185,11 @@ int rv_dmain::register_ecs()
         rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_LIGHT_SYSTEM, example_cpp_pdkkit::ecs_system_light);
     if (light_code != RV_OK) {
         return light_code;
+    }
+    const int clack_code =
+        rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_CLACK_SYSTEM, example_cpp_pdkkit::ecs_system_clack);
+    if (clack_code != RV_OK) {
+        return clack_code;
     }
     return RV_OK;
 }
