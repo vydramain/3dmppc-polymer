@@ -1,15 +1,9 @@
 #include "example-cpp-pdkkit-route.hpp"
 
 #include <algorithm>
-#include <cstddef>
-#include <iterator>
-#include <limits>
-#include <string>
 #include <vector>
 
 #include "pdkkit/ecs/rv_ecs_transform.hpp"
-#include "pdklib/rv_gte/rv_gte_camera.hpp"
-#include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace example_cpp_pdkkit
 {
@@ -19,13 +13,6 @@ namespace
 
 using rv_pdklib::fx;
 using rv_pdklib::fx_vec3;
-
-// Lens and clip planes in Q20.12; the far plane is a margin past the scene's extent. The field is in degrees.
-// The near plane is 0.1 m = 409.6 raw, rounded half up to 410. The up axis is +y.
-constexpr fx RV_ROUTE_FOV_Y = 60 * rv_pdklib::fx_one;
-constexpr fx RV_ROUTE_NEAR = 410;
-constexpr fx RV_ROUTE_FAR = 100 * rv_pdklib::fx_one;
-constexpr fx_vec3 RV_ROUTE_UP = { 0, rv_pdklib::fx_one, 0 };
 
 // A Catmull-Rom segment is drawn by four keys: p0 before it, p1 and p2 at its ends, p3 after it.
 constexpr int64_t RV_ROUTE_SEGMENT_KEYS = 4;
@@ -47,11 +34,6 @@ constexpr fx RV_ROUTE_BASE_W[RV_ROUTE_SEGMENT_KEYS] = { RV_ROUTE_ZERO, RV_ROUTE_
 constexpr fx RV_ROUTE_SLOPE_W[RV_ROUTE_SEGMENT_KEYS] = { RV_ROUTE_NEG_ONE, RV_ROUTE_ZERO, RV_ROUTE_ONE, RV_ROUTE_ZERO };
 constexpr fx RV_ROUTE_CURVE_W[RV_ROUTE_SEGMENT_KEYS] = { RV_ROUTE_TWO, RV_ROUTE_NEG_FIVE, RV_ROUTE_FOUR, RV_ROUTE_NEG_ONE };
 constexpr fx RV_ROUTE_CUBIC_W[RV_ROUTE_SEGMENT_KEYS] = { RV_ROUTE_NEG_ONE, RV_ROUTE_THREE, RV_ROUTE_NEG_THREE, RV_ROUTE_ONE };
-
-// Raw steps are 1/4096 and the length is rounded down, so only a zero vector has length below one step.
-// The camera then looks down +z.
-constexpr fx RV_ROUTE_MIN_LENGTH = 1;
-constexpr fx_vec3 RV_ROUTE_FALLBACK_DIR = { RV_ROUTE_ZERO, RV_ROUTE_ZERO, RV_ROUTE_ONE };
 
 // Segment of the frame: seg runs from key seg to key seg+1 and rem / PERIOD is the frame's share of it.
 // The split is exact in integers; t is rounded to Q20.12 only where fx math uses it.
@@ -148,7 +130,7 @@ int spline(const fx_vec3 (&p)[RV_ROUTE_SEGMENT_KEYS], fx t, fx_vec3 &out)
     return RV_OK;
 }
 
-// Spline of the field (eye or dir) of the frame's segment at the frame's share t. Error: out is untouched.
+// Spline of the field (position or rotation) of the frame's segment at the frame's share t. Error: out is untouched.
 int route_spline(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec3 rv_route_key::*field, fx_vec3 &out)
 {
     if (keys.empty()) {
@@ -173,140 +155,11 @@ int route_spline(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec3 r
 
 } // namespace
 
-int rv_route_unit(fx_vec3 v, fx_vec3 &out)
-{
-    fx length = 0;
-    if (rv_pdklib::fx_vec3_length(v, length) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    if (length < RV_ROUTE_MIN_LENGTH) {
-        out = RV_ROUTE_FALLBACK_DIR;
-        return RV_OK;
-    }
-    fx_vec3 unit = {};
-    if (rv_pdklib::fx_div(v.x, length, unit.x) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    if (rv_pdklib::fx_div(v.y, length, unit.y) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    if (rv_pdklib::fx_div(v.z, length, unit.z) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    out = unit;
-    return RV_OK;
-}
-
-int rv_route_eye_at(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec3 &out)
-{
-    return route_spline(keys, frame, &rv_route_key::eye, out);
-}
-
-int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, int64_t screen_height, rv_cg_camera &out)
-{
-    if (screen_height <= 0 || screen_height > std::numeric_limits<int32_t>::max()) {
-        return RV_ERR_INVAL;
-    }
-    fx_vec3 eye = {};
-    const int eye_rv = rv_route_eye_at(keys, frame, eye);
-    if (eye_rv != RV_OK) {
-        return eye_rv;
-    }
-    fx_vec3 dir_curve = {};
-    const int dir_rv = route_spline(keys, frame, &rv_route_key::dir, dir_curve);
-    if (dir_rv != RV_OK) {
-        return dir_rv;
-    }
-    fx_vec3 dir = {};
-    if (rv_route_unit(dir_curve, dir) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    fx_vec3 target = {};
-    if (rv_pdklib::fx_vec3_add(eye, dir, target) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    rv_pdklib::rv_gte_camera camera = {};
-    const int make_code = rv_pdklib::rv_gte_camera_make(eye,
-        target,
-        RV_ROUTE_UP,
-        RV_ROUTE_FOV_Y,
-        static_cast<int32_t>(screen_height),
-        RV_ROUTE_NEAR,
-        RV_ROUTE_FAR,
-        camera);
-    if (make_code != RV_OK) {
-        return make_code;
-    }
-    // rv_cg_camera has the same fields as rv_gte_camera; the matrix layouts match (see rv_cg.h).
-    for (std::size_t i = 0; i < std::size(out.view.r); ++i) {
-        out.view.r[i] = camera.view.r[i];
-    }
-    for (std::size_t i = 0; i < std::size(out.view.t); ++i) {
-        out.view.t[i] = camera.view.t[i];
-    }
-    out.h = camera.h;
-    out.near_plane = camera.near_plane;
-    out.far_plane = camera.far_plane;
-    return RV_OK;
-}
-
 namespace
 {
 
 using rv_pdkkit::ecs_id;
 using rv_pdkkit::ecs_world;
-
-// The route entity and its component. RV_ERR_NOENT without one, RV_ERR_ALREADY with two: the camera would not be unique.
-// Logs nothing: the frame system calls it every frame.
-int find_route(ecs_world &world, ecs_id &id, ecs_component_route *&route)
-{
-    int count = 0;
-    rv_pdkkit::ecs_component_each<ecs_component_route>(world, [&](ecs_id holder, ecs_component_route &component) {
-        ++count;
-        id = holder;
-        route = &component;
-    });
-    if (count == 0) {
-        return RV_ERR_NOENT;
-    }
-    if (count > 1) {
-        return RV_ERR_ALREADY;
-    }
-    return RV_OK;
-}
-
-// Log label of a route_key entity: its name, else its order.
-std::string route_key_label(ecs_world &world, ecs_id holder, int32_t order)
-{
-    const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world, holder);
-    if (name != nullptr && name->text[0] != '\0') {
-        return std::string{ name->text };
-    }
-    return "order " + std::to_string(order);
-}
-
-// Appends the key of a route_key entity with a world matrix. Refused entities are logged.
-int add_route_key(ecs_world &world, ecs_id holder, int32_t order, std::vector<rv_route_key> &keys)
-{
-    const auto *place = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_world>(world, holder);
-    if (place == nullptr) {
-        RV_LOG_ERR("scene", "scene refused: route key '{}' has no world matrix", route_key_label(world, holder, order));
-        return RV_ERR_INVAL;
-    }
-    rv_route_key key = {};
-    key.index = order;
-    // The eye is t; the view direction is the z column of r. 4.12 and Q20.12 share the 4096 scale, so the raw values are fx.
-    const auto &m = place->matrix;
-    key.eye = fx_vec3{ m.t[0], m.t[1], m.t[2] };
-    const fx_vec3 dir = fx_vec3{ m.r[2], m.r[5], m.r[8] };
-    const int unit_code = rv_route_unit(dir, key.dir);
-    if (unit_code != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: route key '{}' direction leaves Q20.12", route_key_label(world, holder, order));
-        return unit_code;
-    }
-    keys.push_back(key);
-    return RV_OK;
-}
 
 // Local poses of the route_key entities, sorted by order. RV_ERR_INVAL for a key without transform, RV_ERR_ALREADY for
 // two keys with one order. Logs nothing: the frame system returns the code. Read every frame, not cached: the keys are
@@ -408,63 +261,6 @@ int ride_route(ecs_world &world, int64_t frame)
 }
 
 } // namespace
-
-const ecs_component_route *rv_route_of(ecs_world &world)
-{
-    const ecs_component_route *route = nullptr;
-    rv_pdkkit::ecs_component_each<ecs_component_route>(world, [&route](ecs_id, ecs_component_route &component) {
-        route = &component;
-    });
-    return route;
-}
-
-int rv_route_collect(ecs_world &world)
-{
-    ecs_id route_id{};
-    ecs_component_route *route = nullptr;
-    const int route_code = find_route(world, route_id, route);
-    if (route_code != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: the scene needs one route entity, rv_err {}", route_code);
-        return route_code;
-    }
-    std::vector<rv_route_key> found;
-    int key_code = RV_OK;
-    rv_pdkkit::ecs_component_each<ecs_component_route_key>(world, [&](ecs_id holder, ecs_component_route_key &key) {
-        if (key_code == RV_OK) {
-            key_code = add_route_key(world, holder, key.order, found);
-        }
-    });
-    if (key_code != RV_OK) {
-        return key_code;
-    }
-    if (found.empty()) {
-        RV_LOG_ERR("scene", "scene refused: the route has no route_key entity");
-        return RV_ERR_NOENT;
-    }
-    std::sort(found.begin(), found.end(), [](const rv_route_key &a, const rv_route_key &b) {
-        return a.index < b.index;
-    });
-    const auto repeat = std::adjacent_find(found.begin(), found.end(), [](const rv_route_key &a, const rv_route_key &b) {
-        return a.index == b.index;
-    });
-    if (repeat != found.end()) {
-        RV_LOG_ERR("scene", "scene refused: two route keys have order {}", repeat->index);
-        return RV_ERR_ALREADY;
-    }
-    route->keys = found;
-    return RV_OK;
-}
-
-int ecs_entity_route::add_defaults(ecs_world &world, ecs_id id) const
-{
-    ecs_component_route *route = nullptr;
-    const int route_code = rv_pdkkit::ecs_component_ensure<ecs_component_route>(world, id, route);
-    if (route_code != RV_OK) {
-        RV_LOG_ERR("scene", "route component not added: rv_err {}", route_code);
-        return route_code;
-    }
-    return RV_OK;
-}
 
 // The riders follow the route's keys; no route entity is needed for that.
 int ecs_system_route(ecs_world &world, const rv_pdkkit::ecs_frame &frame)
