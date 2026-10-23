@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "pdk/cv/rv_cv.h"
+#include "pdkkit/ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_gte/rv_gte_camera.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
@@ -308,6 +309,105 @@ int add_route_key(ecs_world &world, ecs_id holder, int32_t order, std::vector<rv
     return RV_OK;
 }
 
+// Local poses of the route_key entities, sorted by order. RV_ERR_INVAL for a key without transform, RV_ERR_ALREADY for
+// two keys with one order. Logs nothing: the frame system returns the code. Read every frame, not cached: the keys are
+// scene entities, a cache would need invalidation whenever they change, and the pass over them is small next to the frame.
+int read_pose_keys(ecs_world &world, std::vector<rv_route_key> &keys)
+{
+    int code = RV_OK;
+    rv_pdkkit::ecs_component_each<ecs_component_route_key>(world, [&](ecs_id holder, ecs_component_route_key &key) {
+        if (code != RV_OK) {
+            return;
+        }
+        const auto *local = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_transform>(world, holder);
+        if (local == nullptr) {
+            code = RV_ERR_INVAL;
+            return;
+        }
+        rv_route_key pose = {};
+        pose.index = key.order;
+        pose.position = local->position;
+        pose.rotation = local->rotation;
+        keys.push_back(pose);
+    });
+    if (code != RV_OK) {
+        return code;
+    }
+    std::sort(keys.begin(), keys.end(), [](const rv_route_key &a, const rv_route_key &b) {
+        return a.index < b.index;
+    });
+    const auto repeat = std::adjacent_find(keys.begin(), keys.end(), [](const rv_route_key &a, const rv_route_key &b) {
+        return a.index == b.index;
+    });
+    if (repeat != keys.end()) {
+        return RV_ERR_ALREADY;
+    }
+    return RV_OK;
+}
+
+// Holders of route_rider, listed first: a component cannot be added inside ecs_component_each. Listed every frame, like
+// the keys (read_pose_keys): no cache.
+std::vector<ecs_id> rider_holders(ecs_world &world)
+{
+    std::vector<ecs_id> riders;
+    rv_pdkkit::ecs_component_each<ecs_component_route_rider>(world, [&riders](ecs_id holder, ecs_component_route_rider &) {
+        riders.push_back(holder);
+    });
+    return riders;
+}
+
+// Sets each rider's position and rotation, scale kept. The trail is added where missing (moved false in that frame);
+// prev is the world position before the write. Stops at the first failing rider; the riders before it keep the pose.
+int move_riders(ecs_world &world, const std::vector<ecs_id> &riders, const fx_vec3 &position, const fx_vec3 &rotation)
+{
+    for (const ecs_id rider : riders) {
+        rv_pdklib::rv_gte_matrix matrix{};
+        const int world_code = rv_pdkkit::ecs_transform_world(world, rider, matrix);
+        if (world_code != RV_OK) {
+            return world_code;
+        }
+        const bool fresh = rv_pdkkit::ecs_component_get<ecs_component_trail>(world, rider) == nullptr;
+        ecs_component_trail *trail = nullptr;
+        const int trail_code = rv_pdkkit::ecs_component_ensure<ecs_component_trail>(world, rider, trail);
+        if (trail_code != RV_OK) {
+            return trail_code;
+        }
+        // ecs_transform_world above refused a rider without transform, so the pointer is set.
+        auto *local = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_transform>(world, rider);
+        trail->prev = fx_vec3{ matrix.t[0], matrix.t[1], matrix.t[2] };
+        trail->moved = !fresh;
+        local->position = position;
+        local->rotation = rotation;
+    }
+    return RV_OK;
+}
+
+// Moves every route_rider to the route's pose of frame: the keys' local position and rotation on the frame's spline.
+// No rider is not an error: nothing is read then.
+int ride_route(ecs_world &world, int64_t frame)
+{
+    const std::vector<ecs_id> riders = rider_holders(world);
+    if (riders.empty()) {
+        return RV_OK;
+    }
+    std::vector<rv_route_key> keys;
+    const int keys_code = read_pose_keys(world, keys);
+    if (keys_code != RV_OK) {
+        return keys_code;
+    }
+    fx_vec3 position = {};
+    const int position_code = route_spline(keys, frame, &rv_route_key::position, position);
+    if (position_code != RV_OK) {
+        return position_code;
+    }
+    fx_vec3 rotation = {};
+    const int rotation_code = route_spline(keys, frame, &rv_route_key::rotation, rotation);
+    if (rotation_code != RV_OK) {
+        return rotation_code;
+    }
+    return move_riders(world, riders, position, rotation);
+}
+
 } // namespace
 
 const ecs_component_route *rv_route_of(ecs_world &world)
@@ -374,6 +474,10 @@ int ecs_system_route(ecs_world &world, const rv_pdkkit::ecs_frame &frame)
     const int route_code = find_route(world, route_id, route);
     if (route_code != RV_OK) {
         return route_code;
+    }
+    const int ride_code = ride_route(world, frame.frame);
+    if (ride_code != RV_OK) {
+        return ride_code;
     }
     const int64_t screen_height = rv_cv_screen_height(rv_pdko_cv(frame.pdk));
     rv_cg_camera camera = {};

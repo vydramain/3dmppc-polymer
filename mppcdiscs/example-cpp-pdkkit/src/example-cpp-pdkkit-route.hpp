@@ -17,11 +17,14 @@ namespace example_cpp_pdkkit
 // The camera of a frame is a pure function of its number, so the period repeats exactly.
 constexpr int64_t RV_ROUTE_PERIOD_FRAMES = 8640;
 
-// One route_key of the scene: where the camera stands and which way it looks, in Q20.12.
+// One route_key of the scene: where the camera stands and which way it looks, in Q20.12. eye and dir are world values
+// from rv_route_collect; position and rotation are the key's local transform, read by the rider system.
 struct rv_route_key {
     int32_t index; // order of its route_key
     rv_pdklib::fx_vec3 eye;
     rv_pdklib::fx_vec3 dir; // unit length, see rv_route_unit
+    rv_pdklib::fx_vec3 position;
+    rv_pdklib::fx_vec3 rotation; // degrees, Q20.12
 };
 
 // v scaled to unit length in Q20.12; a zero-length v gives +z rather than a division by zero.
@@ -52,10 +55,11 @@ struct ecs_component_route_key {
 struct ecs_component_route_rider {
 };
 
-// Rider's trail, written by the route system; the zones read it. moved is false in the frame the trail was added.
+// Rider's trail, written by the route system; the zones read it. moved is false in the frame the trail was added and
+// true in every frame after it.
 struct ecs_component_trail {
     rv_pdklib::fx_vec3 prev{}; // previous world position, Q20.12
-    bool moved = false;        // the rider moved since the last frame
+    bool moved = false;        // false only in the frame the trail was added; not a test of movement
 };
 
 // Scene entity type "route": a group that gets the route component when it is created.
@@ -79,8 +83,10 @@ int rv_route_collect(rv_pdkkit::ecs_world &world);
 // The route component of the world, nullptr without one.
 const ecs_component_route *rv_route_of(rv_pdkkit::ecs_world &world);
 
-// Frame system: sets the frame's camera from the route keys. Error: RV_ERR_NOENT without a route entity,
-// else the code of rv_route_camera_at. Not logged: a frame repeats it, so the disc logs the first one.
+// Frame system: moves each route_rider along the route keys (local transform, Catmull-Rom by the frame's clock), then
+// sets the frame's camera from the route keys. Error: RV_ERR_NOENT without a route entity, else the code of the first
+// step that fails (ALREADY, INVAL, NOMEM, NOENT for no route_key). No rider is not an error. Not logged here: ecs_frame_report
+// logs the system's name and code, and a repeat of the same code stays silent.
 int ecs_system_route(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
 
 } // namespace example_cpp_pdkkit
