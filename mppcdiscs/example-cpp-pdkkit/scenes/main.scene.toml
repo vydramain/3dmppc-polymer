@@ -120,6 +120,10 @@ object = "5ce00006"
 name = "model"
 source = "lamp.gltf"
 
+[[component]]
+object = "5ce00006"
+name = "lamp_light"
+
 [[object]]
 id = "5ce00007"
 parent = ""
@@ -141,6 +145,10 @@ object = "5ce00007"
 name = "model"
 source = "lamp.gltf"
 
+[[component]]
+object = "5ce00007"
+name = "lamp_light"
+
 [[object]]
 id = "5ce00008"
 parent = ""
@@ -160,6 +168,10 @@ position = [20, 0, 3.6]
 object = "5ce00008"
 name = "model"
 source = "lamp.gltf"
+
+[[component]]
+object = "5ce00008"
+name = "lamp_light"
 
 [[object]]
 id = "5ce00009"
@@ -181,6 +193,10 @@ rotation = [0, 180, 0]
 object = "5ce00009"
 name = "model"
 source = "lamp.gltf"
+
+[[component]]
+object = "5ce00009"
+name = "lamp_light"
 
 [[object]]
 id = "5ce0000b"
