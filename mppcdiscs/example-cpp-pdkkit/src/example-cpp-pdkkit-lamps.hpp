@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstdint>
-
 #include "pdkkit/component/rv_component_macro.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
@@ -10,13 +8,13 @@
 namespace example_cpp_pdkkit
 {
 
-// Light of a lamp_N_light object: the frames of the route period in which it burns, [on_frame, off_frame).
-// The scene gives no fields for these: the system fills them. Both 0 means it never burns.
-// scheduled is set once the lamp has been tried, whether or not it burns; it is not a scene field.
+// Light of a lamp entity. The scene gives no fields: the system fills them. light is the entity that draws the light,
+// made by ecs_system_lamp_light as a child of the lamp; was_near is the reach on the previous frame.
 struct ecs_component_lamp_light {
-    int64_t on_frame = 0;
-    int64_t off_frame = 0;
-    bool scheduled = false;
+    rv_pdkkit::ecs_id light{};
+    bool burns = false;
+    bool was_near = false;
+    bool warned = false;
 };
 
 // Scene entity type "lamp", used by the scene objects with entity = "lamp": they get the lamp_light component when created.
@@ -31,12 +29,15 @@ public:
     int add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id) const override;
 };
 
-// Frame system: schedules each lamp_light entity not yet scheduled from the route keys (sorted by index) and the world
-// matrix of its parent (lamp_N). A lamp the route does not pass in both halves of the period stays dark. A lamp that
-// cannot be scheduled (no parent with a name and a world matrix, an offset leaving Q20.12, no route keys) is
-// warned once and stays dark. Then shows each lamp that burns at the frame's place in the period, hides the others.
-// Error: RV_ERR_NOENT when a dark lamp cannot take its hidden mark (a stale id). Not logged.
+// Frame system: makes the light of each lamp that has none (hidden). Each approach of the eye within RV_LAMP_REACH
+// toggles the light: the first approach turns it on, the next turns it off. A lamp that cannot be placed (no world
+// matrix, no route keys, a Q20.12 failure) is warned once and stays dark; the others go on.
+// Error: a lamp's light cannot be made or shown (the component's code); the frame stops there.
 int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
+
+// Draws the lights of the lamps. The world does not draw them: a system-made entity is outside every load. Runs
+// after the world frame, when the systems have set the camera. Error: the code of ecs_system_draw.
+int ecs_draw_lamps(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
 
 } // namespace example_cpp_pdkkit
 

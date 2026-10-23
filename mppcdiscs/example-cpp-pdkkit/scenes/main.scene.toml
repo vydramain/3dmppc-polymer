@@ -104,6 +104,7 @@ source = "apartment.gltf"
 [[object]]
 id = "5ce00006"
 parent = ""
+entity = "lamp"
 
 [[component]]
 object = "5ce00006"
@@ -123,6 +124,7 @@ source = "lamp.gltf"
 [[object]]
 id = "5ce00007"
 parent = ""
+entity = "lamp"
 
 [[component]]
 object = "5ce00007"
@@ -143,6 +145,7 @@ source = "lamp.gltf"
 [[object]]
 id = "5ce00008"
 parent = ""
+entity = "lamp"
 
 [[component]]
 object = "5ce00008"
@@ -162,6 +165,7 @@ source = "lamp.gltf"
 [[object]]
 id = "5ce00009"
 parent = ""
+entity = "lamp"
 
 [[component]]
 object = "5ce00009"
@@ -626,98 +630,6 @@ rotation = [-3, -90, 0]
 [[component]]
 object = "5ce10013"
 name = "camera"
-
-[[object]]
-id = "5ce20001"
-parent = "5ce00006"
-entity = "lamp"
-
-[[component]]
-object = "5ce20001"
-name = "name"
-text = "lamp_1_light"
-
-[[component]]
-object = "5ce20001"
-name = "transform"
-
-[[component]]
-object = "5ce20001"
-name = "model"
-source = "lamp_light.gltf"
-
-[[component]]
-object = "5ce20001"
-name = "hidden"
-
-[[object]]
-id = "5ce20002"
-parent = "5ce00007"
-entity = "lamp"
-
-[[component]]
-object = "5ce20002"
-name = "name"
-text = "lamp_2_light"
-
-[[component]]
-object = "5ce20002"
-name = "transform"
-
-[[component]]
-object = "5ce20002"
-name = "model"
-source = "lamp_light.gltf"
-
-[[component]]
-object = "5ce20002"
-name = "hidden"
-
-[[object]]
-id = "5ce20003"
-parent = "5ce00008"
-entity = "lamp"
-
-[[component]]
-object = "5ce20003"
-name = "name"
-text = "lamp_3_light"
-
-[[component]]
-object = "5ce20003"
-name = "transform"
-
-[[component]]
-object = "5ce20003"
-name = "model"
-source = "lamp_light.gltf"
-
-[[component]]
-object = "5ce20003"
-name = "hidden"
-
-[[object]]
-id = "5ce20004"
-parent = "5ce00009"
-entity = "lamp"
-
-[[component]]
-object = "5ce20004"
-name = "name"
-text = "lamp_4_light"
-
-[[component]]
-object = "5ce20004"
-name = "transform"
-
-[[component]]
-object = "5ce20004"
-name = "model"
-source = "lamp_light.gltf"
-
-[[component]]
-object = "5ce20004"
-name = "hidden"
 
 [[object]]
 id = "5ce30000"

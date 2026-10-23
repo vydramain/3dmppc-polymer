@@ -30,7 +30,7 @@ namespace
 constexpr const char *RV_EXAMPLE_CPP_SCENE_NAME = "main.scene.toml";
 // The frame system that sets the camera from the route keys.
 constexpr const char *RV_EXAMPLE_CPP_ROUTE_SYSTEM = "route";
-// The scene component of a lamp_N_light object: its description's name, and the name of its frame system.
+// The lamp's component (lamp_light), and the name of its frame system.
 constexpr const char *RV_EXAMPLE_CPP_LAMP_LIGHT = "lamp_light";
 // The scene component of a board halo or letter: its description's name, and the name of its frame system.
 constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
@@ -152,8 +152,8 @@ int rv_dmain::register_ecs()
     return RV_OK;
 }
 
-// Loads the scene into world_, then fills the route's keys and the board from its entities. The lamps are scheduled by
-// the lamp_light system on the first frame. An error leaves them partly filled; the caller clears board_found_.
+// Loads the scene into world_, then fills the route's keys and the board from its entities. The lamps' lights are made
+// by the lamp_light system on the first frame. An error leaves them partly filled; the caller clears board_found_.
 int rv_dmain::read_scene()
 {
     const int register_code = register_ecs();
@@ -210,6 +210,12 @@ void rv_dmain::draw_world()
     const int frame_code = world_frame();
     if (frame_code != RV_OK) {
         log_draw_error("world", frame_code);
+        return;
+    }
+    // The lights are drawn here: the world draws only the scene's entities, and the camera is the frame's.
+    const int lamp_code = ecs_draw_lamps(world_, rv_pdkkit::ecs_frame{ pdk_, frame_, input_ });
+    if (lamp_code != RV_OK) {
+        log_draw_error("lamps", lamp_code);
     }
 }
 
