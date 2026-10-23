@@ -819,6 +819,7 @@ name = "decal"
 object = "5ce30001"
 name = "flicker"
 cell = 1
+wear = 97
 
 [[component]]
 object = "5ce30001"
@@ -915,6 +916,7 @@ name = "decal"
 object = "5ce30004"
 name = "flicker"
 cell = 4
+wear = 55
 
 [[component]]
 object = "5ce30004"
@@ -1043,6 +1045,7 @@ name = "decal"
 object = "5ce30008"
 name = "flicker"
 cell = 8
+wear = 40
 
 [[component]]
 object = "5ce30008"
@@ -1139,6 +1142,7 @@ name = "decal"
 object = "5ce31001"
 name = "flicker"
 cell = 1
+wear = 97
 
 [[component]]
 object = "5ce31001"
@@ -1235,6 +1239,7 @@ name = "decal"
 object = "5ce31004"
 name = "flicker"
 cell = 4
+wear = 55
 
 [[component]]
 object = "5ce31004"
@@ -1363,6 +1368,7 @@ name = "decal"
 object = "5ce31008"
 name = "flicker"
 cell = 8
+wear = 40
 
 [[component]]
 object = "5ce31008"
