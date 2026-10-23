@@ -758,6 +758,10 @@ name = "lens"
 object = "5ce10100"
 name = "route_rider"
 
+[[component]]
+object = "5ce10100"
+name = "listener"
+
 [[object]]
 id = "5ce30000"
 parent = "5ce00002"
@@ -1694,3 +1698,84 @@ name = "decal"
 [[component]]
 object = "5ce40018"
 name = "hidden"
+
+# Music zones: invisible boxes along the route, x split at the sound system's bounds (0 and 33.8 m); each box
+# includes its min and excludes its max. zone_music names the song; zone_clack marks the factory zone.
+[[object]]
+id = "5ce40005"
+parent = ""
+
+[[component]]
+object = "5ce40005"
+name = "name"
+text = "factory"
+
+[[component]]
+object = "5ce40005"
+name = "transform"
+position = [-15, 5, 0]
+
+[[component]]
+object = "5ce40005"
+name = "zone"
+size = [30, 12, 10]
+
+[[component]]
+object = "5ce40005"
+name = "zone_music"
+music = "factory"
+loop = "sfx_loop_assembly"
+
+[[component]]
+object = "5ce40005"
+name = "zone_clack"
+
+[[object]]
+id = "5ce40006"
+parent = ""
+
+[[component]]
+object = "5ce40006"
+name = "name"
+text = "street"
+
+[[component]]
+object = "5ce40006"
+name = "transform"
+position = [16.9, 5, 0]
+
+[[component]]
+object = "5ce40006"
+name = "zone"
+size = [33.8, 12, 10]
+
+[[component]]
+object = "5ce40006"
+name = "zone_music"
+music = "street"
+loop = ""
+
+[[object]]
+id = "5ce40007"
+parent = ""
+
+[[component]]
+object = "5ce40007"
+name = "name"
+text = "home"
+
+[[component]]
+object = "5ce40007"
+name = "transform"
+position = [41.9, 5, 0]
+
+[[component]]
+object = "5ce40007"
+name = "zone"
+size = [16.2, 12, 10]
+
+[[component]]
+object = "5ce40007"
+name = "zone_music"
+music = "home"
+loop = ""
