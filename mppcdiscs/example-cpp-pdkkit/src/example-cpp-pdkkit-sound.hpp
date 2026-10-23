@@ -11,6 +11,7 @@
 #include "pdk/rv_pdko.h"
 #include "pdkkit/component/rv_component_capacity.hpp"
 #include "pdkkit/component/rv_component_macro.hpp"
+#include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/sound/rv_pdkkit_sound.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
@@ -144,6 +145,13 @@ struct ecs_component_zone_music {
 struct ecs_component_zone_clack {
 };
 
+// The listener, set on the eye. Its working state is not a scene field: the music system keeps the sound state and the
+// zone the listener is in, which it writes when the zone changes; the clack system reads that zone.
+struct ecs_component_listener {
+    rv_sound_state sound;
+    rv_pdkkit::ecs_id zone{};
+};
+
 } // namespace example_cpp_pdkkit
 
 PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_zone_music,
@@ -151,3 +159,4 @@ PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_zone_music,
     PDKKIT_FIELD(music, string, ""),
     PDKKIT_FIELD(loop, string, ""));
 PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_zone_clack, "zone_clack");
+PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_listener, "listener");

@@ -116,8 +116,8 @@ private:
 
 // Registers the route, board and lamp entity types, the route's frame system, then the lamp_light and flicker components
 // with the flicker frame system, then the route_key, route_rider, trail, zone, zone_crossed, zone_lamp, lamp_switched,
-// zone_music and zone_clack components, then the zones, lamps and light frame systems in this order, which is the frame's
-// order; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
+// zone_music, zone_clack and listener components, then the zones, lamps and light frame systems in this order, which is
+// the frame's order; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
 int rv_dmain::register_ecs()
 {
     const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
@@ -185,6 +185,10 @@ int rv_dmain::register_ecs()
     const int zone_clack_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_zone_clack>(world_);
     if (zone_clack_code != RV_OK) {
         return zone_clack_code;
+    }
+    const int listener_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_listener>(world_);
+    if (listener_code != RV_OK) {
+        return listener_code;
     }
     const int zones_code =
         rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_ZONES_SYSTEM, example_cpp_pdkkit::ecs_system_zones);
