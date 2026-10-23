@@ -1,7 +1,7 @@
 # example-cpp-pdkkit
 
 The Solid Maid demo as a C++ disc, and the template of New Project. The
-demo loops every 4320 frames (72 s at 60 frames per second) through the
+demo loops every 8640 frames (144 s at 60 frames per second) through the
 factory, the street and the flat. A frame's camera and board letters are pure
 functions of its number in the period; the lamps' lights and the music depend
 on earlier frames.

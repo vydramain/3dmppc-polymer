@@ -13,9 +13,9 @@
 namespace example_cpp_pdkkit
 {
 
-// One period of the demo's camera loop: 4320 frames = 72 s at 1/60 s per frame.
+// One period of the demo's camera loop: 8640 frames = 144 s at 1/60 s per frame.
 // The camera of a frame is a pure function of its number, so the period repeats exactly.
-constexpr int64_t RV_ROUTE_PERIOD_FRAMES = 4320;
+constexpr int64_t RV_ROUTE_PERIOD_FRAMES = 8640;
 
 // One cam_NN key of the scene: where the camera stands and which way it looks, in Q20.12.
 struct rv_route_key {
