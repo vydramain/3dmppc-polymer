@@ -35,6 +35,8 @@ constexpr const char *RV_EXAMPLE_CPP_ROUTE_SYSTEM = "route";
 constexpr const char *RV_EXAMPLE_CPP_LAMP_LIGHT = "lamp_light";
 // The scene component of a board halo or letter: its description's name, and the name of its frame system.
 constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
+// The frame system that raises zone_crossed on the zones the riders enter; it runs after the route system.
+constexpr const char *RV_EXAMPLE_CPP_ZONES_SYSTEM = "zones";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
 
@@ -111,8 +113,8 @@ private:
 
 // Registers the route, board and lamp entity types, the route's frame system, then the lamp_light and flicker components
 // with their frame systems, then the route_key, route_rider, trail, zone, zone_crossed, zone_lamp, lamp_switched,
-// zone_music and zone_clack components; a scene refers to them by name. The built-in components are registered by
-// pdkkit_disc before this.
+// zone_music and zone_clack components, then the zones frame system after them; a scene refers to them by name. The
+// built-in components are registered by pdkkit_disc before this.
 int rv_dmain::register_ecs()
 {
     const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
@@ -185,6 +187,11 @@ int rv_dmain::register_ecs()
     const int zone_clack_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_zone_clack>(world_);
     if (zone_clack_code != RV_OK) {
         return zone_clack_code;
+    }
+    const int zones_code =
+        rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_ZONES_SYSTEM, example_cpp_pdkkit::ecs_system_zones);
+    if (zones_code != RV_OK) {
+        return zones_code;
     }
     return RV_OK;
 }
