@@ -25,7 +25,7 @@ namespace
 // frame and needs no lead time: Solid Maid's 0.018 s lead covers the jitter of wall-clock time, not this.
 constexpr int64_t RV_SOUND_BAR_FRAMES = 60;
 
-// The bars of each area in playing order; the samples are the disc's [sounds] (assets/snd). A bar list
+// The bars of each area in playing order; the samples are the disc's [assets] sounds (assets/snd). A bar list
 // wraps: after its last bar the first comes again. Order follows rv_sound_area.
 constexpr const char *RV_SOUND_WORKSHOP_BARS[] = {
     "mus_factory_01.pcm",
