@@ -10,7 +10,8 @@
 namespace example_cpp_bare
 {
 
-// Scene objects of main.scene.toml, taken once: world matrices are composed from the scene's transforms.
+// Scene objects of mppcdiscs/example-cpp-pdkkit/scenes/main.scene.toml as of b11d7243, taken once: world matrices
+// are composed from the scene's transforms.
 // Draw order is bare_meshes, then bare_lamps, then bare_decals; each span is in scene file order.
 
 // A mesh with no drive of its own. model is the disc's resource name, NUL-terminated ("factory.mppcmod").

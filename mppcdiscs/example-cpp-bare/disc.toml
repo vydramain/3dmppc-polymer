@@ -7,9 +7,8 @@ sources = ["src/*.cpp"]
 
 [assets]
 # A file is sorted by its extension: .wav is baked to .pcm; .gltf is baked to .mppcmod with its .bin
-# and the PNG pictures it names (most in assets/tex, street_16's in assets/models); the rest (the scene) is copied as is.
-# The disc does not read the scene.
-files = ["scenes/*.scene.toml", "assets/snd/*.wav", "assets/models/*.gltf"]
+# and the PNG pictures it names (most in assets/tex, street_16's in assets/models).
+files = ["assets/snd/*.wav", "assets/models/*.gltf"]
 
 [assets.texture]
 # The format each PNG picture named by a .gltf is baked to; idx8 is the default.

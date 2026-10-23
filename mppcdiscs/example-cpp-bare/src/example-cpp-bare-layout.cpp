@@ -1,6 +1,7 @@
 #include "example-cpp-bare-layout.hpp"
 
-// Taken once from mppcdiscs/example-cpp-pdkkit/scenes/main.scene.toml: world is rv_gte_trs T*Ry*Rx*Rz*S,
+// Taken once from mppcdiscs/example-cpp-pdkkit/scenes/main.scene.toml as of b11d7243, before b9f62b8e moved the
+// house, apartment, furniture and cameras: world is rv_gte_trs T*Ry*Rx*Rz*S,
 // composed over each parent (rv_editor_scene_world_gte). Records follow scene file order. The scene sets no tint,
 // so every tint is white. Models are the disc resource names of the sources (rv_mppcmod_disc_name).
 // 4096 is 1.0 in r (4.12) and one metre in t (Q20.12).

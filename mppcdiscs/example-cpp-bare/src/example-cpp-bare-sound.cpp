@@ -16,8 +16,8 @@ namespace example_cpp_bare
 namespace
 {
 
-// Eye x of the camera in Q20.12 raw (4096 per metre), as scenes/main.scene.toml places the objects: the factory is
-// at x < 0, the house facade stands at x = 33.8 m = 138444.8 raw. On whole raw values a strict > 138444 is x > 33.8.
+// Eye x of the camera in Q20.12 raw (4096 per metre): the workshop is at x < 0, the flat at x > 33.8 m = 138444.8 raw.
+// On whole raw values a strict > 138444 is x > 33.8.
 using rv_pdklib::fx;
 constexpr fx RV_SOUND_WORKSHOP_MAX_X = 0;
 constexpr fx RV_SOUND_FLAT_MIN_X = 138444;
