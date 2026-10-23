@@ -53,6 +53,7 @@ compile_commands.json
 conversation-*.txt
 
 # The editor's model pending folder: a dot-folder beside the models folder, moved into it on save
-# and cleaned on close. The models folder's name comes from [models] in disc.toml, so the rule
-# matches any dot-folder ending in -pending at any depth rather than one fixed name.
+# and cleaned on close. The models folder's name comes from the first [assets] pattern of the form
+# "<folder>/*.gltf" in disc.toml, so the rule matches any dot-folder ending in -pending at any depth
+# rather than one fixed name.
 .*-pending/
