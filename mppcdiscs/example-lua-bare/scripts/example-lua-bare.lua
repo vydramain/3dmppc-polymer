@@ -23,7 +23,8 @@ print("Hello from example lua!")
 -- The object kinds of the layout (example-lua-bare-layout.lua).
 local KIND_MESH = "mesh"
 local KIND_CAMERA = "camera"
--- Same values as RV_ROUTE_FOV_Y, RV_ROUTE_NEAR, RV_ROUTE_FAR and RV_ROUTE_UP of example-cpp-pdkkit-route.cpp, in Q20.12.
+-- Same values as the defaults of pdkkit's lens component (pdk/kit/include/pdkkit/ecs/rv_ecs_component.hpp), in
+-- Q20.12. The up is not a lens default: the kit takes it from the lens entity's y column; this disc passes +y.
 -- The field is in degrees. The near plane is 0.1 m = 409.6 raw, rounded half up to 410; the far plane
 -- is a margin past the scene's extent.
 local FX_ONE = 4096
@@ -65,8 +66,9 @@ local function add_mesh(meshes, entry)
     meshes[#meshes + 1] = { model = entry.model, world = copy_world(entry.world), tint = copy_tint(entry.tint) }
 end
 
--- The eye is the translation t; the view direction is the z column of r, as add_route_key in
--- example-cpp-pdkkit-route.cpp. Answers RV_OK, or RV_ERR_INVAL when the direction leaves Q20.12.
+-- The eye is the translation t; the view direction is the z column of r, as pdkkit's camera step takes it
+-- (ecs_system_camera, pdk/kit/include/pdkkit/ecs/rv_ecs_frame.hpp). Answers RV_OK, or RV_ERR_INVAL when the
+-- direction leaves Q20.12.
 local function add_key(keys, entry, mathx)
     local digits = entry.name:match("^cam_(%d%d)$")
     if digits == nil then

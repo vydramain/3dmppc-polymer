@@ -75,7 +75,7 @@ local function within(c, bound)
     return type(c) == "number" and c % 1 == 0 and c >= -bound and c <= bound
 end
 
--- Unit vector of (x, y, z) in Q20.12, or the +z fallback below MIN_LENGTH (rv_route_unit). The caller keeps
+-- Unit vector of (x, y, z) in Q20.12, or the +z fallback below MIN_LENGTH. The caller keeps
 -- the components within MAX_SPLINE, so the squares of the length stay below 2^53.
 local function unit_of(x, y, z)
     local length = isqrt(x * x + y * y + z * z)
