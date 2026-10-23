@@ -255,6 +255,28 @@ inline bool ecs_entity_alive(const ecs_world &world, ecs_id id)
     return slot.live && slot.generation == id.generation;
 }
 
+// Calls fn(id) for each live entity in slot index order. fn returns RV_OK to go on; any other code stops the walk and is
+// the result. fn must not create entities; destroying is allowed. An entity created during the walk may or may not
+// be visited.
+template <typename Fn>
+[[nodiscard]] int ecs_entities_each(const ecs_world &world, Fn &&fn)
+{
+    const auto &state = detail::ecs_state(world);
+    return ecs_guard([&]() -> int {
+        for (std::size_t i = 0; i < state.slots.size(); ++i) {
+            const ecs_slot &slot = state.slots[i];
+            if (!slot.live) {
+                continue;
+            }
+            const int code = fn(ecs_id{ static_cast<uint32_t>(i), slot.generation });
+            if (code != RV_OK) {
+                return code;
+            }
+        }
+        return RV_OK;
+    });
+}
+
 // RV_ERR_NOENT for an unknown or stale id. Drops the entity's components from every pool. The only throw is the
 // free-list push in ecs_release_slot, before any change: pool->drop does not throw (nothrow move, rv_ecs_store.hpp).
 [[nodiscard]] inline int ecs_entity_destroy(ecs_world &world, ecs_id id)

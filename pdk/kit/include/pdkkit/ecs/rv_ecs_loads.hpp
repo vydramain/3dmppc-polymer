@@ -267,24 +267,28 @@ template <typename Fn>
     });
 }
 
-// First live entity named name, the loads in table order and each load's entities in file order. Entities created
-// outside a load are not searched. RV_ERR_NOENT when none matches; out is written only on RV_OK.
+// First live entity named name, in slot index order, loaded or not. RV_ERR_NOENT when none matches; out is written only
+// on RV_OK.
 [[nodiscard]] inline int ecs_find_by_name(const ecs_world &world, std::string_view name, ecs_id &out)
 {
-    const auto &state = detail::ecs_state(world);
     return ecs_guard([&]() -> int {
-        for (const ecs_load &load : state.loads) {
-            for (const ecs_id id : load.made) {
-                const bool live = ecs_entity_alive(world, id);
-                const ecs_component_name *named = live ? ecs_component_get<ecs_component_name>(world, id) : nullptr;
-                const bool match = named != nullptr && std::string_view{ named->text } == name;
-                if (match) {
-                    out = id;
-                    return RV_OK;
-                }
+        // RV_ERR_ALREADY stops the walk at the match; find maps it to RV_OK.
+        const int walked = ecs_entities_each(world, [&](ecs_id id) -> int {
+            const ecs_component_name *named = ecs_component_get<ecs_component_name>(world, id);
+            const bool match = named != nullptr && std::string_view{ named->text } == name;
+            if (!match) {
+                return RV_OK;
             }
+            out = id;
+            return RV_ERR_ALREADY;
+        });
+        if (walked == RV_ERR_ALREADY) {
+            return RV_OK;
         }
-        return RV_ERR_NOENT;
+        if (walked == RV_OK) {
+            return RV_ERR_NOENT;
+        }
+        return walked;
     });
 }
 
