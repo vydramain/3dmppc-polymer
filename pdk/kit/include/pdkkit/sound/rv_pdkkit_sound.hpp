@@ -20,8 +20,8 @@ namespace rv_pdkkit
 
 inline constexpr const char *sound_tag = "sound";
 
-// Samples the disc can make resident through this service: a fixed table, no heap. The pdkkit example makes 5
-// resident (4 clacks and 1 loop), so 5 of the 8 entries are used and 3 are free.
+// Samples the disc can make resident through this service: a fixed table, no heap.
+// A disc keeps few samples resident here (short effects and loops), and 8 covers that with room to spare.
 inline constexpr int sound_asset_capacity = 8;
 
 // One named sample the disc has asked for. The address is the drive's and is valid until the disc unloads.
