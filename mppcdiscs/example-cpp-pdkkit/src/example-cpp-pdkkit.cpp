@@ -112,8 +112,8 @@ private:
 };
 
 // Registers the route, board and lamp entity types, the route's frame system, then the lamp_light and flicker components
-// with their frame systems, then the route_key, route_rider, trail, zone and zone_crossed components; a scene refers
-// to them by name. The built-in components are registered by pdkkit_disc before this.
+// with their frame systems, then the route_key, route_rider, trail, zone, zone_crossed, zone_lamp and lamp_switched
+// components; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
 int rv_dmain::register_ecs()
 {
     const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
@@ -170,6 +170,14 @@ int rv_dmain::register_ecs()
     const int zone_crossed_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_zone_crossed>(world_);
     if (zone_crossed_code != RV_OK) {
         return zone_crossed_code;
+    }
+    const int zone_lamp_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_zone_lamp>(world_);
+    if (zone_lamp_code != RV_OK) {
+        return zone_lamp_code;
+    }
+    const int lamp_switched_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_lamp_switched>(world_);
+    if (lamp_switched_code != RV_OK) {
+        return lamp_switched_code;
     }
     return RV_OK;
 }

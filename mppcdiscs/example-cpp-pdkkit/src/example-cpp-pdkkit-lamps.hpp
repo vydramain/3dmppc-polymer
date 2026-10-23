@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pdkkit/component/rv_component_capacity.hpp"
 #include "pdkkit/component/rv_component_macro.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
@@ -15,6 +16,15 @@ struct ecs_component_lamp_light {
     bool burns = false;
     bool was_near = false;
     bool warned = false;
+};
+
+// Zone of a lamp: the zone entity (ecs_component_zone) switches the lamp entity named by lamp when an entity enters it.
+struct ecs_component_zone_lamp {
+    char lamp[rv_pdkkit::ecs_value_capacity]{};
+};
+
+// One-frame event on a lamp whose light changed: the lamp system sets it, and removes it at the start of its next pass.
+struct ecs_component_lamp_switched {
 };
 
 // Scene entity type "lamp", used by the scene objects with entity = "lamp": they get the lamp_light component when created.
@@ -42,3 +52,5 @@ int ecs_draw_lamps(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &fram
 } // namespace example_cpp_pdkkit
 
 PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_lamp_light, "lamp_light");
+PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_zone_lamp, "zone_lamp", PDKKIT_FIELD(lamp, string, ""));
+PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_lamp_switched, "lamp_switched");
