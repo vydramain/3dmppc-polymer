@@ -510,6 +510,11 @@ rotation = [5, 90, 0]
 object = "5ce1000a"
 name = "camera"
 
+[[component]]
+object = "5ce1000a"
+name = "route_key"
+order = 10
+
 [[object]]
 id = "5ce1000b"
 parent = "5ce0000a"
@@ -528,6 +533,11 @@ rotation = [10, 0, 0]
 [[component]]
 object = "5ce1000b"
 name = "camera"
+
+[[component]]
+object = "5ce1000b"
+name = "route_key"
+order = 11
 
 [[object]]
 id = "5ce1000c"
@@ -548,6 +558,11 @@ rotation = [0, -90, 0]
 object = "5ce1000c"
 name = "camera"
 
+[[component]]
+object = "5ce1000c"
+name = "route_key"
+order = 12
+
 [[object]]
 id = "5ce1000d"
 parent = "5ce0000a"
@@ -566,6 +581,11 @@ rotation = [3, -90, 0]
 [[component]]
 object = "5ce1000d"
 name = "camera"
+
+[[component]]
+object = "5ce1000d"
+name = "route_key"
+order = 13
 
 [[object]]
 id = "5ce1000e"
@@ -586,6 +606,11 @@ rotation = [0, -90, 0]
 object = "5ce1000e"
 name = "camera"
 
+[[component]]
+object = "5ce1000e"
+name = "route_key"
+order = 14
+
 [[object]]
 id = "5ce1000f"
 parent = "5ce0000a"
@@ -604,6 +629,11 @@ rotation = [0, -90, 0]
 [[component]]
 object = "5ce1000f"
 name = "camera"
+
+[[component]]
+object = "5ce1000f"
+name = "route_key"
+order = 15
 
 [[object]]
 id = "5ce10010"
@@ -624,6 +654,11 @@ rotation = [0, -90, 0]
 object = "5ce10010"
 name = "camera"
 
+[[component]]
+object = "5ce10010"
+name = "route_key"
+order = 16
+
 [[object]]
 id = "5ce10011"
 parent = "5ce0000a"
@@ -642,6 +677,11 @@ rotation = [0, -90, 0]
 [[component]]
 object = "5ce10011"
 name = "camera"
+
+[[component]]
+object = "5ce10011"
+name = "route_key"
+order = 17
 
 [[object]]
 id = "5ce10012"
@@ -662,6 +702,11 @@ rotation = [0, -90, 0]
 object = "5ce10012"
 name = "camera"
 
+[[component]]
+object = "5ce10012"
+name = "route_key"
+order = 18
+
 [[object]]
 id = "5ce10013"
 parent = "5ce0000a"
@@ -680,6 +725,11 @@ rotation = [-3, -90, 0]
 [[component]]
 object = "5ce10013"
 name = "camera"
+
+[[component]]
+object = "5ce10013"
+name = "route_key"
+order = 19
 
 [[object]]
 id = "5ce10100"
