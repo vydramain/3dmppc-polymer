@@ -9,7 +9,6 @@
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
-#include "pdkkit/ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "example-cpp-pdkkit-board.hpp"
 #include "example-cpp-pdkkit-lamps.hpp"
@@ -56,21 +55,25 @@ public:
             return base_result;
         }
 
-        // No scene, or one that does not read: the disc runs without it and says why.
-        const int read_code = read_scene();
-        if (read_code != RV_OK) {
-            scene_read_ = false;
-            RV_LOG_ERR("scene", "{} not used: rv_err {}", RV_EXAMPLE_CPP_SCENE_NAME, read_code);
+        // A failed registration or scene load is logged and the disc keeps running; without a scene the frame finds no lens.
+        const int register_code = register_ecs();
+        if (register_code != RV_OK) {
+            RV_LOG_ERR("ecs", "component and system registration failed: rv_err {}", register_code);
             return RV_OK;
         }
-        scene_read_ = true;
+        const int read_code = read_scene();
+        if (read_code != RV_OK) {
+            RV_LOG_ERR("scene", "{} not loaded: rv_err {}", RV_EXAMPLE_CPP_SCENE_NAME, read_code);
+        }
         return RV_OK;
     }
 
     void frame_render()
     {
         frame_begin(RV_EXAMPLE_CPP_BACKGROUND);
-        draw_world();
+        // The kit draws every live entity, the lights included; it logs a failed system, camera, face camera, draw or unload
+        // by name, once per run of the same failure.
+        world_frame();
         frame_end();
     }
 
@@ -87,10 +90,6 @@ public:
 private:
     int read_scene();
     int register_ecs();
-    void draw_world();
-
-    // read_scene succeeded: the scene is in world_, so the disc draws.
-    bool scene_read_ = false;
 };
 
 // Registers the lamp entity type, the route's frame system, then the lamp_light, flicker and flicker_switched components
@@ -194,35 +193,13 @@ int rv_dmain::register_ecs()
     return RV_OK;
 }
 
-// Loads the scene into world_ and computes its transforms. The lamps' light parts are scene entities, hidden until the
-// light system shows them. An error leaves world_ partly loaded; the caller then does not draw.
+// Loads the scene into world_; it needs the registrations of register_ecs. The lamps' light parts are scene entities, hidden
+// until the light system shows them. The world matrices are written by the first frame, not here. A failed load is rolled
+// back by the kit, so the caller only logs it.
 int rv_dmain::read_scene()
 {
-    const int register_code = register_ecs();
-    if (register_code != RV_OK) {
-        return register_code;
-    }
     uint32_t load_number = 0;
-    const int load_code = scene_load(RV_EXAMPLE_CPP_SCENE_NAME, load_number);
-    if (load_code != RV_OK) {
-        return load_code;
-    }
-    const int transform_code = rv_pdkkit::ecs_system_transform(world_);
-    if (transform_code != RV_OK) {
-        return transform_code;
-    }
-    return RV_OK;
-}
-
-void rv_dmain::draw_world()
-{
-    // Without a read scene there is no route: disc_initialize has already logged why, so nothing is drawn.
-    if (!scene_read_) {
-        return;
-    }
-    // The kit draws every live entity, the lights included; it logs a failed system, face camera, draw or unload by name,
-    // once per run of the same failure.
-    world_frame();
+    return scene_load(RV_EXAMPLE_CPP_SCENE_NAME, load_number);
 }
 
 } // namespace example_cpp_pdkkit
