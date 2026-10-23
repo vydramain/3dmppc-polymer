@@ -9,7 +9,6 @@
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
-#include "pdkkit/ecs/rv_ecs_loads.hpp"
 #include "pdkkit/ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "example-cpp-pdkkit-board.hpp"
@@ -40,9 +39,7 @@ constexpr const char *RV_EXAMPLE_CPP_MUSIC_SYSTEM = "music";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
 
-// The route's, the board's and the lamp's entity types: the world keeps pointers to them, so they have static storage.
-const ecs_entity_route route_type;
-const ecs_entity_board board_type;
+// The lamp's entity type: the world keeps a pointer to it, so it has static storage.
 const ecs_entity_lamp lamp_type;
 
 } // namespace
@@ -61,14 +58,10 @@ public:
         const int read_code = read_scene();
         if (read_code != RV_OK) {
             scene_read_ = false;
-            board_found_ = false;
             RV_LOG_ERR("scene", "{} not used: rv_err {}", RV_EXAMPLE_CPP_SCENE_NAME, read_code);
             return RV_OK;
         }
         scene_read_ = true;
-        if (!board_found_) {
-            RV_LOG_WARN("scene", "no board entity: the board has no lettering");
-        }
         return RV_OK;
     }
 
@@ -92,29 +85,18 @@ public:
 private:
     int read_scene();
     int register_ecs();
-    int collect_parts(uint32_t load_number);
     void draw_world();
 
-    // read_scene succeeded: the scene's route and board are in world_, so the disc draws.
+    // read_scene succeeded: the scene is in world_, so the disc draws.
     bool scene_read_ = false;
-    // The scene has a board entity (one with the board marker); the disc warns when it has none.
-    bool board_found_ = false;
 };
 
-// Registers the route, board and lamp entity types, the route's frame system, then the lamp_light and flicker components
+// Registers the lamp entity type, the route's frame system, then the lamp_light and flicker components
 // with the flicker frame system, then the route_key, route_rider, trail, zone, zone_crossed, zone_lamp, lamp_switched,
 // zone_music, zone_clack and listener components, then the zones, music, lamps and light frame systems in this order,
 // which is the frame's order; a scene refers to them by name. pdkkit_disc registers the built-in components before this.
 int rv_dmain::register_ecs()
 {
-    const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
-    if (type_code != RV_OK) {
-        return type_code;
-    }
-    const int board_type_code = rv_pdkkit::ecs_entity_register(world_, board_type);
-    if (board_type_code != RV_OK) {
-        return board_type_code;
-    }
     const int lamp_type_code = rv_pdkkit::ecs_entity_register(world_, lamp_type);
     if (lamp_type_code != RV_OK) {
         return lamp_type_code;
@@ -200,8 +182,8 @@ int rv_dmain::register_ecs()
     return RV_OK;
 }
 
-// Loads the scene into world_, then fills the route's keys and the board from its entities. The lamps' light parts are
-// scene entities, hidden until the light system shows them. An error leaves them partly filled; the caller clears board_found_.
+// Loads the scene into world_ and computes its transforms. The lamps' light parts are scene entities, hidden until the
+// light system shows them. An error leaves world_ partly loaded; the caller then does not draw.
 int rv_dmain::read_scene()
 {
     const int register_code = register_ecs();
@@ -217,35 +199,6 @@ int rv_dmain::read_scene()
     if (transform_code != RV_OK) {
         return transform_code;
     }
-    const int route_code = rv_route_collect(world_);
-    if (route_code != RV_OK) {
-        return route_code;
-    }
-    const int parts_code = collect_parts(load_number);
-    if (parts_code != RV_OK) {
-        return parts_code;
-    }
-    return RV_OK;
-}
-
-// Refuses the scene with a nameless entity of load load_number; then sets board_found_ from the board entities.
-int rv_dmain::collect_parts(uint32_t load_number)
-{
-    const auto check_name = [this](rv_pdkkit::ecs_id id) -> int {
-        const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world_, id);
-        if (name == nullptr) {
-            RV_LOG_ERR("scene", "scene refused: an entity has no name");
-            return RV_ERR_INVAL;
-        }
-        return RV_OK;
-    };
-    const int walk_code = rv_pdkkit::ecs_scene_entities(world_, load_number, check_name);
-    if (walk_code != RV_OK) {
-        return walk_code;
-    }
-    rv_pdkkit::ecs_component_each<ecs_component_board>(world_, [this](rv_pdkkit::ecs_id, ecs_component_board &) {
-        board_found_ = true;
-    });
     return RV_OK;
 }
 

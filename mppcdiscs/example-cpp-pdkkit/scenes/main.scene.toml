@@ -28,7 +28,6 @@ source = "factory.gltf"
 [[object]]
 id = "5ce00002"
 parent = ""
-entity = "board"
 
 [[component]]
 object = "5ce00002"
@@ -241,7 +240,6 @@ source = "yard.gltf"
 [[object]]
 id = "5ce0000a"
 parent = ""
-entity = "route"
 
 [[component]]
 object = "5ce0000a"

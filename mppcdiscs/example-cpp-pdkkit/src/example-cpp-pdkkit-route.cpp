@@ -466,14 +466,9 @@ int ecs_entity_route::add_defaults(ecs_world &world, ecs_id id) const
     return RV_OK;
 }
 
+// The riders follow the route's keys; no route entity is needed for that.
 int ecs_system_route(ecs_world &world, const rv_pdkkit::ecs_frame &frame)
 {
-    ecs_id route_id{};
-    ecs_component_route *route = nullptr;
-    const int route_code = find_route(world, route_id, route);
-    if (route_code != RV_OK) {
-        return route_code;
-    }
     return ride_route(world, frame.frame);
 }
 
