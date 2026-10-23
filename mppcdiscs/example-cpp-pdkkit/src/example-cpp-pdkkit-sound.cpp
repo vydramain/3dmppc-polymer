@@ -229,7 +229,7 @@ int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf)
     return rv_pdkkit::sound_voice_play(ca, conf.voice);
 }
 
-int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_sound_state &state)
+int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_sound_areas &areas, rv_sound_state &state)
 {
     // The songs are measured here, one per area in area order.
     const std::vector<std::string> songs(std::begin(RV_SOUND_SONGS), std::end(RV_SOUND_SONGS));
@@ -241,17 +241,17 @@ int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_so
     // Each frame's area, and the first frame of its span. Spans wrap: the workshop may cross the seam
     // from the last frame of the period to the first, so the walk starts at an area change and goes round once.
     const int64_t period = RV_ROUTE_PERIOD_FRAMES;
-    state.areas.resize(static_cast<std::size_t>(period));
-    state.span_start.assign(static_cast<std::size_t>(period), 0);
+    areas.frame_area.resize(static_cast<std::size_t>(period));
+    areas.span_start.assign(static_cast<std::size_t>(period), 0);
     for (int64_t f = 0; f < period; ++f) {
-        const int area_code = area_of_frame(keys, f, state.areas[static_cast<std::size_t>(f)]);
+        const int area_code = area_of_frame(keys, f, areas.frame_area[static_cast<std::size_t>(f)]);
         if (area_code != RV_OK) {
             return fail(state, "sound areas", area_code);
         }
     }
     int64_t change = -1;
     for (int64_t f = 0; f < period && change < 0; ++f) {
-        if (starts_span(state.areas, f)) {
+        if (starts_span(areas.frame_area, f)) {
             change = f;
         }
     }
@@ -260,27 +260,27 @@ int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_so
         int64_t start = change;
         for (int64_t i = 0; i < period; ++i) {
             const int64_t f = (change + i) % period;
-            if (starts_span(state.areas, f)) {
+            if (starts_span(areas.frame_area, f)) {
                 start = f;
             }
-            state.span_start[static_cast<std::size_t>(f)] = start;
+            areas.span_start[static_cast<std::size_t>(f)] = start;
         }
     }
     return RV_OK;
 }
 
-int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_sound_state &state)
+int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, const rv_sound_areas &areas, rv_sound_state &state)
 {
     const int64_t period = RV_ROUTE_PERIOD_FRAMES;
-    if (state.areas.size() != static_cast<std::size_t>(period)) {
+    if (areas.frame_area.size() != static_cast<std::size_t>(period)) {
         return fail(state, "sound tables", RV_ERR_INVAL);
     }
     // The same frame again is no transition: a pause or a repeated render plays nothing.
     if (frame == state.frame) {
         return RV_OK;
     }
-    const rv_sound_area area = state.areas[static_cast<std::size_t>(frame)];
-    const int64_t span_offset = (frame - state.span_start[static_cast<std::size_t>(frame)] + period) % period;
+    const rv_sound_area area = areas.frame_area[static_cast<std::size_t>(frame)];
+    const int64_t span_offset = (frame - areas.span_start[static_cast<std::size_t>(frame)] + period) % period;
     // Decided against the previous frame before the music takes this one.
     const bool first = state.frame < 0;
     const bool clack = board_present && !first && area == rv_sound_area::workshop && letters_changed(state.frame, frame);

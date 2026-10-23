@@ -105,6 +105,8 @@ private:
     bool scene_read_ = false;
     // The scene has a board entity (one with the board marker); the sound takes it into account.
     bool board_found_ = false;
+    // The frame-to-area tables: init_sound fills them, play_sound reads them.
+    rv_sound_areas sound_areas_;
     // The music and the clack; sound_ready_ is false when init_sound failed, and then nothing plays.
     rv_sound_state sound_state_;
     bool sound_ready_ = false;
@@ -270,7 +272,7 @@ void rv_dmain::init_sound()
         RV_LOG_ERR("sound", "sound off: the scene has no route");
         return;
     }
-    const int64_t sound_code = rv_sound_init(pdk_, route->keys, sound_state_);
+    const int64_t sound_code = rv_sound_init(pdk_, route->keys, sound_areas_, sound_state_);
     if (sound_code < 0) {
         RV_LOG_ERR("sound", "sound off: {} rv_err {}", sound_state_.error_asset, sound_code);
         return;
@@ -284,7 +286,7 @@ void rv_dmain::play_sound()
     if (!sound_ready_) {
         return;
     }
-    const int64_t sound_code = rv_sound_update(pdk_, frame_ % RV_ROUTE_PERIOD_FRAMES, board_found_, sound_state_);
+    const int64_t sound_code = rv_sound_update(pdk_, frame_ % RV_ROUTE_PERIOD_FRAMES, board_found_, sound_areas_, sound_state_);
     if (sound_code < 0) {
         log_sound_error(sound_code);
     }

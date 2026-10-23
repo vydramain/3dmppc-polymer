@@ -42,15 +42,19 @@ struct rv_music_song {
     int64_t bars = 0;
 };
 
+// The place of each frame of the period: its area, and the first frame of its area span (cyclic). Filled once by
+// rv_sound_init and read by rv_sound_update; owned by the disc.
+struct rv_sound_areas {
+    std::vector<rv_sound_area> frame_area;
+    std::vector<int64_t> span_start;
+};
+
 // Music, clack and loop state. Filled once by rv_sound_init; frame = -1 before the first frame.
 struct rv_sound_state {
     // The last frame the sound played for, and its song and bar; the bar counts from the area span's first frame.
     int64_t frame = -1;
     std::string song;
     int64_t bar = -1;
-    // Per frame of the period: its area, and the first frame of its area span (cyclic). Empty until built.
-    std::vector<rv_sound_area> areas;
-    std::vector<int64_t> span_start;
     // The songs rv_music_init measured, in the order it got them.
     std::vector<rv_music_song> songs;
     // Per music slot: sound RAM address, bar asset in it (empty when unknown).
@@ -77,20 +81,20 @@ struct rv_sound_state {
 };
 
 // Measures the music of each area's song on the disc, allocates the music slots, and tabulates the area and span of
-// every frame of the period from keys (non-empty, sorted by index). Called once; returns RV_OK or the first error. A
-// music error is rv_music_init's: a disc code from a bar's open or size, RV_ERR_INVAL for an empty bar, or RV_ERR_NOENT
+// every frame of the period into areas, from keys (non-empty, sorted by index). Called once; returns RV_OK or the first error.
+// A music error is rv_music_init's: a disc code from a bar's open or size, RV_ERR_INVAL for an empty bar, or RV_ERR_NOENT
 // for a song with no bars, with state.error_asset set to the bar; a ca code from the slot allocation, with "music
 // slot". An area error is the route's: RV_ERR_NOENT (no keys) or RV_ERR_INVAL (the Q20.12 math leaves its range), with
 // state.error_asset set to "sound areas".
-int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_sound_state &state);
+int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_sound_areas &areas, rv_sound_state &state);
 
-// Plays what frame `frame` (in [0, RV_ROUTE_PERIOD_FRAMES)) needs after state.frame: the music of its area
-// (rv_music_update), the board clack in the workshop when the lit letters differ from state.frame's, and
-// only when the scene has the board (board_present). The two factory loops run while the frame is in the
-// workshop. The same frame again (a pause, a repeated render) plays nothing. The first frame fills the
-// slots and waits for the next bar start when it is mid-bar.
-// Needs rv_sound_init first. Returns RV_OK or the drive or ca error, with state.error_asset naming the asset.
-int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_sound_state &state);
+// Plays what frame `frame` (in [0, RV_ROUTE_PERIOD_FRAMES)) needs after state.frame, with the areas rv_sound_init filled:
+// the music of its area (rv_music_update), the board clack in the workshop when the lit letters differ from state.frame's,
+// and only when the scene has the board (board_present). The two factory loops run while the frame is in the workshop.
+// The same frame again (a pause, a repeated render) plays nothing. The first frame fills the slots and waits for the next
+// bar start when it is mid-bar. Needs rv_sound_init first. Returns RV_OK or the drive or ca error, with state.error_asset
+// naming the asset.
+int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, const rv_sound_areas &areas, rv_sound_state &state);
 
 // Records `asset` as the failure's name for the caller's log and returns `code`.
 int64_t fail(rv_sound_state &state, const char *asset, int64_t code);
@@ -102,7 +106,7 @@ int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
 // not running, moves it on at each mark, and on success records the song and bar; rv_sound_update calls it.
 // Precondition: name is a song rv_music_init measured, and span_offset is in [0, RV_ROUTE_PERIOD_FRAMES), the frames
 // since the area span's first frame; its bar is span_offset / RV_SOUND_BAR_FRAMES. Otherwise RV_ERR_INVAL, with
-// state.error_asset "music song" or "music offset". Reads none of the sound tables (areas, span_start). Returns RV_OK
+// state.error_asset "music song" or "music offset". Reads none of the frame tables (rv_sound_areas). Returns RV_OK
 // or the first error: a disc code from a bar's open or size; RV_ERR_NOENT for a song with no bars; RV_ERR_INVAL for an
 // empty bar or one larger than the slot; RV_ERR_IO when the bar's read gave no bytes or failed (its own code is not
 // passed on); a ca or voice code from the mark read, the bar write, the repeat and mark, or the play. state.error_asset
