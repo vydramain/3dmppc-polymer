@@ -1,7 +1,4 @@
-#include <algorithm>
 #include <cstdint>
-#include <string>
-#include <vector>
 
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
@@ -38,6 +35,8 @@ constexpr const char *RV_EXAMPLE_CPP_LIGHT_SYSTEM = "light";
 constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
 // The frame system that raises zone_crossed on the zones the riders enter; it runs after the route system.
 constexpr const char *RV_EXAMPLE_CPP_ZONES_SYSTEM = "zones";
+// The frame system that plays the listener's music and loop on the zones' zone_crossed; it runs after zones.
+constexpr const char *RV_EXAMPLE_CPP_MUSIC_SYSTEM = "music";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
 
@@ -70,14 +69,12 @@ public:
         if (!board_found_) {
             RV_LOG_WARN("scene", "no board entity: the board has no lettering");
         }
-        init_sound();
         return RV_OK;
     }
 
     void frame_render()
     {
         frame_begin(RV_EXAMPLE_CPP_BACKGROUND);
-        play_sound();
         draw_world();
         frame_end();
     }
@@ -97,27 +94,17 @@ private:
     int register_ecs();
     int collect_parts(uint32_t load_number);
     void draw_world();
-    void init_sound();
-    void play_sound();
-    void log_sound_error(int64_t code);
 
-    // read_scene succeeded: the scene's route and board are in world_, so the disc draws and plays.
+    // read_scene succeeded: the scene's route and board are in world_, so the disc draws.
     bool scene_read_ = false;
-    // The scene has a board entity (one with the board marker); the sound takes it into account.
+    // The scene has a board entity (one with the board marker); the disc warns when it has none.
     bool board_found_ = false;
-    // The frame-to-area tables: init_sound fills them, play_sound reads them.
-    rv_sound_areas sound_areas_;
-    // The music and the clack; sound_ready_ is false when init_sound failed, and then nothing plays.
-    rv_sound_state sound_state_;
-    bool sound_ready_ = false;
-    // Assets whose failure is logged already: one log per asset, so a later failure of another asset still shows.
-    std::vector<std::string> sound_errors_logged_;
 };
 
 // Registers the route, board and lamp entity types, the route's frame system, then the lamp_light and flicker components
 // with the flicker frame system, then the route_key, route_rider, trail, zone, zone_crossed, zone_lamp, lamp_switched,
-// zone_music, zone_clack and listener components, then the zones, lamps and light frame systems in this order, which is
-// the frame's order; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
+// zone_music, zone_clack and listener components, then the zones, music, lamps and light frame systems in this order,
+// which is the frame's order; a scene refers to them by name. pdkkit_disc registers the built-in components before this.
 int rv_dmain::register_ecs()
 {
     const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
@@ -195,6 +182,11 @@ int rv_dmain::register_ecs()
     if (zones_code != RV_OK) {
         return zones_code;
     }
+    const int music_code =
+        rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_MUSIC_SYSTEM, example_cpp_pdkkit::ecs_system_music);
+    if (music_code != RV_OK) {
+        return music_code;
+    }
     const int lamps_code =
         rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_LAMPS_SYSTEM, example_cpp_pdkkit::ecs_system_lamps);
     if (lamps_code != RV_OK) {
@@ -266,45 +258,6 @@ void rv_dmain::draw_world()
     // The kit draws every live entity, the lights included; it logs a failed system, face camera, draw or unload by name,
     // once per run of the same failure.
     world_frame();
-}
-
-// Loads the music and tabulates the areas; runs once, after read_scene found the camera keys.
-void rv_dmain::init_sound()
-{
-    const ecs_component_route *route = rv_route_of(world_);
-    if (route == nullptr) {
-        RV_LOG_ERR("sound", "sound off: the scene has no route");
-        return;
-    }
-    const int64_t sound_code = rv_sound_init(pdk_, route->keys, sound_areas_, sound_state_);
-    if (sound_code < 0) {
-        RV_LOG_ERR("sound", "sound off: {} rv_err {}", sound_state_.error_asset, sound_code);
-        return;
-    }
-    sound_ready_ = true;
-}
-
-// Plays the frame's sound; without init_sound there is no music, and init_sound has logged why.
-void rv_dmain::play_sound()
-{
-    if (!sound_ready_) {
-        return;
-    }
-    const int64_t sound_code = rv_sound_update(pdk_, frame_ % RV_ROUTE_PERIOD_FRAMES, board_found_, sound_areas_, sound_state_);
-    if (sound_code < 0) {
-        log_sound_error(sound_code);
-    }
-}
-
-// Logs the first failure of each asset only: the same failure would repeat in every frame.
-void rv_dmain::log_sound_error(int64_t code)
-{
-    const std::string asset = sound_state_.error_asset;
-    if (std::find(sound_errors_logged_.begin(), sound_errors_logged_.end(), asset) != sound_errors_logged_.end()) {
-        return;
-    }
-    sound_errors_logged_.push_back(asset);
-    RV_LOG_ERR("sound", "sound not played: {} rv_err {}", asset, code);
 }
 
 } // namespace example_cpp_pdkkit
