@@ -165,6 +165,38 @@ constexpr rv_manifest_section_spec rv_manifest_sections[] = {
     { rv_manifest_section_budget_pccl, rv_manifest_budget_pccl_keys, std::size(rv_manifest_budget_pccl_keys) },
 };
 
+// Sections removed in PDK 2.0. Their files now live in [assets]; naming one
+// explains the move instead of guessing a "did you mean" from the live sections.
+constexpr std::string_view rv_manifest_retired_section_textures = "textures";
+constexpr std::string_view rv_manifest_retired_section_sounds = "sounds";
+constexpr std::string_view rv_manifest_retired_section_models = "models";
+
+constexpr std::string_view rv_manifest_retired_hint_textures =
+    "its files are listed in [assets] files (kind by extension), and the texture format is set in [assets.texture] format";
+constexpr std::string_view rv_manifest_retired_hint_sounds = "its files are listed in [assets] files (kind by extension)";
+constexpr std::string_view rv_manifest_retired_hint_models = "its files are listed in [assets] files (kind by extension)";
+
+struct rv_manifest_retired_section_spec {
+    std::string_view name;
+    std::string_view hint;
+};
+
+constexpr rv_manifest_retired_section_spec rv_manifest_retired_sections[] = {
+    { rv_manifest_retired_section_textures, rv_manifest_retired_hint_textures },
+    { rv_manifest_retired_section_sounds, rv_manifest_retired_hint_sounds },
+    { rv_manifest_retired_section_models, rv_manifest_retired_hint_models },
+};
+
+inline const rv_manifest_retired_section_spec *rv_manifest_retired_section_get(std::string_view name)
+{
+    for (const rv_manifest_retired_section_spec &s : rv_manifest_retired_sections) {
+        if (s.name == name) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
 inline const rv_manifest_section_spec *rv_manifest_sections_get(std::string_view name)
 {
     for (const rv_manifest_section_spec &s : rv_manifest_sections) {

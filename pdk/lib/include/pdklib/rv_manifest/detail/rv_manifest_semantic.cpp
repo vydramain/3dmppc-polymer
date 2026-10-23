@@ -59,9 +59,11 @@ void rv_manifest_check(const rv_manifest_tree &tree, rv_manifest_failer &failer)
         if (spec == nullptr) {
             // Its keys are not judged: they belong to a section that does not
             // exist, and naming each of them says nothing new.
-            failer.fail(section.line,
-                "unknown section '[" + section.name + "]'" +
-                    suggest_section(section.name, rv_manifest_sections, std::size(rv_manifest_sections)));
+            const rv_manifest_retired_section_spec *retired = rv_manifest_retired_section_get(section.name);
+            const std::string hint = retired != nullptr ?
+                " (removed in PDK 2.0: " + std::string(retired->hint) + ")" :
+                suggest_section(section.name, rv_manifest_sections, std::size(rv_manifest_sections));
+            failer.fail(section.line, "unknown section '[" + section.name + "]'" + hint);
             continue;
         }
 
