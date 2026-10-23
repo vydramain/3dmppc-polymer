@@ -1397,3 +1397,101 @@ cell = 10
 [[component]]
 object = "5ce31010"
 name = "hidden"
+
+# Lamp zones: invisible boxes, one per lamp; zone_lamp names the lamp an entry is meant to switch:
+# lit when the camera enters moving +X, dark when moving -X.
+[[object]]
+id = "5ce40001"
+parent = ""
+
+[[component]]
+object = "5ce40001"
+name = "name"
+text = "zone_lamp_1"
+
+[[component]]
+object = "5ce40001"
+name = "transform"
+position = [4, 5, 0]
+
+[[component]]
+object = "5ce40001"
+name = "zone"
+size = [16, 10, 6]
+
+[[component]]
+object = "5ce40001"
+name = "zone_lamp"
+lamp = "lamp_1"
+
+[[object]]
+id = "5ce40002"
+parent = ""
+
+[[component]]
+object = "5ce40002"
+name = "name"
+text = "zone_lamp_2"
+
+[[component]]
+object = "5ce40002"
+name = "transform"
+position = [12, 5, 0]
+
+[[component]]
+object = "5ce40002"
+name = "zone"
+size = [16, 10, 6]
+
+[[component]]
+object = "5ce40002"
+name = "zone_lamp"
+lamp = "lamp_2"
+
+[[object]]
+id = "5ce40003"
+parent = ""
+
+[[component]]
+object = "5ce40003"
+name = "name"
+text = "zone_lamp_3"
+
+[[component]]
+object = "5ce40003"
+name = "transform"
+position = [20, 5, 0]
+
+[[component]]
+object = "5ce40003"
+name = "zone"
+size = [16, 10, 6]
+
+[[component]]
+object = "5ce40003"
+name = "zone_lamp"
+lamp = "lamp_3"
+
+[[object]]
+id = "5ce40004"
+parent = ""
+
+[[component]]
+object = "5ce40004"
+name = "name"
+text = "zone_lamp_4"
+
+[[component]]
+object = "5ce40004"
+name = "transform"
+position = [28, 5, 0]
+
+[[component]]
+object = "5ce40004"
+name = "zone"
+size = [16, 10, 6]
+
+[[component]]
+object = "5ce40004"
+name = "zone_lamp"
+lamp = "lamp_4"
