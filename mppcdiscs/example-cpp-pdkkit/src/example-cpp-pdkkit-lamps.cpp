@@ -1,20 +1,16 @@
 #include "example-cpp-pdkkit-lamps.hpp"
 
-#include <algorithm>
-#include <cstdint>
-#include <string>
 #include <string_view>
 #include <vector>
 
 #include "pdk/rv_err.h"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
-#include "pdkkit/ecs/rv_ecs_frame.hpp"
+#include "pdkkit/ecs/rv_ecs_loads.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdkkit/ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "pdklib/rv_math/rv_fx.hpp"
-#include "example-cpp-pdkkit-route.hpp"
+#include "example-cpp-pdkkit-zones.hpp"
 
 namespace example_cpp_pdkkit
 {
@@ -22,170 +18,119 @@ namespace example_cpp_pdkkit
 namespace
 {
 
-// Reach of a lamp, metres: the eye nearer than this is in the lamp's reach, and each entry into it toggles the lamp's
-// light. Lamps stand 8 m apart on the street (x 4, 12, 20, 28), so the reach covers the lamp the camera is passing;
-// a neighbour is in reach only while the eye is between them.
-// 8 m in Q20.12: 8 * 4096 raw steps.
-constexpr rv_pdklib::fx RV_LAMP_REACH = 32768;
+// The log tag of the lamp messages.
+constexpr const char *RV_LAMPS_TAG = "lamps";
 
-// The light's model on the disc, drawn at the lamp's place.
-constexpr std::string_view RV_LAMP_LIGHT_MODEL = "lamp_light.gltf";
-
-// Base of a lamp in Q20.12: the translation of its world matrix.
-rv_pdklib::fx_vec3 lamp_base(const rv_pdkkit::ecs_component_world &place)
+// Holders of T, listed first: a component cannot be added or removed inside ecs_component_each.
+template <typename T>
+std::vector<rv_pdkkit::ecs_id> holders_of(rv_pdkkit::ecs_world &world)
 {
-    const auto &t = place.matrix.t;
-    return rv_pdklib::fx_vec3{ t[0], t[1], t[2] };
+    std::vector<rv_pdkkit::ecs_id> holders;
+    rv_pdkkit::ecs_component_each<T>(world, [&holders](rv_pdkkit::ecs_id id, T &) {
+        holders.push_back(id);
+    });
+    return holders;
 }
 
-// near is true when the eye of frame phase is within RV_LAMP_REACH of lamp id.
-// Error: no route keys or no world matrix (RV_ERR_NOENT), or the Q20.12 math leaves its range; near is untouched.
-int lamp_near(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const ecs_component_route *route, int64_t phase, bool &near)
+// The entities whose parent is lamp, listed first for the same reason as holders_of.
+std::vector<rv_pdkkit::ecs_id> children_of(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id lamp)
 {
-    const bool no_keys = route == nullptr || route->keys.empty();
-    if (no_keys) {
-        return RV_ERR_NOENT;
-    }
-    const auto *place = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_world>(world, id);
-    if (place == nullptr) {
-        return RV_ERR_NOENT;
-    }
-    rv_pdklib::fx_vec3 eye = {};
-    const int eye_code = rv_route_eye_at(route->keys, phase, eye);
-    if (eye_code != RV_OK) {
-        return eye_code;
-    }
-    rv_pdklib::fx_vec3 offset = {};
-    const int sub_code = rv_pdklib::fx_vec3_sub(eye, lamp_base(*place), offset);
-    if (sub_code != RV_OK) {
-        return sub_code;
-    }
-    rv_pdklib::fx length = 0;
-    const int length_code = rv_pdklib::fx_vec3_length(offset, length);
-    if (length_code != RV_OK) {
-        return length_code;
-    }
-    near = length < RV_LAMP_REACH;
-    return RV_OK;
+    std::vector<rv_pdkkit::ecs_id> children;
+    rv_pdkkit::ecs_component_each<rv_pdkkit::ecs_component_parent>(world,
+        [&children, lamp](rv_pdkkit::ecs_id id, rv_pdkkit::ecs_component_parent &link) {
+            if (link.parent == lamp) {
+                children.push_back(id);
+            }
+        });
+    return children;
 }
 
-// Adds the components of the light entity id, a child of lamp: identity transform, the model, hidden (dark).
-// Error: the code of the component that fails; the caller destroys id.
-int add_light_components(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, rv_pdkkit::ecs_id lamp)
+// Removes the lamp_switched of the last frame; the event lives one frame.
+int clear_switched(rv_pdkkit::ecs_world &world)
 {
-    rv_pdkkit::ecs_component_parent *link = nullptr;
-    const int parent_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_parent>(world, id, link);
-    if (parent_code != RV_OK) {
-        return parent_code;
-    }
-    link->parent = lamp;
-    rv_pdkkit::ecs_component_transform *transform = nullptr;
-    const int transform_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_transform>(world, id, transform);
-    if (transform_code != RV_OK) {
-        return transform_code;
-    }
-    rv_pdkkit::ecs_component_model *model = nullptr;
-    const int model_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_model>(world, id, model);
-    if (model_code != RV_OK) {
-        return model_code;
-    }
-    std::copy(RV_LAMP_LIGHT_MODEL.begin(), RV_LAMP_LIGHT_MODEL.end(), model->source);
-    std::string reason;
-    const int derive_code = rv_pdkkit::ecs_component_model::ecs_derive(*model, reason);
-    if (derive_code != RV_OK) {
-        RV_LOG_ERR("lamps", "lamp light model refused: {}", reason);
-        return derive_code;
-    }
-    rv_pdkkit::ecs_component_hidden *hidden = nullptr;
-    const int hidden_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, id, hidden);
-    if (hidden_code != RV_OK) {
-        return hidden_code;
-    }
-    return RV_OK;
-}
-
-// Makes the light entity of lamp unless it is alive. Error: the code of the step that fails; no entity is left behind.
-int ensure_light(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id lamp, ecs_component_lamp_light &light)
-{
-    const bool exists = rv_pdkkit::ecs_entity_alive(world, light.light);
-    if (exists) {
-        return RV_OK;
-    }
-    rv_pdkkit::ecs_id id{};
-    const int created = rv_pdkkit::ecs_entity_create(world, id);
-    if (created != RV_OK) {
-        return created;
-    }
-    const int added = add_light_components(world, id, lamp);
-    if (added != RV_OK) {
-        const int destroyed = rv_pdkkit::ecs_entity_destroy(world, id);
-        if (destroyed != RV_OK) {
-            RV_LOG_WARN("lamps", "half-made light entity not destroyed: rv_err {}", destroyed);
+    const std::vector<rv_pdkkit::ecs_id> holders = holders_of<ecs_component_lamp_switched>(world);
+    for (const rv_pdkkit::ecs_id id : holders) {
+        const int remove_code = rv_pdkkit::ecs_component_remove<ecs_component_lamp_switched>(world, id);
+        if (remove_code != RV_OK) {
+            return remove_code;
         }
-        return added;
-    }
-    light.light = id;
-    return RV_OK;
-}
-
-// Shows the light entity when burns, else hides it with the hidden mark.
-// Error: the component's code. NOENT when a shown light is asked to show again is not an error.
-int set_light(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id light, bool burns)
-{
-    if (burns) {
-        const int shown_code = rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, light);
-        const bool shown = shown_code == RV_OK || shown_code == RV_ERR_NOENT;
-        if (!shown) {
-            return shown_code;
-        }
-        return RV_OK;
-    }
-    rv_pdkkit::ecs_component_hidden *hidden = nullptr;
-    const int hidden_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, light, hidden);
-    if (hidden_code != RV_OK) {
-        return hidden_code;
     }
     return RV_OK;
 }
 
-// Warns once that lamp cannot be placed, so its light stays dark.
-void warn_unplaced(const rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id lamp, ecs_component_lamp_light &light, int code)
+// Warns once that the zone's lamp is not in the world, so the zone switches nothing.
+void warn_missing_once(const rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id zone, ecs_component_zone_lamp &named)
 {
-    if (light.warned) {
+    if (named.warned) {
         return;
     }
-    light.warned = true;
-    RV_LOG_WARN("lamps",
-        "{}: no world matrix, route keys or Q20.12 room, its light stays dark: rv_err {}",
-        rv_pdkkit::ecs_transform_label(world, lamp),
-        code);
+    named.warned = true;
+    RV_LOG_WARN(RV_LAMPS_TAG,
+        "zone {}: lamp {} not found; the zone switches nothing",
+        rv_pdkkit::ecs_transform_label(world, zone),
+        named.lamp);
 }
 
-// One lamp's frame: its light exists; an approach of the eye toggles the light, and the light shows or hides.
-// Error: the code of making or showing the light. An unplaced lamp is warned and dark; it is not an error.
-int update_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id lamp, const ecs_component_route *route, int64_t phase)
+// Sets the light of lamp to on. A change marks the lamp lamp_switched and logs it by the lamp's name. Error: the code of the
+// step that fails; NOENT when lamp has no lamp_light.
+int switch_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id lamp, bool on)
 {
     ecs_component_lamp_light *light = rv_pdkkit::ecs_component_get<ecs_component_lamp_light>(world, lamp);
     if (light == nullptr) {
         return RV_ERR_NOENT;
     }
-    const int made_code = ensure_light(world, lamp, *light);
-    if (made_code != RV_OK) {
-        return made_code;
+    if (light->on == on) {
+        return RV_OK;
     }
-    bool near = false;
-    const int near_code = lamp_near(world, lamp, route, phase, near);
-    if (near_code != RV_OK) {
-        warn_unplaced(world, lamp, *light, near_code);
-        light->burns = false;
-        return set_light(world, light->light, false);
+    ecs_component_lamp_switched *switched = nullptr;
+    const int ensure_code = rv_pdkkit::ecs_component_ensure<ecs_component_lamp_switched>(world, lamp, switched);
+    if (ensure_code != RV_OK) {
+        return ensure_code;
     }
-    const bool approach = near && !light->was_near;
-    light->was_near = near;
-    if (approach) {
-        light->burns = !light->burns;
+    light->on = on;
+    RV_LOG_INFO(RV_LAMPS_TAG, "{} {}", rv_pdkkit::ecs_transform_label(world, lamp), on ? "on" : "off");
+    return RV_OK;
+}
+
+// Switches the lamp that zone names, by the direction of its zone_crossed along X. A zone without zone_lamp is not a lamp
+// zone and is skipped. Error: the code of the step that fails.
+int cross_zone(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id zone, const ecs_component_zone_crossed &crossed)
+{
+    // Lamps stand on one street along world X: +X is the way along it that lights a lamp, -X darkens it.
+    if (crossed.direction.x == 0) {
+        return RV_OK;
     }
-    return set_light(world, light->light, light->burns);
+    ecs_component_zone_lamp *named = rv_pdkkit::ecs_component_get<ecs_component_zone_lamp>(world, zone);
+    if (named == nullptr) {
+        return RV_OK;
+    }
+    rv_pdkkit::ecs_id lamp{};
+    const int find_code = rv_pdkkit::ecs_find_by_name(world, std::string_view{ named->lamp }, lamp);
+    if (find_code == RV_ERR_NOENT) {
+        warn_missing_once(world, zone, *named);
+        return RV_OK;
+    }
+    if (find_code != RV_OK) {
+        return find_code;
+    }
+    return switch_lamp(world, lamp, crossed.direction.x > 0);
+}
+
+// Shows or hides one light part: hidden while dark, shown while lit. Error: the code of the step that fails; NOENT from a
+// removal is not an error, the part is already shown.
+int set_hidden(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id part, bool hidden)
+{
+    if (!hidden) {
+        const int shown_code = rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, part);
+        const bool shown = shown_code == RV_OK || shown_code == RV_ERR_NOENT;
+        return shown ? RV_OK : shown_code;
+    }
+    rv_pdkkit::ecs_component_hidden *mark = nullptr;
+    const int hidden_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, part, mark);
+    if (hidden_code != RV_OK) {
+        return hidden_code;
+    }
+    return RV_OK;
 }
 
 } // namespace
@@ -195,40 +140,46 @@ int ecs_entity_lamp::add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id
     ecs_component_lamp_light *light = nullptr;
     const int light_code = rv_pdkkit::ecs_component_ensure<ecs_component_lamp_light>(world, id, light);
     if (light_code != RV_OK) {
-        RV_LOG_ERR("lamps", "lamp_light component not added: rv_err {}", light_code);
+        RV_LOG_ERR(RV_LAMPS_TAG, "lamp_light component not added: rv_err {}", light_code);
         return light_code;
     }
     return RV_OK;
 }
 
-int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame)
+int ecs_system_lamps(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &)
 {
-    const ecs_component_route *route = rv_route_of(world);
-    const int64_t phase = frame.frame % RV_ROUTE_PERIOD_FRAMES;
-    // Collected first: a light is made inside the update, and a component cannot be added inside ecs_component_each.
-    std::vector<rv_pdkkit::ecs_id> lamps;
-    rv_pdkkit::ecs_component_each<ecs_component_lamp_light>(world, [&lamps](rv_pdkkit::ecs_id id, ecs_component_lamp_light &) {
-        lamps.push_back(id);
-    });
-    for (const rv_pdkkit::ecs_id lamp : lamps) {
-        const int code = update_lamp(world, lamp, route, phase);
-        if (code != RV_OK) {
-            return code;
+    const int clear_code = clear_switched(world);
+    if (clear_code != RV_OK) {
+        return clear_code;
+    }
+    const std::vector<rv_pdkkit::ecs_id> zones = holders_of<ecs_component_zone_crossed>(world);
+    for (const rv_pdkkit::ecs_id zone : zones) {
+        const ecs_component_zone_crossed *crossed = rv_pdkkit::ecs_component_get<ecs_component_zone_crossed>(world, zone);
+        const int cross_code = cross_zone(world, zone, *crossed);
+        if (cross_code != RV_OK) {
+            return cross_code;
         }
     }
     return RV_OK;
 }
 
-int ecs_draw_lamps(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame)
+int ecs_system_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &)
 {
-    std::vector<rv_pdkkit::ecs_id> order;
-    rv_pdkkit::ecs_component_each<ecs_component_lamp_light>(world,
-        [&world, &order](rv_pdkkit::ecs_id, ecs_component_lamp_light &light) {
-            if (rv_pdkkit::ecs_entity_alive(world, light.light)) {
-                order.push_back(light.light);
+    const std::vector<rv_pdkkit::ecs_id> switched = holders_of<ecs_component_lamp_switched>(world);
+    for (const rv_pdkkit::ecs_id lamp : switched) {
+        const ecs_component_lamp_light *light = rv_pdkkit::ecs_component_get<ecs_component_lamp_light>(world, lamp);
+        if (light == nullptr) {
+            return RV_ERR_NOENT;
+        }
+        const std::vector<rv_pdkkit::ecs_id> parts = children_of(world, lamp);
+        for (const rv_pdkkit::ecs_id part : parts) {
+            const int code = set_hidden(world, part, !light->on);
+            if (code != RV_OK) {
+                return code;
             }
-        });
-    return rv_pdkkit::ecs_system_draw(world, frame, order);
+        }
+    }
+    return RV_OK;
 }
 
 } // namespace example_cpp_pdkkit

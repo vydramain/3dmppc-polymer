@@ -31,8 +31,9 @@ namespace
 constexpr const char *RV_EXAMPLE_CPP_SCENE_NAME = "main.scene.toml";
 // The frame system that sets the camera from the route keys.
 constexpr const char *RV_EXAMPLE_CPP_ROUTE_SYSTEM = "route";
-// The lamp's component (lamp_light), and the name of its frame system.
-constexpr const char *RV_EXAMPLE_CPP_LAMP_LIGHT = "lamp_light";
+// The frame systems that switch the lamps on the zones' entries, then show the lamps' light parts; they run after zones.
+constexpr const char *RV_EXAMPLE_CPP_LAMPS_SYSTEM = "lamps";
+constexpr const char *RV_EXAMPLE_CPP_LIGHT_SYSTEM = "light";
 // The scene component of a board halo or letter: its description's name, and the name of its frame system.
 constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
 // The frame system that raises zone_crossed on the zones the riders enter; it runs after the route system.
@@ -112,9 +113,9 @@ private:
 };
 
 // Registers the route, board and lamp entity types, the route's frame system, then the lamp_light and flicker components
-// with their frame systems, then the route_key, route_rider, trail, zone, zone_crossed, zone_lamp, lamp_switched,
-// zone_music and zone_clack components, then the zones frame system after them; a scene refers to them by name. The
-// built-in components are registered by pdkkit_disc before this.
+// with the flicker frame system, then the route_key, route_rider, trail, zone, zone_crossed, zone_lamp, lamp_switched,
+// zone_music and zone_clack components, then the zones, lamps and light frame systems in this order, which is the frame's
+// order; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
 int rv_dmain::register_ecs()
 {
     const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
@@ -137,11 +138,6 @@ int rv_dmain::register_ecs()
     const int lamp_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_lamp_light>(world_);
     if (lamp_code != RV_OK) {
         return lamp_code;
-    }
-    const int lamp_system_code =
-        rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp_pdkkit::ecs_system_lamp_light);
-    if (lamp_system_code != RV_OK) {
-        return lamp_system_code;
     }
     const int flicker_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_flicker>(world_);
     if (flicker_code != RV_OK) {
@@ -193,11 +189,21 @@ int rv_dmain::register_ecs()
     if (zones_code != RV_OK) {
         return zones_code;
     }
+    const int lamps_code =
+        rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_LAMPS_SYSTEM, example_cpp_pdkkit::ecs_system_lamps);
+    if (lamps_code != RV_OK) {
+        return lamps_code;
+    }
+    const int light_code =
+        rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_LIGHT_SYSTEM, example_cpp_pdkkit::ecs_system_light);
+    if (light_code != RV_OK) {
+        return light_code;
+    }
     return RV_OK;
 }
 
-// Loads the scene into world_, then fills the route's keys and the board from its entities. The lamps' lights are made
-// by the lamp_light system on the first frame. An error leaves them partly filled; the caller clears board_found_.
+// Loads the scene into world_, then fills the route's keys and the board from its entities. The lamps' light parts are
+// scene entities, hidden until the light system shows them. An error leaves them partly filled; the caller clears board_found_.
 int rv_dmain::read_scene()
 {
     const int register_code = register_ecs();
