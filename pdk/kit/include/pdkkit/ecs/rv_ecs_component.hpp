@@ -104,6 +104,20 @@ struct ecs_component_decal {};
 struct ecs_component_two_sided {};
 // Marks the entity's model to be turned to face the camera, as a billboard. ecs_system_face_camera turns it.
 struct ecs_component_face_camera {};
+// Lens defaults in Q20.12. The field of view is vertical, in degrees: 60, the demo route's RV_ROUTE_FOV_Y.
+inline constexpr rv_pdklib::fx ecs_lens_fov_default = 60 * rv_pdklib::fx_one;
+// Near clip plane: 0.1 m is 409.6 raw, rounded half up to 410.
+inline constexpr rv_pdklib::fx ecs_lens_near_default = 410;
+// Far clip plane: 100 m, a margin past the scene's extent.
+inline constexpr rv_pdklib::fx ecs_lens_far_default = 100 * rv_pdklib::fx_one;
+
+// The camera's lens: vertical field of view in degrees, near and far clip planes in metres; all Q20.12. The member
+// names keep windows.h's near/far macros out of the code.
+struct ecs_component_lens {
+    rv_pdklib::fx fov = ecs_lens_fov_default;
+    rv_pdklib::fx near_plane = ecs_lens_near_default;
+    rv_pdklib::fx far_plane = ecs_lens_far_default;
+};
 
 // Component of id, added with its defaults when missing. out is written only on success. RV_ERR_NOENT for a dead or
 // stale id, otherwise the code of the add (RV_ERR_NOMEM when the pool cannot grow), RV_ERR_INVAL for any other
@@ -210,3 +224,9 @@ PDKKIT_COMPONENT(rv_pdkkit::ecs_component_model,
     "model",
     PDKKIT_FIELD(source, model, ""),
     PDKKIT_FIELD(tint, color, 255, 255, 255));
+
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_lens,
+    "lens",
+    PDKKIT_FIELD(fov, fixed, rv_pdkkit::ecs_lens_fov_default),
+    PDKKIT_FIELD(near_plane, fixed, rv_pdkkit::ecs_lens_near_default),
+    PDKKIT_FIELD(far_plane, fixed, rv_pdkkit::ecs_lens_far_default));

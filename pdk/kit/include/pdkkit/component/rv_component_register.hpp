@@ -277,7 +277,8 @@ using ecs_builtin_types = ecs_type_list<ecs_component_name,
     ecs_component_hidden,
     ecs_component_decal,
     ecs_component_two_sided,
-    ecs_component_face_camera>;
+    ecs_component_face_camera,
+    ecs_component_lens>;
 
 // Registers the types in order, stopping at the first refusal, and returns its code.
 template <typename... T>
