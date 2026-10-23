@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "pdk/cg/rv_cg.h"
+#include "pdkkit/component/rv_component_macro.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
 #include "pdkkit/ecs/rv_ecs_frame.hpp"
@@ -46,6 +47,21 @@ struct ecs_component_route {
     std::vector<rv_route_key> keys;
 };
 
+// Place of a cam_NN key on the route; the scene sets order, the key's NN.
+struct ecs_component_route_key {
+    int32_t order = 0;
+};
+
+// Marks the entity the route system moves (the camera eye); the scene sets it.
+struct ecs_component_route_rider {
+};
+
+// Rider's trail, written by the route system; the zones read it. moved is false in the frame the trail was added.
+struct ecs_component_trail {
+    rv_pdklib::fx_vec3 prev{}; // previous world position, Q20.12
+    bool moved = false;        // the rider moved since the last frame
+};
+
 // Scene entity type "route": a group that gets the route component when it is created.
 class ecs_entity_route : public rv_pdkkit::ecs_entity
 {
@@ -71,3 +87,7 @@ const ecs_component_route *rv_route_of(rv_pdkkit::ecs_world &world);
 int ecs_system_route(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
 
 } // namespace example_cpp_pdkkit
+
+PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_route_key, "route_key", PDKKIT_FIELD(order, int32, 0));
+PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_route_rider, "route_rider");
+PDKKIT_COMPONENT(example_cpp_pdkkit::ecs_component_trail, "trail");

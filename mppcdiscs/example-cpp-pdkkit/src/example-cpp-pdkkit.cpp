@@ -111,7 +111,8 @@ private:
 };
 
 // Registers the route, board and lamp entity types, the route's frame system, then the lamp_light and flicker components
-// with their frame systems; a scene refers to them by name. The built-in components are registered by pdkkit_disc before this.
+// with their frame systems, then the route_key, route_rider and trail components; a scene refers to them by name.
+// The built-in components are registered by pdkkit_disc before this.
 int rv_dmain::register_ecs()
 {
     const int type_code = rv_pdkkit::ecs_entity_register(world_, route_type);
@@ -148,6 +149,18 @@ int rv_dmain::register_ecs()
         rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_system_flicker);
     if (flicker_system_code != RV_OK) {
         return flicker_system_code;
+    }
+    const int route_key_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_route_key>(world_);
+    if (route_key_code != RV_OK) {
+        return route_key_code;
+    }
+    const int route_rider_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_route_rider>(world_);
+    if (route_rider_code != RV_OK) {
+        return route_rider_code;
+    }
+    const int trail_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_trail>(world_);
+    if (trail_code != RV_OK) {
+        return trail_code;
     }
     return RV_OK;
 }
