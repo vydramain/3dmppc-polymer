@@ -61,7 +61,7 @@ int rv_burner_build_assets(const rv_burner_options &options,
         return plan_err;
     }
 
-    const int models_plan_err = plan_models(manifest, disc_dir, paths.models, plan, error);
+    const int models_plan_err = plan_models(disc_dir, paths.models, plan, error);
     if (models_plan_err != RV_OK) {
         rv_burner_print_error(error);
         return models_plan_err;

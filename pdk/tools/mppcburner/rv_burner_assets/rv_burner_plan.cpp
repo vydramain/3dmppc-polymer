@@ -219,11 +219,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     return RV_OK;
 }
 
-int rv_pdktools::plan_models(const rv_pdklib::rv_manifest & /*manifest*/,
-    const fs::path &disc_dir,
-    const fs::path &model_dir,
-    archive_plan &plan,
-    std::string &error)
+int rv_pdktools::plan_models(const fs::path &disc_dir, const fs::path &model_dir, archive_plan &plan, std::string &error)
 {
     archive_plan next = plan;
 

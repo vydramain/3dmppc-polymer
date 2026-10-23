@@ -68,14 +68,12 @@ int plan_archive(const rv_pdklib::rv_manifest &manifest,
 ///
 /// Kept apart from plan_archive so its callers that never bake models stay as they were.
 ///
-/// @param manifest   the validated manifest; not read, kept for the callers
 /// @param disc_dir   absolute, canonical disc directory the globs resolve against
 /// @param model_dir  directory baked .mppcmod files will be written to
 /// @param plan       the plan to extend; untouched on failure
 /// @param error      set with a message that already names its manifest section
 /// @return RV_OK on success, the RV_ERR_* of the refusing step otherwise
-int plan_models(const rv_pdklib::rv_manifest &manifest,
-    const std::filesystem::path &disc_dir,
+int plan_models(const std::filesystem::path &disc_dir,
     const std::filesystem::path &model_dir,
     archive_plan &plan,
     std::string &error);
