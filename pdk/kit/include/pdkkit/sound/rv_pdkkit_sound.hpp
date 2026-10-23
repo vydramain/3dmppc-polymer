@@ -3,14 +3,16 @@
 // Sound for a disc's own code: a named sample made resident by the drive, and the voice setup, play and stop calls.
 // The drive owns the sample's sound RAM (rv_cd.h): this service never reads, allocates or frees it.
 
+#include <cstddef>
 #include <cstdint>
-#include <string>
-#include <vector>
+#include <cstring>
+#include <type_traits>
 
 #include "pdk/ca/rv_ca.h"
 #include "pdk/ca/rv_voice_conf.h"
 #include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
+#include "pdkkit/component/rv_component_capacity.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_pdkkit
@@ -18,9 +20,15 @@ namespace rv_pdkkit
 
 inline constexpr const char *sound_tag = "sound";
 
+// Samples the disc can make resident through this service: a fixed table, no heap. The pdkkit example makes 5
+// resident (4 clacks and 1 loop), so 5 of the 8 entries are used and 3 are free.
+inline constexpr int sound_asset_capacity = 8;
+
 // One named sample the disc has asked for. The address is the drive's and is valid until the disc unloads.
+// The name is NUL-terminated within ecs_name_capacity bytes, the same bound as the names of the scene records
+// (rv_component_capacity.hpp: object, entity, component).
 struct sound_asset {
-    std::string name;
+    char name[ecs_name_capacity]{};
     int64_t addr = 0;
     bool resident = false;
     // The first failure is logged; a later failure of the same asset is silent.
@@ -29,20 +37,42 @@ struct sound_asset {
 
 // Owned by the disc. A disc's samples are few, so a linear search by name is enough.
 struct sound_state {
-    std::vector<sound_asset> assets;
+    sound_asset assets[sound_asset_capacity]{};
+    int count = 0;
 };
 
-// The entry for `name`, added on first use.
-inline sound_asset &sound_asset_entry(sound_state &state, const char *name)
+static_assert(std::is_standard_layout_v<sound_asset> && std::is_trivially_copyable_v<sound_asset>);
+static_assert(std::is_standard_layout_v<sound_state> && std::is_trivially_copyable_v<sound_state>);
+
+// Points `asset` at the entry for `name`, added on first use. A name too long for the table, or a full table, is
+// refused with a log on every call, as a null name is: there is no entry to dedupe on.
+[[nodiscard]] inline int sound_asset_entry(sound_state &state, const char *name, sound_asset *&asset)
 {
-    for (sound_asset &asset : state.assets) {
-        if (asset.name == name) {
-            return asset;
+    const std::size_t length = std::strlen(name);
+    if (length >= ecs_name_capacity) {
+        RV_LOG_ERR(sound_tag,
+            "sample name longer than {} bytes: rv_err {}",
+            ecs_name_capacity - 1,
+            static_cast<int>(RV_ERR_INVAL));
+        return RV_ERR_INVAL;
+    }
+    for (int i = 0; i < state.count; ++i) {
+        if (std::strcmp(state.assets[i].name, name) == 0) {
+            asset = &state.assets[i];
+            return RV_OK;
         }
     }
-    sound_asset &asset = state.assets.emplace_back();
-    asset.name = name;
-    return asset;
+    if (state.count == sound_asset_capacity) {
+        RV_LOG_ERR(sound_tag,
+            "sample table full ({} entries): rv_err {}",
+            sound_asset_capacity,
+            static_cast<int>(RV_ERR_NOMEM));
+        return RV_ERR_NOMEM;
+    }
+    asset = &state.assets[state.count];
+    ++state.count;
+    std::memcpy(asset->name, name, length + 1);
+    return RV_OK;
 }
 
 // Logs the asset's first failure only: a retry that fails again would repeat the same line every frame.
@@ -65,18 +95,22 @@ inline void sound_asset_fail(sound_asset &asset, int64_t code)
         RV_LOG_ERR(sound_tag, "sample name is null: rv_err {}", static_cast<int>(RV_ERR_INVAL));
         return RV_ERR_INVAL;
     }
-    sound_asset &asset = sound_asset_entry(state, name);
-    if (asset.resident) {
-        addr = asset.addr;
+    sound_asset *asset = nullptr;
+    const int entry_code = sound_asset_entry(state, name, asset);
+    if (entry_code != RV_OK) {
+        return entry_code;
+    }
+    if (asset->resident) {
+        addr = asset->addr;
         return RV_OK;
     }
     const int64_t drive_addr = cd ? rv_cd_resource_addr(cd, RV_CD_RESOURCE_AUDIO, name) : static_cast<int64_t>(RV_ERR_INVAL);
     if (drive_addr < 0) {
-        sound_asset_fail(asset, drive_addr);
+        sound_asset_fail(*asset, drive_addr);
         return static_cast<int>(drive_addr);
     }
-    asset.addr = drive_addr;
-    asset.resident = true;
+    asset->addr = drive_addr;
+    asset->resident = true;
     addr = drive_addr;
     return RV_OK;
 }
