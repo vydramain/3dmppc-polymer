@@ -243,7 +243,7 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &sce
     const rv_editor_project &project,
     int index,
     std::string *error = nullptr);
-// A flat disc texture name resolved to its project file under [textures]; empty when none matches.
+// A flat disc texture name resolved to its project file among the [assets] textures; empty when none matches.
 std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name);
 // Every mesh, quad and billboard shown (not outlined or absent) filled into the viewport's picture
 // (rv_editor_scene_raster.cpp): a CPU z-buffer of `size` at `origin` in framebuffer pixels, drawn as one

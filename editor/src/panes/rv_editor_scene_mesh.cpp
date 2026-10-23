@@ -158,7 +158,7 @@ std::vector<rv_editor_tri> cube_or_undrawn(const rv_pdklib::rv_gte_matrix &world
 } // namespace
 
 // A scene's `texture` is a flat disc texture name (mppcburner: the source's stem plus
-// ".mppctex"), resolved to the project file under [textures] whose stem matches.
+// ".mppctex"), resolved to the project file among the [assets] textures whose stem matches.
 std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name)
 {
     const std::string stem = std::filesystem::path(name).stem().string();
