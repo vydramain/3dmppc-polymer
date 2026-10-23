@@ -358,7 +358,7 @@ int rv_editor_glb_path_triangles(const std::filesystem::path &path,
     return RV_OK;
 }
 
-// A .glb named by its bare filename: resolved under [models], then read as rv_editor_glb_path_triangles.
+// A .glb named by its bare filename: resolved among the [assets] models, then read as rv_editor_glb_path_triangles.
 // Returns the code with the reason in `error`; the placeholder cube fallback is the caller's.
 int rv_editor_glb_object_triangles(const rv_editor_project &project,
     const std::string &name,

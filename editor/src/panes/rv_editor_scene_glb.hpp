@@ -44,9 +44,10 @@ int rv_editor_glb_vertex_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
 // Textures are not created here.
 int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const rv_editor_glb_model> &out, std::string &error);
 
-// The .glb under the project's [models] patterns named `name` (a bare filename). RV_OK with `found`;
-// RV_ERR_INVAL for a name with a folder, or one held by two files (both paths in `error`);
-// RV_ERR_NOENT when none matches; RV_ERR_IO when the walk itself fails.
+// The .glb among the project's [assets] models named `name` (a bare filename). RV_OK with `found`;
+// RV_ERR_INVAL for a name with a folder, or one held by two files (both paths in `error`).
+// With no match among [assets], the pending folder is searched too (a model written this session, moved in on save):
+// its result is returned, and RV_ERR_NOENT when it is in neither place; RV_ERR_IO when the walk or the pending check fails.
 int rv_editor_glb_resolve_name(const rv_editor_project &project,
     const std::string &name,
     std::filesystem::path &found,
@@ -63,7 +64,7 @@ int rv_editor_glb_path_triangles(const std::filesystem::path &path,
     std::vector<rv_editor_tri> &tris,
     std::string &error);
 
-// The .glb under [models] named `name`: found by rv_editor_glb_resolve_name, then as
+// The .glb among the [assets] models named `name`: found by rv_editor_glb_resolve_name, then as
 // rv_editor_glb_path_triangles. On failure the caller falls back to the placeholder cube.
 int rv_editor_glb_object_triangles(const rv_editor_project &project,
     const std::string &name,
