@@ -10,10 +10,8 @@ sources = ["scripts/*.lua"]
 
 [assets]
 # Each found file is baked by its kind, from its extension: .wav is a sound (baked to .pcm); .gltf is a model
-# with its .bin and PNG pictures (most in assets/tex, street_16's beside it in assets/models), baked to .mppcmod;
-# anything else is copied as is. The scene is copied, but the disc does not read it: its layout is
-# scripts/example-lua-bare-layout.lua.
-files = ["scenes/*.scene.toml", "assets/snd/*.wav", "assets/models/*.gltf"]
+# with its .bin and PNG pictures (most in assets/tex, street_16's beside it in assets/models), baked to .mppcmod.
+files = ["assets/snd/*.wav", "assets/models/*.gltf"]
 
 [assets.texture]
 # The format each PNG picture of a model is baked in; idx8 is the default, so this section may be absent.

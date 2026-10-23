@@ -7,8 +7,8 @@ local mathx = require("example-lua-bare-math")
 local board = require("example-lua-bare-board")
 local M = {}
 
--- Eye x of the camera in Q20.12 raw (4096 per metre), as scenes/main.scene.toml places the objects: the factory
--- is at x < 0, the house facade stands at x = 33.8 m = 138444.8 raw. On whole raw values a strict > 138444 is x > 33.8.
+-- Eye x of the camera in Q20.12 raw (4096 per metre): the workshop is x < 0, the flat is x > 33.8 m = 138444.8 raw.
+-- On whole raw values a strict > 138444 is x > 33.8.
 local WORKSHOP_MAX_X = 0
 local FLAT_MIN_X = 138444
 
@@ -119,7 +119,8 @@ local function fail(sound, asset, code)
     return code
 end
 
--- Folds a step into the first failure: keeps `code` and `asset` once one step has failed; otherwise takes the step's failure, if it has one.
+-- Folds a step into the first failure: keeps `code` and `asset` once one step has failed;
+-- otherwise takes the step's failure, if it has one.
 local function first_error(code, asset, step_code, step_asset)
     if code == 0 and step_code < 0 then
         return step_code, step_asset
@@ -471,7 +472,8 @@ local function mark_step(ca, cd, sound, area)
     return advance(ca, cd, sound, area)
 end
 
--- The music step by its STEP_ value. All are called with area, bar and silent; each uses only what it needs. Returns 0 or the first error.
+-- The music step by its STEP_ value. All are called with area, bar and silent; each uses only what it needs.
+-- Returns 0 or the first error.
 local MUSIC_STEPS = {
     [STEP_IDLE] = function()
         return 0

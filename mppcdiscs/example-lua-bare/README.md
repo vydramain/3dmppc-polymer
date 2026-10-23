@@ -79,8 +79,6 @@ Restart as well.
 - `scripts/example-lua-bare-sound.lua` - the music, the loops and the clack; the bars
   of an area play on two voices in turn.
 - `scripts/example-lua-bare-steps.lua` - the footsteps, one per 0.95 m of the eye's path.
-- `scenes/main.scene.toml` - the scene the layout table was taken from. The disc does
-  not read it; `disc.toml` still copies it in.
 - `assets/models/*.gltf` - glTF models, each with its `.bin` beside it; `[models]` in
   `disc.toml` names them, and the build bakes them.
 - `assets/tex/*.png` - the model pictures each .gltf names, except street_16's four:

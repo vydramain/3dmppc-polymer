@@ -1,9 +1,10 @@
--- The scene objects of main.scene.toml that the disc uses, in scene order: the meshes (kind "mesh",
+-- The scene objects of pdkkit's main.scene.toml (as of b11d7243) that the disc uses, in scene order: the meshes (kind "mesh",
 -- the board and the lamps among them) and the cam_NN cameras (kind "camera"). Other scene objects
 -- (route, *_light, halo_*, glyph_*) are not in this table.
--- Taken ONCE from scenes/main.scene.toml with the editor's rv_editor_scene_world_gte: the integer
+-- Taken ONCE from mppcdiscs/example-cpp-pdkkit/scenes/main.scene.toml as of b11d7243, before b9f62b8e moved
+-- the house, apartment, furniture and cameras, with the editor's rv_editor_scene_world_gte: the integer
 -- chain of pdkkit's ecs_transform_world (rv_gte_trs T*Ry*Rx*Rz*S, then each ancestor's matrix
--- composed outside it). The disc no longer reads the scene at run time.
+-- composed outside it). The disc does not read the scene at run time.
 -- world.r: the 3x3 rotation and scale, row-major, 4.12 (4096 = 1.0). world.t: the translation, Q20.12
 -- (4096 = 1 unit). Lua arrays are 1-based. Tints are uint8 values.
 -- The order is the draw order and the lamp order; keep it.
