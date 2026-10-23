@@ -115,8 +115,8 @@ struct rv_editor_texture_cache_entry {
 // pointer stays valid; its content is replaced when the file's mtime changes.
 std::unordered_map<std::string, rv_editor_texture_cache_entry> rv_editor_texture_cache;
 
-// An object's texture as a picture in memory; null when it has none, does not resolve under
-// [textures], or does not load (the reason goes to stderr once per file version).
+// An object's texture as a picture in memory; null when it has none, is not among the
+// [assets] textures, or does not load (the reason goes to stderr once per file version).
 const rv_editor_cpu_image *rv_editor_object_cpu_texture(const rv_editor_project &project, const std::string &name)
 {
     if (name.empty()) {
