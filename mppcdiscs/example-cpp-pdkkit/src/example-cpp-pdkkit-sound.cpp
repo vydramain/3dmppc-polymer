@@ -25,7 +25,8 @@ using rv_pdklib::fx;
 constexpr fx RV_SOUND_WORKSHOP_MAX_X = 0;
 constexpr fx RV_SOUND_FLAT_MIN_X = 138444;
 
-constexpr const char *RV_SOUND_CLACK = "sfx_board_clack.pcm";
+// The board clack cut to a short click and equalised toward a recorded lighting relay.
+constexpr const char *RV_SOUND_CLACK = "sfx_lamp_click.pcm";
 
 // The clack's voice.
 constexpr int64_t RV_SOUND_CLACK_VOICE = 4;
