@@ -37,11 +37,11 @@ int bake_models(const std::string &baker_hint,
 
 /// Append the model textures to the plan as entries of their own, and refuse a plan whose names collide.
 ///
-/// Planned before any texture is baked, so a model texture that shares a name with a
-/// [textures] entry is refused with both sources named. The plan is changed only on success.
+/// Planned before any texture is baked, so a model texture that shares a name with an
+/// [assets] texture is refused with both sources named. The plan is changed only on success.
 ///
 /// @param textures     what bake_models collected
-/// @param texture_dir  directory baked .mppctex files are written to, the one [textures] uses
+/// @param texture_dir  directory baked .mppctex files are written to, the one the [assets] textures use
 /// @param plan         the plan to extend; its model texture range is set
 /// @param error        set with the refusal, naming the colliding entries
 /// @return RV_OK on success; else the RV_ERR_* of the refusing step, `error` set
