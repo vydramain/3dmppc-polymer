@@ -31,7 +31,8 @@ constexpr int32_t RV_FLICKER_TENTHS_PER_SECOND = 10;
 // A steady burn lasts 3 to 12 s, as an old sign's lamp does.
 constexpr int32_t RV_FLICKER_STEADY_MIN = 3 * RV_FLICKER_FRAMES_PER_SECOND;
 constexpr int32_t RV_FLICKER_STEADY_MAX = 12 * RV_FLICKER_FRAMES_PER_SECOND;
-// Wear 0..100 divides the steady burn by 1 + wear / 25: a lamp at 100 burns a fifth as long.
+// Wear 0..100 divides the steady burn by 1 + wear / 25 in integers, so the divisor steps 1..5 every 25 of wear:
+// a lamp at 100 burns a fifth as long.
 constexpr int32_t RV_FLICKER_WEAR_MAX = 100;
 constexpr int32_t RV_FLICKER_WEAR_STEP = 25;
 // A dark lamp stays out 0.4 to 2 s: 4 and 20 tenths of a second.
