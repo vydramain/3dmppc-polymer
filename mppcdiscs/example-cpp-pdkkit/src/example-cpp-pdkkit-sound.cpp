@@ -25,8 +25,21 @@ using rv_pdklib::fx;
 constexpr fx RV_SOUND_WORKSHOP_MAX_X = 0;
 constexpr fx RV_SOUND_FLAT_MIN_X = 138444;
 
-// The board clack cut to a short click and equalised toward a recorded lighting relay.
-constexpr const char *RV_SOUND_CLACK = "sfx_lamp_click.pcm";
+// Four takes of the lamp click, each shaped by a resonator measured from a recorded bad lamp: three rings near 2 kHz
+// and a short tick. play_clack picks one from clack_rng, never from the frame.
+constexpr const char *RV_SOUND_CLACKS[] = {
+    "sfx_lamp_click_1.pcm",
+    "sfx_lamp_click_2.pcm",
+    "sfx_lamp_click_3.pcm",
+    "sfx_lamp_click_4.pcm",
+};
+static_assert(std::size(RV_SOUND_CLACKS) == RV_SOUND_CLACK_COUNT, "one name per clack take");
+
+// Shifts of Marsaglia's xorshift32 (13, 17, 5): a full-period generator of nonzero 32-bit states,
+// cheap enough for every clack.
+constexpr int RV_XORSHIFT_LEFT_1 = 13;
+constexpr int RV_XORSHIFT_RIGHT = 17;
+constexpr int RV_XORSHIFT_LEFT_2 = 5;
 
 // The clack's voice.
 constexpr int64_t RV_SOUND_CLACK_VOICE = 4;
@@ -90,12 +103,24 @@ bool letters_changed(int64_t from, int64_t to)
     return false;
 }
 
+// Advances the clack generator once (xorshift32) and returns the index of the take it picks.
+int clack_take(rv_sound_state &state)
+{
+    uint32_t x = state.clack_rng;
+    x ^= x << RV_XORSHIFT_LEFT_1;
+    x ^= x >> RV_XORSHIFT_RIGHT;
+    x ^= x << RV_XORSHIFT_LEFT_2;
+    state.clack_rng = x;
+    return static_cast<int>(x % static_cast<uint32_t>(RV_SOUND_CLACK_COUNT));
+}
+
 int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
 {
+    const char *clack = RV_SOUND_CLACKS[clack_take(state)];
     int64_t addr = 0;
-    const int resident_code = rv_pdkkit::sound_asset_resident(rv_pdko_cd(pdk), state.sound, RV_SOUND_CLACK, addr);
+    const int resident_code = rv_pdkkit::sound_asset_resident(rv_pdko_cd(pdk), state.sound, clack, addr);
     if (resident_code != RV_OK) {
-        return fail(state, RV_SOUND_CLACK, resident_code);
+        return fail(state, clack, resident_code);
     }
     // The click is off: its play_voice call below is commented out; conf is kept for when it comes back.
     [[maybe_unused]] rv_voice_conf conf = {};
@@ -112,7 +137,7 @@ int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
     conf.volume_r = RV_SOUND_MAX_LEVEL;
     // const int64_t play_code = play_voice(pdk, conf);
     // if (play_code < 0) {
-    //     return fail(state, RV_SOUND_CLACK, play_code);
+    //     return fail(state, clack, play_code);
     // }
     return RV_OK;
 }

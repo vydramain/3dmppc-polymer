@@ -24,8 +24,14 @@ constexpr int RV_SOUND_SLOTS = 2;
 // The factory loop: it runs while the camera is in the workshop.
 constexpr int RV_SOUND_LOOP_COUNT = 1;
 
+// The board clack takes: play_clack picks one per clack from a fixed-seed generator.
+constexpr int RV_SOUND_CLACK_COUNT = 4;
+
 // Full level of a voice's sustain and volume: the sound module's maximum, shared by the music and the loops.
 constexpr int16_t RV_SOUND_MAX_LEVEL = 32767;
+
+// Seed of the clack generator (xorshift32). Zero is its fixed point, so the seed must be nonzero.
+constexpr uint32_t RV_SOUND_CLACK_SEED = 0x2545F491u;
 
 // Music, clack and loop state. Filled once by rv_sound_init; frame = -1 before the first frame.
 struct rv_sound_state {
@@ -49,6 +55,8 @@ struct rv_sound_state {
     const char *music_name = nullptr;
     // Per factory loop: whether its voice was started and not stopped since.
     bool loop_armed[RV_SOUND_LOOP_COUNT] = {};
+    // The clack generator's xorshift32 state; play_clack advances it once per clack.
+    uint32_t clack_rng = RV_SOUND_CLACK_SEED;
     // One bar read from the disc, slot-sized.
     std::vector<uint8_t> scratch;
     // The clack and loop samples, made resident by the sound service.
