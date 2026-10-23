@@ -1,10 +1,12 @@
 #pragma once
 
 // Frame of the scene ECS: the frame record, the registry of frame systems, the camera, the draw system and the frame
-// order: the disc's systems, the transform, the face camera, then the draw.
-// Draw returns codes without logging: a frame repeats them. ecs_frame_run logs a failed system by name, returned or
-// thrown, once per run of the same failure: a repeat stays silent, and a frame whose systems all succeed starts a new run.
-// ecs_system_transform logs a broken parent chain with its reason; the scene loader never builds one.
+// order: the disc's systems, the transform, the face camera, then the draw of every live entity in slot order.
+// ecs_system_draw returns codes without logging. ecs_frame_run and ecs_world_frame log a failed system, face camera,
+// draw or unload by name, once per run of the same returned code: a repeat stays silent, and a frame that succeeds whole
+// starts a new run. A std::exception thrown inside the draw is logged by ecs_guard on every frame, before that report.
+// A frame that fails and also fails its unloads alternates the one record, so both repeat.
+// ecs_system_transform logs each failure with its reason on every failing frame; the scene loader builds no broken chain.
 
 #include <cstdint>
 #include <cstring>
@@ -155,14 +157,15 @@ inline void ecs_world_to_cg(const rv_pdklib::rv_gte_matrix &m, rv_cg_matrix &out
     });
 }
 
-// Rebuilds the world's draw_order: the loads' entities in table order, each load in file order.
-inline void ecs_draw_order_build(ecs_world &world)
+// Rebuilds the world's draw_order: every live entity in slot index order. The draw skips those without a model.
+[[nodiscard]] inline int ecs_draw_order_build(ecs_world &world)
 {
     auto &state = detail::ecs_state(world);
     state.draw_order.clear();
-    for (const ecs_load &load : state.loads) {
-        state.draw_order.insert(state.draw_order.end(), load.made.begin(), load.made.end());
-    }
+    return ecs_entities_each(world, [&](ecs_id id) -> int {
+        state.draw_order.push_back(id);
+        return RV_OK;
+    });
 }
 
 // Sets in_frame for its scope, so an exception out of the frame still clears it.
@@ -209,7 +212,7 @@ inline bool ecs_reason_same(const ecs_reason &a, const ecs_reason &b)
 }
 
 // Logs a failed system unless it repeats the last report (system, code and reason): the record is what the next report
-// compares against, and a frame whose systems all succeed clears it.
+// compares against, and a frame that succeeds whole clears it.
 inline void ecs_frame_report(ecs_world &world, std::string_view name, int code, const ecs_reason &reason)
 {
     auto &state = detail::ecs_state(world);
@@ -229,9 +232,9 @@ inline void ecs_frame_no_report(const char *)
 {
 }
 
-// The disc's systems in registration order, the transform, the face camera, then the draw of the loads' entities.
-// A system, the transform or the face camera stops the frame at its first error; the draw returns the first failed
-// put's code. The face camera's failure is reported by name, as a system's is.
+// The disc's systems in registration order, the transform, the face camera, then the draw of every live entity in slot
+// order. A system, the transform or the face camera stops the frame at its first error; the draw returns the first
+// failed put's code. The face camera's and the draw's failures are reported by name, as a system's is.
 // A system's exception is mapped by ecs_try, so it becomes a code and goes through the same report as a returned error.
 inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
 {
@@ -249,9 +252,6 @@ inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
             return code;
         }
     }
-    state.logged_system = {};
-    state.logged_code = RV_OK;
-    state.logged_reason = {};
     const int transformed = ecs_system_transform(world);
     if (transformed != RV_OK) {
         return transformed;
@@ -262,15 +262,20 @@ inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
         ecs_frame_report(world, "ecs_system_face_camera", faced, face_reason);
         return faced;
     }
-    ecs_draw_order_build(world);
-    return ecs_system_draw(world, frame, state.draw_order);
+    const int built = ecs_draw_order_build(world);
+    const int drawn = built == RV_OK ? ecs_system_draw(world, frame, state.draw_order) : built;
+    if (drawn != RV_OK) {
+        ecs_frame_report(world, "ecs_system_draw", drawn, ecs_reason{});
+        return drawn;
+    }
+    return RV_OK;
 }
 
-// One frame. The camera is cleared first, so a frame whose systems set none draws nothing. Draws only the entities
-// of loads: entities a system creates outside a load are not drawn. Unloads asked for during the frame run after it,
-// even when the frame failed; a failed frame's code is returned before theirs. A system's exception ends the frame with
-// its code in ecs_frame_run; an exception from the transform, the face camera or the draw gets the ecs_guard code.
-// in_frame is cleared by the scope before the guard returns.
+// One frame. The camera is cleared first, so a frame whose systems set none draws nothing. The draw puts every live
+// entity with a model, a system's entities included. A failed draw or unload is logged by name. Unloads asked for during
+// the frame run after it, even when the frame failed; a failed frame's code is returned before theirs. A system's
+// exception ends the frame with its code in ecs_frame_run; an exception from the transform, the face camera or the draw
+// gets the ecs_guard code. in_frame is cleared by the scope before the guard returns.
 [[nodiscard]] inline int ecs_world_frame(ecs_world &world, const ecs_frame &frame)
 {
     auto &state = detail::ecs_state(world);
@@ -280,8 +285,20 @@ inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
         return ecs_frame_run(world, frame);
     });
     const int unloaded = ecs_unload_pending(world);
-    const bool failed = ran != RV_OK;
-    return failed ? ran : unloaded;
+    if (unloaded != RV_OK) {
+        ecs_frame_report(world, "ecs_unload_pending", unloaded, ecs_reason{});
+    }
+    if (ran != RV_OK) {
+        return ran;
+    }
+    if (unloaded != RV_OK) {
+        return unloaded;
+    }
+    // Only a frame that succeeds whole, unloads included, clears the record: a repeat of a failure is logged once.
+    state.logged_system = {};
+    state.logged_code = RV_OK;
+    state.logged_reason = {};
+    return RV_OK;
 }
 
 } // namespace rv_pdkkit

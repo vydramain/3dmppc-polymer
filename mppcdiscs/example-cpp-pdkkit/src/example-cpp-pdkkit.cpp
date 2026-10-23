@@ -94,7 +94,6 @@ private:
     int register_ecs();
     int collect_parts(uint32_t load_number);
     void draw_world();
-    void log_draw_error(const char *step, int64_t code);
     void init_sound();
     void play_sound();
     void log_sound_error(int64_t code);
@@ -103,7 +102,6 @@ private:
     bool scene_read_ = false;
     // The scene has a board entity (one with the board marker); the sound takes it into account.
     bool board_found_ = false;
-    bool draw_error_logged_ = false;
     // The music and the clack; sound_ready_ is false when init_sound failed, and then nothing plays.
     rv_sound_state sound_state_;
     bool sound_ready_ = false;
@@ -237,26 +235,9 @@ void rv_dmain::draw_world()
     if (!scene_read_) {
         return;
     }
-    const int frame_code = world_frame();
-    if (frame_code != RV_OK) {
-        log_draw_error("world", frame_code);
-        return;
-    }
-    // The lights are drawn here: the world draws only the scene's entities, and the camera is the frame's.
-    const int lamp_code = ecs_draw_lamps(world_, rv_pdkkit::ecs_frame{ pdk_, frame_, input_ });
-    if (lamp_code != RV_OK) {
-        log_draw_error("lamps", lamp_code);
-    }
-}
-
-// Logs the first failure only: the same failure would repeat in every frame.
-void rv_dmain::log_draw_error(const char *step, int64_t code)
-{
-    if (draw_error_logged_) {
-        return;
-    }
-    draw_error_logged_ = true;
-    RV_LOG_ERR("draw", "{} not drawn: rv_err {}", step, code);
+    // The kit draws every live entity, the lights included; it logs a failed system, face camera, draw or unload by name,
+    // once per run of the same failure.
+    world_frame();
 }
 
 // Loads the music and tabulates the areas; runs once, after read_scene found the camera keys.
