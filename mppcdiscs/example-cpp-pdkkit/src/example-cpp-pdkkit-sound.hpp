@@ -14,7 +14,6 @@
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_frame.hpp"
 #include "pdkkit/sound/rv_pdkkit_sound.hpp"
-#include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp_pdkkit
 {
@@ -50,17 +49,14 @@ struct rv_music_song {
 };
 
 // Failures logged per asset the state can remember, in a fixed array. The count is what can fail on the disc: 18 bars
-// (factory 3, street 5, home 10), 1 loop, and 5 refusal names ("music songs", "music slot", "music song", "music
-// offset", "music mark"): 24. Recount when the bars grow.
-constexpr int RV_SOUND_LOGGED_CAPACITY = 24;
+// (factory 3, street 5, home 10), 1 loop, and 4 refusal names ("music songs", "music slot", "music song", "music
+// mark"): 23. Recount when the bars grow.
+constexpr int RV_SOUND_LOGGED_CAPACITY = 23;
 
 // Music, clack and loop state: the working state of the listener. ecs_system_music measures the songs once.
 struct rv_sound_state {
-    // The first-frame flag music.cpp reads. The demo never sets it, so it stays -1; no frame number is read.
-    int64_t frame = -1;
-    // The song and bar rv_music_update last played; the bar is 0, since the system passes span offset 0.
+    // The song rv_music_update last played.
     char song[rv_pdkkit::ecs_value_capacity]{};
-    int64_t bar = -1;
     // The songs rv_music_init measured, in the order it got them: the first song_count entries.
     rv_music_song songs[RV_SOUND_SONG_CAPACITY] = {};
     int64_t song_count = 0;
@@ -106,16 +102,15 @@ int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
 int64_t play_clack(rv_pdko *pdk, rv_sound_state &state);
 
 // Music, in example-cpp-pdkkit-music.cpp. rv_music_init measures the bars of each named song and allocates the music
-// slots; ecs_system_music calls it once. rv_music_update starts the chain at a song change and at a bar start while it is
-// not running, moves it on at each mark, and on success records the song and bar; ecs_system_music calls it every frame.
-// Precondition: name is a song rv_music_init measured, and span_offset is in [0, RV_ROUTE_PERIOD_FRAMES); its bar is
-// span_offset / RV_SOUND_BAR_FRAMES. Otherwise RV_ERR_INVAL, with state.error_asset "music song" or "music offset".
+// slots; ecs_system_music calls it once. rv_music_update starts the song's first bar at a song change, moves the chain on
+// at each mark, and on success records the song; ecs_system_music calls it every frame.
+// Precondition: name is a song rv_music_init measured. Otherwise RV_ERR_INVAL, with state.error_asset "music song".
 // Returns RV_OK or the first error: a disc code from a bar's open or size; RV_ERR_NOENT for a song with no bars;
 // RV_ERR_INVAL for an empty bar or one larger than the slot; RV_ERR_IO when the bar's read gave no bytes or failed (its
 // own code is not passed on); a ca or voice code from the mark read, the bar write, the repeat and mark, or the play.
 // state.error_asset names the bar, or "music mark" for the mark read.
 int64_t rv_music_init(rv_pdko *pdk, const std::vector<std::string> &names, rv_sound_state &state);
-int64_t rv_music_update(rv_pdko *pdk, const char *name, int64_t span_offset, rv_sound_state &state);
+int64_t rv_music_update(rv_pdko *pdk, const char *name, rv_sound_state &state);
 
 // Music of a zone: the place its bars come from (mus_<music>_NN.pcm) and the looped asset played there;
 // an empty loop means none.

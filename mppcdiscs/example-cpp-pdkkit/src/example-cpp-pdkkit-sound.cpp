@@ -267,7 +267,7 @@ int ecs_system_music(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &fr
     if (current == nullptr) {
         return RV_OK;
     }
-    const int64_t music_code = rv_music_update(frame.pdk, current->music, 0, state);
+    const int64_t music_code = rv_music_update(frame.pdk, current->music, state);
     if (music_code != RV_OK) {
         warn_once(state, music_code);
     }
