@@ -91,7 +91,7 @@ private:
     bool scene_read_ = false;
 };
 
-// Registers the lamp entity type, the route's frame system, then the lamp_light and flicker components
+// Registers the lamp entity type, the route's frame system, then the lamp_light, flicker and flicker_switched components
 // with the flicker frame system, then the route_key, route_rider, trail, zone, zone_crossed, zone_lamp, lamp_switched,
 // zone_music, zone_clack and listener components, then the zones, music, lamps and light frame systems in this order,
 // which is the frame's order; a scene refers to them by name. pdkkit_disc registers the built-in components before this.
@@ -113,6 +113,11 @@ int rv_dmain::register_ecs()
     const int flicker_code = rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_flicker>(world_);
     if (flicker_code != RV_OK) {
         return flicker_code;
+    }
+    const int flicker_switched_code =
+        rv_pdkkit::ecs_component_register<example_cpp_pdkkit::ecs_component_flicker_switched>(world_);
+    if (flicker_switched_code != RV_OK) {
+        return flicker_switched_code;
     }
     const int flicker_system_code =
         rv_pdkkit::ecs_system_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_system_flicker);

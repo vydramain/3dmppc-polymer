@@ -1,7 +1,6 @@
 #include "example-cpp-pdkkit-board.hpp"
 
-#include <array>
-#include <cstddef>
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -11,7 +10,6 @@
 #include "pdkkit/ecs/rv_ecs_frame.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp_pdkkit
 {
@@ -19,84 +17,217 @@ namespace example_cpp_pdkkit
 namespace
 {
 
-// Cell 9 of "ОСТАЛОСЬ: 5" is the space between the colon and the digit: the scene has no entity for it.
-constexpr int RV_BOARD_SPACE_CELL = 9;
-static_assert(RV_BOARD_SPACE_CELL < RV_BOARD_CELL_COUNT, "the space cell is one of the board's cells");
+// The log tag of the wear warning.
+constexpr const char *RV_FLICKER_TAG = "flicker";
 
-// Flicker: cell i is lit when table[(frame / STEP + i * SHIFT) % size] > LIT_ABOVE.
-// The shift spreads the cells over the table so they do not blink in unison.
-constexpr int64_t RV_BOARD_FLICKER_STEP = 6; // frames per table step
-constexpr int64_t RV_BOARD_FLICKER_SHIFT = 37;
-constexpr uint8_t RV_BOARD_LIT_ABOVE = 128;
+// Shifts of Marsaglia's xorshift32 (13, 17, 5): a full-period generator of nonzero 32-bit states, as in the sound's clack.
+constexpr int RV_XORSHIFT_LEFT_1 = 13;
+constexpr int RV_XORSHIFT_RIGHT = 17;
+constexpr int RV_XORSHIFT_LEFT_2 = 5;
 
-// Own values, of the same kind as Doom's rndtable (256 bytes of pseudo-random data read by
-// frame index), not its numbers. A letter that is out is not drawn: the models have no tint.
-// clang-format off: one table row per line, for reading. to_array takes the size from the list.
-constexpr auto RV_BOARD_FLICKER_TABLE = std::to_array<uint8_t>({
-    37,  201, 88,  14,  166, 243, 59,  117, 9,   180, 128, 72,  223, 45,  154, 96,  231, 6,   112, 190, 53,  147, 25,  210, 84,  169, 13,  238, 101, 66,  197, 31,
-    142, 77,  255, 20,  178, 98,  230, 4,   133, 61,  215, 110, 39,  186, 92,  249, 17,  164, 121, 57,  208, 83,  2,   141, 226, 70,  105, 189, 44,  153, 27,  219,
-    91,  198, 36,  170, 129, 252, 65,  12,  183, 97,  240, 58,  146, 107, 200, 8,   174, 119, 48,  233, 80,  161, 22,  205, 137, 74,  254, 33,  118, 194, 63,  211,
-    3,   149, 90,  181, 226, 116, 43,  167, 102, 239, 21,  156, 85,  209, 130, 49,  192, 28,  224, 75,  158, 127, 62,  245, 16,  187, 99,  136, 233, 71,  172, 38,
-    109, 207, 52,  143, 3,   218, 124, 89,  177, 40,  196, 103, 60,  230, 150, 15,  221, 86,  163, 29,  115, 201, 47,  185, 138, 253, 94,  176, 26,  123, 214, 68,
-    134, 1,   199, 106, 244, 56,  160, 19,  228, 81,  145, 212, 35,  191, 113, 250, 54,  171, 79,  236, 148, 11,  195, 126, 100, 168, 30,  223, 73,  139, 5,   182,
-    232, 111, 42,  157, 206, 87,  246, 64,  179, 23,  132, 108, 216, 50,  202, 93,  155, 24,  241, 67,  188, 135, 10,  225, 76,  162, 46,  247, 120, 193, 78,  144,
-    41,  220, 104, 175, 32,  237, 122, 88,  213, 151, 59,  18,  203, 140, 69,  234, 165, 95,  248, 57,  198, 4,   159, 210, 131, 83,  242, 34,  184, 101, 229, 114,
-});
-// clang-format on
-static_assert(RV_BOARD_FLICKER_TABLE.size() == 256, "the flicker table is 256 bytes");
-constexpr int64_t RV_BOARD_FLICKER_SIZE = static_cast<int64_t>(RV_BOARD_FLICKER_TABLE.size());
+// A frame is 1/60 s; the times below are counted in frames, and in seconds through this rate.
+constexpr int32_t RV_FLICKER_FRAMES_PER_SECOND = 60;
+constexpr int32_t RV_FLICKER_TENTHS_PER_SECOND = 10;
+// A steady burn lasts 3 to 12 s, as an old sign's lamp does.
+constexpr int32_t RV_FLICKER_STEADY_MIN = 3 * RV_FLICKER_FRAMES_PER_SECOND;
+constexpr int32_t RV_FLICKER_STEADY_MAX = 12 * RV_FLICKER_FRAMES_PER_SECOND;
+// Wear 0..100 divides the steady burn by 1 + wear / 25: a lamp at 100 burns a fifth as long.
+constexpr int32_t RV_FLICKER_WEAR_MAX = 100;
+constexpr int32_t RV_FLICKER_WEAR_STEP = 25;
+// A dark lamp stays out 0.4 to 2 s: 4 and 20 tenths of a second.
+constexpr int32_t RV_FLICKER_DARK_MIN = 4 * RV_FLICKER_FRAMES_PER_SECOND / RV_FLICKER_TENTHS_PER_SECOND;
+constexpr int32_t RV_FLICKER_DARK_MAX = 20 * RV_FLICKER_FRAMES_PER_SECOND / RV_FLICKER_TENTHS_PER_SECOND;
+// A contact bounces 2 to 6 frames (33 to 100 ms) apart between switches.
+constexpr int32_t RV_FLICKER_GAP_MIN = 2;
+constexpr int32_t RV_FLICKER_GAP_MAX = 6;
+// Switch counts of a bounce. Its parity sets where it ends: from lit, an even count ends lit, an odd count ends dark.
+// A bounce that ends steady takes an even 4..8; one that ends dark takes an odd 3..9; a bounce from dark that ends lit
+// takes 1..3.
+constexpr int32_t RV_FLICKER_LIT_BOUNCE_MIN = 4;
+constexpr int32_t RV_FLICKER_LIT_BOUNCE_MAX = 8;
+constexpr int32_t RV_FLICKER_DARK_BOUNCE_MIN = 3;
+constexpr int32_t RV_FLICKER_DARK_BOUNCE_MAX = 9;
+constexpr int32_t RV_FLICKER_ON_BOUNCE_MIN = 1;
+constexpr int32_t RV_FLICKER_ON_BOUNCE_MAX = 3;
+// The draw of a bounce's outcome is 0..99; the share of bounces that end steady is 70 of those 100.
+constexpr int32_t RV_FLICKER_PERCENT = 100;
+constexpr int32_t RV_FLICKER_STEADY_PERCENT = 70;
+// Spreads the seeds of nearby cells apart; a product of 0 becomes 1, as xorshift32 never leaves 0.
+constexpr uint32_t RV_FLICKER_SEED_MIX = 2654435761u;
 
-// A flicker entity and whether its cell is lit at the frame.
-struct flicker_state {
-    rv_pdkkit::ecs_id id{};
-    int cell = 0;
-    bool lit = false;
-};
-
-} // namespace
-
-bool rv_board_cell_lit(int i, int64_t frame)
+// Holders of T, listed first: a component cannot be added or removed inside ecs_component_each.
+template <typename T>
+std::vector<rv_pdkkit::ecs_id> holders_of(rv_pdkkit::ecs_world &world)
 {
-    const int64_t index = (frame / RV_BOARD_FLICKER_STEP + i * RV_BOARD_FLICKER_SHIFT) % RV_BOARD_FLICKER_SIZE;
-    const uint8_t level = RV_BOARD_FLICKER_TABLE[static_cast<size_t>(index)];
-    return i != RV_BOARD_SPACE_CELL && level > RV_BOARD_LIT_ABOVE;
+    std::vector<rv_pdkkit::ecs_id> holders;
+    rv_pdkkit::ecs_component_each<T>(world, [&holders](rv_pdkkit::ecs_id id, T &) {
+        holders.push_back(id);
+    });
+    return holders;
 }
 
-int ecs_system_flicker(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame)
+// Removes last frame's flicker_switched; the event lives one frame.
+int clear_switched(rv_pdkkit::ecs_world &world)
 {
-    const int64_t phase = frame.frame % RV_ROUTE_PERIOD_FRAMES;
-    // Collected first: the hidden mark is added and removed only after the walk.
-    std::vector<flicker_state> states;
-    rv_pdkkit::ecs_component_each<ecs_component_flicker>(world,
-        [&states, phase](rv_pdkkit::ecs_id id, ecs_component_flicker &flicker) {
-            states.push_back(flicker_state{ id, flicker.cell, rv_board_cell_lit(flicker.cell, phase) });
-        });
-    for (const flicker_state &state : states) {
-        if (state.lit) {
-            // NOENT: the entity is live (collected above) and has no hidden mark.
-            const int shown_code = rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, state.id);
-            const bool none = shown_code == RV_ERR_NOENT;
-            if (shown_code != RV_OK && !none) {
-                return shown_code;
-            }
-            continue;
-        }
-        rv_pdkkit::ecs_component_hidden *hidden = nullptr;
-        const int hidden_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, state.id, hidden);
-        if (hidden_code != RV_OK) {
-            return hidden_code;
+    const std::vector<rv_pdkkit::ecs_id> holders = holders_of<ecs_component_flicker_switched>(world);
+    for (const rv_pdkkit::ecs_id id : holders) {
+        const int remove_code = rv_pdkkit::ecs_component_remove<ecs_component_flicker_switched>(world, id);
+        if (remove_code != RV_OK) {
+            return remove_code;
         }
     }
     return RV_OK;
 }
 
-int ecs_entity_board::add_defaults(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id) const
+// xorshift32 step: the state never becomes 0, so the sequence never stops.
+uint32_t next_random(uint32_t &seed)
 {
-    ecs_component_board *board = nullptr;
-    const int board_code = rv_pdkkit::ecs_component_ensure<ecs_component_board>(world, id, board);
-    if (board_code != RV_OK) {
-        RV_LOG_ERR("scene", "board component not added: rv_err {}", board_code);
-        return board_code;
+    seed ^= seed << RV_XORSHIFT_LEFT_1;
+    seed ^= seed >> RV_XORSHIFT_RIGHT;
+    seed ^= seed << RV_XORSHIFT_LEFT_2;
+    return seed;
+}
+
+// Uniform in lo..hi, both included.
+int32_t uniform(uint32_t &seed, int32_t lo, int32_t hi)
+{
+    const uint32_t span = static_cast<uint32_t>(hi - lo + 1);
+    return lo + static_cast<int32_t>(next_random(seed) % span);
+}
+
+// A switch count from lo to hi in steps of 2: lo and hi have the parity the bounce needs.
+int32_t bounce_switches(uint32_t &seed, int32_t lo, int32_t hi)
+{
+    return lo + 2 * uniform(seed, 0, (hi - lo) / 2);
+}
+
+// Switch count of the bounce that a steady burn starts: 70% end steady, the rest end dark.
+int32_t steady_bounce_switches(uint32_t &seed)
+{
+    const bool ends_steady = uniform(seed, 0, RV_FLICKER_PERCENT - 1) < RV_FLICKER_STEADY_PERCENT;
+    return ends_steady ? bounce_switches(seed, RV_FLICKER_LIT_BOUNCE_MIN, RV_FLICKER_LIT_BOUNCE_MAX) :
+                         bounce_switches(seed, RV_FLICKER_DARK_BOUNCE_MIN, RV_FLICKER_DARK_BOUNCE_MAX);
+}
+
+// Frames of a steady burn for this wear, or of a dark spell: the phase a bounce has ended in.
+int32_t phase_frames(uint32_t &seed, flicker_phase phase, int32_t wear)
+{
+    if (phase == flicker_phase::steady) {
+        const int32_t frames = uniform(seed, RV_FLICKER_STEADY_MIN, RV_FLICKER_STEADY_MAX);
+        return frames / (1 + wear / RV_FLICKER_WEAR_STEP);
+    }
+    return uniform(seed, RV_FLICKER_DARK_MIN, RV_FLICKER_DARK_MAX);
+}
+
+// The lamp's wear clamped to 0..100. Out of range is warned once per lamp; the scene's value is left as it is.
+int32_t wear_of(ecs_component_flicker &flicker)
+{
+    const bool in_range = flicker.wear >= 0 && flicker.wear <= RV_FLICKER_WEAR_MAX;
+    if (!in_range && !flicker.wear_warned) {
+        flicker.wear_warned = true;
+        RV_LOG_WARN(RV_FLICKER_TAG,
+            "flicker cell {}: wear {} is outside 0..{}, clamped",
+            flicker.cell,
+            flicker.wear,
+            RV_FLICKER_WEAR_MAX);
+    }
+    return std::clamp(flicker.wear, 0, RV_FLICKER_WEAR_MAX);
+}
+
+// First frame of a lamp: it burns, its seed comes from cell.
+void start_lamp(ecs_component_flicker &flicker, int32_t wear)
+{
+    const uint32_t mixed = static_cast<uint32_t>(flicker.cell) * RV_FLICKER_SEED_MIX;
+    flicker.seed = mixed != 0 ? mixed : 1u;
+    flicker.lit = true;
+    flicker.phase = flicker_phase::steady;
+    flicker.frames_left = phase_frames(flicker.seed, flicker_phase::steady, wear);
+    flicker.inited = true;
+}
+
+// One frame of the lamp's cycle. Returns true on a frame where lit switches.
+bool step_cycle(ecs_component_flicker &flicker, int32_t wear)
+{
+    // frames_left counts down to the next event: the event is on the frame it reaches 0.
+    if (--flicker.frames_left > 0) {
+        return false;
+    }
+    switch (flicker.phase) {
+    case flicker_phase::steady:
+        flicker.switches_left = steady_bounce_switches(flicker.seed);
+        break;
+    case flicker_phase::dark:
+        flicker.switches_left = bounce_switches(flicker.seed, RV_FLICKER_ON_BOUNCE_MIN, RV_FLICKER_ON_BOUNCE_MAX);
+        break;
+    case flicker_phase::bounce:
+        // The bounce goes on: its switches are already counted.
+        break;
+    }
+    flicker.phase = flicker_phase::bounce;
+    flicker.lit = !flicker.lit;
+    --flicker.switches_left;
+    // The last switch ends the bounce on its target: lit burns on, dark stays out.
+    const bool bounce_over = flicker.switches_left == 0;
+    const flicker_phase next = flicker.lit ? flicker_phase::steady : flicker_phase::dark;
+    flicker.phase = bounce_over ? next : flicker_phase::bounce;
+    flicker.frames_left =
+        bounce_over ? phase_frames(flicker.seed, next, wear) : uniform(flicker.seed, RV_FLICKER_GAP_MIN, RV_FLICKER_GAP_MAX);
+    return true;
+}
+
+// Shows the lamp by removing its hidden mark, or hides it by adding one. A lamp with no mark is already shown: NOENT is fine.
+int set_lit(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, bool lit)
+{
+    if (lit) {
+        const int shown_code = rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, id);
+        const bool no_mark = shown_code == RV_ERR_NOENT;
+        if (shown_code != RV_OK && !no_mark) {
+            return shown_code;
+        }
+        return RV_OK;
+    }
+    rv_pdkkit::ecs_component_hidden *hidden = nullptr;
+    const int hidden_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, id, hidden);
+    if (hidden_code != RV_OK) {
+        return hidden_code;
+    }
+    return RV_OK;
+}
+
+} // namespace
+
+int ecs_system_flicker(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &)
+{
+    const int clear_code = clear_switched(world);
+    if (clear_code != RV_OK) {
+        return clear_code;
+    }
+    // Listed first: the hidden and event marks are added and removed in the walk below.
+    const std::vector<rv_pdkkit::ecs_id> lamps = holders_of<ecs_component_flicker>(world);
+    for (const rv_pdkkit::ecs_id id : lamps) {
+        ecs_component_flicker *flicker = rv_pdkkit::ecs_component_get<ecs_component_flicker>(world, id);
+        const int32_t wear = wear_of(*flicker);
+        if (!flicker->inited) {
+            start_lamp(*flicker, wear);
+            const int first_code = set_lit(world, id, true);
+            if (first_code != RV_OK) {
+                return first_code;
+            }
+            continue;
+        }
+        if (!step_cycle(*flicker, wear)) {
+            continue;
+        }
+        const bool lit = flicker->lit;
+        const int lit_code = set_lit(world, id, lit);
+        if (lit_code != RV_OK) {
+            return lit_code;
+        }
+        ecs_component_flicker_switched *switched = nullptr;
+        const int switched_code = rv_pdkkit::ecs_component_ensure<ecs_component_flicker_switched>(world, id, switched);
+        if (switched_code != RV_OK) {
+            return switched_code;
+        }
     }
     return RV_OK;
 }
