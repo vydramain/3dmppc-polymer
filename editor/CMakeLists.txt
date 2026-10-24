@@ -199,6 +199,28 @@ configure_file("${RV_MANUAL_HPP}.in" "${RV_MANUAL_HPP}" COPYONLY)
 find_package(Threads REQUIRED)
 target_link_libraries(3dmppc-editor PRIVATE Threads::Threads)
 
+# Run-time resources, copied to the delivery layout beside the executable (editor/...).
+# The lookup moves to this layout in a later task; until then the editor reads the source tree.
+# copy_directory does not prune: a file removed from a copied dir stays in the copy; a removed single-file source fails the build.
+add_custom_target(3dmppc-editor-resources ALL VERBATIM
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/third_party/win55-icons
+    $<TARGET_FILE_DIR:3dmppc-editor>/editor/icons
+  COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:3dmppc-editor>/editor/fonts
+  COMMAND ${CMAKE_COMMAND} -E copy
+    ${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf
+    ${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_EGA_8x14.ttf
+    $<TARGET_FILE_DIR:3dmppc-editor>/editor/fonts
+  COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:3dmppc-editor>/editor/nvim
+  COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/nvim/rv_editor_init.lua
+    ${RV_PALETTE_LUA}
+    $<TARGET_FILE_DIR:3dmppc-editor>/editor/nvim
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/mppcdiscs/example-cpp
+    $<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-cpp
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/mppcdiscs/example-lua
+    $<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-lua)
+add_dependencies(3dmppc-editor 3dmppc-editor-resources)
+
 if(MSVC)
   target_compile_options(3dmppc-editor PRIVATE /W4)
 else()
