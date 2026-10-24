@@ -30,6 +30,16 @@ get_filename_component(RV_PLAYER_ROOT_NAME "${RV_PLAYER_TREE}" NAME)
 get_filename_component(RV_PLAYER_PARENT "${RV_PLAYER_TREE}" DIRECTORY)
 set(RV_PLAYER_EXEC_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
+# Checked before the removal below: a wrong path must not cost the previous good tree.
+foreach(var RV_PLAYER_ELF RV_PLAYER_LAUNCH RV_PLAYER_LUAJIT_COPYRIGHT)
+    if(NOT EXISTS "${${var}}" OR IS_DIRECTORY "${${var}}")
+        message(FATAL_ERROR "${var} is not an existing file: ${${var}}")
+    endif()
+endforeach()
+if(NOT IS_DIRECTORY "${RV_PLAYER_RUNTIME}")
+    message(FATAL_ERROR "RV_PLAYER_RUNTIME is not an existing directory: ${RV_PLAYER_RUNTIME}")
+endif()
+
 # Rebuilt from scratch every run: a file left by an earlier tree or zip must not ship.
 file(REMOVE_RECURSE "${RV_PLAYER_TREE}")
 if(RV_PLAYER_ZIP)
@@ -44,7 +54,13 @@ file(COPY_FILE "${RV_PLAYER_LAUNCH}" "${RV_PLAYER_TREE}/${RV_PLAYER_NAME}")
 file(CHMOD "${RV_PLAYER_TREE}/${RV_PLAYER_NAME}" PERMISSIONS ${RV_PLAYER_EXEC_PERMISSIONS})
 
 # file(COPY) keeps the runtime's symlinks and permissions; the tree is a copy, never a link into the build dir.
-file(COPY "${RV_PLAYER_RUNTIME}/" DESTINATION "${RV_PLAYER_TREE}/SteamLinuxRuntime_4")
+# The runtime's var/ is pressure-vessel's run state (thousands of files, absolute links into the builder's
+# ~/.local/share/Steam), written when the runtime was run from the build tree; it is not shipped.
+# The path goes into a regex: a trailing slash is stripped and metacharacters escaped so the match is literal.
+string(REGEX REPLACE "/+$" "" RV_PLAYER_RUNTIME_DIR "${RV_PLAYER_RUNTIME}")
+string(REGEX REPLACE "([][+.*?^$()|{}\\\\])" "\\\\\\1" RV_PLAYER_RUNTIME_RE "${RV_PLAYER_RUNTIME_DIR}")
+file(COPY "${RV_PLAYER_RUNTIME_DIR}/" DESTINATION "${RV_PLAYER_TREE}/SteamLinuxRuntime_4"
+     REGEX "^${RV_PLAYER_RUNTIME_RE}/var$" EXCLUDE)
 
 # The runtime's own depot version, e.g. 4.0.20261021.265997.
 file(READ "${RV_PLAYER_RUNTIME}/VERSIONS.txt" RV_PLAYER_RUNTIME_VERSIONS)
