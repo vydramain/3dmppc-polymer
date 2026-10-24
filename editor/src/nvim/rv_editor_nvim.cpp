@@ -86,6 +86,8 @@ constexpr std::string_view ext_lua = ".lua"; // Lua source
 constexpr std::string_view vim_cmd_palette_prefix = "let g:rv_editor_palette='"; // nvim palette var prefix
 constexpr std::string_view lua_toggle_vim_mode = "_G.rv_toggle_vim_mode()";      // toggle mode, defined in rv_editor_init.lua
 constexpr std::string_view lua_checktime = "vim.cmd('silent! checktime')";       // check file changes on disk
+// The clipboard text is exec_lua's argument `...`; empty lines are kept, so a plain split on "\n".
+constexpr std::string_view lua_set_clipboard = "vim.g.rv_clipboard = vim.split((...), '\\n', { plain = true })";
 
 std::string rv_editor_args(const std::function<void(rv_editor_mpack_writer &)> &fill)
 {
@@ -151,6 +153,8 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
     screen_ = {};
     log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "code editor: " + nvim.string() + " --embed");
     attach();
+    // Queued right after attach: nvim runs requests in order, so the variable exists before the first frame asks for a window.
+    exec_lua(std::string(lua_set_clipboard), { clipboard_ });
     return RV_OK;
 }
 
@@ -414,6 +418,14 @@ void rv_editor_nvim::checktime()
 {
     if (running()) {
         exec_lua(std::string(lua_checktime), {});
+    }
+}
+
+void rv_editor_nvim::set_clipboard(const std::string &text)
+{
+    clipboard_ = text;
+    if (running()) {
+        exec_lua(std::string(lua_set_clipboard), { clipboard_ });
     }
 }
 

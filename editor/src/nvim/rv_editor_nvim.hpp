@@ -112,6 +112,9 @@ public:
     // `:checktime`: re-reads buffers changed on disk (through
     // nvim's autoread and its own changed-file question).
     void checktime();
+    // The desktop clipboard as text: nvim gets it as `vim.g.rv_clipboard` (lines),
+    // sent on every start and on every change, since a restart is a new instance.
+    void set_clipboard(const std::string &text);
 
     // Buffers with unsaved changes, and those only `win` shows.
     std::vector<rv_editor_nvim_buffer> modified() const;
@@ -215,6 +218,7 @@ private:
     int64_t switching_ = 0;
     std::chrono::steady_clock::time_point switch_at_{};
     std::string held_;
+    std::string clipboard_; // the desktop clipboard, sent to each nvim instance
 };
 
 } // namespace rv_editor
