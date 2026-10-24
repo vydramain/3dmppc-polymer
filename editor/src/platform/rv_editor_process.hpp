@@ -134,11 +134,6 @@ std::string rv_editor_exit_text(const rv_editor_process::rv_editor_exit &exit);
 // The first executable `name` on PATH, or empty: for the user's own tools (nvim, git).
 std::filesystem::path rv_editor_process_find(const char *name);
 
-// Starts argv[0] as is (no PATH search), not waited for and not in the editor's group, so the editor's
-// stop and exit leave it alone. Double-forked with setsid: no zombie, and a desktop helper (xdg-open)
-// may keep its browser alive. RV_OK, or RV_ERR_* with the reason in `error`.
-int rv_editor_launch_detached(const std::vector<std::string> &argv, std::string &error);
-
 // Guard process that kills all children on editor exit. Call once from main() before SDL_Init.
 // RV_OK, or RV_ERR_* with the reason in `error`.
 int rv_editor_guard_start(std::string &error);
