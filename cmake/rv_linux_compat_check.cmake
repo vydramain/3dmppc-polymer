@@ -14,9 +14,9 @@ if(NOT RV_COMPAT_RUNTIME)
     message(FATAL_ERROR "RV_COMPAT_RUNTIME must be specified via -DRV_COMPAT_RUNTIME=<SteamLinuxRuntime_4 dir>")
 endif()
 
-find_program(RV_COMPAT_READELF readelf)
+find_program(RV_COMPAT_READELF NAMES readelf llvm-readelf)
 if(NOT RV_COMPAT_READELF)
-    message(FATAL_ERROR "readelf not found: install binutils")
+    message(FATAL_ERROR "readelf not found: install binutils (readelf) or LLVM (llvm-readelf)")
 endif()
 
 # Sets ${var} to the paths in ${dir} matching ${name}. The directory is a literal path, but file(GLOB) reads
