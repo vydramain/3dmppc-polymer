@@ -58,6 +58,10 @@ if(3DMPPC_LUAJIT)
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/luajit.cmake)
 endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake)
+# The Steam Linux Runtime 4 of the Linux delivery (its check and its packaging).
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_steamrt4_runtime.cmake)
+endif()
 
 # stb_image is gone with the demo that used it. The console never decodes an
 # image format: a game uploads raw texels through rv_cv::video_asset_write, and
@@ -393,16 +397,34 @@ if(3DMPPC_DEVTOOLS)
     ALWAYS 1
   )
 
-  # The delivery contract for the shipped firmware (see cmake/rv_linux_compat_check.cmake).
-  # It checks the last built firmware: build 3dmppc_firmware first. No DEPENDS: a check
-  # must not rebuild anything. mppcburner will check disc.so with the same script.
-  add_custom_target(check-linux-compat
-    COMMAND ${CMAKE_COMMAND}
-            "-DRV_COMPAT_FILES=${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_compat_check.cmake"
-    COMMENT "Checking Linux compatibility of the last built player console firmware"
-    VERBATIM
-  )
+  # mppcburner, in <build>/pconsole, checks disc.so with the copy in <build>/tools/ (see cmake/rv_steamrt4_runtime.cmake).
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_compat_check.cmake
+                 ${CMAKE_BINARY_DIR}/tools/linux-compat-check.cmake COPYONLY)
+
+  # The delivery contract for the shipped Linux binaries (see cmake/rv_linux_compat_check.cmake): each one
+  # must need only what the Steam Runtime 4 Platform of the delivery defines. It checks the last built files,
+  # so it does not rebuild them; it depends on the runtime only.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN)
+    set(RV_COMPAT_PRODUCTS
+        ${CMAKE_BINARY_DIR}/pconsole/3dmppc
+        ${CMAKE_BINARY_DIR}/pconsole/3dmppc-editor
+        ${CMAKE_BINARY_DIR}/pconsole/mppcburner
+        ${CMAKE_BINARY_DIR}/pconsole/mppctexbaker
+        ${CMAKE_BINARY_DIR}/pconsole/mppcmusbaker
+        ${CMAKE_BINARY_DIR}/pconsole/mppcmodbaker
+        ${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc)
+    add_custom_target(check-linux-compat
+      DEPENDS 3dmppc_steamrt4_runtime
+      COMMAND ${CMAKE_COMMAND}
+              "-DRV_COMPAT_FILES=${RV_COMPAT_PRODUCTS}"
+              "-DRV_COMPAT_RUNTIME=${RV_STEAMRT4_DIR}"
+              -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_compat_check.cmake"
+      COMMENT "Checking Linux compatibility of the shipped binaries against Steam Runtime 4"
+      VERBATIM
+    )
+    # mppcburner checks disc.so against this runtime; the player delivery's packaging will depend on it too.
+    add_dependencies(3dmppc_pdktools 3dmppc_steamrt4_runtime)
+  endif()
 
   # The web kit, built with a pinned emsdk; see cmake/rv_emsdk.cmake.
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_emsdk.cmake)
