@@ -345,6 +345,10 @@ endif()
 # in pconsole/. Both still build on their own with their own command.
 if(3DMPPC_DEVTOOLS)
   include(ExternalProject)
+  # The pinned development kit tools (fetched by 3dmppc_devkit_tools); Linux only, as Steam Linux Runtime 4 is.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_devkit_tools.cmake)
+  endif()
 
   # One toolchain for everything the kit builds: the whole build runs in the Steam Runtime 4 SDK
   # (steamrt4.sh) with clang from LLVM 23.1.4. The dev console exports its symbols to the disc, so
