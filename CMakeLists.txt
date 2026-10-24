@@ -435,3 +435,50 @@ if(3DMPPC_WEB_KIT)
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_webkit.cmake)
 endif()
 
+# --- the player delivery ------------------------------------------------------
+# The player delivery: the player console as a tree and a zip with Steam Linux Runtime 4 (cmake/rv_player_delivery.cmake).
+if(NOT 3DMPPC_DEVTOOLS AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN AND NOT 3DMPPC_STATIC_DISC AND 3DMPPC_LUAJIT)
+  # A version change in the header reconfigures this build; the zip name depends on it.
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pdk/include/pdk/de/rv_dv.h)
+  file(READ ${CMAKE_CURRENT_SOURCE_DIR}/pdk/include/pdk/de/rv_dv.h RV_PLAYER_DV_HEADER)
+  string(REGEX MATCH "#define RV_MPPC_VER_MAJOR ([0-9]+)" _ "${RV_PLAYER_DV_HEADER}")
+  set(RV_PLAYER_VER_MAJOR "${CMAKE_MATCH_1}")
+  string(REGEX MATCH "#define RV_MPPC_VER_MINOR ([0-9]+)" _ "${RV_PLAYER_DV_HEADER}")
+  set(RV_PLAYER_VER_MINOR "${CMAKE_MATCH_1}")
+  # "0" is false in CMake, so a minor version of 0 is checked against the empty string.
+  if(RV_PLAYER_VER_MAJOR STREQUAL "" OR RV_PLAYER_VER_MINOR STREQUAL "")
+    message(FATAL_ERROR "The player delivery cannot read RV_MPPC_VER_MAJOR/MINOR from pdk/include/pdk/de/rv_dv.h")
+  endif()
+
+  set(RV_PLAYER_TREE ${CMAKE_BINARY_DIR}/player/3dmppc-player)
+  set(RV_PLAYER_ZIP ${CMAKE_BINARY_DIR}/3dmppc-player-${RV_PLAYER_VER_MAJOR}.${RV_PLAYER_VER_MINOR}.zip)
+  set(RV_PLAYER_ARGS
+      "-DRV_PLAYER_ELF=$<TARGET_FILE:3dmppc>"
+      "-DRV_PLAYER_LAUNCH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_launch.sh"
+      "-DRV_PLAYER_RUNTIME=${RV_STEAMRT4_DIR}"
+      "-DRV_PLAYER_LUAJIT_COPYRIGHT=${luajit_SOURCE_DIR}/COPYRIGHT"
+      "-DRV_PLAYER_LUAJIT_COMMIT=${RV_LUAJIT_COMMIT}"
+      "-DRV_PLAYER_VER_MAJOR=${RV_PLAYER_VER_MAJOR}"
+      "-DRV_PLAYER_VER_MINOR=${RV_PLAYER_VER_MINOR}"
+      "-DRV_PLAYER_TREE=${RV_PLAYER_TREE}")
+
+  add_custom_target(player-tree
+    DEPENDS 3dmppc 3dmppc_steamrt4_runtime
+    COMMAND ${CMAKE_COMMAND} ${RV_PLAYER_ARGS}
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_player_delivery.cmake"
+    COMMENT "Building the player delivery tree"
+    VERBATIM
+  )
+  add_custom_target(package-player
+    DEPENDS 3dmppc 3dmppc_steamrt4_runtime
+    COMMAND ${CMAKE_COMMAND} ${RV_PLAYER_ARGS}
+            "-DRV_PLAYER_ZIP=${RV_PLAYER_ZIP}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_player_delivery.cmake"
+    COMMENT "Packaging the player delivery"
+    VERBATIM
+  )
+endif()
+if(NOT 3DMPPC_DEVTOOLS AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN AND NOT 3DMPPC_STATIC_DISC AND NOT 3DMPPC_LUAJIT)
+  message(STATUS "no player-tree or package-player: the player delivery needs 3DMPPC_LUAJIT=ON (its LICENSES/ and VERSIONS.txt name LuaJIT)")
+endif()
+
