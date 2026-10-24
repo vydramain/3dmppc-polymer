@@ -226,11 +226,6 @@ std::string rv_editor_export_file_uri(const std::string &path)
 // Hands the web page to the desktop through SDL_OpenURL, which tries the OpenURI portal first.
 int rv_editor_export_open_run(const rv_editor_export &exporter, std::string &error)
 {
-    // A relative destination would make "file://" name a host, so it is refused here.
-    if (!exporter.result().is_absolute()) {
-        error = rv_editor_text("pane_export.open_relative");
-        return RV_ERR_INVAL;
-    }
     const std::string uri = rv_editor_export_file_uri(exporter.result().string());
     if (!SDL_OpenURL(uri.c_str())) {
         error = SDL_GetError();
