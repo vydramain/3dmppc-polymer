@@ -6,18 +6,8 @@ include_guard(GLOBAL)
 # game disc is not in it; mppcburner links that in. No executable is built.
 # Installed under CMAKE_INSTALL_PREFIX.
 
-# The PDK version is read from the contract header, so the number lives in one place.
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/pdk/include/pdk/de/rv_dv.h RV_KIT_DV_HEADER)
-# A version change in the header reconfigures the kit; otherwise kit.txt keeps the old pdk_version and the burner refuses it.
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pdk/include/pdk/de/rv_dv.h)
-string(REGEX MATCH "#define RV_MPPC_VER_MAJOR ([0-9]+)" _ "${RV_KIT_DV_HEADER}")
-set(RV_KIT_VER_MAJOR "${CMAKE_MATCH_1}")
-string(REGEX MATCH "#define RV_MPPC_VER_MINOR ([0-9]+)" _ "${RV_KIT_DV_HEADER}")
-set(RV_KIT_VER_MINOR "${CMAKE_MATCH_1}")
-# "0" is false in CMake, so a minor version of 0 is checked against the empty string.
-if(RV_KIT_VER_MAJOR STREQUAL "" OR RV_KIT_VER_MINOR STREQUAL "")
-  message(FATAL_ERROR "The web kit cannot read RV_MPPC_VER_MAJOR/MINOR from pdk/include/pdk/de/rv_dv.h")
-endif()
+# The PDK version (RV_MPPC_VER_MAJOR/MINOR) comes from cmake/rv_dv_version.cmake; kit.txt keeps the old pdk_version otherwise.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_dv_version.cmake)
 
 # The SDL3 file is installed as is, so it must be a static library.
 get_target_property(RV_KIT_SDL3_TYPE SDL3::SDL3 TYPE)
@@ -64,7 +54,7 @@ file(GENERATE
 # pre_js: the --pre-js file of the console's link line.
 # shell: the HTML page shell of the disc's index.html.
 # licenses: license files of the third-party parts the kit ships, separated by spaces.
-pdk_version = ${RV_KIT_VER_MAJOR}.${RV_KIT_VER_MINOR}
+pdk_version = ${RV_MPPC_VER_MAJOR}.${RV_MPPC_VER_MINOR}
 build_type = ${CMAKE_BUILD_TYPE}
 libs = lib/$<TARGET_FILE_NAME:3dmppc> lib/$<TARGET_FILE_NAME:rv_dmain> lib/$<TARGET_FILE_NAME:3dmppc_platform_sdl3> lib/$<TARGET_FILE_NAME:3dmppc_pdklib> lib/$<TARGET_FILE_NAME:SDL3::SDL3>
 link_group = yes
