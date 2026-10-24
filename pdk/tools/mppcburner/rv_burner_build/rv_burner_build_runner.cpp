@@ -129,30 +129,28 @@ int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &m
     return RV_OK;
 }
 
-// --- the Linux kit ---
+// --- the Steam Runtime 4 reference ---
 //
-// The kit beside the burner builds disc.so against the delivery sysroot and proves it afterwards. Absent,
-// disc.so carries this machine's libraries: one warning says so. Present but broken is an error.
-static int rv_burner_find_linux_kit(fs::path &toolchain_file, fs::path &compat_check, std::string &error)
+// The reference, R/tools and R/SteamLinuxRuntime_4 with R the parent of the burner's directory, checks disc.so
+// against the Steam Runtime 4 Platform after the compile. Absent, nothing is checked: one warning says so, with
+// the reason. Present but failing the check is an error.
+static int rv_burner_find_linux_kit(fs::path &toolchain_file, fs::path &compat_check, fs::path &runtime_dir, std::string &error)
 {
-    const int kit_err = rv_burner_linux_kit_locate(toolchain_file, compat_check, error);
+    const int kit_err = rv_burner_linux_kit_locate(toolchain_file, compat_check, runtime_dir, error);
     if (kit_err != RV_OK && kit_err != RV_ERR_NOENT) {
         return kit_err;
     }
     if (kit_err == RV_ERR_NOENT) {
-        // The reason the kit is absent travels with the warning, on the same line.
-        rv_burner_print_warning(std::format("{} is built against this machine's libraries and may not run on older Linux "
-                                            "such as the Steam Deck ({})",
-            k_disc_module_name,
-            error));
+        // The reason the reference is absent travels with the warning, on the same line.
+        rv_burner_print_warning(std::format("{} is not checked against Steam Runtime 4 ({})", k_disc_module_name, error));
     }
     return RV_OK;
 }
 
 // --- a fresh cmake configure ---
 //
-// A CMakeCache kept from an earlier burn holds that burn's toolchain: with no kit it would keep the kit's
-// toolchain, and once the kit is gone it would fail the configure. Only cmake's own state is removed, since
+// A CMakeCache kept from an earlier burn holds that burn's toolchain file: a burn without one would keep it,
+// and a toolchain file that has since moved would fail the configure. Only cmake's own state is removed, since
 // with --keep-build the build directory is the user's and may hold more than this build's files.
 static constexpr const char *k_cmake_cache_name = "CMakeCache.txt";
 static constexpr const char *k_cmake_files_name = "CMakeFiles";
@@ -187,7 +185,8 @@ static int rv_burner_build_compile(const rv_burner_options &options,
 {
     fs::path toolchain_file;
     fs::path compat_check;
-    const int kit_err = rv_burner_find_linux_kit(toolchain_file, compat_check, error);
+    fs::path runtime_dir;
+    const int kit_err = rv_burner_find_linux_kit(toolchain_file, compat_check, runtime_dir, error);
     if (kit_err != RV_OK) {
         rv_burner_print_error(error);
         return kit_err;
@@ -205,7 +204,7 @@ static int rv_burner_build_compile(const rv_burner_options &options,
         return clear_err;
     }
 
-    // An empty toolchain_file is the host build, as before the kit existed.
+    // An empty toolchain_file: the build runs in the Steam Runtime 4 SDK, which needs no toolchain file.
     const int configure_err = configure_cmake(binary_dir, project_dir, error, toolchain_file);
     if (configure_err != RV_OK) {
         rv_burner_print_error(error);
@@ -218,9 +217,10 @@ static int rv_burner_build_compile(const rv_burner_options &options,
         return compile_err;
     }
 
-    // No kit, no compat_check: nothing to prove against.
+    // No reference, no compat_check: nothing to prove against.
     if (!compat_check.empty()) {
-        const int contract_err = rv_burner_linux_compat_check(compat_check, binary_dir / k_disc_module_name, error);
+        const int contract_err =
+            rv_burner_linux_compat_check(compat_check, runtime_dir, binary_dir / k_disc_module_name, error);
         if (contract_err != RV_OK) {
             rv_burner_print_error(error);
             return contract_err;
