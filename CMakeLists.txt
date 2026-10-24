@@ -387,15 +387,42 @@ if(3DMPPC_DEVTOOLS)
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
   )
-  # The nested console lands in its own pconsole/ dir; copy it to the firmware dir.
-  ExternalProject_Add_Step(3dmppc_firmware copy_firmware
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pconsole/firmware
-    COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_BINARY_DIR}/firmware-build/pconsole/3dmppc
-            ${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc
-    DEPENDEES build
-    ALWAYS 1
-  )
+  # The player delivery tree (player-tree) exists only where the player delivery does: Linux, LuaJIT, not
+  # Emscripten, not static disc. There pconsole/firmware/ is that tree (launch file 3dmppc, bin/3dmppc, the
+  # runtime, LICENSES/, VERSIONS.txt); the web kit is in pconsole/firmware/web. Elsewhere it is the bare
+  # ELF at pconsole/firmware/3dmppc.
+  set(RV_FIRMWARE_TREE OFF)
+  set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN AND 3DMPPC_LUAJIT AND NOT 3DMPPC_STATIC_DISC)
+    set(RV_FIRMWARE_TREE ON)
+    set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/pconsole/firmware/bin/3dmppc)
+  endif()
+  if(RV_FIRMWARE_TREE)
+    # A step after the nested default build, so that build stays as it is.
+    ExternalProject_Add_Step(3dmppc_firmware player_tree
+      COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/firmware-build --target player-tree
+      DEPENDEES build
+      ALWAYS 1
+    )
+    # cp -a, not copy_directory: copy_directory dereferences the runtime's symlinks. Files of an older
+    # tree stay in place; web/ is not touched.
+    ExternalProject_Add_Step(3dmppc_firmware copy_firmware
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pconsole/firmware
+      COMMAND cp -a --remove-destination ${CMAKE_BINARY_DIR}/firmware-build/player/3dmppc-player/.
+              ${CMAKE_BINARY_DIR}/pconsole/firmware/
+      DEPENDEES player_tree
+      ALWAYS 1
+    )
+  else()
+    ExternalProject_Add_Step(3dmppc_firmware copy_firmware
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pconsole/firmware
+      COMMAND ${CMAKE_COMMAND} -E copy
+              ${CMAKE_BINARY_DIR}/firmware-build/pconsole/3dmppc
+              ${RV_FIRMWARE_ELF}
+      DEPENDEES build
+      ALWAYS 1
+    )
+  endif()
 
   # mppcburner, in <build>/pconsole, checks disc.so with the copy in <build>/tools/ (see cmake/rv_steamrt4_runtime.cmake).
   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_compat_check.cmake
@@ -412,7 +439,7 @@ if(3DMPPC_DEVTOOLS)
         ${CMAKE_BINARY_DIR}/pconsole/mppctexbaker
         ${CMAKE_BINARY_DIR}/pconsole/mppcmusbaker
         ${CMAKE_BINARY_DIR}/pconsole/mppcmodbaker
-        ${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc)
+        ${RV_FIRMWARE_ELF})
     add_custom_target(check-linux-compat
       DEPENDS 3dmppc_steamrt4_runtime
       COMMAND ${CMAKE_COMMAND}
