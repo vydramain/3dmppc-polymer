@@ -1,7 +1,7 @@
 # Builds the 3dmppc development kit delivery tree: bin/ (a dev build's pconsole/), the launch copies beside bin/,
 # tools/ (LLVM, CMake, Ninja, Neovim, lua-language-server, the compat check and toolchain), steamrt4-sdk/ (the Steam
 # Runtime 4 SDK sysroot), SteamLinuxRuntime_4/, LICENSES/ and VERSIONS.txt; with a zip path, also the zip of the tree.
-# No build target runs it yet. No project license is shipped: the repository has none.
+# devkit-tree and package-devkit run it (cmake/rv_devkit_tools.cmake). No project license is shipped: the repository has none.
 #
 # Run: cmake -DRV_DEVKIT_BIN=<pconsole dir> -DRV_DEVKIT_LAUNCH=<rv_launch.sh> -DRV_DEVKIT_LLVM=<LLVM top dir>
 #            -DRV_DEVKIT_CMAKE=<cmake dir> -DRV_DEVKIT_NINJA=<ninja binary> -DRV_DEVKIT_NVIM=<nvim dir>
