@@ -28,3 +28,8 @@ list(FILTER 3DMPPC_PDKLIB_SOURCES EXCLUDE REGEX "/rv_models/rv_mppcmod_gltf")
 add_library(3dmppc_pdklib STATIC ${3DMPPC_PDKLIB_SOURCES})
 target_include_directories(3dmppc_pdklib PUBLIC ${RV_REPO_ROOT}/pdk/lib/include)
 target_link_libraries(3dmppc_pdklib PUBLIC 3dmppc_pdk)
+# RV_LOG writes __FILE__; the prefix map makes those paths relative to the repository root, so the build machine's path
+# stays out of targets linked with 3dmppc_pdklib (console, editor, mppcburner); mppcburner's disc.so is not covered.
+target_compile_options(3dmppc_pdklib PUBLIC
+  $<$<NOT:$<STREQUAL:${CMAKE_CXX_COMPILER_FRONTEND_VARIANT},MSVC>>:-ffile-prefix-map=${RV_REPO_ROOT}/=>
+)
