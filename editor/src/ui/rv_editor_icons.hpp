@@ -14,8 +14,8 @@ namespace rv_editor
 {
 
 // The win-55-ui icons (third_party/win55-icons), decoded once into renderer
-// textures. They are read from the repository at run time, the way mppcburner
-// finds pdk/: RV_EDITOR_ICON_DIR is baked in by editor/CMakeLists.txt.
+// textures. They are read at run time from editor/icons beside the executable
+// (rv_editor_resources.hpp), so a moved delivery finds them.
 
 enum class rv_editor_icon_name {
     broken_image,

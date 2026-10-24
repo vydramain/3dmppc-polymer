@@ -12,6 +12,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
+#include "platform/rv_editor_resources.hpp"
 #include "text/rv_editor_text.hpp"
 
 namespace rv_editor
@@ -19,9 +20,6 @@ namespace rv_editor
 
 namespace
 {
-
-// Symlink path to the currently executing binary, used to locate tools.
-constexpr std::string_view proc_self_exe = "/proc/self/exe";
 
 // Tool executable names as they appear on the system or in next to the editor.
 constexpr std::string_view tool_console_name = "3dmppc";
@@ -93,13 +91,6 @@ constexpr std::string_view tool_origin_next_to_burner = "next to the burner";
 // XDG config variable and fallback: the editor's config directory holds settings.toml.
 constexpr std::string_view xdg_config_var = "XDG_CONFIG_HOME";
 constexpr std::string_view xdg_config_fallback = ".config";
-
-std::filesystem::path rv_editor_self_dir()
-{
-    std::error_code ec;
-    const std::filesystem::path self = std::filesystem::read_symlink(std::string(proc_self_exe), ec);
-    return ec ? std::filesystem::path() : self.parent_path();
-}
 
 // Read [tools] section from settings and apply configurations to toolchain.
 void read_tools_section(rv_editor_toolchain &tc, const rv_pdklib::rv_manifest_tree &tree)
@@ -188,7 +179,7 @@ std::filesystem::path rv_editor_bakers_dir(const std::filesystem::path &given, s
 void rv_editor_bakers_fill(rv_editor_toolchain &tc)
 {
     std::error_code ec;
-    const std::filesystem::path given = tc.baker.path.empty() ? rv_editor_self_dir() : tc.baker.path;
+    const std::filesystem::path given = tc.baker.path.empty() ? rv_editor_exe_dir() : tc.baker.path;
     const std::filesystem::path dir = rv_editor_bakers_dir(given, ec);
     tc.baker.path = dir;
     tc.baker.problem.clear();
@@ -274,7 +265,7 @@ std::string rv_editor_bakers_version_text(const rv_editor_toolchain &tc)
 rv_editor_toolchain rv_editor_toolchain_find()
 {
     rv_editor_toolchain tc;
-    const std::filesystem::path self = rv_editor_self_dir();
+    const std::filesystem::path self = rv_editor_exe_dir();
     tc.console = { self.empty() ? "" : self / std::string(tool_console_name),
         std::string(tool_origin_next_to_editor),
         "",
@@ -326,7 +317,7 @@ rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path
     const tool_spec *spec = find_tool_spec(k);
     const bool has_exe = spec != nullptr && spec->beside_editor;
     const std::string_view exe_name = has_exe ? spec->name : tool_player_name;
-    const std::filesystem::path self = rv_editor_self_dir();
+    const std::filesystem::path self = rv_editor_exe_dir();
     rv_editor_tool tool;
     if (!override_path.empty()) {
         tool = { override_path, std::string(tool_origin_settings), "", "", {} };
