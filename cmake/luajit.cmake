@@ -27,17 +27,9 @@ file(COPY ${luajit_SOURCE_DIR}/ DESTINATION ${LUAJIT_BUILD_DIR}
   PATTERN buildvm EXCLUDE
   PATTERN minilua EXCLUDE
 )
-set(LUAJIT_MAKE_ARGS "")
-if(CMAKE_SYSROOT)
-  # Target objects get the sysroot and toolchain flags; buildvm runs on the build
-  # machine, so HOST_CC is the same compiler without them.
-  set(LUAJIT_SYSROOT_FLAGS "--sysroot=${CMAKE_SYSROOT} ${CMAKE_C_FLAGS}")
-  set(LUAJIT_MAKE_ARGS
-    CC=${CMAKE_C_COMPILER}
-    HOST_CC=${CMAKE_C_COMPILER}
-    "TARGET_CFLAGS=${LUAJIT_SYSROOT_FLAGS}"
-  )
-endif()
+# LuaJIT's Makefile defaults to gcc; the product is built with clang (LLVM 23.1.4 first on PATH
+# in the Steam Runtime 4 SDK), and buildvm runs on the same machine, so HOST_CC is the same.
+set(LUAJIT_MAKE_ARGS CC=clang HOST_CC=clang)
 # A custom target has no outputs, so it runs on every build; make decides what to rebuild.
 add_custom_target(libluajit_maker
   COMMAND make -C ${LUAJIT_BUILD_DIR}/src ${LUAJIT_MAKE_ARGS} libluajit.a
