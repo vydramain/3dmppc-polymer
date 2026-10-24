@@ -72,20 +72,8 @@ target_sources(3dmppc-editor PRIVATE
   ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp)
 target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/cgltf)
 
-# stb_image (vendored, third_party/stb) decodes the icons. The icons are read
-# from the repository at run time, the way mppcburner finds pdk/.
+# stb_image (vendored, third_party/stb) decodes the icons.
 target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/stb)
-target_compile_definitions(3dmppc-editor PRIVATE RV_EDITOR_ICON_DIR="${RV_REPO_ROOT}/third_party/win55-icons"
-  RV_EDITOR_TEMPLATE_DIR="${RV_REPO_ROOT}/mppcdiscs")
-
-# The code font, PxPlus IBM VGA 9x16 (third_party), read at run time the same way.
-target_compile_definitions(3dmppc-editor PRIVATE
-  RV_EDITOR_CODE_FONT_FILE="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf"
-  RV_EDITOR_CODE_FONT_SMALL_FILE="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_EGA_8x14.ttf")
-
-# The code editor's nvim config (editor/nvim), read at run time the same way.
-target_compile_definitions(3dmppc-editor PRIVATE
-  RV_EDITOR_NVIM_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/nvim/rv_editor_init.lua")
 
 # --- Catppuccin Mocha palette (third_party/catppuccin-palette/palette.json) ----
 set(RV_PALETTE_JSON "${RV_REPO_ROOT}/third_party/catppuccin-palette/palette.json")
@@ -132,8 +120,6 @@ file(CONFIGURE OUTPUT "${RV_PALETTE_HPP}" CONTENT "${RV_CPP_LINES}")
 file(CONFIGURE OUTPUT "${RV_PALETTE_LUA}" CONTENT "${RV_LUA_LINES}")
 
 target_include_directories(3dmppc-editor PRIVATE "${RV_PALETTE_GEN_DIR}")
-target_compile_definitions(3dmppc-editor PRIVATE
-  RV_EDITOR_NVIM_PALETTE="${RV_PALETTE_LUA}")
 
 # --- Editor UI text strings (editor/texts/rv_editor_texts.toml) ---------------
 # Embed the default text strings in the binary as a constexpr array. Read the TOML
@@ -199,8 +185,8 @@ configure_file("${RV_MANUAL_HPP}.in" "${RV_MANUAL_HPP}" COPYONLY)
 find_package(Threads REQUIRED)
 target_link_libraries(3dmppc-editor PRIVATE Threads::Threads)
 
-# Run-time resources, copied to the delivery layout beside the executable (editor/...).
-# The lookup moves to this layout in a later task; until then the editor reads the source tree.
+# Run-time resources, copied to the delivery layout beside the executable (editor/...), where
+# the editor finds them from its own executable, so a delivery can be moved as a whole.
 # copy_directory does not prune: a file removed from a copied dir stays in the copy; a removed single-file source fails the build.
 add_custom_target(3dmppc-editor-resources ALL VERBATIM
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/third_party/win55-icons

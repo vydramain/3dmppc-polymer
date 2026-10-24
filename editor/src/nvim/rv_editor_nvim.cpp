@@ -7,6 +7,7 @@
 #include <system_error>
 
 #include "pdk/rv_err.h"
+#include "platform/rv_editor_resources.hpp"
 
 namespace rv_editor
 {
@@ -67,6 +68,10 @@ constexpr std::string_view nvim_opt_shada_file = "-i";  // shada (viminfo) file 
 constexpr std::string_view nvim_init_none = "NONE";     // init file value: none
 constexpr std::string_view nvim_cmd_quit_force = "qa!"; // quit all windows, force
 
+// nvim's files beside the executable (editor/nvim); the palette is generated at build time
+constexpr std::string_view nvim_palette_file = "nvim/rv_editor_catppuccin_mocha.lua";
+constexpr std::string_view nvim_config_file = "nvim/rv_editor_init.lua";
+
 // LSP server names for language detection
 constexpr std::string_view lsp_clangd = "clangd"; // C/C++ language server
 constexpr std::string_view lsp_luals = "luals";   // Lua language server
@@ -97,6 +102,15 @@ std::string rv_editor_args(const std::function<void(rv_editor_mpack_writer &)> &
     return out;
 }
 
+// A path spliced into a Vim single-quoted string: each quote is doubled, as Vim reads '' as one quote.
+std::string rv_editor_vim_quote(std::string s)
+{
+    for (size_t at = s.find('\''); at != std::string::npos; at = s.find('\'', at + 2)) {
+        s.insert(at, "'");
+    }
+    return s;
+}
+
 } // namespace
 
 int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, std::string &error)
@@ -117,7 +131,7 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
         error = problem;
         return last_error_;
     }
-    // From PATH: it is the user's own editor, not one this repository ships.
+    // From PATH: a dev build uses the user's nvim; the development kit ships its own in tools/ and puts it first on PATH.
     const std::filesystem::path nvim = rv_editor_process_find(nvim_prog.data());
     if (nvim.empty()) {
         problem = "nvim is not installed or not on PATH; the code editor needs it";
@@ -125,12 +139,21 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
         error = problem;
         return RV_ERR_NOENT;
     }
+    const std::filesystem::path palette = rv_editor_resource_path(nvim_palette_file);
+    const std::filesystem::path config = rv_editor_resource_path(nvim_config_file);
+    if (palette.empty() || config.empty()) {
+        const std::string_view missing = palette.empty() ? nvim_palette_file : nvim_config_file;
+        problem = "code editor file not found beside the executable: " + std::string(missing);
+        last_error_ = RV_ERR_NOENT;
+        error = problem;
+        return RV_ERR_NOENT;
+    }
     const std::vector<std::string> argv = { nvim.string(),
         std::string(nvim_opt_embed),
         std::string(nvim_opt_cmd),
-        std::string(vim_cmd_palette_prefix) + std::string(RV_EDITOR_NVIM_PALETTE) + "'",
+        std::string(vim_cmd_palette_prefix) + rv_editor_vim_quote(palette.string()) + "'",
         std::string(nvim_opt_init_file),
-        RV_EDITOR_NVIM_CONFIG,
+        config.string(),
         std::string(nvim_opt_shada_file),
         std::string(nvim_init_none) };
     const int err = rpc_.start(argv, cwd, error);
