@@ -19,7 +19,17 @@ if(NOT RV_COMPAT_READELF)
     message(FATAL_ERROR "readelf not found: install binutils")
 endif()
 
-file(GLOB RV_COMPAT_PLATFORMS "${RV_COMPAT_RUNTIME}/steamrt4_platform_*")
+# Sets ${var} to the paths in ${dir} matching ${name}. The directory is a literal path, but file(GLOB) reads
+# [ * ? in it as patterns, so they are escaped as bracket classes first; a bare ] is literal.
+function(rv_compat_glob var dir name)
+    string(REPLACE "[" "[[]" dir "${dir}")
+    string(REPLACE "*" "[*]" dir "${dir}")
+    string(REPLACE "?" "[?]" dir "${dir}")
+    file(GLOB found "${dir}/${name}")
+    set(${var} "${found}" PARENT_SCOPE)
+endfunction()
+
+rv_compat_glob(RV_COMPAT_PLATFORMS "${RV_COMPAT_RUNTIME}" "steamrt4_platform_*")
 list(LENGTH RV_COMPAT_PLATFORMS RV_COMPAT_PLATFORM_COUNT)
 if(NOT RV_COMPAT_PLATFORM_COUNT EQUAL 1)
     message(FATAL_ERROR "expected one steamrt4_platform_* dir in ${RV_COMPAT_RUNTIME}, found ${RV_COMPAT_PLATFORM_COUNT}: "
@@ -73,7 +83,7 @@ endfunction()
 # libjsoncpp.so.26), so the NEEDED names are looked up by the SONAME each regular ELF file carries.
 # Sets RV_COMPAT_SONAME_<soname> in the caller's scope to the file; a later file with the same SONAME wins.
 function(rv_compat_map_platform)
-    file(GLOB entries "${RV_COMPAT_PLATFORM_LIBDIR}/*")
+    rv_compat_glob(entries "${RV_COMPAT_PLATFORM_LIBDIR}" "*")
     foreach(entry IN LISTS entries)
         if(IS_DIRECTORY "${entry}" OR IS_SYMLINK "${entry}")
             continue()
