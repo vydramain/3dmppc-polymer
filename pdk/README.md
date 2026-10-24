@@ -688,6 +688,24 @@ bug: the boundary is checked by the toolchain every build.
 
 ---
 
+## Disc build - how disc.so is built and checked
+
+In the 3dmppc development kit delivery, programs start through their launch file, which runs them
+inside Steam Linux Runtime 4 and puts the delivery's tools/*/bin first on PATH. A burn therefore
+uses the delivery's clang, lld, CMake and Ninja: it builds disc.so with tools/steamrt4-toolchain.cmake
+against steamrt4-sdk/ (the Steam Runtime 4 SDK sysroot archive, unpacked), not the distribution's
+compiler. The burn then checks disc.so with tools/linux-compat-check.cmake against the delivery's
+Steam Runtime 4 Platform (NEEDED libraries and symbol versions); a failing check fails the burn. The
+check reads ELF with readelf or llvm-readelf, whichever PATH holds; the delivery ships llvm-readelf
+because the Platform has no readelf.
+
+Outside a delivery (build-dev/pconsole) the burn uses the compiler on PATH and warns that disc.so is
+not checked against Steam Runtime 4, with the reason.
+
+Why and how: cmake/rv_steamrt4_toolchain.cmake and pdk/tools/mppcburner/rv_burner_build/rv_burner_kit.cpp.
+
+---
+
 ## Naming reference
 
 | Symbol    | Expansion                                    |
