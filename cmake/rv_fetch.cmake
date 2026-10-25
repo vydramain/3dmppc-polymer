@@ -1,7 +1,7 @@
 # Loads one pinned file: fetches RV_FETCH_URL into RV_FETCH_FILE and checks its SHA256 against RV_FETCH_SHA256.
 # With RV_FETCH_DIR set, the file is also extracted there and then removed.
 # Usage: cmake -DRV_FETCH_URL=<https://... | http://... | file://...> -DRV_FETCH_SHA256=<hex> -DRV_FETCH_FILE=<file>
-#              [-DRV_FETCH_DIR=<dir>] [-DRV_CURL=<curl>] -P cmake/rv_fetch.cmake
+#              [-DRV_FETCH_DIR=<dir>] [-DRV_FETCH_NAME=<phrase>] [-DRV_CURL=<curl>] -P cmake/rv_fetch.cmake
 # A broken transfer keeps the partial file, so the next run resumes it. A hash mismatch is only a warning: the file is
 # used as it is. With RV_FETCH_DIR the file is extracted and then removed; without it the file is kept, and a file that
 # matches the pin is not fetched again. The stamp in RV_FETCH_DIR holds the pinned SHA256 (also on mismatch): a matching
@@ -19,6 +19,10 @@ endif()
 get_filename_component(RV_FETCH_FILE "${RV_FETCH_FILE}" ABSOLUTE)
 if(RV_FETCH_DIR)
     get_filename_component(RV_FETCH_DIR "${RV_FETCH_DIR}" ABSOLUTE)
+endif()
+# The name in the messages: a short phrase from the caller, else the file.
+if(NOT RV_FETCH_NAME)
+    set(RV_FETCH_NAME "${RV_FETCH_FILE}")
 endif()
 
 # The Steam server answered a Range request over HTTP/1.1 with 206 (checked 2026-10-18); its HTTP/2 transfers
@@ -43,6 +47,7 @@ endif()
 
 # Fetches RV_FETCH_URL into RV_FETCH_FILE. A partial file is resumed by curl.
 function(rv_fetch_download)
+    message(STATUS "fetching ${RV_FETCH_NAME} from ${RV_FETCH_URL} into ${RV_FETCH_FILE}")
     if(RV_FETCH_URL MATCHES "^file://")
         string(REGEX REPLACE "^file://" "" source "${RV_FETCH_URL}")
         file(COPY_FILE "${source}" "${RV_FETCH_FILE}" RESULT rc)
@@ -85,6 +90,7 @@ endfunction()
 # Extracts RV_FETCH_FILE into RV_FETCH_DIR through a sibling dir, then writes the stamp and renames it into place.
 function(rv_fetch_extract)
     string(TOLOWER "${RV_FETCH_SHA256}" expected)
+    message(STATUS "extracting ${RV_FETCH_NAME} from ${RV_FETCH_FILE} into ${RV_FETCH_DIR}: this can take a while")
     set(work "${RV_FETCH_DIR}.part")
     # Leftovers of an interrupted run.
     file(REMOVE_RECURSE "${work}")
@@ -102,7 +108,7 @@ function(rv_fetch_extract)
     # The old tree goes only after the new one is complete, so a failed extraction keeps it.
     file(REMOVE_RECURSE "${RV_FETCH_DIR}")
     file(RENAME "${work}" "${RV_FETCH_DIR}")
-    message(STATUS "extracted ${RV_FETCH_FILE} into ${RV_FETCH_DIR}")
+    message(STATUS "extracted ${RV_FETCH_NAME} into ${RV_FETCH_DIR}")
 endfunction()
 
 function(rv_fetch_main)
@@ -116,7 +122,7 @@ function(rv_fetch_main)
         if("${recorded}" STREQUAL "${expected}")
             # A run that died between the rename and the removal leaves the archive behind.
             file(REMOVE "${RV_FETCH_FILE}")
-            message(STATUS "${RV_FETCH_DIR} is already extracted from ${expected}")
+            message(STATUS "${RV_FETCH_NAME} is already extracted into ${RV_FETCH_DIR} from ${expected}: no download is needed")
             return()
         endif()
     endif()
@@ -125,7 +131,9 @@ function(rv_fetch_main)
     if(EXISTS "${RV_FETCH_FILE}")
         file(SHA256 "${RV_FETCH_FILE}" actual)
     endif()
-    if(NOT "${actual}" STREQUAL "${expected}")
+    if("${actual}" STREQUAL "${expected}")
+        message(STATUS "${RV_FETCH_NAME} is taken from the cache ${RV_FETCH_FILE}: SHA256 matches, no download")
+    else()
         rv_fetch_download()
         file(SHA256 "${RV_FETCH_FILE}" actual)
     endif()
