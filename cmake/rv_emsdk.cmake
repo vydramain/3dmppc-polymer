@@ -13,25 +13,28 @@ FetchContent_Declare(emsdk
   DOWNLOAD_EXTRACT_TIMESTAMP ON
 )
 # emsdk provides the Emscripten compiler that builds the web kit.
-message(STATUS
-  "emsdk ${RV_EMSDK_VERSION} (installs the web kit compiler) is downloaded from ${RV_EMSDK_URL} to "
-  "${FETCHCONTENT_BASE_DIR}/emsdk-src, unless the previous configure already downloaded it")
+rv_log_relpath(RV_EMSDK_SRC_REL "${FETCHCONTENT_BASE_DIR}/emsdk-src" "${RV_LOG_BASE}")
+rv_log_step("emsdk ${RV_EMSDK_VERSION} (web kit compiler) is fetched to ${RV_EMSDK_SRC_REL} unless an earlier configure did")
 FetchContent_MakeAvailable(emsdk)
 
 # The stamp records that the compiler is installed. It lives in the emsdk tree, so a re-fetched emsdk installs again.
 set(RV_EMSDK_STAMP ${emsdk_SOURCE_DIR}/installed-${RV_EMSDK_VERSION}.stamp)
-string(CONCAT RV_EMSDK_INSTALL_NOTE
-  "Installing Emscripten ${RV_EMSDK_VERSION} via emsdk: "
-  "downloads its clang/LLVM for wasm, Binaryen, Emscripten and Node.js; "
-  "activate makes it current; once, the stamp skips it afterwards; "
-  "emsdk's advice to add its tools to PATH (emsdk_env.sh) does not apply, the build runs emsdk from its own directory"
-)
+# install downloads clang/LLVM for wasm, Binaryen, Emscripten and Node.js; activate makes it current. Both run in
+# one shell command, so their output is one log. emsdk's advice to add its tools to PATH does not apply: the
+# build runs emsdk from its own directory.
+set(RV_EMSDK_LOG ${RV_LOGS_DIR}/emsdk.log)
+# The command is a list (sh, -c, script); $<SEMICOLON> keeps its ';' from splitting the -D value.
+set(RV_EMSDK_CMD sh -c "./emsdk install ${RV_EMSDK_VERSION} && ./emsdk activate ${RV_EMSDK_VERSION}")
+string(REPLACE ";" "$<SEMICOLON>" RV_EMSDK_CMD_ARG "${RV_EMSDK_CMD}")
 add_custom_command(OUTPUT ${RV_EMSDK_STAMP}
-  COMMAND ./emsdk install ${RV_EMSDK_VERSION}
-  COMMAND ./emsdk activate ${RV_EMSDK_VERSION}
+  COMMAND ${CMAKE_COMMAND}
+          "-DRV_LOG_CMD=${RV_EMSDK_CMD_ARG}"
+          -DRV_LOG_FILE=${RV_EMSDK_LOG}
+          -DRV_LOG_BASE=${RV_LOG_BASE}
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_log.cmake
   COMMAND ${CMAKE_COMMAND} -E touch ${RV_EMSDK_STAMP}
   WORKING_DIRECTORY ${emsdk_SOURCE_DIR}
-  COMMENT "${RV_EMSDK_INSTALL_NOTE}"
+  COMMENT "Installing Emscripten ${RV_EMSDK_VERSION} with emsdk (once)"
   VERBATIM
 )
 add_custom_target(3dmppc_emsdk DEPENDS ${RV_EMSDK_STAMP})
@@ -52,10 +55,9 @@ if(DEFINED sdl3_SOURCE_DIR)
   list(APPEND RV_WEBKIT_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_SDL3=${sdl3_SOURCE_DIR})
 endif()
 
-message(STATUS
-  "web kit: built by a nested build in "
-  "${CMAKE_BINARY_DIR}/webkit-build at build time, installed to "
-  "${CMAKE_BINARY_DIR}/bin/firmware/web")
+rv_log_relpath(RV_WEBKIT_BUILD_REL "${CMAKE_BINARY_DIR}/webkit-build" "${RV_LOG_BASE}")
+rv_log_relpath(RV_WEBKIT_INSTALL_REL "${CMAKE_BINARY_DIR}/bin/firmware/web" "${RV_LOG_BASE}")
+rv_log_step("web kit: nested build in ${RV_WEBKIT_BUILD_REL} at build time, installed to ${RV_WEBKIT_INSTALL_REL}")
 ExternalProject_Add(3dmppc_webkit
   SOURCE_DIR ${CMAKE_SOURCE_DIR}
   BINARY_DIR ${CMAKE_BINARY_DIR}/webkit-build
@@ -63,4 +65,15 @@ ExternalProject_Add(3dmppc_webkit
   BUILD_ALWAYS ON
   INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR>
   DEPENDS 3dmppc_emsdk
+  LOG_DIR ${RV_LOGS_DIR}
+  LOG_CONFIGURE ON
+  LOG_BUILD ON
+  LOG_INSTALL ON
+  LOG_MERGED_STDOUTERR ON
+  LOG_OUTPUT_ON_FAILURE ON
+)
+ExternalProject_Add_Step(3dmppc_webkit rv_announce DEPENDEES configure DEPENDERS build
+  COMMAND ${CMAKE_COMMAND} -E true
+  COMMENT "Nested build webkit (web kit, Emscripten): log ${RV_LOGS_REL}/3dmppc_webkit-*.log"
+  ALWAYS 1
 )

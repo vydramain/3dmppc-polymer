@@ -21,6 +21,11 @@ endif()
 # The delivery directory of this build: the player tree is written here. The external
 # Linux build passes <build>/pconsole; a nested or toolchain build keeps pconsole/ in its own build dir.
 set(RV_PCONSOLE_DIR "${CMAKE_BINARY_DIR}/pconsole" CACHE PATH "Delivery directory of this build (the player tree)")
+# Log paths in this build's messages are relative to the directory the user passed to cmake: the parent of
+# RV_PCONSOLE_DIR, which is <build> for the external build. A nested build (firmware-build) keeps its own
+# pconsole/, so cmake/luajit.cmake there names its own build dir.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_log.cmake)
+get_filename_component(RV_LOG_BASE "${RV_PCONSOLE_DIR}" DIRECTORY)
 
 # The development runtime (the dev command channel, booting a game from a
 # loose directory, ...) is a build-time choice, not a runtime flag: with this
@@ -371,9 +376,15 @@ if(3DMPPC_DEVTOOLS)
     list(APPEND RV_KIT_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_LUAJIT=${luajit_SOURCE_DIR})
   endif()
 
-  message(STATUS
-    "Nested CMake builds: pdktools/ (mppcburner, bakers), editor/, firmware-build/ (player console); this build prints steps. "
-    "With LuaJIT on, all get FETCHCONTENT_SOURCE_DIR_LUAJIT; editor/ has no LuaJIT, so its unused warning is expected.")
+  # The nested builds write their steps to logs in <build>/logs instead of this output. A failed step
+  # prints its log tail and the log path; the directory is made here so each step can write into it.
+  set(RV_LOGS_DIR ${CMAKE_BINARY_DIR}/logs)
+  file(MAKE_DIRECTORY ${RV_LOGS_DIR})
+  rv_log_relpath(RV_LOGS_REL "${RV_LOGS_DIR}" "${RV_LOG_BASE}")
+  rv_log_step("nested builds: pdktools, editor, firmware, and webkit at build time; logs in ${RV_LOGS_REL}/")
+  if(DEFINED luajit_SOURCE_DIR)
+    rv_log_step("editor/ has no LuaJIT: its unused FETCHCONTENT_SOURCE_DIR_LUAJIT warning is in its log, expected")
+  endif()
   # BUILD_ALWAYS: this build cannot see their sources, so it asks their own
   # build every time and lets it answer "no work to do".
   ExternalProject_Add(3dmppc_pdktools
@@ -382,6 +393,16 @@ if(3DMPPC_DEVTOOLS)
     CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/bin
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
+    LOG_DIR ${RV_LOGS_DIR}
+    LOG_CONFIGURE ON
+    LOG_BUILD ON
+    LOG_MERGED_STDOUTERR ON
+    LOG_OUTPUT_ON_FAILURE ON
+  )
+  ExternalProject_Add_Step(3dmppc_pdktools rv_announce DEPENDEES configure DEPENDERS build
+    COMMAND ${CMAKE_COMMAND} -E true
+    COMMENT "Nested build pdktools (mppcburner, bakers): log ${RV_LOGS_REL}/3dmppc_pdktools-*.log"
+    ALWAYS 1
   )
   ExternalProject_Add(3dmppc_editor
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/editor
@@ -389,6 +410,16 @@ if(3DMPPC_DEVTOOLS)
     CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/bin
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
+    LOG_DIR ${RV_LOGS_DIR}
+    LOG_CONFIGURE ON
+    LOG_BUILD ON
+    LOG_MERGED_STDOUTERR ON
+    LOG_OUTPUT_ON_FAILURE ON
+  )
+  ExternalProject_Add_Step(3dmppc_editor rv_announce DEPENDEES configure DEPENDERS build
+    COMMAND ${CMAKE_COMMAND} -E true
+    COMMENT "Nested build editor (3dmppc-editor): log ${RV_LOGS_REL}/3dmppc_editor-*.log"
+    ALWAYS 1
   )
 
   # The player console is the firmware that goes into the burned discs; the dev
@@ -403,6 +434,16 @@ if(3DMPPC_DEVTOOLS)
       -DRV_STEAMRT4_DIR=${RV_STEAMRT4_DIR}
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
+    LOG_DIR ${RV_LOGS_DIR}
+    LOG_CONFIGURE ON
+    LOG_BUILD ON
+    LOG_MERGED_STDOUTERR ON
+    LOG_OUTPUT_ON_FAILURE ON
+  )
+  ExternalProject_Add_Step(3dmppc_firmware rv_announce DEPENDEES configure DEPENDERS build
+    COMMAND ${CMAKE_COMMAND} -E true
+    COMMENT "Nested build firmware (player console): log ${RV_LOGS_REL}/3dmppc_firmware-*.log"
+    ALWAYS 1
   )
   # The player delivery tree (player-tree) exists only where the player delivery does: Linux, LuaJIT, not
   # Emscripten, not static disc. There the nested build writes it to firmware-build/pconsole, and
