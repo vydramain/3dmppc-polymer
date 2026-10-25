@@ -1,0 +1,106 @@
+# Host half of the Linux build. CMakeLists.txt enters here before project() when the host is Linux and no toolchain
+# is given: it checks the host programs, fetches the pinned Steam Linux Runtime 4 and Steam Runtime 4 SDK, and
+# configures the project inside the SDK in ${CMAKE_BINARY_DIR}/sdk. It compiles nothing; the inner configure does.
+# Usage: cmake -S <repo> -B <build> -G Ninja [-D3DMPPC_*=...] [-DCMAKE_BUILD_TYPE=...] [-DRV_FETCH_CACHE=<dir>]
+
+# One snapshot names both downloads (the Steam Linux Runtime 4 and the Steam Runtime 4 SDK sysroot).
+set(RV_STEAMRT4_VERSION "4.0.20261021.265997")
+set(RV_STEAMRT4_URL "https://repo.steampowered.com/steamrt4/images/${RV_STEAMRT4_VERSION}/SteamLinuxRuntime_4.tar.xz")
+set(RV_STEAMRT4_SHA256 "aa9dd1aab2173e65b631faae34b85e2c17fe323d941013154ddd2e1dce8a0910")
+set(RV_STEAMRT4_FILE "SteamLinuxRuntime_4-${RV_STEAMRT4_VERSION}.tar.xz")
+# The SDK archive's top entry is ./, so it extracts to the sysroot root.
+set(RV_STEAMRT4_SDK_BASE "https://repo.steampowered.com/steamrt4/images/${RV_STEAMRT4_VERSION}/")
+set(RV_STEAMRT4_SDK_URL "${RV_STEAMRT4_SDK_BASE}com.valvesoftware.SteamRuntime.Sdk-amd64%2Ci386-steamrt4-sysroot.tar.gz")
+set(RV_STEAMRT4_SDK_SHA256 "c01a7507cea248c231412f3d70563501899c3e77a8c9f08078a7c7cf30bee6a6")
+set(RV_STEAMRT4_SDK_FILE "steamrt4-sdk-sysroot-${RV_STEAMRT4_VERSION}.tar.gz")
+
+# Build-tree dirs, declared once. rv_fetch.cmake replaces its target dir as a whole, so the runtime is reached through a link.
+set(RV_HOST_STEAMRT4_DIR "${CMAKE_BINARY_DIR}/steamrt4")
+set(RV_HOST_RUNTIME "${CMAKE_BINARY_DIR}/SteamLinuxRuntime_4")
+set(RV_STEAMRT4_SDK_DIR "${CMAKE_BINARY_DIR}/steamrt4-sdk")
+set(RV_HOST_INNER "${CMAKE_BINARY_DIR}/sdk")
+
+# Downloads of the pinned files, outside the build dir. rv_fetch.cmake deletes an archive after a successful extraction;
+# it keeps the archive of a failed extraction and the partial file of an interrupted download; a fresh build dir resumes them.
+if(NOT RV_FETCH_CACHE)
+    if(NOT "$ENV{XDG_CACHE_HOME}" STREQUAL "")
+        set(rv_cache_base "$ENV{XDG_CACHE_HOME}")
+    elseif(NOT "$ENV{HOME}" STREQUAL "")
+        set(rv_cache_base "$ENV{HOME}/.cache")
+    else()
+        message(FATAL_ERROR "neither XDG_CACHE_HOME nor HOME is set, so there is no download cache: "
+                "pass -DRV_FETCH_CACHE=<dir>")
+    endif()
+    # FORCE: an empty -DRV_FETCH_CACHE= is a cache entry that a plain CACHE set would keep.
+    set(RV_FETCH_CACHE "${rv_cache_base}/3dmppc/downloads"
+        CACHE PATH "Downloads of the pinned files (rv_fetch.cmake)" FORCE)
+endif()
+# pressure-vessel's --filesystem needs an absolute path.
+get_filename_component(RV_FETCH_CACHE "${RV_FETCH_CACHE}" ABSOLUTE)
+
+# curl is the only host program the downloads need; rv_fetch.cmake gets the same binary through RV_CURL.
+find_program(RV_CURL curl)
+if(NOT RV_CURL)
+    message(FATAL_ERROR "curl is not found: it downloads the Steam Runtime 4 files; install the curl package")
+endif()
+
+set(RV_HOST_FETCH_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/rv_fetch.cmake")
+
+# Fetches one pin into the cache and extracts it into dir; rv_fetch.cmake skips a dir that already matches its stamp.
+function(rv_host_fetch url sha256 name dir)
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}"
+                "-DRV_FETCH_URL=${url}"
+                "-DRV_FETCH_SHA256=${sha256}"
+                "-DRV_FETCH_FILE=${RV_FETCH_CACHE}/${name}"
+                "-DRV_FETCH_DIR=${dir}"
+                "-DRV_CURL=${RV_CURL}"
+                -P "${RV_HOST_FETCH_SCRIPT}"
+        RESULT_VARIABLE rc)
+    if(NOT rc EQUAL 0)
+        message(FATAL_ERROR "fetching ${name} failed (exit ${rc}): the message above says why; the next configure resumes it")
+    endif()
+endfunction()
+
+file(MAKE_DIRECTORY "${RV_FETCH_CACHE}")
+rv_host_fetch("${RV_STEAMRT4_URL}" "${RV_STEAMRT4_SHA256}" "${RV_STEAMRT4_FILE}" "${RV_HOST_STEAMRT4_DIR}")
+rv_host_fetch("${RV_STEAMRT4_SDK_URL}" "${RV_STEAMRT4_SDK_SHA256}" "${RV_STEAMRT4_SDK_FILE}" "${RV_STEAMRT4_SDK_DIR}")
+
+file(REMOVE "${RV_HOST_RUNTIME}")
+file(CREATE_LINK "${RV_HOST_STEAMRT4_DIR}/SteamLinuxRuntime_4" "${RV_HOST_RUNTIME}" SYMBOLIC RESULT link_rc)
+if(NOT link_rc EQUAL 0)
+    message(FATAL_ERROR "cannot link ${RV_HOST_RUNTIME} to ${RV_HOST_STEAMRT4_DIR}/SteamLinuxRuntime_4: ${link_rc}")
+endif()
+
+# The wrap runs from the fetched runtime and needs the host's user namespaces; nothing here checks that.
+set(RV_HOST_WRAP "${RV_HOST_RUNTIME}/pressure-vessel/bin/pressure-vessel-wrap")
+if(NOT EXISTS "${RV_HOST_WRAP}")
+    message(FATAL_ERROR "no ${RV_HOST_WRAP}: the extracted Steam Linux Runtime 4 has no pressure-vessel-wrap")
+endif()
+
+# The inner configure gets the project options the user gave, the build type and the download cache.
+get_cmake_property(cache_vars CACHE_VARIABLES)
+set(inner_opts "-DRV_FETCH_CACHE=${RV_FETCH_CACHE}")
+foreach(var IN LISTS cache_vars)
+    if("${var}" MATCHES "^3DMPPC_")
+        list(APPEND inner_opts "-D${var}=${${var}}")
+    endif()
+endforeach()
+if(CMAKE_BUILD_TYPE)
+    list(APPEND inner_opts "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
+endif()
+
+# pressure-vessel mounts the SDK as the runtime; the source, build and download cache dirs are the paths it must open
+# (the devkit targets of the inner build fetch into the cache).
+execute_process(
+    COMMAND "${RV_HOST_WRAP}" "--runtime=${RV_STEAMRT4_SDK_DIR}" --batch
+            "--filesystem=${CMAKE_SOURCE_DIR}" "--filesystem=${CMAKE_BINARY_DIR}" "--filesystem=${RV_FETCH_CACHE}"
+            --
+            cmake -S "${CMAKE_SOURCE_DIR}" -B "${RV_HOST_INNER}" -G Ninja
+            "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/rv_steamrt4_toolchain.cmake"
+            "-DRV_STEAMRT4_SDK=${RV_STEAMRT4_SDK_DIR}"
+            ${inner_opts}
+    RESULT_VARIABLE rc)
+if(NOT rc EQUAL 0)
+    message(FATAL_ERROR "the inner configure in ${RV_HOST_INNER} failed (exit ${rc})")
+endif()

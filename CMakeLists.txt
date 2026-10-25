@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
 
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_TOOLCHAIN_FILE)
+  project(3dmppc LANGUAGES NONE)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_steamrt4_host.cmake)
+  return()
+endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
