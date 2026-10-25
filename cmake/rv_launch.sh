@@ -1,7 +1,8 @@
 #!/bin/sh
-# Starts root/bin/<name> inside Steam Linux Runtime 4. Copied as <root>/<name> into each delivery.
+# Starts root/bin/<name> inside a runtime: root/steamrt4-sdk when the delivery has it (development kit),
+# else Steam Linux Runtime 4 Platform (player). Copied as <root>/<name> into each delivery.
 # The ELF runs only inside this delivery's pressure-vessel; nested calls exec it directly,
-# because a nested `run` fails. Needs GNU readlink -f and /proc: Linux only.
+# without a nested pressure-vessel launch (run, unruntime or wrap). Needs GNU readlink -f and /proc: Linux only.
 set -eu
 
 # Real path, so a symlink to this file still finds its delivery.
@@ -9,9 +10,8 @@ me="$(readlink -f "$0")"
 root="${me%/*}"
 name="${me##*/}"
 elf="${root}/bin/${name}"
-run="${root}/SteamLinuxRuntime_4/run"
 
-# Inside check: the markers come from the parent launch. This guards against a nested run;
+# Inside check: the markers come from the parent launch. This guards against a nested pressure-vessel launch;
 # it is not a security boundary, since any process can set these variables.
 if [ "${RV_LAUNCH_ROOT:-}" = "${root}" ] && [ "${container:-}" = pressure-vessel ] && [ -d /run/host ]; then
     # Development kit tools. An unmatched glob stays literal and fails the -d test.
@@ -30,13 +30,29 @@ if [ "${RV_LAUNCH_ROOT:-}" = "${root}" ] && [ "${container:-}" = pressure-vessel
     exec "${elf}" "$@"
 fi
 
+# Development kit: its SDK is the runtime (clang 19, CMake, Ninja, GNU ld, readelf for disc.so).
+# The player delivery has none. unruntime, as run uses it, prepares the host environment for
+# pressure-vessel (it drops the host's Steam Runtime variables). The SDK is bound in place, never
+# copied (3.4 GB), so the host's runtime and copy variables are unset here. The "Cannot modify
+# /usr when not copying runtime" warning is therefore expected on every launch.
+sdk="${root}/steamrt4-sdk"
+if [ -d "${sdk}" ]; then
+    launcher="${root}/SteamLinuxRuntime_4/pressure-vessel/bin/pressure-vessel-unruntime"
+    runtime="--runtime=${sdk}"
+    unset PRESSURE_VESSEL_COPY_RUNTIME PRESSURE_VESSEL_RUNTIME PRESSURE_VESSEL_RUNTIME_ARCHIVE
+    unset PRESSURE_VESSEL_RUNTIME_BASE PRESSURE_VESSEL_ARCHITECTURES
+else
+    launcher="${root}/SteamLinuxRuntime_4/run"
+    runtime=
+fi
+
 if [ ! -x "${elf}" ]; then
     printf 'rv_launch: not executable: %s\n' "${elf}" >&2
     exit 127
 fi
 
-if [ ! -x "${run}" ]; then
-    printf 'rv_launch: not executable: %s\n' "${run}" >&2
+if [ ! -x "${launcher}" ]; then
+    printf 'rv_launch: not executable: %s\n' "${launcher}" >&2
     exit 127
 fi
 
@@ -65,5 +81,6 @@ for f in /proc/$$/fd/*; do
     fi
     set -- --pass-fd="${n}" "$@"
 done
-set -- --filesystem=host --pass-fd=9 "$@"
-exec "${run}" "$@"
+# Inner quotes keep a runtime path with spaces one argument; an empty runtime (player) adds none.
+set -- ${runtime:+"${runtime}"} --filesystem=host --pass-fd=9 "$@"
+exec "${launcher}" "$@"
