@@ -41,18 +41,22 @@ if(NOT IS_DIRECTORY "${RV_PLAYER_RUNTIME}")
 endif()
 
 # Rebuilt from scratch every run: a file left by an earlier tree or zip must not ship.
+message(STATUS "Removing the previous tree: ${RV_PLAYER_TREE}")
 file(REMOVE_RECURSE "${RV_PLAYER_TREE}")
 if(RV_PLAYER_ZIP)
+    message(STATUS "Removing the previous zip: ${RV_PLAYER_ZIP}")
     file(REMOVE "${RV_PLAYER_ZIP}")
 endif()
 file(MAKE_DIRECTORY "${RV_PLAYER_TREE}/bin" "${RV_PLAYER_TREE}/LICENSES")
 
+message(STATUS "Copying the console to ${RV_PLAYER_TREE}/bin and the launch file to ${RV_PLAYER_TREE}")
 # bin/ is left writable, with no memcard or modes.toml shipped: the console writes them beside its ELF.
 file(COPY_FILE "${RV_PLAYER_ELF}" "${RV_PLAYER_TREE}/bin/${RV_PLAYER_NAME}")
 file(CHMOD "${RV_PLAYER_TREE}/bin/${RV_PLAYER_NAME}" PERMISSIONS ${RV_PLAYER_EXEC_PERMISSIONS})
 file(COPY_FILE "${RV_PLAYER_LAUNCH}" "${RV_PLAYER_TREE}/${RV_PLAYER_NAME}")
 file(CHMOD "${RV_PLAYER_TREE}/${RV_PLAYER_NAME}" PERMISSIONS ${RV_PLAYER_EXEC_PERMISSIONS})
 
+message(STATUS "Copying Steam Linux Runtime 4 to ${RV_PLAYER_TREE}/SteamLinuxRuntime_4: the container that runs the console")
 # file(COPY) keeps the runtime's symlinks and permissions; the tree is a copy, never a link into the build dir.
 # The runtime's var/ is pressure-vessel's run state (thousands of files, absolute links into the builder's
 # ~/.local/share/Steam), written when the runtime was run from the build tree; it is not shipped.
@@ -63,12 +67,14 @@ file(COPY "${RV_PLAYER_RUNTIME_DIR}/" DESTINATION "${RV_PLAYER_TREE}/SteamLinuxR
      REGEX "^${RV_PLAYER_RUNTIME_RE}/var$" EXCLUDE)
 
 # The runtime's own depot version, e.g. 4.0.20261021.265997.
+message(STATUS "Reading the runtime version from ${RV_PLAYER_RUNTIME}/VERSIONS.txt")
 file(READ "${RV_PLAYER_RUNTIME}/VERSIONS.txt" RV_PLAYER_RUNTIME_VERSIONS)
 string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+" RV_PLAYER_RUNTIME_VER "${RV_PLAYER_RUNTIME_VERSIONS}")
 if("${RV_PLAYER_RUNTIME_VER}" STREQUAL "")
     message(FATAL_ERROR "no depot version in ${RV_PLAYER_RUNTIME}/VERSIONS.txt")
 endif()
 
+message(STATUS "Writing LICENSES/LuaJIT.txt and VERSIONS.txt to ${RV_PLAYER_TREE}")
 file(COPY_FILE "${RV_PLAYER_LUAJIT_COPYRIGHT}" "${RV_PLAYER_TREE}/LICENSES/LuaJIT.txt")
 file(WRITE "${RV_PLAYER_TREE}/VERSIONS.txt"
     "3dmppc ${RV_PLAYER_VER_MAJOR}.${RV_PLAYER_VER_MINOR}\n"
@@ -76,6 +82,7 @@ file(WRITE "${RV_PLAYER_TREE}/VERSIONS.txt"
     "LuaJIT ${RV_PLAYER_LUAJIT_COMMIT}\n")
 
 # The ELF must need only what this tree's own runtime defines; the check reads the copy, not the build's link.
+message(STATUS "Checking bin/${RV_PLAYER_NAME} against the tree's runtime: a failure stops the run before zip")
 execute_process(
     COMMAND "${CMAKE_COMMAND}"
             "-DRV_COMPAT_FILES=${RV_PLAYER_TREE}/bin/${RV_PLAYER_NAME}"
@@ -88,6 +95,7 @@ if(NOT RV_PLAYER_COMPAT_RESULT EQUAL 0)
 endif()
 
 if(RV_PLAYER_ZIP)
+    message(STATUS "Zipping ${RV_PLAYER_TREE} to ${RV_PLAYER_ZIP}")
     # Run from the parent so the archive's top dir is the root's name; -y keeps the runtime's symlinks.
     execute_process(
         COMMAND "${RV_PLAYER_ZIP_PROGRAM}" -r -y -q "${RV_PLAYER_ZIP}" "${RV_PLAYER_ROOT_NAME}"
