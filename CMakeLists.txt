@@ -286,12 +286,12 @@ endif()
 # (which is -rdynamic) the executable's dynamic symbol table is empty and neither
 # side finds anything.
 #
-# The binary lands in build/pconsole/, next to its modes.toml and its default
+# The binary lands in build/bin/, next to its modes.toml and its default
 # memory card.
 if(NOT 3DMPPC_WEB_KIT)
   set_target_properties(3dmppc PROPERTIES
     ENABLE_EXPORTS ON
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/pconsole)
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 endif()
 
 target_include_directories(3dmppc PRIVATE src)
@@ -347,7 +347,7 @@ endif()
 # builds the authoring tools (pdk/tools/) and the editor (editor/). Each stays
 # its own CMake project, configured in its own subdirectory of this build tree
 # and linking nothing from here; only their binaries land next to the console
-# in pconsole/. Both still build on their own with their own command.
+# in bin/. Both still build on their own with their own command.
 if(3DMPPC_DEVTOOLS)
   include(ExternalProject)
   # The pinned development kit tools (fetched by 3dmppc_devkit_tools); Linux only, as Steam Linux Runtime 4 is.
@@ -375,14 +375,14 @@ if(3DMPPC_DEVTOOLS)
   ExternalProject_Add(3dmppc_pdktools
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/pdk/tools
     BINARY_DIR ${CMAKE_BINARY_DIR}/pdktools
-    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/pconsole
+    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/bin
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
   )
   ExternalProject_Add(3dmppc_editor
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/editor
     BINARY_DIR ${CMAKE_BINARY_DIR}/editor
-    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/pconsole
+    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/bin
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
   )
@@ -401,14 +401,14 @@ if(3DMPPC_DEVTOOLS)
     INSTALL_COMMAND ""
   )
   # The player delivery tree (player-tree) exists only where the player delivery does: Linux, LuaJIT, not
-  # Emscripten, not static disc. There pconsole/firmware/ is that tree (launch file 3dmppc, bin/3dmppc, the
-  # runtime, LICENSES/, VERSIONS.txt); the web kit is in pconsole/firmware/web. Elsewhere it is the bare
-  # ELF at pconsole/firmware/3dmppc.
+  # Emscripten, not static disc. There bin/firmware/ is that tree (launch file 3dmppc, bin/3dmppc, the
+  # runtime, LICENSES/, VERSIONS.txt); the web kit is in bin/firmware/web. Elsewhere it is the bare
+  # ELF at bin/firmware/3dmppc.
   set(RV_FIRMWARE_TREE OFF)
-  set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc)
+  set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/bin/firmware/3dmppc)
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN AND 3DMPPC_LUAJIT AND NOT 3DMPPC_STATIC_DISC)
     set(RV_FIRMWARE_TREE ON)
-    set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/pconsole/firmware/bin/3dmppc)
+    set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/bin/firmware/bin/3dmppc)
   endif()
   if(RV_FIRMWARE_TREE)
     # A step after the nested default build, so that build stays as it is.
@@ -420,24 +420,24 @@ if(3DMPPC_DEVTOOLS)
     # cp -a, not copy_directory: copy_directory dereferences the runtime's symlinks. Files of an older
     # tree stay in place; web/ is not touched.
     ExternalProject_Add_Step(3dmppc_firmware copy_firmware
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pconsole/firmware
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin/firmware
       COMMAND cp -a --remove-destination ${CMAKE_BINARY_DIR}/firmware-build/player/3dmppc-player/.
-              ${CMAKE_BINARY_DIR}/pconsole/firmware/
+              ${CMAKE_BINARY_DIR}/bin/firmware/
       DEPENDEES player_tree
       ALWAYS 1
     )
   else()
     ExternalProject_Add_Step(3dmppc_firmware copy_firmware
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pconsole/firmware
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin/firmware
       COMMAND ${CMAKE_COMMAND} -E copy
-              ${CMAKE_BINARY_DIR}/firmware-build/pconsole/3dmppc
+              ${CMAKE_BINARY_DIR}/firmware-build/bin/3dmppc
               ${RV_FIRMWARE_ELF}
       DEPENDEES build
       ALWAYS 1
     )
   endif()
 
-  # mppcburner, in <build>/pconsole, checks disc.so with the copy in <build>/tools/ (see cmake/rv_steamrt4_runtime.cmake).
+  # mppcburner, in <build>/bin, checks disc.so with the copy in <build>/tools/ (see cmake/rv_steamrt4_runtime.cmake).
   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_compat_check.cmake
                  ${CMAKE_BINARY_DIR}/tools/linux-compat-check.cmake COPYONLY)
 
@@ -446,12 +446,12 @@ if(3DMPPC_DEVTOOLS)
   # so it does not rebuild them; it reads the runtime in RV_STEAMRT4_DIR, which the host half fetched.
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN)
     set(RV_COMPAT_PRODUCTS
-        ${CMAKE_BINARY_DIR}/pconsole/3dmppc
-        ${CMAKE_BINARY_DIR}/pconsole/3dmppc-editor
-        ${CMAKE_BINARY_DIR}/pconsole/mppcburner
-        ${CMAKE_BINARY_DIR}/pconsole/mppctexbaker
-        ${CMAKE_BINARY_DIR}/pconsole/mppcmusbaker
-        ${CMAKE_BINARY_DIR}/pconsole/mppcmodbaker
+        ${CMAKE_BINARY_DIR}/bin/3dmppc
+        ${CMAKE_BINARY_DIR}/bin/3dmppc-editor
+        ${CMAKE_BINARY_DIR}/bin/mppcburner
+        ${CMAKE_BINARY_DIR}/bin/mppctexbaker
+        ${CMAKE_BINARY_DIR}/bin/mppcmusbaker
+        ${CMAKE_BINARY_DIR}/bin/mppcmodbaker
         ${RV_FIRMWARE_ELF})
     add_custom_target(check-linux-compat
       COMMAND ${CMAKE_COMMAND}

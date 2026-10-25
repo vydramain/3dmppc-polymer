@@ -45,7 +45,7 @@ set(RV_WEBKIT_CMAKE_ARGS
   -D3DMPPC_LUAJIT=OFF
   -D3DMPPC_STATIC_DISC=ON
   -D3DMPPC_WEB_KIT=ON
-  -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/pconsole/firmware/web
+  -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/bin/firmware/web
 )
 # A system SDL3 is native and cannot link into wasm: the kit takes the SDL3 source the dev build fetched, else fetches its own.
 if(DEFINED sdl3_SOURCE_DIR)
@@ -55,7 +55,7 @@ endif()
 message(STATUS
   "web kit: built by a nested build in "
   "${CMAKE_BINARY_DIR}/webkit-build at build time, installed to "
-  "${CMAKE_BINARY_DIR}/pconsole/firmware/web")
+  "${CMAKE_BINARY_DIR}/bin/firmware/web")
 ExternalProject_Add(3dmppc_webkit
   SOURCE_DIR ${CMAKE_SOURCE_DIR}
   BINARY_DIR ${CMAKE_BINARY_DIR}/webkit-build

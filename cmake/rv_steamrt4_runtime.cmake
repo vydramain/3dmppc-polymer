@@ -1,6 +1,6 @@
 # The Steam Linux Runtime 4 of the Linux delivery, as the inner build uses it. The host half (cmake/rv_steamrt4_host.cmake)
 # fetches the pinned runtime once and passes its dir as RV_STEAMRT4_DIR; nothing here downloads.
-# ${CMAKE_BINARY_DIR}/SteamLinuxRuntime_4 links to it: mppcburner, in <build>/pconsole, finds the link and the copy of
+# ${CMAKE_BINARY_DIR}/SteamLinuxRuntime_4 links to it: mppcburner, in <build>/bin, finds the link and the copy of
 # cmake/rv_linux_compat_check.cmake named <build>/tools/linux-compat-check.cmake (R/SteamLinuxRuntime_4 and R/tools/,
 # R the parent of its dir).
 # RV_FETCH_CACHE is the download cache of the external build (Steam Linux Runtime 4, SDK) and of the devkit tools
