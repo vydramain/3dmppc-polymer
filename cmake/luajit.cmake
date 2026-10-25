@@ -15,10 +15,7 @@ FetchContent_Declare(
 if(FETCHCONTENT_SOURCE_DIR_LUAJIT)
   set(LUAJIT_SOURCE_STATE "source given: ${FETCHCONTENT_SOURCE_DIR_LUAJIT}, no clone")
 else()
-  string(CONCAT LUAJIT_SOURCE_STATE
-    "pinned commit ${RV_LUAJIT_COMMIT} cloned from ${RV_LUAJIT_URL} into ${FETCHCONTENT_BASE_DIR}/luajit-src "
-    "unless an earlier configure already cloned it"
-  )
+  set(LUAJIT_SOURCE_STATE "pinned commit in ${FETCHCONTENT_BASE_DIR}/luajit-src")
 endif()
 message(STATUS "LuaJIT, not from the system: ${LUAJIT_SOURCE_STATE}")
 FetchContent_MakeAvailable(LuaJIT)
@@ -40,17 +37,28 @@ file(COPY ${luajit_SOURCE_DIR}/ DESTINATION ${LUAJIT_BUILD_DIR}
 # LuaJIT's Makefile defaults to gcc; the product is built with clang (the Steam Runtime 4 SDK's clang, on PATH
 # inside the build), and buildvm runs on the same machine, so HOST_CC is the same.
 set(LUAJIT_MAKE_ARGS CC=clang HOST_CC=clang)
+set(LUAJIT_MAKE_CMD make -C ${LUAJIT_BUILD_DIR}/src ${LUAJIT_MAKE_ARGS} libluajit.a)
+# rv_log.cmake takes the command as one -D value; the ';' separators are written as $<SEMICOLON> so VERBATIM passes them intact.
+string(REPLACE ";" "$<SEMICOLON>" LUAJIT_MAKE_CMD_GEN "${LUAJIT_MAKE_CMD}")
+set(LUAJIT_MAKE_LOG ${CMAKE_BINARY_DIR}/logs/luajit-make.log)
+# Base for the paths the script prints: the user's build dir (the root's RV_LOG_BASE), else this build's.
+if("${RV_LOG_BASE}" STREQUAL "")
+  set(LUAJIT_LOG_BASE ${CMAKE_BINARY_DIR})
+else()
+  set(LUAJIT_LOG_BASE ${RV_LOG_BASE})
+endif()
 # A custom target has no outputs, so it runs on every build; make decides what to rebuild.
-# LUAJIT_MAKER_COMMENT explains the make warning about the rolling release version.
-string(CONCAT LUAJIT_MAKER_COMMENT
-  "Building libluajit.a with LuaJIT make in ${LUAJIT_BUILD_DIR}; "
-  "if make prints the 'rolling release version' warning, it is expected: "
-  "the copy has no .git, so the LuaJIT version line has no rolling release number; the pinned commit sets the sources"
-)
+# make warns 'rolling release version': expected, the copy has no .git, so the version line has no release number;
+# the pinned commit sets the sources.
 add_custom_target(libluajit_maker
-  COMMAND make -C ${LUAJIT_BUILD_DIR}/src ${LUAJIT_MAKE_ARGS} libluajit.a
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/logs
+  COMMAND ${CMAKE_COMMAND}
+          -DRV_LOG_CMD=${LUAJIT_MAKE_CMD_GEN}
+          -DRV_LOG_FILE=${LUAJIT_MAKE_LOG}
+          -DRV_LOG_BASE=${LUAJIT_LOG_BASE}
+          -P ${CMAKE_CURRENT_LIST_DIR}/rv_log.cmake
   BYPRODUCTS ${LUAJIT_BUILD_DIR}/src/libluajit.a
-  COMMENT "${LUAJIT_MAKER_COMMENT}"
+  COMMENT "Building libluajit.a with LuaJIT make"
   VERBATIM
 )
 add_library(libluajit STATIC IMPORTED)
