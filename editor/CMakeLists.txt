@@ -189,6 +189,7 @@ target_link_libraries(3dmppc-editor PRIVATE Threads::Threads)
 # the editor finds them from its own executable, so a delivery can be moved as a whole.
 # copy_directory does not prune: a file removed from a copied dir stays in the copy; a removed single-file source fails the build.
 add_custom_target(3dmppc-editor-resources ALL VERBATIM
+  COMMENT "Copying the editor resources (icons, fonts, Neovim setup, disc templates) into editor/ beside the executable"
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/third_party/win55-icons
     $<TARGET_FILE_DIR:3dmppc-editor>/editor/icons
   COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:3dmppc-editor>/editor/fonts
