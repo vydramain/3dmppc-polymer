@@ -204,7 +204,7 @@ static int rv_burner_build_compile(const rv_burner_options &options,
         return clear_err;
     }
 
-    // An empty toolchain_file: the build runs in the Steam Runtime 4 SDK, which needs no toolchain file.
+    // Empty toolchain_file: a build directory without steamrt4-toolchain.cmake, so the compiler comes from PATH.
     const int configure_err = configure_cmake(binary_dir, project_dir, error, toolchain_file);
     if (configure_err != RV_OK) {
         rv_burner_print_error(error);

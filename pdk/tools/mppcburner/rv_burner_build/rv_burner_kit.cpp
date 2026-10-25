@@ -26,7 +26,7 @@ constexpr std::string_view kKitFileName = "kit.txt";
 constexpr std::string_view kNoKitHint = "a development build (-D3DMPPC_DEVTOOLS=ON) makes it";
 
 // The Steam Runtime 4 reference sits in R, the parent of the burner's directory. The compat check and the
-// runtime are required; the toolchain file exists only where the build cross-compiles against the SDK sysroot.
+// runtime are required; the toolchain file comes with the delivery and sets its Steam Runtime 4 SDK as the sysroot.
 constexpr std::string_view kToolsSubdir = "tools";
 constexpr std::string_view kLinuxToolchainName = "steamrt4-toolchain.cmake";
 constexpr std::string_view kLinuxCompatName = "linux-compat-check.cmake";
@@ -409,7 +409,8 @@ int rv_pdktools::rv_burner_linux_kit_locate(fs::path &toolchain_file,
         return RV_ERR_NOENT;
     }
 
-    // Absent is the SDK build, which needs no toolchain file; only an unreadable path is an error.
+    // Absent in a build directory (no steamrt4-toolchain.cmake in tools/): the compiler comes from PATH.
+    // Only an unreadable path is an error.
     const fs::path toolchain = tools_dir / kLinuxToolchainName;
     if (fs::exists(toolchain, ec)) {
         toolchain_file = toolchain;
