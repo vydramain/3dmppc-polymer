@@ -367,6 +367,9 @@ if(3DMPPC_DEVTOOLS)
     list(APPEND RV_KIT_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_LUAJIT=${luajit_SOURCE_DIR})
   endif()
 
+  message(STATUS
+    "Nested CMake builds: pdktools/ (mppcburner, bakers), editor/, firmware-build/ (player console); this build prints steps. "
+    "With LuaJIT on, all get FETCHCONTENT_SOURCE_DIR_LUAJIT; editor/ has no LuaJIT, so its unused warning is expected.")
   # BUILD_ALWAYS: this build cannot see their sources, so it asks their own
   # build every time and lets it answer "no work to do".
   ExternalProject_Add(3dmppc_pdktools
