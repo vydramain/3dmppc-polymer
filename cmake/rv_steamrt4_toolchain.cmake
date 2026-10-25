@@ -1,29 +1,33 @@
-# Toolchain for building disc.so against the Steam Runtime 4 Platform. The 3dmppc development kit delivery ships this file
-# as tools/; the Steam Runtime 4 SDK sysroot archive, unpacked, is steamrt4-sdk/ beside it. Inside pressure-vessel the host
-# glibc replaces the Steam Runtime 4 Platform's, so the link needs the untouched Steam Runtime 4 SDK sysroot as --sysroot.
-# Usage: cmake -DCMAKE_TOOLCHAIN_FILE=<delivery>/tools/steamrt4-toolchain.cmake ...
+# Toolchain for the Steam Runtime 4 Platform as target, with the Steam Runtime 4 SDK directory as sysroot.
+# RV_STEAMRT4_SDK is the unpacked Steam Runtime 4 SDK. The internal project build receives it as -DRV_STEAMRT4_SDK=<dir>.
+# The development kit delivery ships this file as tools/steamrt4-toolchain.cmake with steamrt4-sdk beside tools/, which
+# is the default when RV_STEAMRT4_SDK is not given or empty. Inside pressure-vessel the host glibc replaces the SDK's,
+# so the untouched SDK directory must be --sysroot.
+# Usage: cmake -DCMAKE_TOOLCHAIN_FILE=<repo>/cmake/rv_steamrt4_toolchain.cmake [-DRV_STEAMRT4_SDK=<dir>] ...
 
-get_filename_component(RV_STEAMRT4_SYSROOT "${CMAKE_CURRENT_LIST_DIR}/../steamrt4-sdk" ABSOLUTE)
-if(NOT IS_DIRECTORY "${RV_STEAMRT4_SYSROOT}")
-    message(FATAL_ERROR "no Steam Runtime 4 SDK sysroot ${RV_STEAMRT4_SYSROOT}: "
-            "the 3dmppc development kit delivery must ship steamrt4-sdk beside tools/")
+if("${RV_STEAMRT4_SDK}" STREQUAL "")
+    set(RV_STEAMRT4_SDK "${CMAKE_CURRENT_LIST_DIR}/../steamrt4-sdk")
+endif()
+get_filename_component(RV_STEAMRT4_SDK "${RV_STEAMRT4_SDK}" ABSOLUTE)
+if(NOT IS_DIRECTORY "${RV_STEAMRT4_SDK}")
+    message(FATAL_ERROR "no Steam Runtime 4 SDK directory ${RV_STEAMRT4_SDK}: pass -DRV_STEAMRT4_SDK=<unpacked SDK>, "
+            "or ship steamrt4-sdk beside tools/ in a development kit delivery")
 endif()
 
-set(CMAKE_SYSROOT "${RV_STEAMRT4_SYSROOT}")
-set(CMAKE_FIND_ROOT_PATH "${RV_STEAMRT4_SYSROOT}")
+# try_compile projects re-read this file and need the same directory.
+set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES RV_STEAMRT4_SDK)
+
+set(CMAKE_SYSROOT "${RV_STEAMRT4_SDK}")
+set(CMAKE_FIND_ROOT_PATH "${RV_STEAMRT4_SDK}")
 # find_library, find_path and find_package search only the sysroot; find_program is not rerooted, so clang and
-# clang++ come from PATH. lld is reached through -fuse-ld=lld.
+# clang++ come from PATH.
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
-# By name: the delivery puts LLVM first on PATH.
+# By name: the SDK's clang and clang++ live in its /usr/bin, which is on PATH inside the runtime.
 set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang++)
 
-# lld, not GNU ld: the Steam Runtime 4 Platform has no ld; the Steam Runtime 4 SDK's GNU ld needs libbfd,
-# which the Platform lacks.
-set(CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld")
-set(CMAKE_SHARED_LINKER_FLAGS_INIT "-fuse-ld=lld")
-set(CMAKE_MODULE_LINKER_FLAGS_INIT "-fuse-ld=lld")
+# No -fuse-ld: the SDK has no lld, so the link uses its default GNU ld.
