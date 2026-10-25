@@ -1,13 +1,14 @@
 # Updates the 3dmppc devtools delivery tree <tree> (<build>/pconsole/ in the build): bin/ (copied from the dev build's
 # <build>/bin: console, editor, mppcburner, bakers, firmware), the launch copies beside bin/, tools/ (clangd with clang's
 # resource dir: built-in headers and compiler-rt runtimes; Neovim, lua-language-server, the compat check and toolchain),
-# SteamLinuxRuntime_4/, LICENSES/ and VERSIONS.txt. steamrt4-sdk/ at the root is unpacked by the outer build and only read:
-# the launchers run the programs with it, so it is not copied (see the SDK check below).
+# LICENSES/ and VERSIONS.txt. SteamLinuxRuntime_4/ at the root is a relative link to bin/firmware/SteamLinuxRuntime_4, the
+# one runtime copy. steamrt4-sdk/ at the root is unpacked by the outer build and only read: the launchers run the programs
+# with it, so it is not copied (see the SDK check below).
 # devtools-tree runs this in ALL, so each build updates the tree in place. bin/ is never cleared: the player's memcard and
-# modes.toml live there. A file the build dropped stays until deleted by hand. The runtime copy is replaced only when its
-# VERSIONS.txt differs. Every input runs before the first write. The compat check covers the executables and shared
-# objects of this run's ELF sources (what is copied now), not object files, .mppcburn/ projects or files an earlier
-# build left. No project license is shipped: the repository has none.
+# modes.toml live there. A file the build dropped stays until deleted by hand. A real SteamLinuxRuntime_4/ directory left
+# by an older build (with var/) is replaced by the link. Every input runs before the first write. The compat check covers
+# the executables and shared objects of this run's ELF sources (what is copied now), not object files, .mppcburn/ projects
+# or files an earlier build left. No project license is shipped: the repository has none.
 #
 # Run: cmake -DRV_DEVTOOLS_BIN=<build>/bin -DRV_DEVTOOLS_LAUNCH=<rv_launch.sh> -DRV_DEVTOOLS_LLVM=<LLVM 19.1.7 release dir>
 #            -DRV_DEVTOOLS_NVIM=<nvim dir>
@@ -58,6 +59,12 @@ foreach(name IN LISTS RV_DEVTOOLS_LAUNCH_NAMES)
         message(FATAL_ERROR "RV_DEVTOOLS_BIN has no ${name}: the launch copy needs ${RV_DEVTOOLS_BIN}/${name}")
     endif()
 endforeach()
+# The root runtime link leads to this source's copy in bin/, so the source must have the runtime.
+set(RV_DEVTOOLS_RUNTIME_SRC "${RV_DEVTOOLS_BIN}/firmware/SteamLinuxRuntime_4")
+if(NOT IS_DIRECTORY "${RV_DEVTOOLS_RUNTIME_SRC}")
+    message(FATAL_ERROR "RV_DEVTOOLS_BIN has no firmware/SteamLinuxRuntime_4: the runtime link needs "
+            "${RV_DEVTOOLS_RUNTIME_SRC}")
+endif()
 if(NOT EXISTS "${RV_DEVTOOLS_LLVM}/bin/clangd")
     message(FATAL_ERROR "RV_DEVTOOLS_LLVM has no bin/clangd: the tree copies ${RV_DEVTOOLS_LLVM}/bin/clangd")
 endif()
@@ -205,30 +212,21 @@ file(COPY "${RV_DEVTOOLS_LUALS}/" DESTINATION "${RV_DEVTOOLS_TREE}/tools/lua-lan
 file(COPY_FILE "${RV_DEVTOOLS_COMPAT_CHECK}" "${RV_DEVTOOLS_TREE}/tools/linux-compat-check.cmake")
 file(COPY_FILE "${RV_DEVTOOLS_TOOLCHAIN}" "${RV_DEVTOOLS_TREE}/tools/steamrt4-toolchain.cmake")
 
-# The runtime copy is current when its VERSIONS.txt equals the source's; a missing or different copy is replaced whole.
-# Its pressure-vessel starts the bin/ programs; the compat check uses it as its platform.
-set(RV_DEVTOOLS_RUNTIME_COPY "${RV_DEVTOOLS_TREE}/SteamLinuxRuntime_4")
-set(RV_DEVTOOLS_RUNTIME_COPY_VERSIONS "")
-if(EXISTS "${RV_DEVTOOLS_RUNTIME_COPY}/VERSIONS.txt")
-    file(READ "${RV_DEVTOOLS_RUNTIME_COPY}/VERSIONS.txt" RV_DEVTOOLS_RUNTIME_COPY_VERSIONS)
+# The runtime is copied once, with bin/, and the root name links to that copy: relative, so the tree can be moved.
+# Its pressure-vessel starts the bin/ programs. A real directory here is an older copy (with var/) and is removed.
+set(RV_DEVTOOLS_RUNTIME_LINK "${RV_DEVTOOLS_TREE}/SteamLinuxRuntime_4")
+set(RV_DEVTOOLS_RUNTIME_TARGET "bin/firmware/SteamLinuxRuntime_4")
+set(RV_DEVTOOLS_RUNTIME_LINKED "")
+if(IS_SYMLINK "${RV_DEVTOOLS_RUNTIME_LINK}")
+    file(READ_SYMLINK "${RV_DEVTOOLS_RUNTIME_LINK}" RV_DEVTOOLS_RUNTIME_LINKED)
 endif()
-if("${RV_DEVTOOLS_RUNTIME_COPY_VERSIONS}" STREQUAL "${RV_DEVTOOLS_RUNTIME_VERSIONS}")
-    rv_log_step("Steam Linux Runtime 4 ${RV_DEVTOOLS_RUNTIME_VER} in ${RV_DEVTOOLS_SHOWN}/SteamLinuxRuntime_4 is current")
+if("${RV_DEVTOOLS_RUNTIME_LINKED}" STREQUAL "${RV_DEVTOOLS_RUNTIME_TARGET}")
+    rv_log_step("${RV_DEVTOOLS_SHOWN}/SteamLinuxRuntime_4 already links to ${RV_DEVTOOLS_RUNTIME_TARGET}")
 else()
-    rv_log_step("Copying Steam Linux Runtime 4 ${RV_DEVTOOLS_RUNTIME_VER} to ${RV_DEVTOOLS_SHOWN}/SteamLinuxRuntime_4")
-    # The copy is built beside the old one and renamed into place only when complete, so an interrupted copy
-    # never leaves a partial tree that carries the current stamp.
-    set(RV_DEVTOOLS_RUNTIME_PART "${RV_DEVTOOLS_RUNTIME_COPY}.part")
-    file(REMOVE_RECURSE "${RV_DEVTOOLS_RUNTIME_PART}")
-    # The regex matches the runtime's full source path, so the path is escaped without a trailing slash; its var/ is
-    # left out as for bin/.
-    string(REGEX REPLACE "/+$" "" RV_DEVTOOLS_RUNTIME_DIR "${RV_DEVTOOLS_RUNTIME}")
-    string(REGEX REPLACE "([][.+*?^$(){}|\\\\])" "\\\\\\1" RV_DEVTOOLS_RUNTIME_RE "${RV_DEVTOOLS_RUNTIME_DIR}")
-    file(COPY "${RV_DEVTOOLS_RUNTIME_DIR}/" DESTINATION "${RV_DEVTOOLS_RUNTIME_PART}"
-         REGEX "^${RV_DEVTOOLS_RUNTIME_RE}/var$" EXCLUDE)
-    # The old copy goes only after the new one is complete.
-    file(REMOVE_RECURSE "${RV_DEVTOOLS_RUNTIME_COPY}")
-    file(RENAME "${RV_DEVTOOLS_RUNTIME_PART}" "${RV_DEVTOOLS_RUNTIME_COPY}")
+    rv_log_step("Linking ${RV_DEVTOOLS_SHOWN}/SteamLinuxRuntime_4 to ${RV_DEVTOOLS_RUNTIME_TARGET}")
+    # On a link REMOVE_RECURSE removes the link only: the copy in bin/ stays.
+    file(REMOVE_RECURSE "${RV_DEVTOOLS_RUNTIME_LINK}")
+    file(CREATE_LINK "${RV_DEVTOOLS_RUNTIME_TARGET}" "${RV_DEVTOOLS_RUNTIME_LINK}" SYMBOLIC)
 endif()
 
 rv_log_step("Copying the licenses to ${RV_DEVTOOLS_SHOWN}/LICENSES")
