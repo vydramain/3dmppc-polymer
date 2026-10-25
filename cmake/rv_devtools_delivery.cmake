@@ -15,9 +15,11 @@
 #            -DRV_DEVTOOLS_TOOLCHAIN=<rv_steamrt4_toolchain.cmake> -DRV_DEVTOOLS_STEAMRT4_SDK=<tree>/steamrt4-sdk
 #            -DRV_DEVTOOLS_RUNTIME=<SteamLinuxRuntime_4 dir> "-DRV_DEVTOOLS_LICENSES=NAME=PATH;..."
 #            "-DRV_DEVTOOLS_VERSIONS=line;..." -DRV_DEVTOOLS_VER_MAJOR=<n> -DRV_DEVTOOLS_VER_MINOR=<n>
-#            -DRV_DEVTOOLS_TREE=<dir> -P <this file>
+#            -DRV_DEVTOOLS_TREE=<dir> [-DRV_DEVTOOLS_BASE=<dir>] [-DRV_DEVTOOLS_COMPAT_REPORT=<file>] -P <this file>
+# BASE (the user's build dir) makes the printed paths relative; COMPAT_REPORT is written only when given.
 
 cmake_minimum_required(VERSION 3.24)
+include(${CMAKE_CURRENT_LIST_DIR}/rv_log.cmake)
 
 foreach(var RV_DEVTOOLS_BIN RV_DEVTOOLS_LAUNCH RV_DEVTOOLS_LLVM RV_DEVTOOLS_NVIM RV_DEVTOOLS_LUALS
             RV_DEVTOOLS_COMPAT_CHECK RV_DEVTOOLS_TOOLCHAIN RV_DEVTOOLS_STEAMRT4_SDK RV_DEVTOOLS_RUNTIME RV_DEVTOOLS_LICENSES
@@ -27,6 +29,13 @@ foreach(var RV_DEVTOOLS_BIN RV_DEVTOOLS_LAUNCH RV_DEVTOOLS_LLVM RV_DEVTOOLS_NVIM
         message(FATAL_ERROR "${var} must be specified via -D${var}=<value>")
     endif()
 endforeach()
+
+# Paths in the log are relative to RV_DEVTOOLS_BASE when it is given.
+set(RV_DEVTOOLS_SHOWN "${RV_DEVTOOLS_TREE}")
+if(NOT "${RV_DEVTOOLS_BASE}" STREQUAL "")
+    rv_log_relpath(RV_DEVTOOLS_SHOWN "${RV_DEVTOOLS_TREE}" "${RV_DEVTOOLS_BASE}")
+endif()
+rv_log_header("Devtools delivery tree ${RV_DEVTOOLS_SHOWN}")
 
 set(RV_DEVTOOLS_EXEC_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
@@ -153,31 +162,30 @@ if(NOT RV_DEVTOOLS_ELFS)
     message(FATAL_ERROR "no ELF file to check under ${RV_DEVTOOLS_BIN} or in the tools' sources")
 endif()
 list(LENGTH RV_DEVTOOLS_ELFS RV_DEVTOOLS_ELF_COUNT)
-message(
-    STATUS
-    "Checking ${RV_DEVTOOLS_ELF_COUNT} ELF files of the sources against Steam Linux Runtime 4 ${RV_DEVTOOLS_RUNTIME_VER} "
-    "(libraries and symbol versions each binary needs)")
+# The check reads the libraries and symbol versions each binary needs, and compares them with the runtime.
+rv_log_step("Checking ${RV_DEVTOOLS_ELF_COUNT} ELF files against Steam Linux Runtime 4 ${RV_DEVTOOLS_RUNTIME_VER}")
 execute_process(
     COMMAND "${CMAKE_COMMAND}"
             "-DRV_COMPAT_FILES=${RV_DEVTOOLS_ELFS}"
             "-DRV_COMPAT_RUNTIME=${RV_DEVTOOLS_RUNTIME}"
+            "-DRV_COMPAT_BASE=${RV_DEVTOOLS_BASE}"
+            "-DRV_COMPAT_REPORT=${RV_DEVTOOLS_COMPAT_REPORT}"
             -P "${CMAKE_CURRENT_LIST_DIR}/rv_linux_compat_check.cmake"
     RESULT_VARIABLE RV_DEVTOOLS_COMPAT_RESULT
 )
 if(NOT RV_DEVTOOLS_COMPAT_RESULT EQUAL 0)
-    message(FATAL_ERROR "the 3dmppc devtools delivery breaks the Linux compatibility contract; see the check above. "
-            "${RV_DEVTOOLS_TREE} is not changed.")
+    message(FATAL_ERROR "the devtools delivery breaks the Linux compatibility contract (see above); "
+            "the tree ${RV_DEVTOOLS_SHOWN} is not changed")
 endif()
 
 # Written in place: existing files are overwritten, and nothing is removed from bin/, tools/ or LICENSES/.
-message(STATUS "Updating the devtools delivery tree in ${RV_DEVTOOLS_TREE}")
 file(MAKE_DIRECTORY "${RV_DEVTOOLS_TREE}/bin" "${RV_DEVTOOLS_TREE}/LICENSES" "${RV_DEVTOOLS_TREE}/tools")
 
 # file(COPY) keeps the symlinks and modes of the dev build's bin/, firmware/SteamLinuxRuntime_4 included.
 # Its var/ is left out: pressure-vessel writes state there, with absolute symlinks into the builder's home.
-message(STATUS "Copying the dev build's bin/ (console, editor, mppcburner, bakers, firmware) to ${RV_DEVTOOLS_TREE}/bin")
+rv_log_step("Copying bin/ (console, editor, mppcburner, bakers, firmware) to ${RV_DEVTOOLS_SHOWN}/bin")
 file(COPY "${RV_DEVTOOLS_BIN}/" DESTINATION "${RV_DEVTOOLS_TREE}/bin" REGEX "/SteamLinuxRuntime_4/var$" EXCLUDE)
-message(STATUS "Adding the launch scripts beside bin/: each runs bin/<its own name>")
+rv_log_step("Adding the launch scripts beside bin/")
 foreach(name IN LISTS RV_DEVTOOLS_LAUNCH_NAMES)
     file(COPY_FILE "${RV_DEVTOOLS_LAUNCH}" "${RV_DEVTOOLS_TREE}/${name}")
     file(CHMOD "${RV_DEVTOOLS_TREE}/${name}" PERMISSIONS ${RV_DEVTOOLS_EXEC_PERMISSIONS})
@@ -186,28 +194,28 @@ endforeach()
 # Only clangd and clang's resource dir (built-in headers, compiler-rt runtimes): the full LLVM tree is over a gigabyte.
 # No compiler is shipped: disc builds use the clang of the Steam Runtime 4 SDK.
 set(RV_DEVTOOLS_LLVM_BIN "${RV_DEVTOOLS_TREE}/tools/llvm/bin")
-message(STATUS "Copying clangd and its resource dir to ${RV_DEVTOOLS_TREE}/tools/llvm")
+rv_log_step("Copying clangd and its resource dir to ${RV_DEVTOOLS_SHOWN}/tools/llvm")
 file(MAKE_DIRECTORY "${RV_DEVTOOLS_LLVM_BIN}")
 file(COPY_FILE "${RV_DEVTOOLS_LLVM}/bin/clangd" "${RV_DEVTOOLS_LLVM_BIN}/clangd")
 file(COPY "${RV_DEVTOOLS_LLVM}/lib/clang/" DESTINATION "${RV_DEVTOOLS_TREE}/tools/llvm/lib/clang")
 
-message(STATUS "Copying Neovim, lua-language-server, the compat check and the toolchain to ${RV_DEVTOOLS_TREE}/tools")
+rv_log_step("Copying Neovim, lua-language-server, compat check, toolchain to ${RV_DEVTOOLS_SHOWN}/tools")
 file(COPY "${RV_DEVTOOLS_NVIM}/" DESTINATION "${RV_DEVTOOLS_TREE}/tools/nvim")
 file(COPY "${RV_DEVTOOLS_LUALS}/" DESTINATION "${RV_DEVTOOLS_TREE}/tools/lua-language-server")
 file(COPY_FILE "${RV_DEVTOOLS_COMPAT_CHECK}" "${RV_DEVTOOLS_TREE}/tools/linux-compat-check.cmake")
 file(COPY_FILE "${RV_DEVTOOLS_TOOLCHAIN}" "${RV_DEVTOOLS_TREE}/tools/steamrt4-toolchain.cmake")
 
 # The runtime copy is current when its VERSIONS.txt equals the source's; a missing or different copy is replaced whole.
+# Its pressure-vessel starts the bin/ programs; the compat check uses it as its platform.
 set(RV_DEVTOOLS_RUNTIME_COPY "${RV_DEVTOOLS_TREE}/SteamLinuxRuntime_4")
 set(RV_DEVTOOLS_RUNTIME_COPY_VERSIONS "")
 if(EXISTS "${RV_DEVTOOLS_RUNTIME_COPY}/VERSIONS.txt")
     file(READ "${RV_DEVTOOLS_RUNTIME_COPY}/VERSIONS.txt" RV_DEVTOOLS_RUNTIME_COPY_VERSIONS)
 endif()
 if("${RV_DEVTOOLS_RUNTIME_COPY_VERSIONS}" STREQUAL "${RV_DEVTOOLS_RUNTIME_VERSIONS}")
-    message(STATUS "Steam Linux Runtime 4 ${RV_DEVTOOLS_RUNTIME_VER} is already in ${RV_DEVTOOLS_RUNTIME_COPY}: not copied")
+    rv_log_step("Steam Linux Runtime 4 ${RV_DEVTOOLS_RUNTIME_VER} in ${RV_DEVTOOLS_SHOWN}/SteamLinuxRuntime_4 is current")
 else()
-    message(STATUS "Copying Steam Linux Runtime 4 ${RV_DEVTOOLS_RUNTIME_VER} to ${RV_DEVTOOLS_RUNTIME_COPY}: "
-                   "its pressure-vessel starts the bin/ programs; the compat check uses it as its platform")
+    rv_log_step("Copying Steam Linux Runtime 4 ${RV_DEVTOOLS_RUNTIME_VER} to ${RV_DEVTOOLS_SHOWN}/SteamLinuxRuntime_4")
     # The copy is built beside the old one and renamed into place only when complete, so an interrupted copy
     # never leaves a partial tree that carries the current stamp.
     set(RV_DEVTOOLS_RUNTIME_PART "${RV_DEVTOOLS_RUNTIME_COPY}.part")
@@ -223,11 +231,12 @@ else()
     file(RENAME "${RV_DEVTOOLS_RUNTIME_PART}" "${RV_DEVTOOLS_RUNTIME_COPY}")
 endif()
 
-message(STATUS "Copying the licenses to ${RV_DEVTOOLS_TREE}/LICENSES")
+rv_log_step("Copying the licenses to ${RV_DEVTOOLS_SHOWN}/LICENSES")
 foreach(pair IN LISTS RV_DEVTOOLS_LICENSES)
     string(REGEX MATCH "^([^=]+)=(.+)$" unused "${pair}")
     file(COPY_FILE "${CMAKE_MATCH_2}" "${RV_DEVTOOLS_TREE}/LICENSES/${CMAKE_MATCH_1}")
 endforeach()
 
-message(STATUS "Writing ${RV_DEVTOOLS_TREE}/VERSIONS.txt with the project, runtime and SDK versions")
+rv_log_step("Writing ${RV_DEVTOOLS_SHOWN}/VERSIONS.txt")
 file(WRITE "${RV_DEVTOOLS_TREE}/VERSIONS.txt" "${RV_DEVTOOLS_VERSIONS_TEXT}")
+rv_log_step("Devtools delivery tree updated")

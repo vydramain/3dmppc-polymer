@@ -17,7 +17,8 @@ set(RV_LLVM_VERSION 19.1.7)
 set(RV_DEVTOOLS_NVIM_URL "https://github.com/neovim/neovim/releases/download/v${RV_NVIM_VERSION}/nvim-linux-x86_64.tar.gz")
 set(RV_DEVTOOLS_NVIM_SHA256 "474430d53e6264f6d6dd18db42d6dc9df3a1b56ca9e88a325bbf860e1a811d87")
 set(RV_DEVTOOLS_NVIM_FILE "nvim-${RV_NVIM_VERSION}-linux-x86_64.tar.gz")
-set(RV_DEVTOOLS_NVIM_NAME "Neovim ${RV_NVIM_VERSION}: the code editor inside 3dmppc-editor")
+# The names are the download headers in the log. Neovim is the code editor inside 3dmppc-editor.
+set(RV_DEVTOOLS_NVIM_NAME "Neovim ${RV_NVIM_VERSION}")
 
 # lua-language-server release ${RV_LUALS_VERSION}.
 set(RV_DEVTOOLS_LUALS_BASE "https://github.com/LuaLS/lua-language-server/releases/download/${RV_LUALS_VERSION}/")
@@ -25,7 +26,8 @@ set(RV_DEVTOOLS_LUALS_URL
     "${RV_DEVTOOLS_LUALS_BASE}lua-language-server-${RV_LUALS_VERSION}-linux-x64.tar.gz")
 set(RV_DEVTOOLS_LUALS_SHA256 "93ad326b10f6c00911dd8c450fa098332dbd8f9f45d1052f5636a2d54479b947")
 set(RV_DEVTOOLS_LUALS_FILE "lua-language-server-${RV_LUALS_VERSION}-linux-x64.tar.gz")
-set(RV_DEVTOOLS_LUALS_NAME "lua-language-server ${RV_LUALS_VERSION}: Lua diagnostics in the editor")
+# Lua diagnostics in the editor.
+set(RV_DEVTOOLS_LUALS_NAME "lua-language-server ${RV_LUALS_VERSION}")
 
 # LLVM release llvmorg-${RV_LLVM_VERSION}, for clangd. GitHub publishes no SHA-256 for the archive: the pin was computed
 # from the download on 2026-10-25.
@@ -33,9 +35,8 @@ set(RV_DEVTOOLS_LLVM_BASE "https://github.com/llvm/llvm-project/releases/downloa
 set(RV_DEVTOOLS_LLVM_URL "${RV_DEVTOOLS_LLVM_BASE}LLVM-${RV_LLVM_VERSION}-Linux-X64.tar.xz")
 set(RV_DEVTOOLS_LLVM_SHA256 "4a5ec53951a584ed36f80240f6fbf8fdd46b4cf6c7ee87cc2d5018dc37caf679")
 set(RV_DEVTOOLS_LLVM_FILE "LLVM-${RV_LLVM_VERSION}-Linux-X64.tar.xz")
-string(CONCAT RV_DEVTOOLS_LLVM_NAME
-    "LLVM ${RV_LLVM_VERSION} release archive: the editor uses only its clangd (C and C++ diagnostics) "
-    "and clang's resource dir (the built-in headers that clangd needs)")
+# Only clangd is used (C and C++ diagnostics), with clang's resource dir (the built-in headers clangd needs).
+set(RV_DEVTOOLS_LLVM_NAME "LLVM ${RV_LLVM_VERSION} (clangd)")
 
 # Extracted dirs, for the packaging that ships them.
 set(RV_DEVTOOLS_DIR "${CMAKE_BINARY_DIR}/devtools")
@@ -97,6 +98,7 @@ add_custom_target(3dmppc_devtools_tools
 # devtools-tree runs it in ALL on this build's outputs: it updates the tree in place in RV_PCONSOLE_DIR (the dev build's
 # pconsole/), where the outer build has unpacked the SDK.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_dv_version.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_log.cmake)
 
 # The SDK the internal build compiles with; the delivery does not copy it, it must be ${RV_PCONSOLE_DIR}/steamrt4-sdk.
 # Its toolchain sets the variable.
@@ -109,8 +111,8 @@ endif()
 set(RV_DEVTOOLS_NVIM_LICENSE_URL "https://raw.githubusercontent.com/neovim/neovim/v${RV_NVIM_VERSION}/LICENSE.txt")
 set(RV_DEVTOOLS_NVIM_LICENSE_SHA256 "de23202ef9a51f5e654034190539739a4abece5505f2ce75e780791106707011")
 set(RV_DEVTOOLS_NVIM_LICENSE_FILE "neovim-${RV_NVIM_VERSION}-LICENSE.txt")
-set(RV_DEVTOOLS_NVIM_LICENSE_NAME
-    "Neovim ${RV_NVIM_VERSION} LICENSE.txt (not in the release archive): shipped with Neovim in the devtools delivery")
+# Not in the release archive, so it is named apart from the Neovim download.
+set(RV_DEVTOOLS_NVIM_LICENSE_NAME "Neovim ${RV_NVIM_VERSION} license")
 rv_devtools_fetch(
     3dmppc_devtools_license_nvim
     "${RV_DEVTOOLS_NVIM_LICENSE_URL}"
@@ -139,6 +141,13 @@ set(RV_DEVTOOLS_VERSION_LINES
     "Neovim ${RV_NVIM_VERSION}"
     "lua-language-server ${RV_LUALS_VERSION}")
 
+# Log paths are relative to the user's build dir (RV_LOG_BASE), else to this build dir, as in rv_devtools_fetch.
+set(RV_DEVTOOLS_BASE "${RV_LOG_BASE}")
+if("${RV_DEVTOOLS_BASE}" STREQUAL "")
+    set(RV_DEVTOOLS_BASE "${CMAKE_BINARY_DIR}")
+endif()
+rv_log_relpath(RV_DEVTOOLS_TREE_REL "${RV_PCONSOLE_DIR}" "${RV_DEVTOOLS_BASE}")
+
 set(RV_DEVTOOLS_DELIVERY_ARGS
     "-DRV_DEVTOOLS_BIN=${CMAKE_BINARY_DIR}/bin"
     "-DRV_DEVTOOLS_LAUNCH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_launch.sh"
@@ -151,7 +160,10 @@ set(RV_DEVTOOLS_DELIVERY_ARGS
     "-DRV_DEVTOOLS_RUNTIME=${RV_STEAMRT4_DIR}"
     "-DRV_DEVTOOLS_VER_MAJOR=${RV_MPPC_VER_MAJOR}"
     "-DRV_DEVTOOLS_VER_MINOR=${RV_MPPC_VER_MINOR}"
-    "-DRV_DEVTOOLS_TREE=${RV_PCONSOLE_DIR}")
+    "-DRV_DEVTOOLS_TREE=${RV_PCONSOLE_DIR}"
+    "-DRV_DEVTOOLS_BASE=${RV_DEVTOOLS_BASE}"
+    # The compat check's per-file report, written on every run (violations included); the check prints its path.
+    "-DRV_DEVTOOLS_COMPAT_REPORT=${CMAKE_BINARY_DIR}/logs/compat-devtools.txt")
 set(RV_DEVTOOLS_DELIVERY_DEPENDS
     3dmppc 3dmppc_editor 3dmppc_pdktools 3dmppc_firmware 3dmppc_webkit 3dmppc_devtools_tools
     3dmppc_devtools_license_nvim)
@@ -163,6 +175,6 @@ add_custom_target(devtools-tree ALL
             "-DRV_DEVTOOLS_LICENSES=${RV_DEVTOOLS_LICENSES}"
             "-DRV_DEVTOOLS_VERSIONS=${RV_DEVTOOLS_VERSION_LINES}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_devtools_delivery.cmake"
-    COMMENT "Updating the 3dmppc devtools delivery tree in ${RV_PCONSOLE_DIR}"
+    COMMENT "Updating the 3dmppc devtools delivery tree in ${RV_DEVTOOLS_TREE_REL}"
     VERBATIM
 )
