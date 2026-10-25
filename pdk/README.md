@@ -691,18 +691,25 @@ bug: the boundary is checked by the toolchain every build.
 ## Disc build - how disc.so is built and checked
 
 In the 3dmppc development kit delivery, programs start through their launch file, which runs them
-inside Steam Linux Runtime 4 and puts the delivery's tools/*/bin first on PATH. A burn therefore
-uses the delivery's clang, lld, CMake and Ninja: it builds disc.so with tools/steamrt4-toolchain.cmake
-against steamrt4-sdk/ (the Steam Runtime 4 SDK sysroot archive, unpacked), not the distribution's
-compiler. The burn then checks disc.so with tools/linux-compat-check.cmake against the delivery's
-Steam Runtime 4 Platform (NEEDED libraries and symbol versions); a failing check fails the burn. The
-check reads ELF with readelf or llvm-readelf, whichever PATH holds; the delivery ships llvm-readelf
-because the Platform has no readelf.
+inside pressure-vessel (Valve's container runner) with the delivery's Steam Runtime 4 SDK,
+steamrt4-sdk/, as the runtime, and puts the delivery's tools/*/bin first on PATH (clangd, Neovim,
+lua-language-server). A burn therefore builds disc.so with the SDK's own clang 19, GNU ld, CMake and
+Ninja, found by name on PATH inside the SDK, through tools/steamrt4-toolchain.cmake, which sets
+steamrt4-sdk/ as the sysroot: disc.so's headers and libraries come from the SDK, not from the
+distribution. The burn then checks disc.so with tools/linux-compat-check.cmake against the
+delivery's Steam Runtime 4 Platform (SteamLinuxRuntime_4/): its NEEDED entries (the shared libraries
+it requires) and symbol versions. A failing check fails the burn. The check reads ELF with the SDK's
+readelf.
 
-Outside a delivery (build-dev/pconsole) the burn uses the compiler on PATH and warns that disc.so is
-not checked against Steam Runtime 4, with the reason.
+Outside a delivery, the burner looks for the reference next to its own directory:
+R/tools/linux-compat-check.cmake and R/SteamLinuxRuntime_4, with R the parent of the burner's
+directory. A build directory such as build-dev/sdk/pconsole has both, so disc.so is checked against
+that build's SteamLinuxRuntime_4. It has no tools/steamrt4-toolchain.cmake, so no sysroot is set and
+the compiler comes from PATH. Without the reference files the burn warns that disc.so is not checked
+against Steam Runtime 4, with the reason.
 
-Why and how: cmake/rv_steamrt4_toolchain.cmake and pdk/tools/mppcburner/rv_burner_build/rv_burner_kit.cpp.
+Why and how: cmake/rv_steamrt4_toolchain.cmake, cmake/rv_linux_compat_check.cmake and
+pdk/tools/mppcburner/rv_burner_build/rv_burner_kit.cpp.
 
 ---
 
