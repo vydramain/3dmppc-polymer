@@ -164,6 +164,28 @@ the console writes `memcard.mppccard` and `modes.toml` beside `bin/3dmppc`; the 
 copied only when its VERSIONS.txt changes; a file the build no longer makes stays until you
 delete `pconsole/` by hand. Steam Linux Runtime 4 keeps its state in `SteamLinuxRuntime_4/var`.
 
+### Build output
+
+The output is split into stages: a blank line and a `== <stage> ==` header for each download,
+for the inner configure in `sdk/`, and for each delivery tree. Paths are relative to the build
+directory (`build/`, `build-dev/`). It has no colours and reads the same in a file, so
+`cmake --build build-dev 2>&1 | tee build.log` keeps everything.
+
+Nested builds and noisy tools write their output to logs in `<build>/sdk/logs/`, unless
+noted. On success the screen shows one line with the log path. On failure it also shows the
+end of the log and the path to the full log.
+
+- `3dmppc_<pdktools|editor|firmware|webkit>-<configure|build|install>.log`: the devtools
+  nested builds. The nested firmware build keeps its own logs in `sdk/firmware-build/logs/`.
+- `emsdk.log`: the Emscripten install for the web kit, once.
+- `luajit-make.log`: the LuaJIT make. Each build that makes LuaJIT writes it to its own `logs/`.
+- `compat-player.txt`, `compat-devtools.txt`: the per-file report of the Steam Linux Runtime 4
+  compatibility check. On screen: one line, or the failing files with their reasons. The
+  nested firmware writes its player check to `sdk/firmware-build/logs/compat-player.txt`.
+
+The player build has no nested builds: its logs are `luajit-make.log` and `compat-player.txt`.
+The pressure-vessel warning about `ld.so.conf` is expected; configure explains it once.
+
 ---
 
 ## Three things that are easy to confuse
