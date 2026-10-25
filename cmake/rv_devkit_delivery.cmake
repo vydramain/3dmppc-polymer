@@ -76,6 +76,7 @@ foreach(pair IN LISTS RV_DEVKIT_LICENSES)
 endforeach()
 
 # Rebuilt from scratch every run: a file left by an earlier tree or zip must not ship.
+message(STATUS "Removing the old development kit tree and zip, if any")
 file(REMOVE_RECURSE "${RV_DEVKIT_TREE}")
 if(RV_DEVKIT_ZIP)
     file(REMOVE "${RV_DEVKIT_ZIP}")
@@ -84,7 +85,9 @@ file(MAKE_DIRECTORY "${RV_DEVKIT_TREE}/bin" "${RV_DEVKIT_TREE}/LICENSES" "${RV_D
 
 # file(COPY) keeps the symlinks and modes of the dev build's pconsole/ tree, firmware/SteamLinuxRuntime_4 included.
 # Its var/ is left out: pressure-vessel writes state there, with absolute symlinks into the builder's home.
+message(STATUS "Copying the dev build's pconsole/ (console, editor, mppcburner, bakers, firmware) to ${RV_DEVKIT_TREE}/bin")
 file(COPY "${RV_DEVKIT_BIN}/" DESTINATION "${RV_DEVKIT_TREE}/bin" REGEX "/SteamLinuxRuntime_4/var$" EXCLUDE)
+message(STATUS "Adding the launch scripts beside bin/: each runs bin/<its own name>")
 foreach(name IN LISTS RV_DEVKIT_LAUNCH_NAMES)
     file(COPY_FILE "${RV_DEVKIT_LAUNCH}" "${RV_DEVKIT_TREE}/${name}")
     file(CHMOD "${RV_DEVKIT_TREE}/${name}" PERMISSIONS ${RV_DEVKIT_EXEC_PERMISSIONS})
@@ -93,23 +96,35 @@ endforeach()
 # Only clangd and clang's resource dir (built-in headers, compiler-rt runtimes): the full LLVM tree is over a gigabyte.
 # No compiler is shipped: disc builds use the clang of the Steam Runtime 4 SDK.
 set(RV_DEVKIT_LLVM_BIN "${RV_DEVKIT_TREE}/tools/llvm/bin")
+message(STATUS "Copying clangd and its resource dir to ${RV_DEVKIT_TREE}/tools/llvm")
 file(MAKE_DIRECTORY "${RV_DEVKIT_LLVM_BIN}")
 file(COPY_FILE "${RV_DEVKIT_LLVM}/bin/clangd" "${RV_DEVKIT_LLVM_BIN}/clangd")
 file(COPY "${RV_DEVKIT_LLVM}/lib/clang/" DESTINATION "${RV_DEVKIT_TREE}/tools/llvm/lib/clang")
 
+message(STATUS "Copying Neovim, lua-language-server, the compat check and the toolchain to ${RV_DEVKIT_TREE}/tools")
 file(COPY "${RV_DEVKIT_NVIM}/" DESTINATION "${RV_DEVKIT_TREE}/tools/nvim")
 file(COPY "${RV_DEVKIT_LUALS}/" DESTINATION "${RV_DEVKIT_TREE}/tools/lua-language-server")
 file(COPY_FILE "${RV_DEVKIT_COMPAT_CHECK}" "${RV_DEVKIT_TREE}/tools/linux-compat-check.cmake")
 file(COPY_FILE "${RV_DEVKIT_TOOLCHAIN}" "${RV_DEVKIT_TREE}/tools/steamrt4-toolchain.cmake")
 
+# The SDK is large: this copy can take a while.
+message(
+    STATUS
+    "Copying the Steam Runtime 4 SDK to ${RV_DEVKIT_TREE}/steamrt4-sdk: this is slow, please wait; "
+    "disc.so is built with its clang, CMake, Ninja and ld")
 file(COPY "${RV_DEVKIT_STEAMRT4_SDK}/" DESTINATION "${RV_DEVKIT_TREE}/steamrt4-sdk")
 # The regex matches the runtime's full source path, so the path is escaped without a trailing slash; its var/ is left
 # out as for bin/.
 string(REGEX REPLACE "/+$" "" RV_DEVKIT_RUNTIME_DIR "${RV_DEVKIT_RUNTIME}")
 string(REGEX REPLACE "([][.+*?^$(){}|\\\\])" "\\\\\\1" RV_DEVKIT_RUNTIME_RE "${RV_DEVKIT_RUNTIME_DIR}")
+message(
+    STATUS
+    "Copying the Steam Linux Runtime 4 container to ${RV_DEVKIT_TREE}/SteamLinuxRuntime_4: "
+    "its pressure-vessel starts the bin/ programs, which run on the SDK; the compat check uses it as its platform")
 file(COPY "${RV_DEVKIT_RUNTIME_DIR}/" DESTINATION "${RV_DEVKIT_TREE}/SteamLinuxRuntime_4"
      REGEX "^${RV_DEVKIT_RUNTIME_RE}/var$" EXCLUDE)
 
+message(STATUS "Copying the licenses to ${RV_DEVKIT_TREE}/LICENSES")
 foreach(pair IN LISTS RV_DEVKIT_LICENSES)
     string(REGEX MATCH "^([^=]+)=(.+)$" unused "${pair}")
     file(COPY_FILE "${CMAKE_MATCH_2}" "${RV_DEVKIT_TREE}/LICENSES/${CMAKE_MATCH_1}")
@@ -134,6 +149,7 @@ string(APPEND RV_DEVKIT_VERSIONS_TEXT "Steam Runtime 4 SDK ${RV_DEVKIT_SDK_BUILD
 foreach(line IN LISTS RV_DEVKIT_VERSIONS)
     string(APPEND RV_DEVKIT_VERSIONS_TEXT "${line}\n")
 endforeach()
+message(STATUS "Writing ${RV_DEVKIT_TREE}/VERSIONS.txt with the project, runtime and SDK versions")
 file(WRITE "${RV_DEVKIT_TREE}/VERSIONS.txt" "${RV_DEVKIT_VERSIONS_TEXT}")
 
 # Every ELF under bin/ and tools/ is checked against the tree's own Steam Runtime 4 Platform. Steam Linux Runtime 4
@@ -164,7 +180,11 @@ if(NOT RV_DEVKIT_ELFS)
     message(FATAL_ERROR "no ELF file to check under ${RV_DEVKIT_TREE}/bin or tools")
 endif()
 list(LENGTH RV_DEVKIT_ELFS RV_DEVKIT_ELF_COUNT)
-message(STATUS "compat check: ${RV_DEVKIT_ELF_COUNT} ELF files")
+# Each ELF's needed libraries and symbol versions must exist in the tree's Steam Linux Runtime 4, or it would die before main.
+message(
+    STATUS
+    "Checking ${RV_DEVKIT_ELF_COUNT} ELF files under bin/ and tools/ against the tree's Steam Linux Runtime 4 "
+    "(libraries and symbol versions each binary needs)")
 execute_process(
     COMMAND "${CMAKE_COMMAND}"
             "-DRV_COMPAT_FILES=${RV_DEVKIT_ELFS}"
@@ -178,6 +198,7 @@ endif()
 
 if(RV_DEVKIT_ZIP)
     # Run from the parent so the archive's top dir is the root's name; -y keeps the symlinks.
+    message(STATUS "Zipping the tree to ${RV_DEVKIT_ZIP}: this is slow, please wait")
     execute_process(
         COMMAND "${RV_DEVKIT_ZIP_PROGRAM}" -r -y -q "${RV_DEVKIT_ZIP}" "${RV_DEVKIT_ROOT_NAME}"
         WORKING_DIRECTORY "${RV_DEVKIT_PARENT}"
