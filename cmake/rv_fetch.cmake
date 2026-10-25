@@ -1,13 +1,16 @@
 # Loads one pinned file: fetches RV_FETCH_URL into RV_FETCH_FILE and checks its SHA256 against RV_FETCH_SHA256.
 # With RV_FETCH_DIR set, the file is also extracted there and then removed.
 # Usage: cmake -DRV_FETCH_URL=<https://... | http://... | file://...> -DRV_FETCH_SHA256=<hex> -DRV_FETCH_FILE=<file>
-#              [-DRV_FETCH_DIR=<dir>] [-DRV_FETCH_NAME=<phrase>] [-DRV_FETCH_BASE=<dir>]
-#              [-DRV_CURL=<curl>] -P cmake/rv_fetch.cmake
+#              [-DRV_FETCH_DIR=<dir>] [-DRV_FETCH_PATHS=<path;path...>] [-DRV_FETCH_NAME=<phrase>]
+#              [-DRV_FETCH_BASE=<dir>] [-DRV_CURL=<curl>] -P cmake/rv_fetch.cmake
 # A broken transfer keeps the partial file, so the next run resumes it. A hash mismatch is only a warning: the file is
 # used as it is. With RV_FETCH_DIR the file is extracted and then removed; without it the file is kept, and a file that
-# matches the pin is not fetched again. The stamp in RV_FETCH_DIR holds the pinned SHA256 (also on mismatch): a matching
-# stamp skips the run without fetching or looking for the file, and removes a leftover archive. A missing or other stamp
-# replaces the tree. The tree is built in a sibling dir and renamed into place only when complete.
+# matches the pin is not fetched again. The stamp in RV_FETCH_DIR holds the pinned SHA256 (also on mismatch) and, with
+# RV_FETCH_PATHS, one line per path. A matching stamp skips the run without fetching or looking for the file, and removes
+# a leftover archive. A missing or other stamp replaces the tree. The tree is built in a sibling dir and renamed into
+# place only when complete.
+# RV_FETCH_PATHS (needs RV_FETCH_DIR) extracts only the listed archive paths; each must exist in the archive. The stamp
+# then lists the paths after the SHA256, so a partial tree is replaced by a full one and the reverse.
 
 include(${CMAKE_CURRENT_LIST_DIR}/rv_log.cmake)
 
@@ -16,6 +19,9 @@ if(NOT RV_FETCH_URL OR NOT RV_FETCH_SHA256 OR NOT RV_FETCH_FILE)
 endif()
 if(NOT RV_FETCH_URL MATCHES "^(https?|file)://")
     message(FATAL_ERROR "unsupported URL (want https://, http:// or file://): ${RV_FETCH_URL}")
+endif()
+if(RV_FETCH_PATHS AND NOT RV_FETCH_DIR)
+    message(FATAL_ERROR "RV_FETCH_PATHS extracts into RV_FETCH_DIR: set RV_FETCH_DIR too")
 endif()
 
 # Absolute paths: tar runs in the work dir, and a trailing slash in RV_FETCH_DIR would put that work dir inside the tree.
@@ -34,7 +40,8 @@ endif()
 set(RV_FETCH_CURL_RETRIES 10)
 # curl exit 33: the server ignored the Range header, so the partial file cannot be continued.
 set(RV_FETCH_CURL_NO_RANGE 33)
-# The stamp in RV_FETCH_DIR: the pinned SHA256 (RV_FETCH_SHA256), not the hash of the archive, which may differ after a warning.
+# The stamp in RV_FETCH_DIR: the pinned SHA256 (RV_FETCH_SHA256), not the hash of the archive, which may differ after
+# a warning; with RV_FETCH_PATHS, one more line per path (see rv_fetch_stamp).
 set(RV_FETCH_STAMP .rv_fetch_sha256)
 
 # A file:// source that is the destination would be deleted after extraction: refuse it before any copy.
@@ -103,9 +110,19 @@ function(rv_fetch_download)
     endif()
 endfunction()
 
+# The stamp text: the pinned SHA256, then one line per RV_FETCH_PATHS entry. Without a trailing newline.
+function(rv_fetch_stamp out)
+    string(TOLOWER "${RV_FETCH_SHA256}" text)
+    foreach(path IN LISTS RV_FETCH_PATHS)
+        string(APPEND text "\n${path}")
+    endforeach()
+    set(${out} "${text}" PARENT_SCOPE)
+endfunction()
+
 # Extracts RV_FETCH_FILE into RV_FETCH_DIR through a sibling dir, then writes the stamp and renames it into place.
+# RV_FETCH_PATHS unquoted: each entry is one member path for tar. tar fails on a path missing from the archive.
 function(rv_fetch_extract)
-    string(TOLOWER "${RV_FETCH_SHA256}" expected)
+    rv_fetch_stamp(stamp)
     rv_fetch_show(shown_file "${RV_FETCH_FILE}")
     rv_fetch_show(shown_dir "${RV_FETCH_DIR}")
     rv_log_step("extracting ${shown_file} into ${shown_dir}: this can take a while")
@@ -114,15 +131,16 @@ function(rv_fetch_extract)
     file(REMOVE_RECURSE "${work}")
     file(MAKE_DIRECTORY "${work}")
     execute_process(
-        COMMAND "${CMAKE_COMMAND}" -E tar xf "${RV_FETCH_FILE}"
+        COMMAND "${CMAKE_COMMAND}" -E tar xf "${RV_FETCH_FILE}" ${RV_FETCH_PATHS}
         WORKING_DIRECTORY "${work}"
         RESULT_VARIABLE rc
         ERROR_VARIABLE err)
     if(NOT "${rc}" STREQUAL "0")
         message(FATAL_ERROR "cannot extract ${RV_FETCH_FILE} into ${RV_FETCH_DIR} (exit ${rc}): ${err}\n"
-                "if the archive is broken, remove ${RV_FETCH_FILE} to download it again.")
+                "if the archive is broken, remove ${RV_FETCH_FILE} to download it again; "
+                "a RV_FETCH_PATHS entry missing from the archive is named above.")
     endif()
-    file(WRITE "${work}/${RV_FETCH_STAMP}" "${expected}\n")
+    file(WRITE "${work}/${RV_FETCH_STAMP}" "${stamp}\n")
     # The old tree goes only after the new one is complete, so a failed extraction keeps it.
     file(REMOVE_RECURSE "${RV_FETCH_DIR}")
     file(RENAME "${work}" "${RV_FETCH_DIR}")
@@ -133,12 +151,13 @@ function(rv_fetch_main)
     rv_log_header("${RV_FETCH_NAME}")
     string(TOLOWER "${RV_FETCH_SHA256}" expected)
     if(RV_FETCH_DIR)
+        rv_fetch_stamp(stamp)
         set(recorded "")
         if(EXISTS "${RV_FETCH_DIR}/${RV_FETCH_STAMP}")
             file(READ "${RV_FETCH_DIR}/${RV_FETCH_STAMP}" recorded)
             string(STRIP "${recorded}" recorded)
         endif()
-        if("${recorded}" STREQUAL "${expected}")
+        if("${recorded}" STREQUAL "${stamp}")
             # A run that died between the rename and the removal leaves the archive behind.
             file(REMOVE "${RV_FETCH_FILE}")
             rv_fetch_show(shown_dir "${RV_FETCH_DIR}")
