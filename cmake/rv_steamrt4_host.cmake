@@ -3,6 +3,8 @@
 # configures the project inside the SDK in ${CMAKE_BINARY_DIR}/sdk. It compiles nothing; the inner configure and build do.
 # Usage: cmake -S <repo> -B <build> -G Ninja [-D3DMPPC_*=...] [-DCMAKE_BUILD_TYPE=...] [-DRV_FETCH_CACHE=<dir>]
 
+include(${CMAKE_CURRENT_LIST_DIR}/rv_log.cmake)
+
 # One snapshot names both downloads (the Steam Linux Runtime 4 and the Steam Runtime 4 SDK sysroot).
 set(RV_STEAMRT4_VERSION "4.0.20261021.265997")
 set(RV_STEAMRT4_URL "https://repo.steampowered.com/steamrt4/images/${RV_STEAMRT4_VERSION}/SteamLinuxRuntime_4.tar.xz")
@@ -13,14 +15,9 @@ set(RV_STEAMRT4_SDK_BASE "https://repo.steampowered.com/steamrt4/images/${RV_STE
 set(RV_STEAMRT4_SDK_URL "${RV_STEAMRT4_SDK_BASE}com.valvesoftware.SteamRuntime.Sdk-amd64%2Ci386-steamrt4-sysroot.tar.gz")
 set(RV_STEAMRT4_SDK_SHA256 "c01a7507cea248c231412f3d70563501899c3e77a8c9f08078a7c7cf30bee6a6")
 set(RV_STEAMRT4_SDK_FILE "steamrt4-sdk-sysroot-${RV_STEAMRT4_VERSION}.tar.gz")
-# Names of the downloads in the fetch messages.
-string(CONCAT RV_STEAMRT4_NAME
-    "Steam Linux Runtime 4 ${RV_STEAMRT4_VERSION}: the container the player's console runs in, "
-    "with pressure-vessel that runs the devtools delivery's tools, and the platform the compatibility check "
-    "verifies the binaries against")
-string(CONCAT RV_STEAMRT4_SDK_NAME
-    "Steam Runtime 4 SDK ${RV_STEAMRT4_VERSION}: clang 19, CMake, Ninja and the libraries "
-    "the project is built with and against")
+# Names of the downloads: rv_fetch.cmake prints each one as the header of its stage.
+set(RV_STEAMRT4_NAME "Steam Linux Runtime 4 ${RV_STEAMRT4_VERSION}")
+set(RV_STEAMRT4_SDK_NAME "Steam Runtime 4 SDK ${RV_STEAMRT4_VERSION}")
 
 # Build-tree dirs, declared once. rv_fetch.cmake replaces its target dir as a whole, so the runtime is reached through a link.
 # <build>/pconsole/ is this build's delivery (player or devtools); this file passes it to the inner build as RV_PCONSOLE_DIR.
@@ -73,6 +70,7 @@ function(rv_host_fetch url sha256 name dir phrase)
                 "-DRV_FETCH_FILE=${RV_FETCH_CACHE}/${name}"
                 "-DRV_FETCH_DIR=${dir}"
                 "-DRV_FETCH_NAME=${phrase}"
+                "-DRV_FETCH_BASE=${CMAKE_BINARY_DIR}"
                 "-DRV_CURL=${RV_CURL}"
                 -P "${RV_HOST_FETCH_SCRIPT}"
         RESULT_VARIABLE rc)
@@ -81,10 +79,7 @@ function(rv_host_fetch url sha256 name dir phrase)
     endif()
 endfunction()
 
-message(STATUS "the Linux build runs inside the Steam Runtime 4 SDK through pressure-vessel. "
-    "First the Steam Linux Runtime 4, then the SDK are fetched: the archives go to the download cache ${RV_FETCH_CACHE} "
-    "and are removed after a successful extraction; the files are extracted into ${RV_HOST_STEAMRT4_DIR} "
-    "and into ${RV_STEAMRT4_SDK_DIR}.")
+rv_log_step("the Linux build runs in the Steam Runtime 4 SDK through pressure-vessel: fetch the runtime, then the SDK")
 file(MAKE_DIRECTORY "${RV_FETCH_CACHE}")
 rv_host_fetch(
     "${RV_STEAMRT4_URL}"
@@ -136,9 +131,9 @@ set(RV_HOST_WRAP_ARGS
     --
 )
 
-message(STATUS "configuring the project in ${RV_HOST_INNER} inside the Steam Runtime 4 SDK through pressure-vessel. "
-    "The pressure-vessel warning that it does not make /usr/share/defaults/etc/ld.so.conf a symlink is expected: "
-    "the SDK is used in place, not copied.")
+rv_log_relpath(inner_rel "${RV_HOST_INNER}" "${CMAKE_BINARY_DIR}")
+rv_log_header("Inner configure in ${inner_rel}/ (Steam Runtime 4 SDK)")
+rv_log_step("pressure-vessel's warning \"Not making .../ld.so.conf a symlink\" is expected: the SDK is used in place")
 execute_process(
     COMMAND ${RV_HOST_WRAP_ARGS} cmake -S "${CMAKE_SOURCE_DIR}" -B "${RV_HOST_INNER}" -G Ninja
             "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/rv_steamrt4_toolchain.cmake"
@@ -150,15 +145,11 @@ execute_process(
 if(NOT rc EQUAL 0)
     message(FATAL_ERROR "the inner configure in ${RV_HOST_INNER} failed (exit ${rc})")
 endif()
-message(STATUS "the \"Configuring done\" above is the inner build in ${RV_HOST_INNER}: "
-    "this build directory only passes cmake --build to it.")
+rv_log_step("the inner build in ${inner_rel}/ runs at the build step; this directory only passes cmake --build to it")
 
 # 3dmppc_inner is the only target here: it runs cmake --build on the inner build dir, which builds its default target.
-string(CONCAT RV_HOST_BUILD_NOTE
-    "in ${RV_HOST_INNER} inside the Steam Runtime 4 SDK through pressure-vessel. "
-    "The pressure-vessel warning about /usr/share/defaults/etc/ld.so.conf that follows is expected: "
-    "the SDK is used in place, not copied.")
+# Its build also prints the pressure-vessel warning; configure has explained it already.
 add_custom_target(3dmppc_inner ALL
     COMMAND ${RV_HOST_WRAP_ARGS} cmake --build "${RV_HOST_INNER}"
-    COMMENT "Building the inner default target ${RV_HOST_BUILD_NOTE}"
+    COMMENT "Building the inner default target in ${inner_rel}/ (Steam Runtime 4 SDK)"
     USES_TERMINAL VERBATIM)
