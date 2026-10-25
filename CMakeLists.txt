@@ -18,6 +18,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
+# The delivery directory of this build: the player tree is written here. The external
+# Linux build passes <build>/pconsole; a nested or toolchain build keeps pconsole/ in its own build dir.
+set(RV_PCONSOLE_DIR "${CMAKE_BINARY_DIR}/pconsole" CACHE PATH "Delivery directory of this build (the player tree)")
+
 # The development runtime (the dev command channel, booting a game from a
 # loose directory, ...) is a build-time choice, not a runtime flag: with this
 # OFF the dev sources are not in the compile line at all. Two configurations
@@ -401,9 +405,9 @@ if(3DMPPC_DEVTOOLS)
     INSTALL_COMMAND ""
   )
   # The player delivery tree (player-tree) exists only where the player delivery does: Linux, LuaJIT, not
-  # Emscripten, not static disc. There bin/firmware/ is that tree (launch file 3dmppc, bin/3dmppc, the
-  # runtime, LICENSES/, VERSIONS.txt); the web kit is in bin/firmware/web. Elsewhere it is the bare
-  # ELF at bin/firmware/3dmppc.
+  # Emscripten, not static disc. There the nested build writes it to firmware-build/pconsole, and
+  # bin/firmware/ receives it (launch file 3dmppc, bin/3dmppc, the runtime, LICENSES/, VERSIONS.txt);
+  # the web kit is in bin/firmware/web. Elsewhere it is the bare ELF at bin/firmware/3dmppc.
   set(RV_FIRMWARE_TREE OFF)
   set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/bin/firmware/3dmppc)
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN AND 3DMPPC_LUAJIT AND NOT 3DMPPC_STATIC_DISC)
@@ -411,19 +415,13 @@ if(3DMPPC_DEVTOOLS)
     set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/bin/firmware/bin/3dmppc)
   endif()
   if(RV_FIRMWARE_TREE)
-    # A step after the nested default build, so that build stays as it is.
-    ExternalProject_Add_Step(3dmppc_firmware player_tree
-      COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/firmware-build --target player-tree
-      DEPENDEES build
-      ALWAYS 1
-    )
     # cp -a, not copy_directory: copy_directory dereferences the runtime's symlinks. Files of an older
     # tree stay in place; web/ is not touched.
     ExternalProject_Add_Step(3dmppc_firmware copy_firmware
       COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin/firmware
-      COMMAND cp -a --remove-destination ${CMAKE_BINARY_DIR}/firmware-build/player/3dmppc-player/.
+      COMMAND cp -a --remove-destination ${CMAKE_BINARY_DIR}/firmware-build/pconsole/.
               ${CMAKE_BINARY_DIR}/bin/firmware/
-      DEPENDEES player_tree
+      DEPENDEES build
       ALWAYS 1
     )
   else()
@@ -473,39 +471,5 @@ if(3DMPPC_WEB_KIT)
 endif()
 
 # --- the player delivery ------------------------------------------------------
-# The player delivery: the player console as a tree and a zip with Steam Linux Runtime 4 (cmake/rv_player_delivery.cmake).
-if(NOT 3DMPPC_DEVTOOLS AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN AND NOT 3DMPPC_STATIC_DISC AND 3DMPPC_LUAJIT)
-  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_dv_version.cmake)
-
-  set(RV_PLAYER_TREE ${CMAKE_BINARY_DIR}/player/3dmppc-player)
-  set(RV_PLAYER_ZIP ${CMAKE_BINARY_DIR}/3dmppc-player-${RV_MPPC_VER_MAJOR}.${RV_MPPC_VER_MINOR}.zip)
-  set(RV_PLAYER_ARGS
-      "-DRV_PLAYER_ELF=$<TARGET_FILE:3dmppc>"
-      "-DRV_PLAYER_LAUNCH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_launch.sh"
-      "-DRV_PLAYER_RUNTIME=${RV_STEAMRT4_DIR}"
-      "-DRV_PLAYER_LUAJIT_COPYRIGHT=${luajit_SOURCE_DIR}/COPYRIGHT"
-      "-DRV_PLAYER_LUAJIT_COMMIT=${RV_LUAJIT_COMMIT}"
-      "-DRV_PLAYER_VER_MAJOR=${RV_MPPC_VER_MAJOR}"
-      "-DRV_PLAYER_VER_MINOR=${RV_MPPC_VER_MINOR}"
-      "-DRV_PLAYER_TREE=${RV_PLAYER_TREE}")
-
-  add_custom_target(player-tree
-    DEPENDS 3dmppc
-    COMMAND ${CMAKE_COMMAND} ${RV_PLAYER_ARGS}
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_player_delivery.cmake"
-    COMMENT "Building the player delivery tree"
-    VERBATIM
-  )
-  add_custom_target(package-player
-    DEPENDS 3dmppc
-    COMMAND ${CMAKE_COMMAND} ${RV_PLAYER_ARGS}
-            "-DRV_PLAYER_ZIP=${RV_PLAYER_ZIP}"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_player_delivery.cmake"
-    COMMENT "Packaging the player delivery"
-    VERBATIM
-  )
-endif()
-if(NOT 3DMPPC_DEVTOOLS AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN AND NOT 3DMPPC_STATIC_DISC AND NOT 3DMPPC_LUAJIT)
-  message(STATUS "no player-tree or package-player: the player delivery needs 3DMPPC_LUAJIT=ON (its LICENSES/ and VERSIONS.txt name LuaJIT)")
-endif()
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_player_tree.cmake)
 

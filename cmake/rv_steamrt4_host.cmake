@@ -23,10 +23,20 @@ string(CONCAT RV_STEAMRT4_SDK_NAME
     "the project is built with and against")
 
 # Build-tree dirs, declared once. rv_fetch.cmake replaces its target dir as a whole, so the runtime is reached through a link.
+# <build>/pconsole/ is this build's delivery (player or devtools); this file passes it to the inner build as RV_PCONSOLE_DIR.
+set(RV_PCONSOLE_DIR "${CMAKE_BINARY_DIR}/pconsole")
 set(RV_HOST_STEAMRT4_DIR "${CMAKE_BINARY_DIR}/steamrt4")
 set(RV_HOST_RUNTIME "${CMAKE_BINARY_DIR}/SteamLinuxRuntime_4")
-set(RV_STEAMRT4_SDK_DIR "${CMAKE_BINARY_DIR}/steamrt4-sdk")
 set(RV_HOST_INNER "${CMAKE_BINARY_DIR}/sdk")
+# The SDK is always unpacked. With 3DMPPC_DEVTOOLS it goes to pconsole/steamrt4-sdk, since the SDK is part of the
+# devtools delivery: the inner build and its runs take it from there, with no second copy. Without it, it goes to
+# <build>/steamrt4-sdk, since the player delivery does not include the SDK. Switching 3DMPPC_DEVTOOLS in the same build
+# dir leaves the old SDK unpack in place (3.4 GB); delete it by hand.
+if(3DMPPC_DEVTOOLS)
+    set(RV_STEAMRT4_SDK_DIR "${RV_PCONSOLE_DIR}/steamrt4-sdk")
+else()
+    set(RV_STEAMRT4_SDK_DIR "${CMAKE_BINARY_DIR}/steamrt4-sdk")
+endif()
 
 # Downloads of the pinned files, outside the build dir. rv_fetch.cmake deletes an archive after a successful extraction;
 # it keeps the archive of a failed extraction and the partial file of an interrupted download; a fresh build dir resumes them.
@@ -73,8 +83,8 @@ endfunction()
 
 message(STATUS "the Linux build runs inside the Steam Runtime 4 SDK through pressure-vessel. "
     "First the Steam Linux Runtime 4, then the SDK are fetched: the archives go to the download cache ${RV_FETCH_CACHE} "
-    "and are removed after a successful extraction; the files are extracted into steamrt4/ and steamrt4-sdk/ "
-    "under ${CMAKE_BINARY_DIR}.")
+    "and are removed after a successful extraction; the files are extracted into ${RV_HOST_STEAMRT4_DIR} "
+    "and into ${RV_STEAMRT4_SDK_DIR}.")
 file(MAKE_DIRECTORY "${RV_FETCH_CACHE}")
 rv_host_fetch(
     "${RV_STEAMRT4_URL}"
@@ -133,6 +143,7 @@ execute_process(
             "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/rv_steamrt4_toolchain.cmake"
             "-DRV_STEAMRT4_SDK=${RV_STEAMRT4_SDK_DIR}"
             "-DRV_STEAMRT4_DIR=${RV_HOST_STEAMRT4_DIR}/SteamLinuxRuntime_4"
+            "-DRV_PCONSOLE_DIR=${RV_PCONSOLE_DIR}"
             ${inner_opts}
     RESULT_VARIABLE rc)
 if(NOT rc EQUAL 0)
@@ -141,9 +152,7 @@ endif()
 message(STATUS "the \"Configuring done\" above is the inner build in ${RV_HOST_INNER}: "
     "this build directory only passes cmake --build to it.")
 
-# 3dmppc_inner is the default build; each named target builds the inner target of the same name.
-# package-player exists only in the player build (no 3DMPPC_DEVTOOLS); package-devkit and devkit-tree only with
-# 3DMPPC_DEVTOOLS=ON. In the other configuration the inner build answers "unknown target" and the exit code fails here.
+# 3dmppc_inner is the only target here: it runs cmake --build on the inner build dir, which builds its default target.
 string(CONCAT RV_HOST_BUILD_NOTE
     "in ${RV_HOST_INNER} inside the Steam Runtime 4 SDK through pressure-vessel. "
     "The pressure-vessel warning about /usr/share/defaults/etc/ld.so.conf that follows is expected: "
@@ -152,10 +161,3 @@ add_custom_target(3dmppc_inner ALL
     COMMAND ${RV_HOST_WRAP_ARGS} cmake --build "${RV_HOST_INNER}"
     COMMENT "Building the inner default target ${RV_HOST_BUILD_NOTE}"
     USES_TERMINAL VERBATIM)
-set(RV_HOST_INNER_TARGETS package-player package-devkit devkit-tree)
-foreach(rv_target IN LISTS RV_HOST_INNER_TARGETS)
-    add_custom_target(${rv_target}
-        COMMAND ${RV_HOST_WRAP_ARGS} cmake --build "${RV_HOST_INNER}" --target ${rv_target}
-        COMMENT "Building ${rv_target} ${RV_HOST_BUILD_NOTE}"
-        USES_TERMINAL VERBATIM)
-endforeach()

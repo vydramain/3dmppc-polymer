@@ -87,10 +87,12 @@ add_custom_target(3dmppc_devkit_tools
 )
 
 # --- the 3dmppc development kit delivery (cmake/rv_devkit_delivery.cmake) -------
-# devkit-tree and package-devkit run it on this build's outputs; neither is in ALL.
+# devtools-tree runs it in ALL on this build's outputs: it updates the tree in place in RV_PCONSOLE_DIR (the dev build's
+# pconsole/), where the outer build has unpacked the SDK.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_dv_version.cmake)
 
-# The SDK the internal build compiles with; the delivery copies it. Its toolchain sets the variable.
+# The SDK the internal build compiles with; the delivery does not copy it, it must be ${RV_PCONSOLE_DIR}/steamrt4-sdk.
+# Its toolchain sets the variable.
 if(NOT IS_DIRECTORY "${RV_STEAMRT4_SDK}")
     message(FATAL_ERROR "no Steam Runtime 4 SDK directory ${RV_STEAMRT4_SDK}: the delivery takes it from RV_STEAMRT4_SDK")
 endif()
@@ -130,8 +132,6 @@ set(RV_DEVKIT_VERSION_LINES
     "Neovim ${RV_NVIM_VERSION}"
     "lua-language-server ${RV_LUALS_VERSION}")
 
-set(RV_DEVKIT_DELIVERY_TREE "${CMAKE_BINARY_DIR}/devkit-delivery/3dmppc-devkit")
-set(RV_DEVKIT_DELIVERY_ZIP "${CMAKE_BINARY_DIR}/3dmppc-devkit-${RV_MPPC_VER_MAJOR}.${RV_MPPC_VER_MINOR}.zip")
 set(RV_DEVKIT_DELIVERY_ARGS
     "-DRV_DEVKIT_BIN=${CMAKE_BINARY_DIR}/bin"
     "-DRV_DEVKIT_LAUNCH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_launch.sh"
@@ -144,28 +144,18 @@ set(RV_DEVKIT_DELIVERY_ARGS
     "-DRV_DEVKIT_RUNTIME=${RV_STEAMRT4_DIR}"
     "-DRV_DEVKIT_VER_MAJOR=${RV_MPPC_VER_MAJOR}"
     "-DRV_DEVKIT_VER_MINOR=${RV_MPPC_VER_MINOR}"
-    "-DRV_DEVKIT_TREE=${RV_DEVKIT_DELIVERY_TREE}")
+    "-DRV_DEVKIT_TREE=${RV_PCONSOLE_DIR}")
 set(RV_DEVKIT_DELIVERY_DEPENDS
     3dmppc 3dmppc_editor 3dmppc_pdktools 3dmppc_firmware 3dmppc_webkit 3dmppc_devkit_tools
     3dmppc_devkit_license_nvim)
 
 # The lists are quoted in COMMAND: an unquoted list would split the NAME=PATH pairs at their ';'.
-add_custom_target(devkit-tree
+add_custom_target(devtools-tree ALL
     DEPENDS ${RV_DEVKIT_DELIVERY_DEPENDS}
     COMMAND ${CMAKE_COMMAND} ${RV_DEVKIT_DELIVERY_ARGS}
             "-DRV_DEVKIT_LICENSES=${RV_DEVKIT_LICENSES}"
             "-DRV_DEVKIT_VERSIONS=${RV_DEVKIT_VERSION_LINES}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_devkit_delivery.cmake"
-    COMMENT "Building the 3dmppc development kit delivery tree"
-    VERBATIM
-)
-add_custom_target(package-devkit
-    DEPENDS ${RV_DEVKIT_DELIVERY_DEPENDS}
-    COMMAND ${CMAKE_COMMAND} ${RV_DEVKIT_DELIVERY_ARGS}
-            "-DRV_DEVKIT_LICENSES=${RV_DEVKIT_LICENSES}"
-            "-DRV_DEVKIT_VERSIONS=${RV_DEVKIT_VERSION_LINES}"
-            "-DRV_DEVKIT_ZIP=${RV_DEVKIT_DELIVERY_ZIP}"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_devkit_delivery.cmake"
-    COMMENT "Packaging the 3dmppc development kit delivery"
+    COMMENT "Updating the 3dmppc development kit delivery tree in ${RV_PCONSOLE_DIR}"
     VERBATIM
 )
