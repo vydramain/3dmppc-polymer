@@ -17,6 +17,8 @@
 # place only when complete.
 # RV_FETCH_PATHS (needs RV_FETCH_DIR) extracts only the listed archive paths; each must exist in the archive. The stamp
 # then lists the paths after the SHA256, so a partial tree is replaced by a full one and the reverse.
+# Everything that touches RV_FETCH_FILE runs under the lock <RV_FETCH_FILE>.lock, held until the run ends, so two builds
+# sharing a cache file do not resume each other's partial download. Other files do not wait. The stamp check is before it.
 
 include(${CMAKE_CURRENT_LIST_DIR}/rv_log.cmake)
 
@@ -240,23 +242,62 @@ function(rv_fetch_warn_mismatch actual)
             "without RV_FETCH_DIR it is kept.")
 endfunction()
 
+# Takes the lock of RV_FETCH_FILE for the rest of the run (GUARD PROCESS). A busy lock is waited for without a timeout.
+# Called at most once per run: a second file(LOCK) in the same process releases the lock.
+# The .lock file is never removed: after a release a waiter would lock the old file while a newcomer locks a new one.
+function(rv_fetch_lock)
+    set(lock "${RV_FETCH_FILE}.lock")
+    rv_fetch_show(shown_file "${RV_FETCH_FILE}")
+    file(LOCK "${lock}" GUARD PROCESS TIMEOUT 0 RESULT_VARIABLE result)
+    if("${result}" STREQUAL "0")
+        return()
+    endif()
+    rv_log_step("waiting for another build fetching ${shown_file}")
+    file(LOCK "${lock}" GUARD PROCESS RESULT_VARIABLE result)
+    if(NOT "${result}" STREQUAL "0")
+        message(FATAL_ERROR "cannot lock ${lock}: ${result}")
+    endif()
+endfunction()
+
+# Sets <out> TRUE when RV_FETCH_DIR holds the tree of this pin and paths (the stamp matches). Reads the stamp only.
+function(rv_fetch_stamp_matches out)
+    set(${out} FALSE PARENT_SCOPE)
+    if(NOT RV_FETCH_DIR)
+        return()
+    endif()
+    rv_fetch_stamp(stamp)
+    set(recorded "")
+    if(EXISTS "${RV_FETCH_DIR}/${RV_FETCH_STAMP}")
+        file(READ "${RV_FETCH_DIR}/${RV_FETCH_STAMP}" recorded)
+        string(STRIP "${recorded}" recorded)
+    endif()
+    if("${recorded}" STREQUAL "${stamp}")
+        set(${out} TRUE PARENT_SCOPE)
+    endif()
+endfunction()
+
+function(rv_fetch_log_extracted)
+    rv_fetch_show(shown_dir "${RV_FETCH_DIR}")
+    rv_log_step("already extracted into ${shown_dir}: nothing is downloaded")
+endfunction()
+
 function(rv_fetch_main)
     rv_log_header("${RV_FETCH_NAME}")
     string(TOLOWER "${RV_FETCH_SHA256}" expected)
-    if(RV_FETCH_DIR)
-        rv_fetch_stamp(stamp)
-        set(recorded "")
-        if(EXISTS "${RV_FETCH_DIR}/${RV_FETCH_STAMP}")
-            file(READ "${RV_FETCH_DIR}/${RV_FETCH_STAMP}" recorded)
-            string(STRIP "${recorded}" recorded)
-        endif()
-        if("${recorded}" STREQUAL "${stamp}")
-            # A run that died between the rename and the removal leaves the archive behind.
-            file(REMOVE "${RV_FETCH_FILE}")
-            rv_fetch_show(shown_dir "${RV_FETCH_DIR}")
-            rv_log_step("already extracted into ${shown_dir}: nothing is downloaded")
-            return()
-        endif()
+    # Unlocked fast path: a matching stamp with no archive left touches no cache file.
+    rv_fetch_stamp_matches(matched)
+    if(matched AND NOT EXISTS "${RV_FETCH_FILE}")
+        rv_fetch_log_extracted()
+        return()
+    endif()
+    rv_fetch_lock()
+    # The stamp is read again under the lock: a waiting run may have seen another build extract the tree.
+    rv_fetch_stamp_matches(matched)
+    if(matched)
+        # A run that died between the rename and the removal leaves the archive behind.
+        file(REMOVE "${RV_FETCH_FILE}")
+        rv_fetch_log_extracted()
+        return()
     endif()
     # file(SHA256) gives lowercase hex; the pin is compared case-insensitively.
     set(actual "")
