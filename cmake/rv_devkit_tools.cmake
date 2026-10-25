@@ -4,7 +4,7 @@
 # language servers.
 # Each tool is fetched and extracted by cmake/rv_fetch.cmake into its own dir under ${CMAKE_BINARY_DIR}/devkit/ by
 # the 3dmppc_devkit_<tool> target; 3dmppc_devkit_tools builds them all. Nothing builds them by default.
-# Needs RV_FETCH_CACHE, which cmake/rv_steamrt4_runtime.cmake sets.
+# Needs RV_FETCH_CACHE and RV_STEAMRT4_VERSION, which cmake/rv_steamrt4_runtime.cmake sets.
 
 # CMake 3.31.6, Kitware release v3.31.6; SHA-256 from Kitware's cmake-3.31.6-SHA-256.txt.
 set(RV_DEVKIT_CMAKE_URL "https://github.com/Kitware/CMake/releases/download/v3.31.6/cmake-3.31.6-linux-x86_64.tar.gz")
@@ -27,12 +27,12 @@ set(RV_DEVKIT_LUALS_URL "${RV_DEVKIT_LUALS_BASE}lua-language-server-3.19.2-linux
 set(RV_DEVKIT_LUALS_SHA256 "93ad326b10f6c00911dd8c450fa098332dbd8f9f45d1052f5636a2d54479b947")
 set(RV_DEVKIT_LUALS_FILE "lua-language-server-3.19.2-linux-x64.tar.gz")
 
-# Steam Runtime 4 SDK sysroot archive, snapshot 4.0.20261021.265997 (the same snapshot as Steam Linux Runtime 4).
+# Steam Runtime 4 SDK sysroot archive, the same snapshot as Steam Linux Runtime 4 (RV_STEAMRT4_VERSION).
 # Its top entry is ./, so the extracted dir is the sysroot root.
-set(RV_DEVKIT_SYSROOT_BASE "https://repo.steampowered.com/steamrt4/images/4.0.20261021.265997/")
+set(RV_DEVKIT_SYSROOT_BASE "https://repo.steampowered.com/steamrt4/images/${RV_STEAMRT4_VERSION}/")
 set(RV_DEVKIT_SYSROOT_URL "${RV_DEVKIT_SYSROOT_BASE}com.valvesoftware.SteamRuntime.Sdk-amd64%2Ci386-steamrt4-sysroot.tar.gz")
 set(RV_DEVKIT_SYSROOT_SHA256 "c01a7507cea248c231412f3d70563501899c3e77a8c9f08078a7c7cf30bee6a6")
-set(RV_DEVKIT_SYSROOT_FILE "steamrt4-sdk-sysroot-4.0.20261021.265997.tar.gz")
+set(RV_DEVKIT_SYSROOT_FILE "steamrt4-sdk-sysroot-${RV_STEAMRT4_VERSION}.tar.gz")
 
 # Extracted dirs, for the packaging that ships them.
 set(RV_DEVKIT_DIR "${CMAKE_BINARY_DIR}/devkit")

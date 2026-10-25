@@ -7,10 +7,12 @@
 # The download is kept in RV_FETCH_CACHE, which defaults under HOME (steamrt4.sh sets its own HOME); -DRV_FETCH_CACHE=<dir>
 # moves it, so fresh build dirs reuse one download.
 
-# Snapshot 4.0.20261021.265997 of the latest-public-stable channel.
-set(RV_STEAMRT4_URL "https://repo.steampowered.com/steamrt4/images/4.0.20261021.265997/SteamLinuxRuntime_4.tar.xz")
+# Snapshot of the latest-public-stable channel, shared by Steam Linux Runtime 4 and the Steam Runtime 4 SDK
+# (cmake/rv_devkit_tools.cmake): both URLs and file names are built from RV_STEAMRT4_VERSION.
+set(RV_STEAMRT4_VERSION "4.0.20261021.265997")
+set(RV_STEAMRT4_URL "https://repo.steampowered.com/steamrt4/images/${RV_STEAMRT4_VERSION}/SteamLinuxRuntime_4.tar.xz")
 set(RV_STEAMRT4_SHA256 "aa9dd1aab2173e65b631faae34b85e2c17fe323d941013154ddd2e1dce8a0910")
-set(RV_STEAMRT4_FILE "SteamLinuxRuntime_4.tar.xz")
+set(RV_STEAMRT4_FILE "SteamLinuxRuntime_4-${RV_STEAMRT4_VERSION}.tar.xz")
 set(RV_STEAMRT4_DIR "${CMAKE_BINARY_DIR}/steamrt4/SteamLinuxRuntime_4")
 
 if(NOT RV_FETCH_CACHE)
