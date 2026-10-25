@@ -131,7 +131,8 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
         error = problem;
         return last_error_;
     }
-    // From PATH: a dev build uses the user's nvim; the development kit ships its own in tools/ and puts it first on PATH.
+    // From PATH: a dev build uses the user's nvim; the devtools delivery ships its own in tools/
+    // and puts it first on PATH.
     const std::filesystem::path nvim = rv_editor_process_find(nvim_prog.data());
     if (nvim.empty()) {
         problem = "nvim is not installed or not on PATH; the code editor needs it";

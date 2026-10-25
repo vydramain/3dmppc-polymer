@@ -342,7 +342,7 @@ endif()
 # No asset copying: nothing reads files yet. Disc assets come back when the disc
 # drive (rv_cd) lands and a disc reads them by name instead of by path.
 
-# --- the development kit ------------------------------------------------------
+# --- devtools -----------------------------------------------------------------
 # A player console builds alone. It is firmware: it loads a disc and runs it,
 # and building it must not drag in a compiler driver, an image decoder, an
 # editor, or anything else a player's machine has no use for.
@@ -354,9 +354,9 @@ endif()
 # in bin/. Both still build on their own with their own command.
 if(3DMPPC_DEVTOOLS)
   include(ExternalProject)
-  # The pinned development kit tools (fetched by 3dmppc_devkit_tools); Linux only, as Steam Linux Runtime 4 is.
+  # The pinned tools of the devtools delivery (fetched by 3dmppc_devtools_tools); Linux only, as Steam Linux Runtime 4 is.
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_devkit_tools.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_devtools_tools.cmake)
   endif()
 
   # One SDK clang for console and disc; nested builds need the toolchain and SDK or firmware re-enters the host half.

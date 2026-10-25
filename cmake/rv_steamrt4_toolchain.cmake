@@ -1,6 +1,6 @@
 # Toolchain for the Steam Runtime 4 Platform as target, with the Steam Runtime 4 SDK directory as sysroot.
 # RV_STEAMRT4_SDK is the unpacked Steam Runtime 4 SDK. The internal project build receives it as -DRV_STEAMRT4_SDK=<dir>.
-# The development kit delivery ships this file as tools/steamrt4-toolchain.cmake with steamrt4-sdk beside tools/, which
+# The devtools delivery ships this file as tools/steamrt4-toolchain.cmake with steamrt4-sdk beside tools/, which
 # is the default when RV_STEAMRT4_SDK is not given or empty. The SDK directory is the sysroot, so the headers and libraries
 # a build links against come from the SDK whatever the host has.
 # Usage: cmake -DCMAKE_TOOLCHAIN_FILE=<repo>/cmake/rv_steamrt4_toolchain.cmake [-DRV_STEAMRT4_SDK=<dir>] ...
@@ -11,7 +11,7 @@ endif()
 get_filename_component(RV_STEAMRT4_SDK "${RV_STEAMRT4_SDK}" ABSOLUTE)
 if(NOT IS_DIRECTORY "${RV_STEAMRT4_SDK}")
     message(FATAL_ERROR "no Steam Runtime 4 SDK directory ${RV_STEAMRT4_SDK}: pass -DRV_STEAMRT4_SDK=<unpacked SDK>, "
-            "or ship steamrt4-sdk beside tools/ in a development kit delivery")
+            "or ship steamrt4-sdk beside tools/ in a devtools delivery")
 endif()
 
 # try_compile projects re-read this file and need the same directory.

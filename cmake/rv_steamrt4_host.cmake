@@ -16,7 +16,7 @@ set(RV_STEAMRT4_SDK_FILE "steamrt4-sdk-sysroot-${RV_STEAMRT4_VERSION}.tar.gz")
 # Names of the downloads in the fetch messages.
 string(CONCAT RV_STEAMRT4_NAME
     "Steam Linux Runtime 4 ${RV_STEAMRT4_VERSION}: the container the player's console runs in, "
-    "with pressure-vessel that runs the development kit's tools, and the platform the compatibility check "
+    "with pressure-vessel that runs the devtools delivery's tools, and the platform the compatibility check "
     "verifies the binaries against")
 string(CONCAT RV_STEAMRT4_SDK_NAME
     "Steam Runtime 4 SDK ${RV_STEAMRT4_VERSION}: clang 19, CMake, Ninja and the libraries "
@@ -124,7 +124,8 @@ if(CMAKE_BUILD_TYPE)
 endif()
 
 # pressure-vessel mounts the SDK as the runtime; the source, build and download cache dirs are the paths it must open
-# (the devkit targets of the inner build fetch into the cache). The configure and the build targets share this wrap.
+# (the devtools download targets of the inner build fetch into the cache).
+# The configure and the build targets share this wrap.
 set(RV_HOST_WRAP_ARGS
     "${RV_HOST_WRAP}"
     "--runtime=${RV_STEAMRT4_SDK_DIR}"

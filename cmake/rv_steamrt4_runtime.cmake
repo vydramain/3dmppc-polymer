@@ -3,8 +3,8 @@
 # ${CMAKE_BINARY_DIR}/SteamLinuxRuntime_4 links to it: mppcburner, in <build>/bin, finds the link and the copy of
 # cmake/rv_linux_compat_check.cmake named <build>/tools/linux-compat-check.cmake (R/SteamLinuxRuntime_4 and R/tools/,
 # R the parent of its dir).
-# RV_FETCH_CACHE is the download cache of the external build (Steam Linux Runtime 4, SDK) and of the devkit tools
-# (cmake/rv_devkit_tools.cmake); it defaults under HOME.
+# RV_FETCH_CACHE is the download cache of the external build (Steam Linux Runtime 4, SDK) and of the devtools delivery tools
+# (cmake/rv_devtools_tools.cmake); it defaults under HOME.
 
 if(NOT RV_STEAMRT4_DIR)
     message(FATAL_ERROR "RV_STEAMRT4_DIR is not set: configure without CMAKE_TOOLCHAIN_FILE, and the external build "

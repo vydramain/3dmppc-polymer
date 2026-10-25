@@ -1,5 +1,5 @@
 #!/bin/sh
-# Starts root/bin/<name> inside a runtime: root/steamrt4-sdk when the delivery has it (development kit),
+# Starts root/bin/<name> inside a runtime: root/steamrt4-sdk when the delivery has it (devtools),
 # else Steam Linux Runtime 4 Platform (player). Copied as <root>/<name> into each delivery.
 # The ELF runs only inside this delivery's pressure-vessel; nested calls exec it directly,
 # without a nested pressure-vessel launch (run, unruntime or wrap). Needs GNU readlink -f and /proc: Linux only.
@@ -14,7 +14,7 @@ elf="${root}/bin/${name}"
 # Inside check: the markers come from the parent launch. This guards against a nested pressure-vessel launch;
 # it is not a security boundary, since any process can set these variables.
 if [ "${RV_LAUNCH_ROOT:-}" = "${root}" ] && [ "${container:-}" = pressure-vessel ] && [ -d /run/host ]; then
-    # Development kit tools. An unmatched glob stays literal and fails the -d test.
+    # Devtools delivery tools. An unmatched glob stays literal and fails the -d test.
     for d in "${root}"/tools/*/bin; do
         if [ -d "${d}" ]; then
             PATH="${d}${PATH:+:${PATH}}"
@@ -30,7 +30,7 @@ if [ "${RV_LAUNCH_ROOT:-}" = "${root}" ] && [ "${container:-}" = pressure-vessel
     exec "${elf}" "$@"
 fi
 
-# Development kit: its SDK is the runtime (clang 19, CMake, Ninja, GNU ld, readelf for disc.so).
+# Devtools delivery: its SDK is the runtime (clang 19, CMake, Ninja, GNU ld, readelf for disc.so).
 # The player delivery has none. unruntime, as run uses it, prepares the host environment for
 # pressure-vessel (it drops the host's Steam Runtime variables). The SDK is bound in place, never
 # copied (3.4 GB), so the host's runtime and copy variables are unset here. The "Cannot modify

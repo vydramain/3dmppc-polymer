@@ -68,7 +68,7 @@ int rv_burner_kit_check_version(const rv_burner_kit &kit, std::string &error);
 //
 // The reference is R/tools/linux-compat-check.cmake and R/SteamLinuxRuntime_4, where R is the parent of the
 // burner's directory. The compat check proves a disc.so's needs are in that Platform. R/tools/steamrt4-toolchain.cmake
-// is shipped by the development kit delivery. It sets the delivery's Steam Runtime 4 SDK as the sysroot, so the
+// is shipped by the devtools delivery. It sets the delivery's Steam Runtime 4 SDK as the sysroot, so the
 // headers and libraries a disc.so links against come from that SDK. Without it no sysroot is set, so
 // headers and libraries come from the compiler's default search paths. The compiler comes from PATH in both cases.
 
