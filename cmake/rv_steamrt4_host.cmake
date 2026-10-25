@@ -13,6 +13,14 @@ set(RV_STEAMRT4_SDK_BASE "https://repo.steampowered.com/steamrt4/images/${RV_STE
 set(RV_STEAMRT4_SDK_URL "${RV_STEAMRT4_SDK_BASE}com.valvesoftware.SteamRuntime.Sdk-amd64%2Ci386-steamrt4-sysroot.tar.gz")
 set(RV_STEAMRT4_SDK_SHA256 "c01a7507cea248c231412f3d70563501899c3e77a8c9f08078a7c7cf30bee6a6")
 set(RV_STEAMRT4_SDK_FILE "steamrt4-sdk-sysroot-${RV_STEAMRT4_VERSION}.tar.gz")
+# Names of the downloads in the fetch messages.
+string(CONCAT RV_STEAMRT4_NAME
+    "Steam Linux Runtime 4 ${RV_STEAMRT4_VERSION}: the container the player's console runs in, "
+    "with pressure-vessel that runs the development kit's tools, and the platform the compatibility check "
+    "verifies the binaries against")
+string(CONCAT RV_STEAMRT4_SDK_NAME
+    "Steam Runtime 4 SDK ${RV_STEAMRT4_VERSION}: clang 19, CMake, Ninja and the libraries "
+    "the project is built with and against")
 
 # Build-tree dirs, declared once. rv_fetch.cmake replaces its target dir as a whole, so the runtime is reached through a link.
 set(RV_HOST_STEAMRT4_DIR "${CMAKE_BINARY_DIR}/steamrt4")
@@ -47,13 +55,14 @@ endif()
 set(RV_HOST_FETCH_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/rv_fetch.cmake")
 
 # Fetches one pin into the cache and extracts it into dir; rv_fetch.cmake skips a dir that already matches its stamp.
-function(rv_host_fetch url sha256 name dir)
+function(rv_host_fetch url sha256 name dir phrase)
     execute_process(
         COMMAND "${CMAKE_COMMAND}"
                 "-DRV_FETCH_URL=${url}"
                 "-DRV_FETCH_SHA256=${sha256}"
                 "-DRV_FETCH_FILE=${RV_FETCH_CACHE}/${name}"
                 "-DRV_FETCH_DIR=${dir}"
+                "-DRV_FETCH_NAME=${phrase}"
                 "-DRV_CURL=${RV_CURL}"
                 -P "${RV_HOST_FETCH_SCRIPT}"
         RESULT_VARIABLE rc)
@@ -62,9 +71,23 @@ function(rv_host_fetch url sha256 name dir)
     endif()
 endfunction()
 
+message(STATUS "the Linux build runs inside the Steam Runtime 4 SDK through pressure-vessel. "
+    "First the Steam Linux Runtime 4, then the SDK are fetched: the archives go to the download cache ${RV_FETCH_CACHE} "
+    "and are removed after a successful extraction; the files are extracted into steamrt4/ and steamrt4-sdk/ "
+    "under ${CMAKE_BINARY_DIR}.")
 file(MAKE_DIRECTORY "${RV_FETCH_CACHE}")
-rv_host_fetch("${RV_STEAMRT4_URL}" "${RV_STEAMRT4_SHA256}" "${RV_STEAMRT4_FILE}" "${RV_HOST_STEAMRT4_DIR}")
-rv_host_fetch("${RV_STEAMRT4_SDK_URL}" "${RV_STEAMRT4_SDK_SHA256}" "${RV_STEAMRT4_SDK_FILE}" "${RV_STEAMRT4_SDK_DIR}")
+rv_host_fetch(
+    "${RV_STEAMRT4_URL}"
+    "${RV_STEAMRT4_SHA256}"
+    "${RV_STEAMRT4_FILE}"
+    "${RV_HOST_STEAMRT4_DIR}"
+    "${RV_STEAMRT4_NAME}")
+rv_host_fetch(
+    "${RV_STEAMRT4_SDK_URL}"
+    "${RV_STEAMRT4_SDK_SHA256}"
+    "${RV_STEAMRT4_SDK_FILE}"
+    "${RV_STEAMRT4_SDK_DIR}"
+    "${RV_STEAMRT4_SDK_NAME}")
 
 file(REMOVE "${RV_HOST_RUNTIME}")
 file(CREATE_LINK "${RV_HOST_STEAMRT4_DIR}/SteamLinuxRuntime_4" "${RV_HOST_RUNTIME}" SYMBOLIC RESULT link_rc)
@@ -102,6 +125,9 @@ set(RV_HOST_WRAP_ARGS
     --
 )
 
+message(STATUS "configuring the project in ${RV_HOST_INNER} inside the Steam Runtime 4 SDK through pressure-vessel. "
+    "The pressure-vessel warning that it does not make /usr/share/defaults/etc/ld.so.conf a symlink is expected: "
+    "the SDK is used in place, not copied.")
 execute_process(
     COMMAND ${RV_HOST_WRAP_ARGS} cmake -S "${CMAKE_SOURCE_DIR}" -B "${RV_HOST_INNER}" -G Ninja
             "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/rv_steamrt4_toolchain.cmake"
@@ -112,16 +138,24 @@ execute_process(
 if(NOT rc EQUAL 0)
     message(FATAL_ERROR "the inner configure in ${RV_HOST_INNER} failed (exit ${rc})")
 endif()
+message(STATUS "the \"Configuring done\" above is the inner build in ${RV_HOST_INNER}: "
+    "this build directory only passes cmake --build to it.")
 
 # 3dmppc_inner is the default build; each named target builds the inner target of the same name.
 # package-player exists only in the player build (no 3DMPPC_DEVTOOLS); package-devkit and devkit-tree only with
 # 3DMPPC_DEVTOOLS=ON. In the other configuration the inner build answers "unknown target" and the exit code fails here.
+string(CONCAT RV_HOST_BUILD_NOTE
+    "in ${RV_HOST_INNER} inside the Steam Runtime 4 SDK through pressure-vessel. "
+    "The pressure-vessel warning about /usr/share/defaults/etc/ld.so.conf that follows is expected: "
+    "the SDK is used in place, not copied.")
 add_custom_target(3dmppc_inner ALL
     COMMAND ${RV_HOST_WRAP_ARGS} cmake --build "${RV_HOST_INNER}"
+    COMMENT "Building the inner default target ${RV_HOST_BUILD_NOTE}"
     USES_TERMINAL VERBATIM)
 set(RV_HOST_INNER_TARGETS package-player package-devkit devkit-tree)
 foreach(rv_target IN LISTS RV_HOST_INNER_TARGETS)
     add_custom_target(${rv_target}
         COMMAND ${RV_HOST_WRAP_ARGS} cmake --build "${RV_HOST_INNER}" --target ${rv_target}
+        COMMENT "Building ${rv_target} ${RV_HOST_BUILD_NOTE}"
         USES_TERMINAL VERBATIM)
 endforeach()
