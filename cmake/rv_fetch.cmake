@@ -1,11 +1,12 @@
 # Loads one pinned file: fetches RV_FETCH_URL into RV_FETCH_FILE and checks its SHA256 against RV_FETCH_SHA256.
-# With RV_FETCH_DIR set, the file is also extracted there.
+# With RV_FETCH_DIR set, the file is also extracted there and then removed.
 # Usage: cmake -DRV_FETCH_URL=<https://... | http://... | file://...> -DRV_FETCH_SHA256=<hex> -DRV_FETCH_FILE=<file>
 #              [-DRV_FETCH_DIR=<dir>] [-DRV_CURL=<curl>] -P cmake/rv_fetch.cmake
-# A broken transfer keeps the partial file, so the next run resumes it. A file that matches the pin is kept and is
-# never fetched again. A hash mismatch removes the file. RV_FETCH_DIR holds a stamp with the SHA256 it was extracted
-# from: a matching stamp skips the run; a missing or other stamp replaces the tree. The tree is built in a sibling dir and
-# renamed into place only when complete.
+# A broken transfer keeps the partial file, so the next run resumes it. A hash mismatch is only a warning: the file is
+# used as it is. With RV_FETCH_DIR the file is extracted and then removed; without it the file is kept, and a file that
+# matches the pin is not fetched again. The stamp in RV_FETCH_DIR holds the pinned SHA256 (also on mismatch): a matching
+# stamp skips the run without fetching or looking for the file, and removes a leftover archive. A missing or other stamp
+# replaces the tree. The tree is built in a sibling dir and renamed into place only when complete.
 
 if(NOT RV_FETCH_URL OR NOT RV_FETCH_SHA256 OR NOT RV_FETCH_FILE)
     message(FATAL_ERROR "RV_FETCH_URL, RV_FETCH_SHA256 and RV_FETCH_FILE must be set")
@@ -26,13 +27,10 @@ endif()
 set(RV_FETCH_CURL_RETRIES 10)
 # curl exit 33: the server ignored the Range header, so the partial file cannot be continued.
 set(RV_FETCH_CURL_NO_RANGE 33)
-# LLVM 23.1.4's .tar.zst has a 1 GiB window (zstd -lv: Window Size 1.000 GiB); without --long=30 zstd refuses it
-# with "Window size larger than maximum".
-set(RV_FETCH_ZSTD_LONG 30)
-# The extraction stamp in RV_FETCH_DIR: the SHA256 the tree was extracted from.
+# The stamp in RV_FETCH_DIR: the pinned SHA256 (RV_FETCH_SHA256), not the hash of the archive, which may differ after a warning.
 set(RV_FETCH_STAMP .rv_fetch_sha256)
 
-# A file:// source that is the destination would be removed by a hash mismatch: refuse it before any copy.
+# A file:// source that is the destination would be deleted after extraction: refuse it before any copy.
 if(RV_FETCH_URL MATCHES "^file://")
     string(REGEX REPLACE "^file://" "" source "${RV_FETCH_URL}")
     get_filename_component(source_real "${source}" REALPATH)
@@ -88,33 +86,17 @@ endfunction()
 function(rv_fetch_extract)
     string(TOLOWER "${RV_FETCH_SHA256}" expected)
     set(work "${RV_FETCH_DIR}.part")
-    set(tar "${work}.tar")
-    set(source "${RV_FETCH_FILE}")
     # Leftovers of an interrupted run.
-    file(REMOVE_RECURSE "${work}" "${tar}")
+    file(REMOVE_RECURSE "${work}")
     file(MAKE_DIRECTORY "${work}")
-    if(RV_FETCH_FILE MATCHES "\\.tar\\.zst$")
-        find_program(RV_FETCH_ZSTD zstd)
-        if(NOT RV_FETCH_ZSTD)
-            message(FATAL_ERROR "zstd is not found: it decompresses ${RV_FETCH_FILE}; install zstd")
-        endif()
-        execute_process(
-            COMMAND "${RV_FETCH_ZSTD}" -d -f --long=${RV_FETCH_ZSTD_LONG} "${RV_FETCH_FILE}" -o "${tar}"
-            RESULT_VARIABLE rc
-            ERROR_VARIABLE err)
-        if(NOT "${rc}" STREQUAL "0")
-            message(FATAL_ERROR "cannot decompress ${RV_FETCH_FILE} (zstd exit ${rc}): ${err}")
-        endif()
-        set(source "${tar}")
-    endif()
     execute_process(
-        COMMAND "${CMAKE_COMMAND}" -E tar xf "${source}"
+        COMMAND "${CMAKE_COMMAND}" -E tar xf "${RV_FETCH_FILE}"
         WORKING_DIRECTORY "${work}"
         RESULT_VARIABLE rc
         ERROR_VARIABLE err)
-    file(REMOVE "${tar}")
     if(NOT "${rc}" STREQUAL "0")
-        message(FATAL_ERROR "cannot extract ${source} into ${RV_FETCH_DIR} (exit ${rc}): ${err}")
+        message(FATAL_ERROR "cannot extract ${RV_FETCH_FILE} into ${RV_FETCH_DIR} (exit ${rc}): ${err}\n"
+                "if the archive is broken, remove ${RV_FETCH_FILE} to download it again.")
     endif()
     file(WRITE "${work}/${RV_FETCH_STAMP}" "${expected}\n")
     # The old tree goes only after the new one is complete, so a failed extraction keeps it.
@@ -132,6 +114,8 @@ function(rv_fetch_main)
             string(STRIP "${recorded}" recorded)
         endif()
         if("${recorded}" STREQUAL "${expected}")
+            # A run that died between the rename and the removal leaves the archive behind.
+            file(REMOVE "${RV_FETCH_FILE}")
             message(STATUS "${RV_FETCH_DIR} is already extracted from ${expected}")
             return()
         endif()
@@ -144,14 +128,15 @@ function(rv_fetch_main)
     if(NOT "${actual}" STREQUAL "${expected}")
         rv_fetch_download()
         file(SHA256 "${RV_FETCH_FILE}" actual)
-        if(NOT "${actual}" STREQUAL "${expected}")
-            file(REMOVE "${RV_FETCH_FILE}")
-            message(FATAL_ERROR "SHA256 of ${RV_FETCH_URL} is ${actual}, expected ${expected}: "
-                    "the file is removed, the next run downloads it again.")
-        endif()
+    endif()
+    if(NOT "${actual}" STREQUAL "${expected}")
+        message(WARNING "SHA256 of ${RV_FETCH_URL} is ${actual}, expected ${expected}: "
+                "the file ${RV_FETCH_FILE} is used as it is: with RV_FETCH_DIR set it is extracted and then removed; "
+                "without RV_FETCH_DIR it is kept.")
     endif()
     if(RV_FETCH_DIR)
         rv_fetch_extract()
+        file(REMOVE "${RV_FETCH_FILE}")
     endif()
 endfunction()
 
