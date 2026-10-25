@@ -1,8 +1,8 @@
 # Toolchain for the Steam Runtime 4 Platform as target, with the Steam Runtime 4 SDK directory as sysroot.
 # RV_STEAMRT4_SDK is the unpacked Steam Runtime 4 SDK. The internal project build receives it as -DRV_STEAMRT4_SDK=<dir>.
 # The development kit delivery ships this file as tools/steamrt4-toolchain.cmake with steamrt4-sdk beside tools/, which
-# is the default when RV_STEAMRT4_SDK is not given or empty. Inside pressure-vessel the host glibc replaces the SDK's,
-# so the untouched SDK directory must be --sysroot.
+# is the default when RV_STEAMRT4_SDK is not given or empty. The SDK directory is the sysroot, so the headers and libraries
+# a build links against come from the SDK whatever the host has.
 # Usage: cmake -DCMAKE_TOOLCHAIN_FILE=<repo>/cmake/rv_steamrt4_toolchain.cmake [-DRV_STEAMRT4_SDK=<dir>] ...
 
 if("${RV_STEAMRT4_SDK}" STREQUAL "")
