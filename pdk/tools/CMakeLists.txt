@@ -1,4 +1,4 @@
-# The DEVKIT: tools that run on a developer's machine while a game is authored.
+# The authoring tools: mppcburner and the bakers, run on a developer's machine to bake a game's assets and burn it onto a disc.
 # It is a separate product from the console and builds with its own command:
 #
 #   cmake -S pdk/tools -B pdk/tools/build && cmake --build pdk/tools/build

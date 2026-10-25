@@ -154,15 +154,19 @@ int rv_editor_export::start(const rv_editor_project &project,
         return RV_ERR_INVAL;
     }
 
+    // mppcburner runs in the project root and the field offers <root>/export, so a relative destination is
+    // relative to the root. The editor, the burner and the log then name the same directory.
+    const std::filesystem::path abs_dest = (dest_dir.is_absolute() ? dest_dir : project.root / dest_dir).lexically_normal();
+
     std::error_code ec;
-    std::filesystem::create_directories(dest_dir, ec);
+    std::filesystem::create_directories(abs_dest, ec);
     if (ec) {
-        error = dest_dir.string() + ": " + ec.message();
+        error = abs_dest.string() + ": " + ec.message();
         return RV_ERR_IO;
     }
     const std::filesystem::path output =
-        row.output_suffix.empty() ? dest_dir : dest_dir / (project.disc_id + std::string(row.output_suffix));
-    const std::filesystem::path result_path = row.result_name.empty() ? output : dest_dir / std::string(row.result_name);
+        row.output_suffix.empty() ? abs_dest : abs_dest / (project.disc_id + std::string(row.output_suffix));
+    const std::filesystem::path result_path = row.result_name.empty() ? output : abs_dest / std::string(row.result_name);
     const uint32_t run = runs_ + 1;
     const std::filesystem::path build_dir = project.cache_dir / std::string(export_build_subdir);
 

@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "pdk/rv_err.h"
+#include "platform/rv_editor_resources.hpp"
 
 #include "font/rv_editor_font_ttf.hpp"
 
@@ -27,6 +28,10 @@ rv_editor_code_size rv_editor_code_current = rv_editor_code_size::small;
 // PxPlus IBM VGA 9x16 and IBM EGA 8x14: pixel outlines on a 16 and a 14 px em.
 constexpr int rv_editor_code_vga_height = 16;
 constexpr int rv_editor_code_ega_height = 14;
+
+// The code font files beside the executable, under the editor's resource directory.
+constexpr std::string_view rv_editor_code_vga_file = "fonts/PxPlus_IBM_VGA_9x16.ttf";
+constexpr std::string_view rv_editor_code_ega_file = "fonts/PxPlus_IBM_EGA_8x14.ttf";
 
 // Rounding adjustment for font size calculation to nearest pixel
 constexpr float font_size_rounding_adjustment = 0.5f;
@@ -99,19 +104,18 @@ int rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
     ui.FontDataOwnedByAtlas = false;
     rv_editor_ui = atlas.AddFontFromMemoryTTF(const_cast<char *>(ui_ttf.data()), static_cast<int>(ui_ttf.size()), ui_size, &ui);
 
+    // The file paths are kept in named strings: the messages below name the path that was tried.
+    const std::string ega_file = rv_editor_resource_path(rv_editor_code_ega_file).string();
     ImFontConfig ega = rv_editor_font_config(ega_font_config_name.data());
-    rv_editor_code_small =
-        atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_SMALL_FILE, rv_editor_font_size(rv_editor_code_ega_height, k), &ega);
+    rv_editor_code_small = atlas.AddFontFromFileTTF(ega_file.c_str(), rv_editor_font_size(rv_editor_code_ega_height, k), &ega);
+    const std::string vga_file = rv_editor_resource_path(rv_editor_code_vga_file).string();
     ImFontConfig vga = rv_editor_font_config(vga_font_config_name.data());
-    rv_editor_code_vga =
-        atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_FILE, rv_editor_font_size(rv_editor_code_vga_height, k), &vga);
+    rv_editor_code_vga = atlas.AddFontFromFileTTF(vga_file.c_str(), rv_editor_font_size(rv_editor_code_vga_height, k), &vga);
     if (rv_editor_code_small == nullptr) {
-        std::fprintf(stderr,
-            "3dmppc-editor: %s does not load; the small code size draws in 9x16\n",
-            RV_EDITOR_CODE_FONT_SMALL_FILE);
+        std::fprintf(stderr, "3dmppc-editor: %s does not load; the small code size draws in 9x16\n", ega_file.c_str());
     }
     if (rv_editor_code_vga == nullptr) {
-        std::fprintf(stderr, "3dmppc-editor: %s does not load; code draws in 8x14\n", RV_EDITOR_CODE_FONT_FILE);
+        std::fprintf(stderr, "3dmppc-editor: %s does not load; code draws in 8x14\n", vga_file.c_str());
     }
     const bool ok = rv_editor_ui != nullptr && (rv_editor_code_small != nullptr || rv_editor_code_vga != nullptr);
     // The previous set stays in the atlas until the new one is known good; a failure drops the new one.

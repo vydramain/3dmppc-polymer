@@ -25,6 +25,27 @@ constexpr std::string_view kKitSubdir = "firmware/web";
 constexpr std::string_view kKitFileName = "kit.txt";
 constexpr std::string_view kNoKitHint = "a development build (-D3DMPPC_DEVTOOLS=ON) makes it";
 
+// The Steam Runtime 4 reference sits in R, the parent of the burner's directory. The compat check and the
+// runtime are required; the toolchain file comes with the delivery and sets its Steam Runtime 4 SDK as the sysroot.
+constexpr std::string_view kToolsSubdir = "tools";
+constexpr std::string_view kLinuxToolchainName = "steamrt4-toolchain.cmake";
+constexpr std::string_view kLinuxCompatName = "linux-compat-check.cmake";
+constexpr std::string_view kRuntimeSubdir = "SteamLinuxRuntime_4";
+
+// How the compat check runs: -D sets the two variables cmake/rv_linux_compat_check.cmake reads, -P runs it.
+constexpr std::string_view kCmakeCommand = "cmake";
+constexpr std::string_view kCompatFilesArg = "-DRV_COMPAT_FILES=";
+constexpr std::string_view kCompatRuntimeArg = "-DRV_COMPAT_RUNTIME=";
+constexpr std::string_view kCompatScriptArg = "-P";
+constexpr char kCmakeListSeparator = ';'; // cmake splits a -D value at it, so a path holding one is refused
+
+// Exit statuses of the compat check. cmake exits 1 on any FATAL_ERROR of the check: a violation, or a missing
+// readelf or Platform. The others mean cmake itself did not finish.
+constexpr int kCheckFailed = 1;
+constexpr int kCmakeNotFound = 127; // sh: command not found
+constexpr int kSignalBase = 128;    // 128 or more: cmake was killed by a signal (run_capture reports every signal death as 128)
+constexpr int kStartFailed = -1;    // run_capture: the shell could not be started
+
 // Every key is required: a kit missing one would be linked with a guess.
 constexpr std::string_view kKeyPdkVersion = "pdk_version";
 constexpr std::string_view kKeyBuildType = "build_type";
@@ -243,6 +264,36 @@ int parse_entries(std::string_view text, std::map<std::string, std::string, std:
     return RV_OK;
 }
 
+bool has_list_separator(const std::string &text)
+{
+    return text.find(kCmakeListSeparator) != std::string::npos;
+}
+
+// Why cmake did not finish, for the reason text: named for the known statuses, the number otherwise.
+std::string describe_cmake_status(int status)
+{
+    if (status == kStartFailed) {
+        return "could not be started";
+    }
+    if (status == kCmakeNotFound) {
+        return "was not found";
+    }
+    if (status >= kSignalBase) {
+        return "was killed by a signal";
+    }
+    return "exited with status " + std::to_string(status);
+}
+
+// The reason a part of the Steam Runtime 4 reference is absent; a filesystem error that hid it is appended.
+std::string absent_reason(std::string_view what, const fs::path &path, const std::error_code &ec)
+{
+    std::string reason = std::string(what) + " at '" + path.string() + "'";
+    if (ec && ec != std::errc::no_such_file_or_directory) {
+        reason += ": " + ec.message();
+    }
+    return reason + "; " + std::string(kNoKitHint);
+}
+
 } // namespace
 
 int rv_pdktools::rv_burner_kit_locate(fs::path &dir, std::string &error)
@@ -330,4 +381,79 @@ int rv_pdktools::rv_burner_kit_check_version(const rv_burner_kit &kit, std::stri
     error = "kit is PDK " + std::to_string(kit.pdk_major) + "." + std::to_string(kit.pdk_minor) + ", this burner is " +
         std::to_string(RV_MPPC_VER_MAJOR) + "." + std::to_string(RV_MPPC_VER_MINOR);
     return RV_ERR_INVAL;
+}
+
+int rv_pdktools::rv_burner_linux_kit_locate(fs::path &toolchain_file,
+    fs::path &compat_check,
+    fs::path &runtime_dir,
+    std::string &error)
+{
+    const fs::path exe_dir = rv_pdktools::executable_directory();
+    const fs::path root = exe_dir.parent_path();
+    if (exe_dir.empty() || root.empty()) {
+        error = "the burner's own directory is unknown; " + std::string(kNoKitHint);
+        return RV_ERR_NOENT;
+    }
+
+    const fs::path tools_dir = root / kToolsSubdir;
+    const fs::path compat = tools_dir / kLinuxCompatName;
+    std::error_code ec;
+    if (!fs::is_regular_file(compat, ec)) {
+        error = absent_reason("no compat check", compat, ec);
+        return RV_ERR_NOENT;
+    }
+
+    const fs::path runtime = root / kRuntimeSubdir;
+    if (!fs::is_directory(runtime, ec)) {
+        error = absent_reason("no Steam Runtime 4", runtime, ec);
+        return RV_ERR_NOENT;
+    }
+
+    // Absent in a build directory (no steamrt4-toolchain.cmake in tools/): the compiler comes from PATH.
+    // Only an unreadable path is an error.
+    const fs::path toolchain = tools_dir / kLinuxToolchainName;
+    if (fs::exists(toolchain, ec)) {
+        toolchain_file = toolchain;
+    } else if (ec) {
+        error = "cannot inspect '" + toolchain.string() + "': " + ec.message();
+        return RV_ERR_IO;
+    }
+
+    compat_check = compat;
+    runtime_dir = runtime;
+    return RV_OK;
+}
+
+int rv_pdktools::rv_burner_linux_compat_check(const fs::path &compat_check,
+    const fs::path &runtime_dir,
+    const fs::path &file,
+    std::string &error)
+{
+    const std::string path = file.string();
+    const std::string runtime = runtime_dir.string();
+    if (has_list_separator(path)) {
+        error = "'" + path + "' contains ';', which cmake would split into two files";
+        return RV_ERR_INVAL;
+    }
+    if (has_list_separator(runtime)) {
+        error = "'" + runtime + "' contains ';', which cmake -D may not pass through intact";
+        return RV_ERR_INVAL;
+    }
+
+    // Each path is quoted as a whole, so a space in the disc directory stays inside its one -D value.
+    const std::string command = std::string(kCmakeCommand) + " " + std::string(kCompatFilesArg) + shell_quote(path) + " " +
+        std::string(kCompatRuntimeArg) + shell_quote(runtime) + " " + std::string(kCompatScriptArg) + " " +
+        shell_quote(compat_check.string());
+    std::string child_output;
+    const int status = run_capture(command, child_output);
+    if (status == 0) {
+        return RV_OK;
+    }
+    dump_child_output(child_output);
+    if (status == kCheckFailed) {
+        error = "the Steam Runtime 4 compat check failed on '" + path + "' (see its output above)";
+        return RV_ERR_INVAL;
+    }
+    error = "cmake did not run the Steam Runtime 4 compat check on '" + path + "': cmake " + describe_cmake_status(status);
+    return RV_ERR_IO;
 }

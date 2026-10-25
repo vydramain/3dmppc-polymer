@@ -86,6 +86,7 @@ target_compile_definitions(mppcburner PRIVATE RV_LOG_ORIGIN="tool")
 # still changes the copy the discs are built against. The old copy is removed first, so
 # a header deleted from pdk/ does not survive beside the binary.
 add_custom_target(mppcburner_pdk ALL
+  COMMENT "Replacing the PDK contract and pdklib headers in pdk/ beside mppcburner, which the discs are built against"
   COMMAND ${CMAKE_COMMAND} -E remove_directory $<TARGET_FILE_DIR:mppcburner>/pdk
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/pdk/include $<TARGET_FILE_DIR:mppcburner>/pdk/include
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/pdk/lib/include $<TARGET_FILE_DIR:mppcburner>/pdk/lib/include

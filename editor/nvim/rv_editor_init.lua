@@ -29,6 +29,21 @@ o.smartindent = true
 o.hidden = true
 o.autoread = true
 o.clipboard = "unnamedplus"
+-- Steam Linux Runtime 4 has no xclip or wl-paste: the editor owns the desktop clipboard through SDL.
+-- It sets vim.g.rv_clipboard on start and on every change; copies go back over rpc.
+local function rv_clipboard_copy(lines, regtype)
+    vim.rpcnotify(0, "rv_clipboard", { lines = lines, regtype = regtype })
+end
+local function rv_clipboard_paste()
+    return vim.g.rv_clipboard or { "" }
+end
+vim.g.clipboard = {
+    name = "3dmppc-editor",
+    copy = { ["+"] = rv_clipboard_copy, ["*"] = rv_clipboard_copy },
+    paste = { ["+"] = rv_clipboard_paste, ["*"] = rv_clipboard_paste },
+    -- Neovim keeps the register type of its own last yank while the clipboard still holds it.
+    cache_enabled = 1,
+}
 o.mouse = "a" -- the editor sends clicks and drags in a code tile (nvim_input_mouse)
 -- Each tile draws its own status line; nvim would put one in grid 1, outside the tile.
 o.laststatus = 0

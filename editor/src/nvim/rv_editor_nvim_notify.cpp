@@ -1,5 +1,7 @@
 // rv_editor_nvim::notified implementation: handle nvim notifications.
 
+#include <SDL3/SDL.h>
+
 #include "nvim/rv_editor_nvim.hpp"
 
 namespace rv_editor
@@ -16,6 +18,7 @@ constexpr std::string_view method_rv_mode = "rv_mode";
 constexpr std::string_view method_rv_lsp = "rv_lsp";
 constexpr std::string_view method_rv_diagnostics = "rv_diagnostics";
 constexpr std::string_view method_rv_buffers = "rv_buffers";
+constexpr std::string_view method_rv_clipboard = "rv_clipboard";
 
 // Notification method enum for dispatch.
 enum class rv_editor_nvim_method {
@@ -24,7 +27,8 @@ enum class rv_editor_nvim_method {
     rv_mode,
     rv_lsp,
     rv_diagnostics,
-    rv_buffers
+    rv_buffers,
+    rv_clipboard
 };
 
 // Method name to enum lookup table.
@@ -37,6 +41,7 @@ constexpr struct {
     { method_rv_lsp, rv_editor_nvim_method::rv_lsp },
     { method_rv_diagnostics, rv_editor_nvim_method::rv_diagnostics },
     { method_rv_buffers, rv_editor_nvim_method::rv_buffers },
+    { method_rv_clipboard, rv_editor_nvim_method::rv_clipboard },
 };
 
 // Parse method name via table lookup.
@@ -70,6 +75,11 @@ constexpr std::string_view field_id = "id";
 constexpr std::string_view field_name = "name";
 constexpr std::string_view field_modified = "modified";
 constexpr std::string_view field_windows = "windows";
+
+// Payload field name for rv_clipboard notification.
+constexpr std::string_view field_lines = "lines";
+// Lines of a copied clipboard text are joined with this, the inverse of the Lua side's split.
+constexpr std::string_view clipboard_line_break = "\n";
 
 // Handle LSP notification: update server state and log changes.
 void handle_lsp(std::map<std::string, rv_editor_nvim_lsp> &lsp, const rv_editor_mpack &params, rv_editor_log &log)
@@ -156,6 +166,27 @@ void handle_buffers(std::vector<rv_editor_nvim_buffer> &buffers, const rv_editor
     }
 }
 
+// Handle clipboard notification: Neovim's copy ("+" or "*") becomes the desktop clipboard.
+void handle_clipboard(const rv_editor_mpack &params, rv_editor_log &log)
+{
+    const rv_editor_mpack *lines = params.items[0].get(field_lines);
+    if (lines == nullptr || !lines->is(mtype::array)) {
+        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "clipboard: copy has no lines");
+        return;
+    }
+    std::string text;
+    for (std::size_t i = 0; i < lines->items.size(); ++i) {
+        if (i > 0) {
+            text += clipboard_line_break;
+        }
+        text += lines->items[i].s;
+    }
+    // A lost clipboard write is survivable: warn, do not stop the editor.
+    if (!SDL_SetClipboardText(text.c_str())) {
+        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("clipboard: ") + SDL_GetError());
+    }
+}
+
 } // namespace
 
 void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log)
@@ -184,6 +215,9 @@ void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &
         return;
     case rv_editor_nvim_method::rv_buffers:
         handle_buffers(buffers_, params);
+        return;
+    case rv_editor_nvim_method::rv_clipboard:
+        handle_clipboard(params, log);
         return;
     case rv_editor_nvim_method::unknown:
         swap_notified(method, params, log);
