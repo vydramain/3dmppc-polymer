@@ -729,8 +729,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 
 The host needs Linux with the base-devel, cmake and ninja packages, and curl, which
 configure checks for and stops without. Nothing else: the clang 19 compiler, SDL3, the headers and zip for the packaging
-targets come from the Steam Runtime 4 SDK. Podman, zstd and zip are not needed on the
-host.
+targets come from the Steam Runtime 4 SDK.
 
 `cmake -S . -B build` checks for curl and fetches the Steam Runtime 4 SDK (1.12 GB,
 3.4 GB unpacked) into `build/steamrt4-sdk` and Steam Linux Runtime 4 (175 MB) into
