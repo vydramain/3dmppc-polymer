@@ -1,6 +1,6 @@
 # Host half of the Linux build. CMakeLists.txt enters here before project() when the host is Linux and no toolchain
 # is given: it checks the host programs, fetches the pinned Steam Linux Runtime 4 and Steam Runtime 4 SDK, and
-# configures the project inside the SDK in ${CMAKE_BINARY_DIR}/sdk. It compiles nothing; the inner configure does.
+# configures the project inside the SDK in ${CMAKE_BINARY_DIR}/sdk. It compiles nothing; the inner configure and build do.
 # Usage: cmake -S <repo> -B <build> -G Ninja [-D3DMPPC_*=...] [-DCMAKE_BUILD_TYPE=...] [-DRV_FETCH_CACHE=<dir>]
 
 # One snapshot names both downloads (the Steam Linux Runtime 4 and the Steam Runtime 4 SDK sysroot).
@@ -91,12 +91,19 @@ if(CMAKE_BUILD_TYPE)
 endif()
 
 # pressure-vessel mounts the SDK as the runtime; the source, build and download cache dirs are the paths it must open
-# (the devkit targets of the inner build fetch into the cache).
+# (the devkit targets of the inner build fetch into the cache). The configure and the build targets share this wrap.
+set(RV_HOST_WRAP_ARGS
+    "${RV_HOST_WRAP}"
+    "--runtime=${RV_STEAMRT4_SDK_DIR}"
+    --batch
+    "--filesystem=${CMAKE_SOURCE_DIR}"
+    "--filesystem=${CMAKE_BINARY_DIR}"
+    "--filesystem=${RV_FETCH_CACHE}"
+    --
+)
+
 execute_process(
-    COMMAND "${RV_HOST_WRAP}" "--runtime=${RV_STEAMRT4_SDK_DIR}" --batch
-            "--filesystem=${CMAKE_SOURCE_DIR}" "--filesystem=${CMAKE_BINARY_DIR}" "--filesystem=${RV_FETCH_CACHE}"
-            --
-            cmake -S "${CMAKE_SOURCE_DIR}" -B "${RV_HOST_INNER}" -G Ninja
+    COMMAND ${RV_HOST_WRAP_ARGS} cmake -S "${CMAKE_SOURCE_DIR}" -B "${RV_HOST_INNER}" -G Ninja
             "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/rv_steamrt4_toolchain.cmake"
             "-DRV_STEAMRT4_SDK=${RV_STEAMRT4_SDK_DIR}"
             ${inner_opts}
@@ -104,3 +111,16 @@ execute_process(
 if(NOT rc EQUAL 0)
     message(FATAL_ERROR "the inner configure in ${RV_HOST_INNER} failed (exit ${rc})")
 endif()
+
+# 3dmppc_inner is the default build; each named target builds the inner target of the same name.
+# package-player exists only in the player build (no 3DMPPC_DEVTOOLS); package-devkit and devkit-tree only with
+# 3DMPPC_DEVTOOLS=ON. In the other configuration the inner build answers "unknown target" and the exit code fails here.
+add_custom_target(3dmppc_inner ALL
+    COMMAND ${RV_HOST_WRAP_ARGS} cmake --build "${RV_HOST_INNER}"
+    USES_TERMINAL VERBATIM)
+set(RV_HOST_INNER_TARGETS package-player package-devkit devkit-tree)
+foreach(rv_target IN LISTS RV_HOST_INNER_TARGETS)
+    add_custom_target(${rv_target}
+        COMMAND ${RV_HOST_WRAP_ARGS} cmake --build "${RV_HOST_INNER}" --target ${rv_target}
+        USES_TERMINAL VERBATIM)
+endforeach()

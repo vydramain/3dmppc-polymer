@@ -355,10 +355,10 @@ if(3DMPPC_DEVTOOLS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_devkit_tools.cmake)
   endif()
 
-  # One toolchain for everything the kit builds: the whole build runs in the Steam Runtime 4 SDK
-  # (steamrt4.sh) with clang from LLVM 23.1.4. The dev console exports its symbols to the disc, so
-  # console and disc must share one compiler and one libstdc++.
-  set(RV_KIT_CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE})
+  # One SDK clang for console and disc; nested builds need the toolchain and SDK or firmware re-enters the host half.
+  set(RV_KIT_CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+      -DRV_STEAMRT4_SDK=${RV_STEAMRT4_SDK})
   # The nested builds reuse the SDL3 and LuaJIT sources fetched here instead of downloading them again.
   if(DEFINED sdl3_SOURCE_DIR)
     list(APPEND RV_KIT_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_SDL3=${sdl3_SOURCE_DIR})
@@ -393,6 +393,7 @@ if(3DMPPC_DEVTOOLS)
     CMAKE_ARGS ${RV_KIT_CMAKE_ARGS}
       -D3DMPPC_DEVTOOLS=OFF
       -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
+      -DRV_FETCH_CACHE=${RV_FETCH_CACHE}
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
   )
