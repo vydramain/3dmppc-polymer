@@ -40,7 +40,7 @@ See the root README for details and your platform's package list.
 ## Tools
 
 The editor looks for the console and burner next to its own executable, where a development
-build puts them (`build-dev/pconsole/`), and the three bakers in the same directory:
+build puts them (`build-dev/sdk/pconsole/`), and the three bakers in the same directory:
 `mppctexbaker` (PNG), `mppcmusbaker` (WAV) and `mppcmodbaker` (.glb).
 Settings in File > Settings or `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml`
 override them. `baker` is the bakers' directory, not an executable. A file path, or a symlink
@@ -72,7 +72,7 @@ Or as part of the development kit, next to the development console and the tools
 
 ```sh
 cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev
-./build-dev/pconsole/3dmppc-editor [PATH]
+./build-dev/sdk/pconsole/3dmppc-editor [PATH]
 ```
 
 `PATH` is a game directory or its `disc.toml` file; both open the same project.

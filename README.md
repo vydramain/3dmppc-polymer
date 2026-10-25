@@ -20,15 +20,16 @@ for the whole budget.
 
 ## The one-minute version
 
-Every build runs in the Steam Runtime 4 SDK, OCI image, through Podman, with
-`./steamrt4.sh`. The programs of a delivery run through their launch files.
+Builds are plain CMake. The host needs base-devel, cmake, ninja and curl: the first
+configure fetches the Steam Runtime 4 SDK, which supplies the compiler and the
+libraries (see Requirements). The programs of a delivery run through their launch files.
 
 ```sh
-# 1. build the 3dmppc devtools console in the Steam Runtime 4 SDK, OCI image
-./steamrt4.sh sh -c 'cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev'
+# 1. build the 3dmppc devtools console
+cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev
 
 # 2. package it as the 3dmppc development kit delivery
-./steamrt4.sh cmake --build build-dev --target package-devkit
+cmake --build build-dev --target package-devkit
 
 # 3. unzip build-dev/3dmppc-devkit-<major>.<minor>.zip anywhere and enter its root directory
 
@@ -105,16 +106,16 @@ see below.
 
 ## Two builds: the 3dmppc player console and the 3dmppc devtools console
 
-Both run through `./steamrt4.sh`, which runs the command in the Steam Runtime 4
-SDK, OCI image, with LLVM 23.1.4 first on `PATH`.
+Both are plain CMake builds. The configure step puts the compile into the Steam
+Runtime 4 SDK, whose clang 19 compiles them; the host's compiler is not used.
 
-| Build | Command | What lands in `pconsole/` |
+| Build | Command | What lands in `sdk/pconsole/` |
 | --- | --- | --- |
-| 3dmppc player console | `./steamrt4.sh sh -c 'cmake -S . -B build -G Ninja && cmake --build build'` | `3dmppc` |
-| 3dmppc devtools console | `./steamrt4.sh sh -c 'cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev'` | `3dmppc` (development), `mppctexbaker`, `mppcmusbaker`, `mppcmodbaker`, `mppcburner`, `3dmppc-editor` |
+| 3dmppc player console | `cmake -S . -B build -G Ninja && cmake --build build` | `3dmppc` |
+| 3dmppc devtools console | `cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev` | `3dmppc` (development), `mppctexbaker`, `mppcmusbaker`, `mppcmodbaker`, `mppcburner`, `3dmppc-editor` |
 
 ```
-build-dev/pconsole/
+build-dev/sdk/pconsole/
     3dmppc          the development console: --dev, loose disc directories, reload
     mppctexbaker    bakes a PNG into a console texture (.mppctex)
     mppcmusbaker    bakes a WAV into console sound (.pcm)
@@ -125,34 +126,36 @@ build-dev/pconsole/
 
 The tools and the editor stay separate CMake projects (`pdk/tools/`,
 `editor/`) in the devtools console too: the console's build configures each in
-its own subdirectory of `build-dev/` and collects only their binaries, so
+its own subdirectory, `build-dev/sdk/pdktools` and `build-dev/sdk/editor`, and collects only their binaries, so
 nothing from `src/` reaches them. The player build contains the console alone.
 
-Packaging runs through the same script:
+Packaging is a target of the same build:
 
-- 3dmppc player delivery: `./steamrt4.sh cmake --build build --target package-player`
-  writes `build/3dmppc-player-<major>.<minor>.zip`. `--target player-tree` builds
-  only the tree, `build/player/3dmppc-player`.
-- 3dmppc development kit delivery: `./steamrt4.sh cmake --build build-dev --target package-devkit`
-  writes `build-dev/3dmppc-devkit-<major>.<minor>.zip`, about 2 GB zipped, 5.6 GB
-  unpacked (the Steam Runtime 4 SDK sysroot is 3.4 GB of it). `--target devkit-tree`
-  builds only the tree.
+- 3dmppc player delivery: `cmake --build build --target package-player` writes
+  `build/sdk/3dmppc-player-<major>.<minor>.zip`, about 255 MB zipped.
+- 3dmppc development kit delivery: `cmake --build build-dev --target package-devkit`
+  writes `build-dev/sdk/3dmppc-devkit-<major>.<minor>.zip`. The unpacked tree is about
+  5.1 GB, 3.4 GB of it the Steam Runtime 4 SDK. `--target devkit-tree` builds only the
+  tree.
 
 The player delivery holds the launch file `3dmppc`, `bin/3dmppc`,
 `SteamLinuxRuntime_4/`, `LICENSES/` and `VERSIONS.txt`. The 3dmppc development kit
 delivery holds the launch files `3dmppc`, `3dmppc-editor`, `mppcburner`,
-`mppctexbaker`, `mppcmusbaker` and `mppcmodbaker`; `bin/`; `tools/` (the LLVM that
-builds discs, CMake, Ninja, Neovim, lua-language-server, the compat check and the
-toolchain file); `steamrt4-sdk/` (the Steam Runtime 4 SDK sysroot);
-`SteamLinuxRuntime_4/`; `LICENSES/` and `VERSIONS.txt`.
+`mppctexbaker`, `mppcmusbaker` and `mppcmodbaker`; `bin/`; `tools/` (clangd, with
+clang's resource dir in `tools/llvm`, Neovim, lua-language-server, the compat check
+and the toolchain file; no compiler, CMake or Ninja); `steamrt4-sdk/` (the Steam
+Runtime 4 SDK, which the launch files use as their runtime and whose clang 19, CMake,
+Ninja and GNU ld build `disc.so`); `SteamLinuxRuntime_4/`; `LICENSES/` and
+`VERSIONS.txt`.
 
 Unzip a delivery anywhere; a path with spaces works, and the root directory may be
 renamed. Start a program by its launch file: `./3dmppc game.mppcdisc`,
-`./3dmppc-editor`, `./mppcburner build <dir> -o <file>`. The launch file runs the
-program inside the Steam Linux Runtime 4 the zip carries, so its libraries come
-from that Steam Runtime 4 Platform, not from the distribution. In the 3dmppc development kit
-delivery the `tools/` programs come first on `PATH`, so `mppcburner` needs no
-distribution compiler. The delivery directory must be writable: the player
+`./3dmppc-editor`, `./mppcburner build <dir> -o <file>`. The player's launch file runs
+the program inside the Steam Linux Runtime 4 the zip carries, so its libraries come
+from that Steam Runtime 4 Platform, not from the distribution. The development kit's
+launch files run their programs with `steamrt4-sdk/` as the runtime instead, so
+`mppcburner` finds the SDK's clang 19 and CMake and needs no distribution compiler.
+The delivery directory must be writable: the player
 console writes `memcard.mppccard` beside `bin/3dmppc`, and Steam Linux Runtime 4
 keeps its state in `SteamLinuxRuntime_4/var`.
 
@@ -171,7 +174,7 @@ keeps its state in `SteamLinuxRuntime_4/var`.
 ## Running the console
 
 ```sh
-./build/pconsole/3dmppc [flags] [DISC.mppcdisc]
+./build/sdk/pconsole/3dmppc [flags] [DISC.mppcdisc]
 ```
 
 | Flag | What it does |
@@ -183,7 +186,7 @@ keeps its state in `SteamLinuxRuntime_4/var`.
 | `--frames N` | stop after N frames (0 = run until quit) |
 | `--fixed-step` | fast run: no real-time wait and no audio output; every mode steps 1/60 s per frame, so runs stay reproducible |
 | `--disc PATH` | assets **directory** for the built-in disc, which carries no medium of its own; a disc given positionally brings its own medium, so the two may not be combined |
-| `--memcard PATH` | memory-card image (default `memcard.mppccard` next to the binary, in `build/pconsole/`) |
+| `--memcard PATH` | memory-card image (default `memcard.mppccard` next to the binary, in `build/sdk/pconsole/`) |
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
 | `--dump-frame PATH` | write the last rendered frame as a binary PPM (no window needed) |
 | `--dev` | attach the development command channel to stdin/stdout; what the console *can* do is set by its build, this only says where to speak |
@@ -210,8 +213,8 @@ one frame at a time, inspected, and - the point of the whole thing - handed
 replacement Lua for the disc's entry script without losing the game's state.
 
 It is the devtools console:
-`./steamrt4.sh sh -c 'cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev'`
-puts it in `build-dev/pconsole/3dmppc`, next to the tools and the editor.
+`cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev`
+puts it in `build-dev/sdk/pconsole/3dmppc`, next to the tools and the editor.
 
 **The build decides what this console can do; `--dev` only decides where the
 channel is attached.** `-D3DMPPC_DEVTOOLS=ON` puts the dev sources in the
@@ -351,9 +354,9 @@ still has to be an entry on whatever is mounted.
 ### A session
 
 ```sh
-build-dev/pconsole/mppcburner build mppcdiscs/example-lua --unpacked build-dev/example-lua.discdir \
-    --baker build-dev/pconsole
-build-dev/pconsole/3dmppc --dev --paused build-dev/example-lua.discdir
+build-dev/sdk/pconsole/mppcburner build mppcdiscs/example-lua --unpacked build-dev/example-lua.discdir \
+    --baker build-dev/sdk/pconsole
+build-dev/sdk/pconsole/3dmppc --dev --paused build-dev/example-lua.discdir
 ```
 
 ```
@@ -724,18 +727,26 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 
 ## Requirements
 
-Through `./steamrt4.sh` the host needs Podman, CMake (the LLVM fetch runs on the
-host), zstd (the LLVM archive is `.tar.zst`, unpacked with `zstd -d --long=30`),
-curl, and zip for the packaging targets, which look it up and stop without it.
-Nothing else: SDL3, compilers and headers come from the Steam Runtime 4 SDK, OCI
-image, which is pinned by digest and pulled once; LuaJIT is built from its pinned
-commit inside the container. LLVM 23.1.4 is pinned too and fetched once into
-`${XDG_CACHE_HOME:-~/.cache}/3dmppc`.
+The host needs Linux with the base-devel, cmake and ninja packages, and curl, which
+configure checks for and stops without. Nothing else: the clang 19 compiler, SDL3, the headers and zip for the packaging
+targets come from the Steam Runtime 4 SDK. Podman, zstd and zip are not needed on the
+host.
 
-A build directory configured on the host, outside `steamrt4.sh`, caches the
-host's compiler: delete it, or make a fresh one, before building through the
-script.
+`cmake -S . -B build` checks for curl and fetches the Steam Runtime 4 SDK (1.12 GB,
+3.4 GB unpacked) into `build/steamrt4-sdk` and Steam Linux Runtime 4 (175 MB) into
+`build/steamrt4`, linked as `build/SteamLinuxRuntime_4`. It then configures the
+project in `build/sdk`, inside the SDK through pressure-vessel, and the SDK's clang 19
+builds it there. pressure-vessel needs unprivileged user namespaces allowed on the host. A development build (`-D3DMPPC_DEVTOOLS=ON`) also fetches LLVM 19.1.7
+(1.65 GB; only its clangd and clang's resource dir ship), Neovim, lua-language-server
+and emsdk for the web kit.
 
-A development build run outside a delivery (`build-dev/pconsole/mppcburner`)
-compiles `disc.so` with the clang, cmake and ninja on `PATH`; inside the
-3dmppc development kit delivery they come with it.
+Archives are downloaded to `${XDG_CACHE_HOME:-~/.cache}/3dmppc/downloads` and removed
+after unpacking; each fresh build directory downloads them again. Pinned archives are
+checked by SHA-256; a mismatch is a warning.
+
+Disk: a player build takes about 5 GB, a development build about 17 GB.
+
+A development build run outside a delivery (`build-dev/sdk/pconsole/mppcburner`)
+takes its compiler from `PATH`, and its headers and libraries from the compiler's
+default search paths. Inside the 3dmppc development kit delivery the SDK's clang 19
+and CMake come with it.
