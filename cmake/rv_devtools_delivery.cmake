@@ -5,9 +5,9 @@
 # the launchers run the programs with it, so it is not copied (see the SDK check below).
 # devtools-tree runs this in ALL, so each build updates the tree in place. bin/ is never cleared: the player's memcard and
 # modes.toml live there. A file the build dropped stays until deleted by hand. The runtime copy is replaced only when its
-# VERSIONS.txt differs. Every input runs before the first write. The compat check covers only the ELF sources of this run
-# (what is copied now), not files that an earlier build left in the tree. No project license is shipped: the repository
-# has none.
+# VERSIONS.txt differs. Every input runs before the first write. The compat check covers the executables and shared
+# objects of this run's ELF sources (what is copied now), not object files, .mppcburn/ projects or files an earlier
+# build left. No project license is shipped: the repository has none.
 #
 # Run: cmake -DRV_DEVTOOLS_BIN=<build>/bin -DRV_DEVTOOLS_LAUNCH=<rv_launch.sh> -DRV_DEVTOOLS_LLVM=<LLVM 19.1.7 release dir>
 #            -DRV_DEVTOOLS_NVIM=<nvim dir>
@@ -98,8 +98,10 @@ foreach(line IN LISTS RV_DEVTOOLS_VERSIONS)
     string(APPEND RV_DEVTOOLS_VERSIONS_TEXT "${line}\n")
 endforeach()
 
-# Lists the ELF files under each root: a directory is searched recursively, a file is taken as it is. Steam Linux
-# Runtime 4 dirs are skipped: the runtime is the reference the check compares against, not a binary to check.
+# Lists the shipped ELF files under each root: a directory is searched recursively, a file is taken as it is. Only
+# executables and shared objects (e_type ET_EXEC, ET_DYN) are listed: object files and mppcburner's .mppcburn/ projects
+# (the editor copies them as templates) are not shipped and would fail the check. Steam Linux Runtime 4 dirs are
+# skipped: the runtime is the reference the check compares against, not a binary to check.
 function(rv_devtools_find_elfs out)
     set(candidates "")
     foreach(root IN LISTS ARGN)
@@ -116,7 +118,7 @@ function(rv_devtools_find_elfs out)
     endforeach()
     set(elfs "")
     foreach(file IN LISTS candidates)
-        if("${file}" MATCHES "/SteamLinuxRuntime_4/")
+        if("${file}" MATCHES "/SteamLinuxRuntime_4/" OR "${file}" MATCHES "/[.]mppcburn/")
             continue()
         endif()
         if(IS_SYMLINK "${file}")
@@ -127,8 +129,16 @@ function(rv_devtools_find_elfs out)
             endif()
             continue()
         endif()
-        file(READ "${file}" magic LIMIT 4 HEX)
-        if(magic STREQUAL "7f454c46")
+        # The first 18 bytes: the ELF magic, and e_type (2 bytes at byte 16, little-endian, the same in ELF32 and ELF64).
+        # A shorter file is no ELF header; its hex has fewer than 36 digits.
+        file(READ "${file}" header LIMIT 18 HEX)
+        string(LENGTH "${header}" header_len)
+        if(header_len LESS 36)
+            continue()
+        endif()
+        string(SUBSTRING "${header}" 0 8 magic)
+        string(SUBSTRING "${header}" 32 4 e_type)
+        if(magic STREQUAL "7f454c46" AND (e_type STREQUAL "0200" OR e_type STREQUAL "0300"))
             list(APPEND elfs "${file}")
         endif()
     endforeach()
