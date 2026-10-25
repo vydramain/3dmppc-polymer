@@ -1,4 +1,4 @@
-# `pdk/tools/` — offline devkit tools
+# `pdk/tools/` — offline authoring tools
 
 Everything here runs **on the developer's machine at build time**, not on the
 console. No tool links against `src/` or sees a console header: the only shared

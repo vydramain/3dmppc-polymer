@@ -690,8 +690,8 @@ bug: the boundary is checked by the toolchain every build.
 
 ## Disc build - how disc.so is built and checked
 
-In the 3dmppc development kit delivery, programs start through their launch file, which runs them
-inside pressure-vessel (Valve's container runner) with the delivery's Steam Runtime 4 SDK,
+In the devtools delivery (build-dev/pconsole/), programs start through their launch file, which runs
+them inside pressure-vessel (Valve's container runner) with the delivery's Steam Runtime 4 SDK,
 steamrt4-sdk/, as the runtime, and puts the delivery's tools/*/bin first on PATH (clangd, Neovim,
 lua-language-server). A burn therefore builds disc.so with the SDK's own clang 19, GNU ld, CMake and
 Ninja, found by name on PATH inside the SDK, through tools/steamrt4-toolchain.cmake, which sets
@@ -703,10 +703,11 @@ readelf.
 
 Outside a delivery, the burner looks for the reference next to its own directory:
 R/tools/linux-compat-check.cmake and R/SteamLinuxRuntime_4, with R the parent of the burner's
-directory. A build directory such as build-dev/sdk/pconsole has both, so disc.so is checked against
-that build's SteamLinuxRuntime_4. It has no tools/steamrt4-toolchain.cmake, so no sysroot is set and
-the compiler comes from PATH. Without the reference files the burn warns that disc.so is not checked
-against Steam Runtime 4, with the reason.
+directory. The inner build directory build-dev/sdk has both, so a burner in build-dev/sdk/bin finds
+them in its parent and checks disc.so against that build's SteamLinuxRuntime_4.
+build-dev/sdk has no tools/steamrt4-toolchain.cmake, so no sysroot is set and the compiler comes
+from PATH. Without the reference files the burn warns that disc.so is not checked against Steam
+Runtime 4, with the reason.
 
 Why and how: cmake/rv_steamrt4_toolchain.cmake, cmake/rv_linux_compat_check.cmake and
 pdk/tools/mppcburner/rv_burner_build/rv_burner_kit.cpp.

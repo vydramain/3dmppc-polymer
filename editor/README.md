@@ -33,14 +33,14 @@ console (`3dmppc --dev`) - it links none of their code.
 ## Requirements
 
 Same as the console: SDL3, LuaJIT, CMake 3.24+, Ninja, Clang with C++23, `git`
-and `make`. When building as part of the development kit with
+and `make`. When building as part of the devtools delivery with
 `-D3DMPPC_DEVTOOLS=ON`, the editor is built alongside the console and tools.
 See the root README for details and your platform's package list.
 
 ## Tools
 
 The editor looks for the console and burner next to its own executable, where a development
-build puts them (`build-dev/sdk/pconsole/`), and the three bakers in the same directory:
+build puts them (`build-dev/pconsole/bin/`), and the three bakers in the same directory:
 `mppctexbaker` (PNG), `mppcmusbaker` (WAV) and `mppcmodbaker` (.glb).
 Settings in File > Settings or `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml`
 override them. `baker` is the bakers' directory, not an executable. A file path, or a symlink
@@ -68,11 +68,11 @@ cmake -S editor -B editor/build -G Ninja && cmake --build editor/build
 ./editor/build/3dmppc-editor
 ```
 
-Or as part of the development kit, next to the development console and the tools:
+Or as part of the devtools delivery, next to the development console and the tools:
 
 ```sh
 cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev
-./build-dev/sdk/pconsole/3dmppc-editor [PATH]
+./build-dev/pconsole/3dmppc-editor [PATH]
 ```
 
 `PATH` is a game directory or its `disc.toml` file; both open the same project.
