@@ -393,7 +393,7 @@ if(3DMPPC_DEVTOOLS)
     CMAKE_ARGS ${RV_KIT_CMAKE_ARGS}
       -D3DMPPC_DEVTOOLS=OFF
       -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
-      -DRV_FETCH_CACHE=${RV_FETCH_CACHE}
+      -DRV_STEAMRT4_DIR=${RV_STEAMRT4_DIR}
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
   )
@@ -440,7 +440,7 @@ if(3DMPPC_DEVTOOLS)
 
   # The delivery contract for the shipped Linux binaries (see cmake/rv_linux_compat_check.cmake): each one
   # must need only what the Steam Runtime 4 Platform of the delivery defines. It checks the last built files,
-  # so it does not rebuild them; it depends on the runtime only.
+  # so it does not rebuild them; it reads the runtime in RV_STEAMRT4_DIR, which the host half fetched.
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN)
     set(RV_COMPAT_PRODUCTS
         ${CMAKE_BINARY_DIR}/pconsole/3dmppc
@@ -451,7 +451,6 @@ if(3DMPPC_DEVTOOLS)
         ${CMAKE_BINARY_DIR}/pconsole/mppcmodbaker
         ${RV_FIRMWARE_ELF})
     add_custom_target(check-linux-compat
-      DEPENDS 3dmppc_steamrt4_runtime
       COMMAND ${CMAKE_COMMAND}
               "-DRV_COMPAT_FILES=${RV_COMPAT_PRODUCTS}"
               "-DRV_COMPAT_RUNTIME=${RV_STEAMRT4_DIR}"
@@ -459,8 +458,6 @@ if(3DMPPC_DEVTOOLS)
       COMMENT "Checking Linux compatibility of the shipped binaries against Steam Runtime 4"
       VERBATIM
     )
-    # mppcburner checks disc.so against this runtime; the player delivery's packaging will depend on it too.
-    add_dependencies(3dmppc_pdktools 3dmppc_steamrt4_runtime)
   endif()
 
   # The web kit, built with a pinned emsdk; see cmake/rv_emsdk.cmake.
@@ -490,14 +487,14 @@ if(NOT 3DMPPC_DEVTOOLS AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN
       "-DRV_PLAYER_TREE=${RV_PLAYER_TREE}")
 
   add_custom_target(player-tree
-    DEPENDS 3dmppc 3dmppc_steamrt4_runtime
+    DEPENDS 3dmppc
     COMMAND ${CMAKE_COMMAND} ${RV_PLAYER_ARGS}
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_player_delivery.cmake"
     COMMENT "Building the player delivery tree"
     VERBATIM
   )
   add_custom_target(package-player
-    DEPENDS 3dmppc 3dmppc_steamrt4_runtime
+    DEPENDS 3dmppc
     COMMAND ${CMAKE_COMMAND} ${RV_PLAYER_ARGS}
             "-DRV_PLAYER_ZIP=${RV_PLAYER_ZIP}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_player_delivery.cmake"

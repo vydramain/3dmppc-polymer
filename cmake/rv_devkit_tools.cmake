@@ -4,8 +4,9 @@
 # Each download is fetched and verified by cmake/rv_fetch.cmake into the shared cache; the 3dmppc_devkit_<tool>
 # target extracts it into its own dir under ${CMAKE_BINARY_DIR}/devkit/. 3dmppc_devkit_tools builds them all.
 # Nothing builds them by default.
-# Needs RV_FETCH_CACHE and RV_STEAMRT4_DIR (cmake/rv_steamrt4_runtime.cmake) and RV_STEAMRT4_SDK
-# (cmake/rv_steamrt4_toolchain.cmake).
+# Needs RV_FETCH_CACHE (passed by the outer build in cmake/rv_steamrt4_host.cmake, or defaulted by
+# cmake/rv_steamrt4_runtime.cmake) and RV_STEAMRT4_DIR (passed by the outer build in cmake/rv_steamrt4_host.cmake;
+# cmake/rv_steamrt4_runtime.cmake only checks it) and RV_STEAMRT4_SDK (cmake/rv_steamrt4_toolchain.cmake).
 
 # One version per dependency: the URLs, file names, license sources and VERSIONS.txt lines are built from it.
 set(RV_NVIM_VERSION 0.12.6)
@@ -117,7 +118,7 @@ set(RV_DEVKIT_DELIVERY_ARGS
     "-DRV_DEVKIT_VER_MINOR=${RV_MPPC_VER_MINOR}"
     "-DRV_DEVKIT_TREE=${RV_DEVKIT_DELIVERY_TREE}")
 set(RV_DEVKIT_DELIVERY_DEPENDS
-    3dmppc 3dmppc_editor 3dmppc_pdktools 3dmppc_firmware 3dmppc_webkit 3dmppc_steamrt4_runtime 3dmppc_devkit_tools
+    3dmppc 3dmppc_editor 3dmppc_pdktools 3dmppc_firmware 3dmppc_webkit 3dmppc_devkit_tools
     3dmppc_devkit_license_nvim)
 
 # The lists are quoted in COMMAND: an unquoted list would split the NAME=PATH pairs at their ';'.

@@ -106,6 +106,7 @@ execute_process(
     COMMAND ${RV_HOST_WRAP_ARGS} cmake -S "${CMAKE_SOURCE_DIR}" -B "${RV_HOST_INNER}" -G Ninja
             "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/rv_steamrt4_toolchain.cmake"
             "-DRV_STEAMRT4_SDK=${RV_STEAMRT4_SDK_DIR}"
+            "-DRV_STEAMRT4_DIR=${RV_HOST_STEAMRT4_DIR}/SteamLinuxRuntime_4"
             ${inner_opts}
     RESULT_VARIABLE rc)
 if(NOT rc EQUAL 0)
