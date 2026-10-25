@@ -46,6 +46,12 @@ set(RV_DEVTOOLS_LLVM_DIR "${RV_DEVTOOLS_DIR}/llvm/LLVM-${RV_LLVM_VERSION}-Linux-
 
 # One target per tool: fetch into the shared cache, verify the pin, extract into dir when dir is set.
 function(rv_devtools_fetch target url sha256 file dir name)
+    # Log paths are shown relative to the user's build dir; without RV_LOG_BASE, the build dir itself.
+    if(RV_LOG_BASE)
+        set(fetch_base "${RV_LOG_BASE}")
+    else()
+        set(fetch_base "${CMAKE_BINARY_DIR}")
+    endif()
     add_custom_target(${target}
         COMMAND ${CMAKE_COMMAND} -E make_directory "${RV_FETCH_CACHE}"
         COMMAND ${CMAKE_COMMAND}
@@ -54,8 +60,9 @@ function(rv_devtools_fetch target url sha256 file dir name)
                 "-DRV_FETCH_FILE=${RV_FETCH_CACHE}/${file}"
                 "-DRV_FETCH_DIR=${dir}"
                 "-DRV_FETCH_NAME=${name}"
+                "-DRV_FETCH_BASE=${fetch_base}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_fetch.cmake"
-        COMMENT "devtools download"
+        COMMENT "Fetching ${target}"
         VERBATIM
     )
 endfunction()

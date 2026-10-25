@@ -1,12 +1,15 @@
 # Loads one pinned file: fetches RV_FETCH_URL into RV_FETCH_FILE and checks its SHA256 against RV_FETCH_SHA256.
 # With RV_FETCH_DIR set, the file is also extracted there and then removed.
 # Usage: cmake -DRV_FETCH_URL=<https://... | http://... | file://...> -DRV_FETCH_SHA256=<hex> -DRV_FETCH_FILE=<file>
-#              [-DRV_FETCH_DIR=<dir>] [-DRV_FETCH_NAME=<phrase>] [-DRV_CURL=<curl>] -P cmake/rv_fetch.cmake
+#              [-DRV_FETCH_DIR=<dir>] [-DRV_FETCH_NAME=<phrase>] [-DRV_FETCH_BASE=<dir>]
+#              [-DRV_CURL=<curl>] -P cmake/rv_fetch.cmake
 # A broken transfer keeps the partial file, so the next run resumes it. A hash mismatch is only a warning: the file is
 # used as it is. With RV_FETCH_DIR the file is extracted and then removed; without it the file is kept, and a file that
 # matches the pin is not fetched again. The stamp in RV_FETCH_DIR holds the pinned SHA256 (also on mismatch): a matching
 # stamp skips the run without fetching or looking for the file, and removes a leftover archive. A missing or other stamp
 # replaces the tree. The tree is built in a sibling dir and renamed into place only when complete.
+
+include(${CMAKE_CURRENT_LIST_DIR}/rv_log.cmake)
 
 if(NOT RV_FETCH_URL OR NOT RV_FETCH_SHA256 OR NOT RV_FETCH_FILE)
     message(FATAL_ERROR "RV_FETCH_URL, RV_FETCH_SHA256 and RV_FETCH_FILE must be set")
@@ -45,9 +48,21 @@ if(RV_FETCH_URL MATCHES "^file://")
     endif()
 endif()
 
+# Sets <out> to <path> as the log shows it: relative to RV_FETCH_BASE when inside it, else absolute.
+# Without RV_FETCH_BASE the path is shown as it is.
+function(rv_fetch_show out path)
+    if(RV_FETCH_BASE)
+        rv_log_relpath(rel "${path}" "${RV_FETCH_BASE}")
+        set(${out} "${rel}" PARENT_SCOPE)
+    else()
+        set(${out} "${path}" PARENT_SCOPE)
+    endif()
+endfunction()
+
 # Fetches RV_FETCH_URL into RV_FETCH_FILE. A partial file is resumed by curl.
 function(rv_fetch_download)
-    message(STATUS "  fetching ${RV_FETCH_URL} into ${RV_FETCH_FILE}")
+    rv_fetch_show(shown_file "${RV_FETCH_FILE}")
+    rv_log_step("fetching ${RV_FETCH_URL} into ${shown_file}")
     if(RV_FETCH_URL MATCHES "^file://")
         string(REGEX REPLACE "^file://" "" source "${RV_FETCH_URL}")
         file(COPY_FILE "${source}" "${RV_FETCH_FILE}" RESULT rc)
@@ -63,13 +78,14 @@ function(rv_fetch_download)
         message(FATAL_ERROR "curl is not found: it fetches ${RV_FETCH_URL}; install curl or pass -DRV_CURL=<curl>")
     endif()
     # --continue-at - resumes the partial file; --fail turns an HTTP error into a failed exit code.
-    # Progress stays on the terminal, so a 1.2 GB transfer does not look hung.
+    # --progress-bar draws one progress line instead of curl's table, which breaks up in a log file.
     execute_process(
         COMMAND "${RV_CURL}"
             --http1.1
             --fail
             --location
             --show-error
+            --progress-bar
             --continue-at -
             --retry ${RV_FETCH_CURL_RETRIES}
             --retry-all-errors
@@ -90,7 +106,9 @@ endfunction()
 # Extracts RV_FETCH_FILE into RV_FETCH_DIR through a sibling dir, then writes the stamp and renames it into place.
 function(rv_fetch_extract)
     string(TOLOWER "${RV_FETCH_SHA256}" expected)
-    message(STATUS "  extracting ${RV_FETCH_FILE} into ${RV_FETCH_DIR}: this can take a while")
+    rv_fetch_show(shown_file "${RV_FETCH_FILE}")
+    rv_fetch_show(shown_dir "${RV_FETCH_DIR}")
+    rv_log_step("extracting ${shown_file} into ${shown_dir}: this can take a while")
     set(work "${RV_FETCH_DIR}.part")
     # Leftovers of an interrupted run.
     file(REMOVE_RECURSE "${work}")
@@ -108,11 +126,11 @@ function(rv_fetch_extract)
     # The old tree goes only after the new one is complete, so a failed extraction keeps it.
     file(REMOVE_RECURSE "${RV_FETCH_DIR}")
     file(RENAME "${work}" "${RV_FETCH_DIR}")
-    message(STATUS "  extracted ${RV_FETCH_FILE} into ${RV_FETCH_DIR}")
+    rv_log_step("extracted ${shown_file} into ${shown_dir}")
 endfunction()
 
 function(rv_fetch_main)
-    message(STATUS "${RV_FETCH_NAME}")
+    rv_log_header("${RV_FETCH_NAME}")
     string(TOLOWER "${RV_FETCH_SHA256}" expected)
     if(RV_FETCH_DIR)
         set(recorded "")
@@ -123,7 +141,8 @@ function(rv_fetch_main)
         if("${recorded}" STREQUAL "${expected}")
             # A run that died between the rename and the removal leaves the archive behind.
             file(REMOVE "${RV_FETCH_FILE}")
-            message(STATUS "  already extracted into ${RV_FETCH_DIR}: nothing is downloaded")
+            rv_fetch_show(shown_dir "${RV_FETCH_DIR}")
+            rv_log_step("already extracted into ${shown_dir}: nothing is downloaded")
             return()
         endif()
     endif()
@@ -133,7 +152,8 @@ function(rv_fetch_main)
         file(SHA256 "${RV_FETCH_FILE}" actual)
     endif()
     if("${actual}" STREQUAL "${expected}")
-        message(STATUS "  taken from the cache ${RV_FETCH_FILE}: SHA256 matches, no download")
+        rv_fetch_show(shown_file "${RV_FETCH_FILE}")
+        rv_log_step("taken from the cache ${shown_file}: SHA256 matches, no download")
     else()
         rv_fetch_download()
         file(SHA256 "${RV_FETCH_FILE}" actual)
