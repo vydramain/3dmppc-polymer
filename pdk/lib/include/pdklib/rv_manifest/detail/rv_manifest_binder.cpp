@@ -63,6 +63,11 @@ constexpr bind_rule RULES[] = {
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.assets_files = v.arr;
         } },
+    { rv_manifest_section_assets_stream, // [assets.stream] files = [ … ]
+        rv_manifest_key_assets_stream_files,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.assets_stream_files = v.arr;
+        } },
     { rv_manifest_section_assets_texture, // [assets.texture] format = "…"
         rv_manifest_key_assets_texture_format,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {

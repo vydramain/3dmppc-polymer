@@ -8,12 +8,14 @@ namespace rv_pdklib
 // --- disc asset kind by extension ---
 //
 // The one table of which kind a file in disc.toml's [assets] is. The burner (packing)
-// and the editor (opening) are to read it; neither includes it yet. Pure lookup, no I/O.
+// and the editor (opening) read it. Pure lookup, no I/O.
 
 enum class rv_manifest_asset_kind {
     texture,
     sound,
     model,
+    // No extension maps to stream: the [assets.stream] section does.
+    stream,
     copy,
 };
 
@@ -23,6 +25,7 @@ inline constexpr std::string_view rv_manifest_asset_ext_png = ".png";
 inline constexpr std::string_view rv_manifest_asset_ext_wav = ".wav";
 inline constexpr std::string_view rv_manifest_asset_ext_gltf = ".gltf";
 inline constexpr std::string_view rv_manifest_asset_ext_glb = ".glb";
+inline constexpr std::string_view rv_manifest_asset_ext_mp3 = ".mp3";
 
 struct rv_manifest_asset_ext {
     std::string_view extension;
@@ -35,6 +38,7 @@ inline constexpr rv_manifest_asset_ext rv_manifest_asset_exts[] = {
     { rv_manifest_asset_ext_wav, rv_manifest_asset_kind::sound },
     { rv_manifest_asset_ext_gltf, rv_manifest_asset_kind::model },
     { rv_manifest_asset_ext_glb, rv_manifest_asset_kind::model },
+    { rv_manifest_asset_ext_mp3, rv_manifest_asset_kind::sound },
 };
 
 /// Kind of the file with this name or relative path.

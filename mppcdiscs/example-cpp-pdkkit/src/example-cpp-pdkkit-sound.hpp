@@ -3,9 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <string>
 #include <type_traits>
-#include <vector>
 
 #include "pdk/ca/rv_voice_conf.h"
 #include "pdk/rv_pdko.h"
@@ -18,20 +16,14 @@
 namespace example_cpp_pdkkit
 {
 
-// Music slots in sound RAM: a bar plays from one slot while the next bar is written into the other.
-constexpr int RV_SOUND_SLOTS = 2;
-
 // The board clack takes: play_clack picks one per clack from a fixed-seed generator.
 constexpr int RV_SOUND_CLACK_COUNT = 4;
 
-// Full level of a voice's sustain and volume: the sound module's maximum, shared by the music and the loops.
+// Full level of the sound module: the stereo volume of the clacks and loops and the sustain of the loops.
 constexpr int16_t RV_SOUND_MAX_LEVEL = 32767;
 
 // Seed of the clack generator (xorshift32). Zero is its fixed point, so the seed must be nonzero.
 constexpr uint32_t RV_SOUND_CLACK_SEED = 0x2545F491u;
-
-// Songs a state holds: one per zone_music name. rv_music_init refuses more with RV_ERR_NOMEM.
-constexpr std::size_t RV_SOUND_SONG_CAPACITY = 3;
 
 // Copies `src` into the NUL-terminated field `dst`, cut to fit. Callers check a name fits where a cut would lose it.
 template <std::size_t N>
@@ -40,47 +32,22 @@ void set_name(char (&dst)[N], const char *src)
     std::snprintf(dst, N, "%s", src);
 }
 
-// A song the music plays: bar k (from 0) is the disc asset mus_<name>_NN.pcm, NN = k + 1 at least two digits; bars counts them.
-// For a song of up to 99 bars the name is at most 52 characters: its bar asset mus_<name>_NN.pcm adds 11 (four, one,
-// two digits, four) to fit the field. rv_music_init refuses a longer name, and a bar name that does not fit.
-struct rv_music_song {
-    char name[rv_pdkkit::ecs_value_capacity]{};
-    int64_t bars = 0;
-};
+// Failures logged per asset the state can remember, in a fixed array. The count is what can fail on the disc: 3 music
+// streams (factory, home, street), 4 clacks, 1 loop, and 2 refusal names ("stream name", "stream volume"): 10.
+// Recount when the streams, clacks or loops change.
+constexpr int RV_SOUND_LOGGED_CAPACITY = 10;
 
-// Failures logged per asset the state can remember, in a fixed array. The count is what can fail on the disc: 18 bars
-// (factory 3, street 5, home 10), 1 loop, and 4 refusal names ("music songs", "music slot", "music song", "music
-// mark"): 23. Recount when the bars grow.
-constexpr int RV_SOUND_LOGGED_CAPACITY = 23;
-
-// Music, clack and loop state: the working state of the listener. ecs_system_music measures the songs once.
+// Music, clack and loop state: the working state of the listener.
 struct rv_sound_state {
-    // The song rv_music_update last played.
+    // The zone_music name the stream plays; its disc asset is mus_<song>.pcm. Empty before the first play.
     char song[rv_pdkkit::ecs_value_capacity]{};
-    // The songs rv_music_init measured, in the order it got them: the first song_count entries.
-    rv_music_song songs[RV_SOUND_SONG_CAPACITY] = {};
-    int64_t song_count = 0;
-    // Set once rv_music_init has run; ready when it succeeded. Nothing plays unless ready.
-    bool measured = false;
-    bool ready = false;
-    // Per music slot: sound RAM address, bar asset in it (empty when unknown).
-    int64_t slot_addr[RV_SOUND_SLOTS] = {};
-    char slot_name[RV_SOUND_SLOTS][rv_pdkkit::ecs_value_capacity] = {};
-    // The music chain: the voice reads the slot before music_slot and goes on into music_slot, where its mark is
-    // set. music_bar is the bar in music_slot and music_name its asset; music_on is set once a bar is played,
-    // music_armed once the repeat and mark on music_slot are set.
-    bool music_on = false;
-    bool music_armed = false;
-    int music_slot = 0;
-    int64_t music_bar = 0;
-    char music_name[rv_pdkkit::ecs_value_capacity]{};
+    // Set once the stream volume is set; a failed set is retried on the next frame.
+    bool volume_set = false;
     // The loop voice: whether a loop was started on it and not stopped since, and the loop's asset.
     bool loop_armed = false;
     char loop_name[rv_pdkkit::ecs_value_capacity]{};
     // The clack generator's xorshift32 state; play_clack advances it once per clack.
     uint32_t clack_rng = RV_SOUND_CLACK_SEED;
-    // The largest bar on the disc, which is the size of each music slot: a bar read from the disc must fit it.
-    int64_t slot_bytes = 0;
     // The clack and loop samples, made resident by the sound service.
     rv_pdkkit::sound_state sound;
     // The asset of the last failure, for the caller's log.
@@ -101,18 +68,7 @@ int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
 // Plays one board clack from clack_rng (defined in the .cpp). ecs_system_clack calls it.
 int64_t play_clack(rv_pdko *pdk, rv_sound_state &state);
 
-// Music, in example-cpp-pdkkit-music.cpp. rv_music_init measures the bars of each named song and allocates the music
-// slots; ecs_system_music calls it once. rv_music_update starts the song's first bar at a song change, moves the chain on
-// at each mark, and on success records the song; ecs_system_music calls it every frame.
-// Precondition: name is a song rv_music_init measured. Otherwise RV_ERR_INVAL, with state.error_asset "music song".
-// Returns RV_OK or the first error: a disc code from a bar's open or size; RV_ERR_NOENT for a song with no bars;
-// RV_ERR_INVAL for an empty bar or one larger than the slot; RV_ERR_IO when the bar's read gave no bytes or failed (its
-// own code is not passed on); a ca or voice code from the mark read, the bar write, the repeat and mark, or the play.
-// state.error_asset names the bar, or "music mark" for the mark read.
-int64_t rv_music_init(rv_pdko *pdk, const std::vector<std::string> &names, rv_sound_state &state);
-int64_t rv_music_update(rv_pdko *pdk, const char *name, rv_sound_state &state);
-
-// Music of a zone: the place its bars come from (mus_<music>_NN.pcm) and the looped asset played there;
+// Music of a zone: the stream played there (mus_<music>.pcm) and the looped asset played there;
 // an empty loop means none.
 struct ecs_component_zone_music {
     char music[rv_pdkkit::ecs_value_capacity]{};
@@ -130,15 +86,17 @@ struct ecs_component_listener {
     rv_pdkkit::ecs_id zone{};
 };
 
-// Frame system: plays the listener's music and loop. Measures the zone_music songs at the listener's first frame; then, on
-// each zone_crossed of the listener in a zone with zone_music, the listener stands in that zone and its music and loop
-// take over where they differ. Runs after the zones system. A sound failure is logged once per asset and not returned.
+// Frame system: plays the listener's music and loop. On each zone_crossed of the listener in a zone with zone_music, the
+// listener stands in that zone and its loop takes over where it differs. The zone's music streams where it differs from
+// the playing one; the stream volume is set on the first frame that succeeds. Every frame reads the stream state: an
+// ERROR is logged once per asset while the logged names fit RV_SOUND_LOGGED_CAPACITY. Runs after the zones system.
+// A sound failure is not returned; it is logged once per asset while the names fit RV_SOUND_LOGGED_CAPACITY.
 // Error: RV_ERR_ALREADY with two listeners.
 int ecs_system_music(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
 
 // Frame system: plays one clack in the frame when a lamp switched (flicker_switched) and the listener stands in a zone
-// with zone_clack. Runs after music and flicker, so it sees this frame's zone and switches. A clack failure is logged
-// once per asset and not returned. Error: RV_ERR_ALREADY with two listeners.
+// with zone_clack. Runs after music and flicker, so it sees this frame's zone and switches. A clack failure is not
+// returned; it is logged once per asset while the names fit RV_SOUND_LOGGED_CAPACITY. Error: RV_ERR_ALREADY with two listeners.
 int ecs_system_clack(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame);
 
 } // namespace example_cpp_pdkkit

@@ -3,6 +3,12 @@
 
 #include <stdint.h>
 
+// Stream states: a sequence, not a mask.
+#define RV_CD_STREAM_IDLE    0
+#define RV_CD_STREAM_PLAYING 1
+#define RV_CD_STREAM_ENDED   2 // entry without a loop played out
+#define RV_CD_STREAM_ERROR   3
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -80,6 +86,46 @@ int64_t rv_cd_resource_size(rv_cd *cd, rv_cd_resource_kind kind, const char *res
 int64_t rv_cd_resource_palette_addr(rv_cd *cd, rv_cd_resource_kind kind, const char *resname);
 int64_t rv_cd_resource_width(rv_cd *cd, rv_cd_resource_kind kind, const char *resname);
 int64_t rv_cd_resource_height(rv_cd *cd, rv_cd_resource_kind kind, const char *resname);
+
+// Streamed music. A frame is one mono S16 sample (2 bytes). Loop 1 repeats the frames from loop_start
+// up to loop_end (exclusive): after loop_end, loop_start plays next; frames past loop_end never sound.
+// Loop 0 plays the entry once. For any loop, play answers RV_ERR_INVAL if loop_start or the effective
+// loop_end (0 = entry end) lies outside the entry, or if loop_start >= loop_end.
+struct rv_cd_stream_conf {
+    int64_t loop;       // 0: play once, 1: repeat the loop; any other value is RV_ERR_INVAL
+    int64_t loop_start; // first frame of the loop
+    int64_t loop_end;   // frame after the loop's last frame; 0: end of the entry
+};
+
+typedef struct rv_cd_stream_conf rv_cd_stream_conf;
+
+// Plays the entry from frame 0; replaces the current stream (the old one stops, the ring is cleared).
+// A refusal changes nothing; RV_OK on success. Ring: fixed-size buffer from the drive reader to the mixer (the consumer).
+// RV_ERR_INVAL: null cd/resname/conf; name: plain, no path separators; size 0 or odd; loop not 0 or 1; loop bounds (see conf).
+// RV_ERR_NOENT: no entry. RV_ERR_IO: the entry cannot be measured; also, checked last, when the console has no sound output.
+// Play does not read the entry: a later read failure shows as state ERROR, error RV_ERR_IO (RV_ERR_NOENT if it is gone).
+// resname and conf are read only during the call.
+int64_t rv_cd_stream_play(rv_cd *cd, const char *resname, const rv_cd_stream_conf *conf);
+
+// Stops the stream and clears the ring; state IDLE, error 0, from any state (ERROR too). Idempotent. RV_OK.
+int64_t rv_cd_stream_stop(rv_cd *cd);
+
+// Stream state: IDLE before the first play. Without a loop the ring plays out, then ENDED and silence.
+// Empty ring: silence, position stays (no skip, no repeat), starved_frames grows.
+// Read error or changed entry: ERROR, ring cleared, silence.
+// Volume: rv_ca_stream_volume.
+struct rv_cd_stream_info {
+    int64_t state;          // RV_CD_STREAM_*
+    int64_t error;          // rv_err that made the stream ERROR, else 0
+    int64_t position;       // next entry frame to sound, by the consumer's count
+    int64_t loops;          // times the stream passed the loop boundary
+    int64_t starved_frames; // silent frames for an empty ring since the last play
+};
+
+typedef struct rv_cd_stream_info rv_cd_stream_info;
+
+// Writes the stream status to out. RV_OK; RV_ERR_INVAL if cd or out is null.
+int64_t rv_cd_stream_status(rv_cd *cd, rv_cd_stream_info *out);
 
 /* RV_CDEF_END */
 

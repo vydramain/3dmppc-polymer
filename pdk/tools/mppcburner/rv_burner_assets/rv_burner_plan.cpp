@@ -1,5 +1,6 @@
 #include "rv_burner_plan.hpp"
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <vector>
@@ -23,6 +24,7 @@ struct entry_rule {
 
 // Every [assets] file is diagnosed under this name, whichever block it lands in.
 constexpr const char *k_assets_section = "[assets] files";
+constexpr const char *k_stream_section = "[assets.stream] files";
 
 // One slot per rv_manifest_asset_kind; copy is the last kind, so the count is its index plus one.
 constexpr std::size_t k_asset_kind_count = static_cast<std::size_t>(rv_pdklib::rv_manifest_asset_kind::copy) + 1;
@@ -135,6 +137,37 @@ static int plan_block(const std::vector<std::string> &relatives,
     return RV_OK;
 }
 
+// Plan the stream music: each [assets.stream] file is a sound, baked the same way.
+//
+// @param assets    every [assets] file, relative to disc_dir
+// @param streams   the [assets.stream] files, relative to disc_dir
+// @param disc_dir  directory the paths resolve against
+// @param rule      how the entries are written
+// @param plan      receives the entries, appended in order
+// @param count     set to how many entries the block holds
+// @param error     set with the reason and the section
+// @return RV_OK on success, RV_ERR_INVAL for a refused file, the RV_ERR_* of planning otherwise
+static int plan_stream_block(const std::vector<std::string> &assets,
+    const std::vector<std::string> &streams,
+    const fs::path &disc_dir,
+    const entry_rule &rule,
+    archive_plan &plan,
+    std::size_t &count,
+    std::string &error)
+{
+    for (const std::string &relative : streams) {
+        if (std::find(assets.begin(), assets.end(), relative) != assets.end()) {
+            error = "'" + relative + "' is listed in both \"" + k_assets_section + "\" and \"" + k_stream_section + "\"";
+            return RV_ERR_INVAL;
+        }
+        if (rv_pdklib::rv_manifest_asset_kind_of(relative) != rv_pdklib::rv_manifest_asset_kind::sound) {
+            error = std::string(k_stream_section) + ": '" + relative + "' is not a .wav or .mp3 file";
+            return RV_ERR_INVAL;
+        }
+    }
+    return plan_block(streams, k_stream_section, disc_dir, rule, plan, count, error);
+}
+
 } // namespace rv_pdktools
 
 int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
@@ -201,6 +234,20 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     const int sounds_err = plan_block(sounds, k_assets_section, disc_dir, sound_rule, plan, plan.sound_count, error);
     if (sounds_err != RV_OK) {
         return sounds_err;
+    }
+
+    // --- stream music ---
+    //
+    // Listed only in [assets.stream] files; baked to .pcm in the sound directory.
+    std::vector<std::string> streams;
+    const int streams_glob_err = glob_section(manifest.assets_stream_files, k_stream_section, disc_dir, streams, error);
+    if (streams_glob_err != RV_OK) {
+        return streams_glob_err;
+    }
+    plan.first_stream = plan.items.size();
+    const int stream_err = plan_stream_block(assets, streams, disc_dir, sound_rule, plan, plan.stream_count, error);
+    if (stream_err != RV_OK) {
+        return stream_err;
     }
 
     // --- the whole plan at once ---

@@ -52,6 +52,7 @@ public:
 
     int64_t entry_size(const char *resname) const override;
     int64_t entry_read(const char *resname, void *baddr, int64_t cap) const override;
+    int64_t entry_read_at(const char *resname, int64_t offset, void *dst, int64_t count) const override;
 
     // The asset names the game can see, in archive order. Not part of the medium
     // contract (rv_cd has no enumeration): this is for the loader and for the

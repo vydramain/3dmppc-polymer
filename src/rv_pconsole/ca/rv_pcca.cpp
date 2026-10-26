@@ -71,3 +71,8 @@ extern "C" int64_t rv_ca_voice_marked(rv_ca *ca, int64_t voice_mask)
 {
     return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_marked(voice_mask);
 }
+
+extern "C" int64_t rv_ca_stream_volume(rv_ca *ca, int16_t volume_l, int16_t volume_r)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->stream_volume(volume_l, volume_r);
+}

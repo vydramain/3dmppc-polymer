@@ -38,6 +38,14 @@ public:
 
     int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) override;
 
+    int64_t stream_play(const char *resname, const rv_cd_stream_conf *conf) override;
+
+    int64_t stream_stop() override;
+
+    int64_t stream_status(rv_cd_stream_info *out) override;
+
+    int64_t stream_pump() override;
+
     // No drive to put it in: the medium is dropped.
     void medium_insert(std::unique_ptr<rv_pcmedium> /*medium*/) override
     {

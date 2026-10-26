@@ -101,6 +101,13 @@ int rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &b
         return accumulator_add_rc;
     }
 
+    // Stream ring (rv_pcstream): a device constant, not a manifest field.
+    const int64_t stream_ring_bytes = RV_PCSTREAM_RING_FRAMES * static_cast<int64_t>(sizeof(int16_t));
+    const int stream_ring_add_rc = rv_pcbudget_add(total, "budget.pcca.voice_count", stream_ring_bytes, error);
+    if (stream_ring_add_rc != RV_OK) {
+        return stream_ring_add_rc;
+    }
+
     bytes = total;
     return RV_OK;
 }
@@ -367,6 +374,37 @@ int64_t rv_pcca_sw::voice_marked(int64_t voice_mask)
 void rv_pcca_sw::advance(int16_t *out, int64_t frames)
 {
     mixer_.render(out, frames);
+}
+
+int64_t rv_pcca_sw::stream_volume(int16_t volume_l, int16_t volume_r)
+{
+    mixer_.stream_volume(volume_l, volume_r);
+    return RV_OK;
+}
+
+void rv_pcca_sw::stream_start()
+{
+    mixer_.stream_start();
+}
+
+int64_t rv_pcca_sw::stream_push(const int16_t *src, int64_t frames)
+{
+    return mixer_.stream_push(src, frames);
+}
+
+void rv_pcca_sw::stream_end_input()
+{
+    mixer_.stream_end_input();
+}
+
+void rv_pcca_sw::stream_clear()
+{
+    mixer_.stream_clear();
+}
+
+rv_pcstream_report rv_pcca_sw::stream_report()
+{
+    return mixer_.stream_report();
 }
 
 } // namespace rv_3dmppc

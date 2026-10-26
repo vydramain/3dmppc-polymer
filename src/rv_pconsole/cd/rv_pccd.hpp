@@ -87,6 +87,18 @@ public:
         return RV_PCCD_REFRESH_UNSUPPORTED;
     }
 
+    // Streamed music: the rv_cd_stream_* contract, semantics in rv_cd.h.
+    virtual int64_t stream_play(const char *resname, const rv_cd_stream_conf *conf) = 0;
+
+    virtual int64_t stream_stop() = 0;
+
+    virtual int64_t stream_status(rv_cd_stream_info *out) = 0;
+
+    // Console-side only - not reached through the extern "C" block. Meant for the console loop:
+    // once per pass, before the sound; the only place the stream reads the entry's content.
+    // Returns an rv_err the loop ignores.
+    virtual int64_t stream_pump() = 0;
+
     // Where a resident texture uploads to. Borrowed - cv_ outlives cd_ for the
     // whole run - because rv_pconsole builds cd_ before cv_ exists (cl_'s
     // shutdown-order requirement pins that declaration order), so cd cannot

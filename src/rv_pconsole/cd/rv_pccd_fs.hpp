@@ -16,6 +16,7 @@
 #include "pdklib/rv_textures/rv_mppctex.hpp"
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
+#include "rv_pconsole/cd/rv_pccd_stream.hpp"
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
 #include "rv_pconsole/cg/rv_pccg.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
@@ -49,6 +50,9 @@ private:
     // resident yet" meaning while null; why it is a borrow - see geometry_attach()
     // in rv_pccd.hpp.
     rv_pccg *cg_ = nullptr;
+
+    // The one streamed entry: owns the staging pump() fills; the ring is ca_'s.
+    rv_pccd_stream stream_;
 
     // One baked texture currently uploaded, keyed by name in `tex_by_name_`.
     // A disc never releases a texture, so the vector only ever grows and a
@@ -127,8 +131,8 @@ public:
     rv_pccd_fs(const rv_pccd_fs &) = delete;
     rv_pccd_fs &operator=(const rv_pccd_fs &) = delete;
 
-    // The drive reads assets out of the disc's own archive, not out of a
-    // budgeted pool: RV_OK, bytes = 0.
+    // Counts the stream staging (RV_PCCD_STREAM_PORTION_FRAMES mono S16 frames, 2 bytes
+    // each); assets are read from the disc's own archive, not from a budgeted pool.
     static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     int64_t asset_open(const char *resname) override;
@@ -165,6 +169,15 @@ public:
     // refreshing whatever kind `resname` is resident as from `bytes` instead
     // of the medium.
     int64_t asset_refresh(const char *resname, const void *bytes, int64_t nbytes, rv_cd_resource_kind &kind_out) override;
+
+    // Streamed music, forwarded to stream_ with the medium and the ring.
+    int64_t stream_play(const char *resname, const rv_cd_stream_conf *conf) override;
+
+    int64_t stream_stop() override;
+
+    int64_t stream_status(rv_cd_stream_info *out) override;
+
+    int64_t stream_pump() override;
 
     // Swap the inserted medium after construction. The console learns
     // WHICH archive to mount only when it has loaded the disc out of it, which

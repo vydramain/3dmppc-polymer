@@ -30,6 +30,9 @@ int rv_pdktools::write_map(const std::filesystem::path &path,
     for (std::size_t i = plan.first_sound; i < plan.first_sound + plan.sound_count; ++i) {
         line(plan.items[i], "sound", "s16le-44100-mono");
     }
+    for (std::size_t i = plan.first_stream; i < plan.first_stream + plan.stream_count; ++i) {
+        line(plan.items[i], "stream", "s16le-44100-mono");
+    }
     for (std::size_t i = plan.first_model; i < plan.first_model + plan.model_count; ++i) {
         line(plan.items[i], "model", "");
     }

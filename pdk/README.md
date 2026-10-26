@@ -148,11 +148,11 @@ asks the organizer for one.
 | Symbol     | File               | Subsystem                           | Realized surface                                    |
 | ---------- | ------------------ | ----------------------------------- | --------------------------------------------------- |
 | `rv_pdko`  | `rv_pdko.h`        | organizer / façade                  | `rv_pdko_ca()`, `rv_pdko_cv()`, `rv_pdko_cg()`, `rv_pdko_cio()`, `rv_pdko_cd()`, `rv_pdko_cm()`, `rv_pdko_cl()` — free functions, opaque handle in, controller pointer out |
-| `rv_ca`    | `ca/rv_ca.h`       | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status`/`voice_repeat`/`voice_ended`/`voice_mark`/`voice_marked` |
+| `rv_ca`    | `ca/rv_ca.h`       | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status`/`voice_repeat`/`voice_ended`/`voice_mark`/`voice_marked`, `rv_ca_stream_volume` (input level of the streamed music, L/R, 32767 = 1.0, <= 0 silence; holds until the next call) |
 | `rv_cv`    | `cv/rv_cv.h`       | **C**ontroller **V**ideo (GPU)      | low-level: `video_asset_malloc`/`video_asset_write`/`video_asset_free` (textures + palettes), `frame_configure`/`frame_put`/`frame_flush` (primitives, sorted by the hardware ordering table) |
 | `rv_cg`    | `cg/rv_cg.h`       | **C**ontroller **G**eometry (GTE)   | model memory (`rv_cg_model_memory_size()`, `rv_cg_triangle_capacity()`, budget `[budget.pccg]`), `rv_cg_frame_camera()`, `rv_cg_model_put()` (a model made resident by the drive: transformed, cut at the near plane, culled per put, keyed into the ordering-table range the disc gives, put into the frame of `rv_cv`), `rv_cg_point()` (world point → screen position and a key in the window the caller gives, so it sorts with the puts of that window) |
 | `rv_cio`   | `cio/rv_cio.h`     | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`) |
-| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `resource_addr`/`_size`/`_palette_addr`/`_width`/`_height` (kind + name → the address the resource now lives at; `rv_cd_resource_kind` says which kind is meant, `RV_CD_RESOURCE_TEXTURE` for video RAM or `RV_CD_RESOURCE_AUDIO` for sound RAM, `RV_CD_RESOURCE_MODEL` for cg's model memory, and a query that means nothing for the named kind answers `RV_ERR_INVAL` rather than a zero; the drive makes it resident on first ask and frees it itself when the disc unloads) |
+| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `resource_addr`/`_size`/`_palette_addr`/`_width`/`_height` (kind + name → the address the resource now lives at; `rv_cd_resource_kind` says which kind is meant, `RV_CD_RESOURCE_TEXTURE` for video RAM or `RV_CD_RESOURCE_AUDIO` for sound RAM, `RV_CD_RESOURCE_MODEL` for cg's model memory, and a query that means nothing for the named kind answers `RV_ERR_INVAL` rather than a zero; the drive makes it resident on first ask and frees it itself when the disc unloads), streamed music: `rv_cd_stream_play` (name + loop conf -> the entry from frame 0, replaces the current stream), `rv_cd_stream_stop` (IDLE from any state), `rv_cd_stream_status` (state `RV_CD_STREAM_*`, error, position, loops, starved frames) |
 | `rv_cm`    | `cm/rv_cm.h`       | **C**ontroller **M**emory card      | persistent save slots: `card_slots` (count from console config) / `card_size` / `card_read` / `card_write` (atomic) / `card_erase` |
 | `rv_cl`    | `cl/rv_cl.h`       | **C**ontroller **L**ua (script machine) | chunk lifecycle: `script_load`/`script_free`/`script_entry`; a shared value stack: `stack_push_*`/`stack_drop`/`stack_count`/`value_*`; one call primitive, `script_call` |
 
@@ -352,7 +352,8 @@ choice is not taste:
   needed at the point of use.
 * **`#define`** when the value only ever *lives in a field of fixed width* —
   `uint32_t type`, `uint64_t buttons`, the `config` mask of
-  `rv_cv_frame_configure`. The enum name would then appear nowhere but a comment,
+  `rv_cv_frame_configure`, `RV_CD_STREAM_*` (the `state` field of
+  `rv_cd_stream_info`). The enum name would then appear nowhere but a comment,
   and C has no way to widen an enum past `int` anyway: `RV_ISOURCE_GYRO_ROLL` is
   bit 52 and would silently become `0`.
 
@@ -430,6 +431,12 @@ The reference console's defaults live in `rv_manifest_budget_*` in
 The bucket count is a budget the disc declares in `[budget.pccv]
 ot_bucket_count`. The game hands depth VALUES, never bucket indices: how the
 console quantizes them is its own business.
+
+Streamed music has two fixed device buffers, counted by the software audio and fs
+drive `evaluate`: the audio stream ring, 32768 frames of mono S16 = 64 KiB
+(`RV_PCSTREAM_RING_FRAMES`), and the drive's staging buffer, 8192 frames = 16 KiB,
+one portion read per pass (`RV_PCCD_STREAM_PORTION_FRAMES`). Neither takes sound
+RAM, and neither limits the length of an entry.
 
 **Dropped on purpose** (PSX features that do not cross into this contract):
 drawing area / drawing offset registers (a frame is always the whole 320×240),
@@ -817,8 +824,10 @@ Tracked here so they are chosen deliberately rather than by drift:
   path separators, resolved into a handle. The medium is read-only (persistent
   save is the memory card, i.e. `rv_cm`), and no host path ever crosses: the
   game cannot tell a directory from a packed image.
+  Streamed music (`rv_cd_stream_play`/`_stop`/`_status`) plays one entry at a time
+  through a ring the audio mixes; its input level is `rv_ca_stream_volume`.
   Deferred: enumeration (the disc builder bakes any listing at build time), ranged
-  reads, streaming, and the mapping model (console places the resource in its own
+  reads and the mapping model (console places the resource in its own
   RAM and lends an address) — the last only pays off once the console owns a real
   fantasy-RAM allocator.
 - **`rv_cv` (video, low-level)** — surface defined: geometry queries

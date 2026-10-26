@@ -55,3 +55,20 @@
     └──────────────────────────────────────────────┘
 
 Paths of .cpp/.hpp are given relative to pdk/lib/include/pdklib/rv_manifest/.
+
+--- streamed music in the burner ---
+
+Each [assets.stream] file is streamed music: a .wav or .mp3 that is not loaded into sound
+memory but kept as a plain drive asset. No extension maps to a stream kind; a .mp3 in
+[assets] is an ordinary sound.
+
+    plan   rv_burner_assets/rv_burner_plan.cpp   plan_stream_block(): file -> <stem>.pcm in the
+                                                 sound dir; refuses a path also in [assets],
+                                                 a file that is not .wav or .mp3; shares the
+                                                 sound collision check
+    bake   rv_burner_assets/rv_burner_bake.cpp   bake_stream(): mppcmusbaker, same range helper
+                                                 as bake_sounds()
+    map    rv_burner_build/rv_burner_map.cpp     one "stream" line per file
+    burn   rv_burner_burn/rv_burner_burn.cpp     copied into the disc directory like
+                                                 a baked sound (never a symlink);
+                                                 a zip archive takes it as a file

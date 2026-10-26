@@ -1,6 +1,7 @@
 #include "rv_pconsole/cd/rv_pccd_null.hpp"
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc
 {
@@ -56,6 +57,43 @@ int64_t rv_pccd_null::resource_height(rv_cd_resource_kind /*kind*/, const char *
 int64_t rv_pccd_null::asset_reload(const char * /*resname*/, rv_cd_resource_kind & /*kind_out*/)
 {
     return RV_ERR_INVAL;
+}
+
+int64_t rv_pccd_null::stream_play(const char *resname, const rv_cd_stream_conf *conf)
+{
+    if (resname == nullptr || conf == nullptr) {
+        RV_LOG_WARN("pccd", "stream play with a null resname or conf");
+        return RV_ERR_INVAL;
+    }
+    // An empty drive has no streamed entry: no such entry, not a device failure.
+    RV_LOG_WARN("pccd", "stream play refused: the drive is empty");
+    return RV_ERR_NOENT;
+}
+
+int64_t rv_pccd_null::stream_stop()
+{
+    // No stream was ever started: nothing to stop.
+    return RV_OK;
+}
+
+int64_t rv_pccd_null::stream_status(rv_cd_stream_info *out)
+{
+    if (out == nullptr) {
+        RV_LOG_WARN("pccd", "stream status with a null out");
+        return RV_ERR_INVAL;
+    }
+    out->state = RV_CD_STREAM_IDLE;
+    out->error = 0;
+    out->position = 0;
+    out->loops = 0;
+    out->starved_frames = 0;
+    return RV_OK;
+}
+
+int64_t rv_pccd_null::stream_pump()
+{
+    // No stream, so no medium read and no portion to put into the ring.
+    return RV_OK;
 }
 
 } // namespace rv_3dmppc

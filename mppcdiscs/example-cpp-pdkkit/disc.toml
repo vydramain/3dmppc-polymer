@@ -11,15 +11,19 @@ sdk = ["kit"]
 # A file is sorted by its extension: .wav is baked to .pcm; .gltf is baked to .mppcmod with its .bin
 # and the PNG pictures it names (most in assets/tex, street_16's in assets/models); the rest (the scene) is copied as is.
 # The disc reads the scene's objects through the drive (src/example-cpp-pdkkit.cpp).
-files = ["scenes/*.scene.toml", "assets/snd/*.wav", "assets/models/*.gltf"]
+files = ["scenes/*.scene.toml", "assets/snd/sfx_*.wav", "assets/models/*.gltf"]
 
 [assets.texture]
 # The format each PNG picture named by a .gltf is baked to; idx8 is the default.
 format = "idx8"
 
+[assets.stream]
+# Music: each track is baked to a headerless .pcm the drive streams, not loaded into sound memory.
+files = ["assets/snd/mus_*.wav"]
+
 [budget.pcca]
 voice_count = 24
-# The same 1 MiB Solid Maid declares (solid-maid/disc.toml [budget.pcca]); music slots, clack and loops fit in it.
+# The same 1 MiB Solid Maid declares (solid-maid/disc.toml [budget.pcca]); clack and loops fit in it.
 sound_memory_size = 1048576
 
 [budget.pccv]

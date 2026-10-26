@@ -610,16 +610,20 @@ files = ["scenes/*.scene.toml", "assets/*.png", "assets/*.wav", "assets/models/*
 
 [assets.texture]
 format = "idx8"
+
+[assets.stream]
+files = ["assets/music/*.mp3"]
 ```
 
 `[assets]` is optional. Each file in `files` is sorted by its extension: `.png` is a
-texture, `.wav` a sound, `.gltf` and `.glb` a model, and anything else is copied as is.
+texture, `.wav` and `.mp3` a sound, `.gltf` and `.glb` a model, and anything else is copied
+as is.
 `[assets.texture] format` is the format of the textures; it defaults to `idx8`.
 
 Each listed WAV is baked by `mppcmusbaker` into a headerless `<name>.pcm` - the console's
 raw S16LE mono 44100 Hz samples - and put on the disc beside the textures. The WAV must
-already be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
-else is refused, not resampled.
+already be PCM 16-bit or 24-bit 44100 Hz, mono or stereo (stereo is averaged to mono);
+anything else is refused, not resampled.
 
 Each listed `.glb` or `.gltf` (glTF 2.0) is baked by `mppcmodbaker` into a
 `<name>.mppcmod`. The baker writes each PNG texture beside it as `<stem>-<n>.png`: a
@@ -627,6 +631,17 @@ Each listed `.glb` or `.gltf` (glTF 2.0) is baked by `mppcmodbaker` into a
 files. The burner then bakes those PNGs into `<stem>-<n>.mppctex` in the same texture
 directory as the `[assets]` textures; for a model it never opens the disc's own PNG files.
 A JPEG texture is refused.
+
+Each listed `.mp3` is a sound too: baked by `mppcmusbaker` like a `.wav`. An MP3 must be
+MPEG Layer III at 44100 Hz; anything else is refused.
+
+`[assets.stream]` is optional. Its `files` globs list the audio a disc plays as streamed
+music. Each file is a `.wav` or `.mp3`, with the input rules of a sound, and is baked by
+`mppcmusbaker` into a headerless `<name>.pcm` - S16LE mono 44100 Hz. The `.pcm` is a plain
+drive asset, not loaded into sound memory. The PCM is not stored in the project, only in the
+build directory and the image. A path listed in both `[assets]` and `[assets.stream]`
+refuses the burn, naming both sections; so does a stream file that is not `.wav` or `.mp3`.
+A sound and a stream with the same stem collide and the burn is refused.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
 both. Every `[budget.*]` section is optional - a disc that states none is held to the

@@ -1,6 +1,5 @@
 #include "example-cpp-pdkkit-sound.hpp"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -10,6 +9,7 @@
 #include "pdk/ca/rv_ca.h"
 #include "pdk/ca/rv_loop.h"
 #include "pdk/ca/rv_voice_conf.h"
+#include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
@@ -72,6 +72,14 @@ constexpr int16_t RV_SOUND_ASSEMBLY_VOLUME = 12100;
 constexpr int16_t RV_SOUND_LOOP_ENVELOPE = 0;
 // A zone's loop names its disc asset without this suffix.
 constexpr const char *RV_SOUND_LOOP_SUFFIX = ".pcm";
+
+// A music is the disc entry mus_<music>.pcm, played as one stream.
+constexpr const char *RV_MUSIC_PREFIX = "mus_";
+constexpr const char *RV_MUSIC_SUFFIX = ".pcm";
+// rv_cd_stream_conf loop: 1 repeats the loop, which is the whole entry (loop_start 0, loop_end 0 from the zero init).
+constexpr int64_t RV_MUSIC_LOOP = 1;
+// Stream input volume of the music, set once: 10000 of the 32767 full level.
+constexpr int16_t RV_MUSIC_VOLUME = 10000;
 
 // Advances the clack generator once (xorshift32) and returns the index of the take it picks.
 int clack_take(rv_sound_state &state)
@@ -147,26 +155,68 @@ void warn_once(rv_sound_state &state, int64_t code)
     RV_LOG_WARN(RV_SOUND_TAG, "{} failed: rv_err {}", rv_pdklib::rv_log_escape(state.error_asset), code);
 }
 
-// Measures the songs of all zone_music names, each name once, and allocates the music slots. Sets measured, and ready
-// when it succeeds.
-int64_t measure_songs(rv_pdko *pdk, rv_pdkkit::ecs_world &world, rv_sound_state &state)
+// The disc entry of a music's stream.
+std::string stream_asset(const char *music)
 {
-    std::vector<std::string> names;
-    rv_pdkkit::ecs_component_each<ecs_component_zone_music>(world,
-        [&names](rv_pdkkit::ecs_id, ecs_component_zone_music &music) {
-            const std::string name = music.music;
-            if (std::find(names.begin(), names.end(), name) == names.end()) {
-                names.push_back(name);
-            }
-        });
-    const int64_t code = rv_music_init(pdk, names, state);
-    state.measured = true;
-    state.ready = code == RV_OK;
-    return code;
+    return std::string(RV_MUSIC_PREFIX) + music + RV_MUSIC_SUFFIX;
 }
 
-// The listener entered a zone with music: it stands there now, and the zone's music and loop take over where they
-// differ from the playing ones. The music itself starts in ecs_system_music's update, which sees the new name.
+// Starts the stream of `music` from its first frame, looped over the whole entry. A refusal changes nothing: the playing
+// stream and state.song stay, and the next frame tries again.
+int64_t play_stream(rv_pdko *pdk, rv_sound_state &state, const char *music)
+{
+    const std::string asset = stream_asset(music);
+    if (asset.size() >= static_cast<std::size_t>(rv_pdkkit::ecs_value_capacity)) {
+        return fail(state, "stream name", RV_ERR_INVAL);
+    }
+    rv_cd_stream_conf conf = {};
+    conf.loop = RV_MUSIC_LOOP;
+    const int64_t play_code = rv_cd_stream_play(rv_pdko_cd(pdk), asset.c_str(), &conf);
+    if (play_code != RV_OK) {
+        return fail(state, asset.c_str(), play_code);
+    }
+    set_name(state.song, music);
+    return RV_OK;
+}
+
+// Starts the zone's music when it differs from the playing one.
+int64_t play_music(rv_pdko *pdk, rv_sound_state &state, const char *music)
+{
+    if (std::strcmp(music, state.song) == 0) {
+        return RV_OK;
+    }
+    return play_stream(pdk, state, music);
+}
+
+// Reads the stream state every frame. An ERROR, or a failed read of it, is returned under the playing stream's asset.
+int64_t check_stream(rv_pdko *pdk, rv_sound_state &state)
+{
+    rv_cd_stream_info info = {};
+    const int64_t status_code = rv_cd_stream_status(rv_pdko_cd(pdk), &info);
+    if (status_code == RV_OK && info.state != RV_CD_STREAM_ERROR) {
+        return RV_OK;
+    }
+    const std::string asset = stream_asset(state.song);
+    const int64_t code = status_code != RV_OK ? status_code : info.error;
+    return fail(state, asset.c_str(), code);
+}
+
+// Sets the stream volume once; a failed set is retried on the next frame.
+int64_t set_volume(rv_pdko *pdk, rv_sound_state &state)
+{
+    if (state.volume_set) {
+        return RV_OK;
+    }
+    const int64_t volume_code = rv_ca_stream_volume(rv_pdko_ca(pdk), RV_MUSIC_VOLUME, RV_MUSIC_VOLUME);
+    if (volume_code != RV_OK) {
+        return fail(state, "stream volume", volume_code);
+    }
+    state.volume_set = true;
+    return RV_OK;
+}
+
+// The listener entered a zone with music: it stands there now, and the zone's loop takes over where it differs. The
+// music itself starts in ecs_system_music, which sees the new zone.
 void enter_zone(rv_pdko *pdk, rv_pdkkit::ecs_id zone, const ecs_component_zone_music &music, ecs_component_listener &listener)
 {
     rv_sound_state &state = listener.sound;
@@ -240,15 +290,9 @@ int ecs_system_music(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &fr
     const rv_pdkkit::ecs_id listener_id = listeners[0];
     ecs_component_listener *listener = rv_pdkkit::ecs_component_get<ecs_component_listener>(world, listener_id);
     rv_sound_state &state = listener->sound;
-    if (!state.measured) {
-        const int64_t measure_code = measure_songs(frame.pdk, world, state);
-        if (measure_code != RV_OK) {
-            warn_once(state, measure_code);
-        }
-    }
-    // Without a measured song set nothing plays, and the failure was logged once above.
-    if (!state.ready) {
-        return RV_OK;
+    const int64_t volume_code = set_volume(frame.pdk, state);
+    if (volume_code != RV_OK) {
+        warn_once(state, volume_code);
     }
     const std::vector<rv_pdkkit::ecs_id> crossed = holders_of<ecs_component_zone_crossed>(world);
     for (const rv_pdkkit::ecs_id zone : crossed) {
@@ -264,12 +308,13 @@ int ecs_system_music(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &fr
     }
     // The zone the listener stands in plays its music; with no zone entered yet there is nothing to play.
     const ecs_component_zone_music *current = rv_pdkkit::ecs_component_get<ecs_component_zone_music>(world, listener->zone);
-    if (current == nullptr) {
-        return RV_OK;
-    }
-    const int64_t music_code = rv_music_update(frame.pdk, current->music, state);
+    const int64_t music_code = current == nullptr ? static_cast<int64_t>(RV_OK) : play_music(frame.pdk, state, current->music);
     if (music_code != RV_OK) {
         warn_once(state, music_code);
+    }
+    const int64_t stream_code = check_stream(frame.pdk, state);
+    if (stream_code != RV_OK) {
+        warn_once(state, stream_code);
     }
     return RV_OK;
 }

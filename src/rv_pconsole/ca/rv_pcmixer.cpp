@@ -3,9 +3,14 @@
 #include <algorithm>
 
 #include "pdk/rv_err.h"
+#include "rv_pconsole/ca/rv_pcca.hpp"
 
 namespace rv_3dmppc
 {
+
+// rv_pcstream::mix strides by RV_PCCA_PCM_CHANNELS over an accumulator laid out by
+// RV_PCMIXER_CHANNELS: the two must agree or the stream lands on the wrong channels.
+static_assert(RV_PCMIXER_CHANNELS == RV_PCCA_PCM_CHANNELS, "mixer and PCM output channel counts differ");
 
 namespace
 {
@@ -218,8 +223,44 @@ void rv_pcmixer::resize_region_locked(int64_t addr, int64_t frames)
     }
 }
 
-// THEOREM: saturating summation. Voices are summed in int32 and CLIPPED into
-// int16 at the very end — they are never divided by the number of voices.
+void rv_pcmixer::stream_volume(int16_t l, int16_t r)
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    stream_.set_volume(l, r);
+}
+
+void rv_pcmixer::stream_start()
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    stream_.start();
+}
+
+int64_t rv_pcmixer::stream_push(const int16_t *src, int64_t frames)
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    return stream_.push(src, frames);
+}
+
+void rv_pcmixer::stream_end_input()
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    stream_.end_input();
+}
+
+void rv_pcmixer::stream_clear()
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    stream_.clear();
+}
+
+rv_pcstream_report rv_pcmixer::stream_report() const
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    return stream_.report();
+}
+
+// THEOREM: saturating summation. Voices and the stream input are summed in int32
+// and CLIPPED into int16 at the very end - they are never divided by the number of voices.
 //
 // Averaging looks safer and is worse: it makes the gain of a voice depend on how
 // many other voices happen to be sounding, so the same footstep is loud alone
@@ -248,6 +289,7 @@ void rv_pcmixer::render(int16_t *out, int64_t frames)
         for (rv_pcvoice &voice : voices_) {
             voice.mix(accumulator_.data(), block);
         }
+        stream_.mix(accumulator_.data(), block);
 
         int16_t *dst = out + done * RV_PCMIXER_CHANNELS;
         for (std::size_t i = 0; i < values; ++i) {

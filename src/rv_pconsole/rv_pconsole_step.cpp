@@ -42,6 +42,11 @@ rv_pconsole::step_result rv_pconsole::frame_step(rv_de *disc, run_state &run)
         return step_result::idle;
     }
 
+    // Reads the streamed entry once per frame_step; run_pace pumps again before each pacing slice, and without a device
+    // run_frame pumps once more before its sound step.
+    // Its failure is already state ERROR in rv_cd_stream_status and logged once.
+    static_cast<void>(cd_->stream_pump());
+
     // Only a pass that runs a frame pulls sound: a stopped machine must not advance pcca through the device.
     platform_.audio().service();
     // After the pump: a healthy device has refilled and stamped its pull; a hung one has not.

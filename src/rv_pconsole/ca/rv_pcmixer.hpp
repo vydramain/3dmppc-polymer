@@ -1,5 +1,6 @@
-// The console's mixing stage: it owns the voices and turns them into the stereo
-// stream advance() produces for the sound device or, without one, the frame loop.
+// The console's mixing stage: it owns the voices and the stream input (rv_pcstream)
+// and turns them into the stereo stream advance() produces for the sound device or,
+// without one, the frame loop.
 //
 // render() is called on the console thread by rv_pcca::advance(), for the number
 // of frames the sound device asks for or, without a device, one console frame at
@@ -24,6 +25,7 @@
 #include <vector>
 
 #include "pdk/ca/rv_voice_conf.h"
+#include "rv_pconsole/ca/rv_pcstream.hpp"
 #include "rv_pconsole/ca/rv_pcvoice.hpp"
 
 namespace rv_3dmppc
@@ -87,10 +89,21 @@ public:
     int64_t ended(int64_t mask) const;
     int64_t marked(int64_t mask) const;
 
+    // --- the stream input; each call takes the lock for its duration, see rv_pcstream ---
+
+    void stream_volume(int16_t l, int16_t r);
+    void stream_start();
+    int64_t stream_push(const int16_t *src, int64_t frames);
+    void stream_end_input();
+    void stream_clear();
+    rv_pcstream_report stream_report() const;
+
     // --- the advance() side ---
 
-    // Sum every sounding voice into `out`, which holds `frames` INTERLEAVED
-    // stereo frames (2 * frames int16 values). Overwrites; does not accumulate.
+    // Sum every sounding voice and the stream input into `out`, which holds `frames`
+    // INTERLEAVED stereo frames (2 * frames int16 values). Overwrites; does not accumulate.
+    // The stream frames are taken whether or not the output is muted; mute zeroes only
+    // what leaves render().
     void render(int16_t *out, int64_t frames);
 
     // --- compound operations, for the caller that must be atomic ---
@@ -144,6 +157,9 @@ private:
     // Summing accumulator, sized once and reused. Lives here rather than on a
     // caller's stack so its size is a property of the mixer.
     std::vector<int32_t> accumulator_;
+
+    // Owned here with the voices: the mixer is the only consumer, render() drains it.
+    rv_pcstream stream_;
 
     bool muted_ = false;
 };

@@ -135,7 +135,8 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     std::ostringstream out;
 
     // Every key of a present section is written, including empty arrays and zero
-    // counts. This is the copy that goes ONTO THE DISC, and there it has to say
+    // counts, except [build] sdk and [assets.stream], which are left out when empty.
+    // This is the copy that goes ONTO THE DISC, and there it has to say
     // what the burner actually used rather than leaning on a default a later
     // version of the tool might change.
     //
@@ -168,6 +169,11 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     const rv_pdklib::rv_texfmt_name *assets_texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.assets_texture_format);
     out << "\n[assets.texture]\n";
     out << "format = " << quote(assets_texfmt != nullptr ? assets_texfmt->text : "") << "\n";
+    // Only when listed: a console older than this section refuses an unknown one.
+    if (!manifest.assets_stream_files.empty()) {
+        out << "\n[assets.stream]\n";
+        render_array(out, "files", manifest.assets_stream_files);
+    }
 
     const rv_manifest_budget &budget = manifest.budget;
 

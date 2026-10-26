@@ -46,6 +46,12 @@ int64_t rv_ca_voice_ended(rv_ca *ca, int64_t voice_mask);
 int64_t rv_ca_voice_mark(rv_ca *ca, int64_t voice_mask, int64_t addr);
 int64_t rv_ca_voice_marked(rv_ca *ca, int64_t voice_mask);
 
+// Volume of the stream input, the scale of voice volume_l/r: 32767 = 1.0, <= 0 silence.
+// Own level: voice volumes do not affect it. Holds until the next call, survives play/stop; default 32767.
+// PSX: an SPU register sets the CD input volume; a drive command starts playback.
+// Here: rv_ca_stream_volume sets the input volume, rv_cd_stream_play starts playback. Returns RV_OK.
+int64_t rv_ca_stream_volume(rv_ca *ca, int16_t volume_l, int16_t volume_r);
+
 /* RV_CDEF_END */
 
 #ifdef __cplusplus
