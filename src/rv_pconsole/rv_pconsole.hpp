@@ -260,8 +260,8 @@ private:
     // What the console owes the channel once the frame is over: the answer to
     // a step, and a game hook that failed this frame.
     void cmd_after_frame();
-    // Announce each scene the disc opened since the client last heard; a new scene generation starts the list over.
-    void cmd_send_scenes();
+    // Announce each asset the disc opened since the client last heard; a new asset generation starts the list over.
+    void cmd_send_assets();
     // The Pause KEY moved the machine. The client did not ask, so it hears
     // about it as an event.
     void cmd_note_pause();

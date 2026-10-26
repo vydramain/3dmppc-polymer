@@ -6,7 +6,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
+#include <limits>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <unordered_map>
@@ -14,6 +15,9 @@
 
 #include "pdk/rv_err.h"
 #include "panes/rv_editor_walk.hpp"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
+#include "pdklib/rv_models/rv_mppcmod_quant.hpp"
+#include "scene/rv_editor_model_stage.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_icons.hpp"
 
@@ -27,6 +31,10 @@ namespace
 constexpr std::string_view name_separators = "/\\";
 // A colour byte's full scale, to map a part's RGB to 0..1.
 constexpr float color_channel_max = 255.0f;
+// A uv's whole texture is 2^rv_mppcmod_uv_bits steps; the division by it is exact in float.
+constexpr float uv_one = static_cast<float>(int64_t{ 1 } << rv_pdklib::rv_mppcmod_uv_bits);
+// Marks a triangle no part owns.
+constexpr std::size_t no_part = std::numeric_limits<std::size_t>::max();
 
 // One read of a .glb, kept until the file's mtime moves on. `rc` and `error` hold a failed read.
 struct rv_editor_glb_entry {
@@ -51,38 +59,63 @@ ImVec4 modulate(const ImVec4 &a, const ImVec4 &b)
     return { a.x * b.x, a.y * b.y, a.z * b.z, 1.0f };
 }
 
-// A .glb's triangles, flat: the project's coordinates (left-handed, Y up, metres; the glTF reader
-// has negated z) and uv (top-left origin, so no flip needed). `part_cpu` holds one picture per part
-// (null: none).
-std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod &model,
-    const rv_editor_affine &m,
-    const std::vector<const rv_editor_cpu_image *> &part_cpu)
+// A triangle of `model` through `world`: its corners' Q20.12, uv and colour. A vertex that leaves int32 fails it.
+int rv_editor_glb_triangle_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
+    const rv_pdklib::rv_gte_matrix &world,
+    const rv_pdklib::rv_mppcmod_triangle &t,
+    rv_editor_tri &tri)
 {
+    for (std::size_t k = 0; k < tri_vertices; ++k) {
+        const std::size_t vertex = t.index[k];
+        const rv_pdklib::rv_mppcmod_int_vertex &v = model.vertices[vertex];
+        const int rc = rv_editor_glb_vertex_in_world(model, world, vertex, tri.q[k]);
+        if (rc != RV_OK) {
+            return rc;
+        }
+        tri.uv[k] = { static_cast<float>(v.uv[0]) / uv_one, static_cast<float>(v.uv[1]) / uv_one };
+        tri.color[k] = rgb_unit(v.color);
+    }
+    tri.q_valid = true;
+    tri.from_model = true;
+    return RV_OK;
+}
+
+// A .glb's triangles, flat, read from its integer model through `world`: the project's coordinates
+// (left-handed, Y up, metres; the glTF reader has negated z) and uv (top-left origin, so no flip needed).
+// `part_cpu` holds one picture per part (null: none). `refused` counts the triangles not drawn.
+std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod_int_model &model,
+    const rv_pdklib::rv_gte_matrix &world,
+    const std::vector<const rv_editor_cpu_image *> &part_cpu,
+    std::size_t &refused)
+{
+    // A part's triangles are a run of the index list; the owner is found by model index, before any is dropped.
+    std::vector<std::size_t> owner(model.triangles.size(), no_part);
+    for (std::size_t p = 0; p < model.parts.size(); ++p) {
+        const rv_pdklib::rv_mppcmod_part &part = model.parts[p];
+        const std::size_t end = std::min(static_cast<std::size_t>(part.first_tri) + part.tri_count, owner.size());
+        for (std::size_t t = part.first_tri; t < end; ++t) {
+            owner[t] = p;
+        }
+    }
+    refused = 0;
     std::vector<rv_editor_tri> tris;
     tris.reserve(model.triangles.size());
-    for (const rv_pdklib::rv_mppcmod_triangle &t : model.triangles) {
+    for (std::size_t i = 0; i < model.triangles.size(); ++i) {
         rv_editor_tri tri;
-        for (std::size_t k = 0; k < std::size(tri.p); ++k) {
-            const rv_pdklib::rv_mppcmod_vertex &v = model.vertices[t.index[k]];
-            tri.p[k] = rv_editor_affine_point(m, { v.pos[0], v.pos[1], v.pos[2] });
-            tri.uv[k] = { v.uv[0], v.uv[1] };
-            tri.color[k] = rgb_unit(v.color);
+        if (rv_editor_glb_triangle_in_world(model, world, model.triangles[i], tri) != RV_OK) {
+            ++refused;
+            continue;
         }
-        tri.from_model = true;
-        tris.push_back(tri);
-    }
-    // A part's triangles are a run of the index list; each takes the part's colour and picture.
-    for (size_t p = 0; p < model.parts.size(); ++p) {
-        const rv_pdklib::rv_mppcmod_part &part = model.parts[p];
-        const ImVec4 part_color = rgb_unit(part.color);
-        const rv_editor_cpu_image *cpu = p < part_cpu.size() ? part_cpu[p] : nullptr;
-        const size_t end = std::min(static_cast<size_t>(part.first_tri) + part.tri_count, tris.size());
-        for (size_t t = part.first_tri; t < end; ++t) {
-            for (ImVec4 &c : tris[t].color) {
+        if (owner[i] != no_part) {
+            const rv_pdklib::rv_mppcmod_part &part = model.parts[owner[i]];
+            const ImVec4 part_color = rgb_unit(part.color);
+            const rv_editor_cpu_image *cpu = owner[i] < part_cpu.size() ? part_cpu[owner[i]] : nullptr;
+            for (ImVec4 &c : tri.color) {
                 c = modulate(c, part_color);
             }
-            tris[t].cpu_tex = cpu;
+            tri.cpu_tex = cpu;
         }
+        tris.push_back(tri);
     }
     return tris;
 }
@@ -137,7 +170,7 @@ const rv_editor_glb_pictures &rv_editor_glb_part_pictures(const std::string &key
         rv_editor_cpu_image_load_png(glb->images[i].png, made.images[i]);
     }
     const auto it = rv_editor_glb_picture_cache.insert_or_assign(key, std::move(made)).first;
-    for (const rv_pdklib::rv_mppcmod_part &part : glb->model.parts) {
+    for (const rv_pdklib::rv_mppcmod_part &part : glb->quantized.parts) {
         const size_t i = part_image_index(*glb, part);
         const bool decoded = i < it->second.images.size() && it->second.images[i].w > 0;
         it->second.part.push_back(decoded ? &it->second.images[i] : nullptr);
@@ -145,7 +178,73 @@ const rv_editor_glb_pictures &rv_editor_glb_part_pictures(const std::string &key
     return it->second;
 }
 
+// A model named `name` waiting in the pending folder of the project's models folder: RV_OK with `found`;
+// RV_ERR_NOENT when there is none; RV_ERR_IO with the reason when a check fails.
+int rv_editor_glb_find_pending(const rv_editor_project &project,
+    const std::string &name,
+    std::filesystem::path &found,
+    std::string &error)
+{
+    // "." and ".." are folders, not models; a model's name ends with the .gltf suffix.
+    constexpr std::string_view self_dir = ".";
+    constexpr std::string_view parent_dir = "..";
+    constexpr std::string_view gltf_suffix = ".gltf";
+    // No models folder means no pending one; the caller reports the missing model, so the reason is dropped.
+    std::filesystem::path models_dir;
+    std::string reason;
+    if (rv_editor_model_target_dir(project.root, project.models_patterns, models_dir, reason) != RV_OK) {
+        return RV_ERR_NOENT;
+    }
+    if (name.empty() || name == self_dir || name == parent_dir || !name.ends_with(gltf_suffix)) {
+        return RV_ERR_NOENT;
+    }
+    const std::filesystem::path candidate = rv_editor_model_pending_dir(models_dir) / name;
+    std::error_code ec;
+    const std::filesystem::file_status st = std::filesystem::status(candidate, ec);
+    if (st.type() == std::filesystem::file_type::not_found) {
+        return RV_ERR_NOENT;
+    }
+    if (ec) {
+        error = "cannot check " + candidate.string() + ": " + ec.message();
+        return RV_ERR_IO;
+    }
+    if (!std::filesystem::is_regular_file(st)) {
+        return RV_ERR_NOENT;
+    }
+    found = candidate;
+    return RV_OK;
+}
+
+// The reader's Q.16 model quantized as the baker does, into `quantized`. A refusal names the file, as a read failure does.
+int rv_editor_glb_quantize(const std::string &path,
+    const rv_pdklib::rv_mppcmod_q16_model &q16,
+    rv_pdklib::rv_mppcmod_int_model &quantized,
+    std::string &error)
+{
+    std::string reason;
+    const int rc = rv_pdklib::rv_mppcmod_quantize(q16, quantized, reason);
+    if (rc != RV_OK) {
+        error = "'" + path + "' " + reason;
+        return rc;
+    }
+    return RV_OK;
+}
+
 } // namespace
+
+int rv_editor_glb_vertex_in_world(const rv_pdklib::rv_mppcmod_int_model &model,
+    const rv_pdklib::rv_gte_matrix &world,
+    std::size_t vertex,
+    rv_pdklib::fx_vec3 &q)
+{
+    std::int32_t raw[3] = {};
+    const int rc = rv_pdklib::rv_gte_vertex(world, model.vertices[vertex].pos.data(), model.shift, raw);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    q = { raw[0], raw[1], raw[2] };
+    return RV_OK;
+}
 
 int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const rv_editor_glb_model> &out, std::string &error)
 {
@@ -171,11 +270,26 @@ int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const 
         entry.mtime = mtime;
         auto model = std::make_shared<rv_editor_glb_model>();
         const std::string stem = path.stem().string();
-        entry.rc = rv_pdklib::rv_mppcmod_read_gltf(key, stem, model->model, model->images, entry.error);
+        rv_pdklib::rv_mppcmod_q16_model q16;
+        std::vector<rv_pdklib::rv_mppcmod_gltf_source_vertex> source;
+        entry.rc = rv_pdklib::rv_mppcmod_read_gltf(key, stem, q16, model->images, source, entry.error);
         if (entry.rc == RV_OK) {
-            entry.rc = rv_pdklib::rv_mppcmod_validate(model->model, entry.error);
+            entry.rc = rv_editor_glb_quantize(key, q16, model->quantized, entry.error);
         }
         if (entry.rc == RV_OK) {
+            entry.rc = rv_pdklib::rv_mppcmod_int_validate(model->quantized, entry.error);
+        }
+        // Internal invariant: the reader and the quantizer both emit one vertex per model vertex.
+        if (entry.rc == RV_OK && source.size() != model->quantized.vertices.size()) {
+            const std::size_t source_count = source.size();
+            const std::size_t model_count = model->quantized.vertices.size();
+            entry.rc = RV_ERR_INVAL;
+            entry.error =
+                rv_editor_text_format("project.model_source_mismatch", std::make_format_args(key, source_count, model_count));
+        }
+        if (entry.rc == RV_OK) {
+            model->source = std::move(source);
+            model->pieces = rv_editor_model_pieces(model->quantized);
             entry.model = std::move(model);
         }
         it = rv_editor_glb_cache.insert_or_assign(key, std::move(entry)).first;
@@ -206,6 +320,11 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
         return RV_ERR_IO;
     }
     if (walk.matches.empty()) {
+        // A model written this session may still wait in a pending folder; it is moved in on save.
+        const int pending_rc = rv_editor_glb_find_pending(project, name, found, error);
+        if (pending_rc != RV_ERR_NOENT) {
+            return pending_rc;
+        }
         error = rv_editor_text_format("project.model_no_file", std::make_format_args(name));
         return RV_ERR_NOENT;
     }
@@ -219,11 +338,31 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
     return RV_OK;
 }
 
-// A .glb named by its bare filename: resolved under [models] and read once per mtime. Returns the
-// code with the reason in `error`; the placeholder cube fallback is the caller's.
+int rv_editor_glb_path_triangles(const std::filesystem::path &path,
+    const rv_pdklib::rv_gte_matrix &world,
+    std::vector<rv_editor_tri> &tris,
+    std::string &error)
+{
+    std::shared_ptr<const rv_editor_glb_model> glb;
+    if (const int rc = rv_editor_glb_load(path, glb, error); rc != RV_OK) {
+        return rc;
+    }
+    const rv_editor_glb_pictures &pictures = rv_editor_glb_part_pictures(path.string(), glb);
+    std::size_t refused = 0;
+    tris = rv_editor_glb_triangles(glb->quantized, world, pictures.part, refused);
+    // A warning, not a failure: the model's other triangles are drawn.
+    if (refused != 0) {
+        const std::string name = path.filename().string();
+        error = rv_editor_text_format("project.model_triangles_refused", std::make_format_args(name, refused));
+    }
+    return RV_OK;
+}
+
+// A .glb named by its bare filename: resolved among the [assets] models, then read as rv_editor_glb_path_triangles.
+// Returns the code with the reason in `error`; the placeholder cube fallback is the caller's.
 int rv_editor_glb_object_triangles(const rv_editor_project &project,
     const std::string &name,
-    const rv_editor_affine &m,
+    const rv_pdklib::rv_gte_matrix &world,
     std::vector<rv_editor_tri> &tris,
     std::string &error)
 {
@@ -231,12 +370,9 @@ int rv_editor_glb_object_triangles(const rv_editor_project &project,
     if (const int rc = rv_editor_glb_resolve_name(project, name, path, error); rc != RV_OK) {
         return rc;
     }
-    std::shared_ptr<const rv_editor_glb_model> glb;
-    if (const int rc = rv_editor_glb_load(path, glb, error); rc != RV_OK) {
+    if (const int rc = rv_editor_glb_path_triangles(path, world, tris, error); rc != RV_OK) {
         return rc;
     }
-    const rv_editor_glb_pictures &pictures = rv_editor_glb_part_pictures(path.string(), glb);
-    tris = rv_editor_glb_triangles(glb->model, m, pictures.part);
     return RV_OK;
 }
 

@@ -25,6 +25,7 @@ get_filename_component(RV_REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/.. ABSOLUTE)
 
 include(${RV_REPO_ROOT}/cmake/sdl.cmake)
 include(${RV_REPO_ROOT}/cmake/pdklib.cmake)
+include(${RV_REPO_ROOT}/cmake/pdkkit.cmake)
 
 # --- Dear ImGui (vendored) ----------------------------------------------------
 # third_party/imgui/ORIGIN.md says what was taken and why. ImGui has no build
@@ -62,14 +63,15 @@ target_include_directories(3dmppc-editor PRIVATE src)
 target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_imgui)
 # libvterm: the Terminal tile's screen.
 target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_vterm)
-# pdklib: the manifest parser the discs and the burner use, never a copy of it.
-target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdklib)
+# pdkkit brings pdklib: the manifest parser the discs and the burner use, never a copy of it.
+target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdkkit)
 
 # glTF reader: pdklib's, compiled here as mppcmodbaker compiles it (cmake/pdklib.cmake keeps
 # it out of 3dmppc_pdklib). cgltf is this target's own third party, SYSTEM like mppcmodbaker's.
 target_sources(3dmppc-editor PRIVATE
   ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf.cpp
-  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp)
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_image.cpp)
 target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/cgltf)
 
 # stb_image (vendored, third_party/stb) decodes the icons.
@@ -205,11 +207,11 @@ add_custom_target(3dmppc-editor-resources ALL VERBATIM
     ${CMAKE_CURRENT_SOURCE_DIR}/nvim/rv_editor_init.lua
     ${RV_PALETTE_LUA}
     $<TARGET_FILE_DIR:3dmppc-editor>/editor/nvim
-  COMMAND ${CMAKE_COMMAND} -DRV_TEMPLATE_SRC=${RV_REPO_ROOT}/mppcdiscs/example-cpp
-    -DRV_TEMPLATE_DST=$<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-cpp
+  COMMAND ${CMAKE_COMMAND} -DRV_TEMPLATE_SRC=${RV_REPO_ROOT}/mppcdiscs/example-cpp-pdkkit
+    -DRV_TEMPLATE_DST=$<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-cpp-pdkkit
     -P ${RV_REPO_ROOT}/cmake/rv_template_copy.cmake
-  COMMAND ${CMAKE_COMMAND} -DRV_TEMPLATE_SRC=${RV_REPO_ROOT}/mppcdiscs/example-lua
-    -DRV_TEMPLATE_DST=$<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-lua
+  COMMAND ${CMAKE_COMMAND} -DRV_TEMPLATE_SRC=${RV_REPO_ROOT}/mppcdiscs/example-lua-bare
+    -DRV_TEMPLATE_DST=$<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-lua-bare
     -P ${RV_REPO_ROOT}/cmake/rv_template_copy.cmake)
 add_dependencies(3dmppc-editor 3dmppc-editor-resources)
 

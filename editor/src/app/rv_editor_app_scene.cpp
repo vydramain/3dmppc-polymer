@@ -5,13 +5,17 @@
 
 #include <algorithm>
 #include <cctype>
+#include <set>
 #include <system_error>
 
-#include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
 
+#include "panes/rv_editor_walk.hpp"
 #include "project/rv_editor_manifest_edit.hpp"
+#include "scene/rv_editor_model_stage.hpp"
+#include "scene/rv_editor_scene.hpp"
 #include "scene/rv_editor_scene_codegen.hpp"
+#include "scene/rv_editor_scene_edit.hpp"
 #include "text/rv_editor_text.hpp"
 
 namespace rv_editor
@@ -37,8 +41,11 @@ bool rv_editor_same_path(const std::filesystem::path &a, const std::filesystem::
 // Suffix for scene file names.
 constexpr std::string_view scene_suffix = ".scene.toml";
 
-// The drive refuses a scene whose "<name>.scene.toml" does not fit RV_CD_NAME_CAPACITY including its NUL.
-constexpr size_t scene_name_max = RV_CD_NAME_CAPACITY - 1 - scene_suffix.size();
+// Bytes of "<name>.scene.toml" with its NUL: the old console's limit, kept as an editor convention.
+// Neither the new console nor pdkkit checks scene name length. Kept while the scene codegen emits
+// the old-style code and while consoles older than the scene's removal from the contract still run.
+constexpr size_t scene_file_capacity = 64;
+constexpr size_t scene_name_max = scene_file_capacity - 1 - scene_suffix.size();
 
 // Numbering of a copied scene name starts here.
 constexpr int first_copy_number = 2;
@@ -63,6 +70,45 @@ std::string rv_editor_scene_label(const rv_editor_app &app, const std::filesyste
     std::error_code ec;
     const std::filesystem::path rel = std::filesystem::relative(path, app.project.root, ec);
     return (ec || rel.empty() ? path : rel).string();
+}
+
+// Adds the mesh names of `objects` to `names`.
+void rv_editor_app_add_mesh_names(const std::vector<rv_editor_scene_object> &objects, std::set<std::string> &names)
+{
+    for (const rv_editor_scene_object &o : objects) {
+        if (rv_editor_object_get_kind(o) == kind_mesh) {
+            names.insert(rv_editor_object_get_mesh(o));
+        }
+    }
+}
+
+// The mesh names of the scene as it is (`current`) and of its undo and redo snapshots (`history`).
+void rv_editor_app_scene_names(const rv_editor_scene_doc &doc, std::set<std::string> &current, std::set<std::string> &history)
+{
+    rv_editor_app_add_mesh_names(doc.scene.objects, current);
+    for (const std::vector<rv_editor_scene_object> &snapshot : doc.undo) {
+        rv_editor_app_add_mesh_names(snapshot, history);
+    }
+    for (const std::vector<rv_editor_scene_object> &snapshot : doc.redo) {
+        rv_editor_app_add_mesh_names(snapshot, history);
+    }
+}
+
+// Moves the pending models named in `current` into the project's models folder. Names only in `history` stay
+// pending; the rest of the pending folder is deleted.
+int rv_editor_app_models_settle(const rv_editor_app &app,
+    const std::set<std::string> &current,
+    const std::set<std::string> &history,
+    std::string &error)
+{
+    std::filesystem::path models_dir;
+    if (rv_editor_model_target_dir(app.project.root, app.project.models_patterns, models_dir, error) != RV_OK) {
+        error.clear(); // no models folder: no pending one to move
+        return RV_OK;
+    }
+    const int rc = rv_editor_model_stage_settle(models_dir, current, history, error);
+    rv_editor_walk_reset(); // a failed settle may have moved some models already: the index is stale either way
+    return rc;
 }
 
 } // namespace
@@ -109,6 +155,23 @@ std::string rv_editor_app_scene_name(const rv_editor_app &app)
     return app.scene == nullptr ? std::string() : rv_editor_scene_label(app, app.scene->scene.path);
 }
 
+int rv_editor_app_scene_close(rv_editor_app &app)
+{
+    if (app.scene == nullptr) {
+        return RV_OK;
+    }
+    // Empty names, also on discard: the saved file's models were moved by its save, so it needs none pending, and
+    // the undo and redo names die with the scene. A failure is a warning; the close goes on.
+    const std::set<std::string> none;
+    std::string error;
+    const int rc = rv_editor_app_models_settle(app, none, none, error);
+    if (rc != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "pending models not cleaned: " + error);
+    }
+    app.scene.reset();
+    return RV_OK;
+}
+
 int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path)
 {
     const bool dirty = rv_editor_app_scene_dirty(app);
@@ -138,6 +201,7 @@ int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &pa
     }
     auto doc = std::make_unique<rv_editor_scene_doc>();
     doc->scene = std::move(scene);
+    (void)rv_editor_app_scene_close(app); // the clean scene it replaces: its leftover pending models go
     app.scene = std::move(doc);
     app.scene_error.clear();
     app.scene_move_note.clear();
@@ -235,6 +299,22 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
     if (!rv_editor_app_scene_dirty(app)) {
         return RV_ERR_ALREADY; // nothing unsaved: nothing written
     }
+    // Refused before the models move: a read-only scene must not rename model files on disk.
+    if (!app.scene->scene.read_only.empty()) {
+        error = "read-only: " + app.scene->scene.read_only;
+        return RV_ERR_INVAL;
+    }
+    // Models are moved before the scene is written; if the write then fails, the moved models stay in the models folder.
+    std::set<std::string> current;
+    std::set<std::string> history;
+    rv_editor_app_scene_names(*app.scene, current, history);
+    std::string stage_error;
+    const int stage_code = rv_editor_app_models_settle(app, current, history, stage_error);
+    if (stage_code != RV_OK) {
+        error = "scene not saved: " + stage_error;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, error);
+        return RV_ERR_IO; // never RV_ERR_ALREADY: shell_save reads that as nothing to save
+    }
     const int code = rv_editor_scene_save(app.scene->scene, error);
     if (code != RV_OK) {
         return code;
@@ -247,7 +327,9 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
 
 int rv_editor_app_scene_first(rv_editor_app &app)
 {
-    app.scene.reset();
+    // rv_editor_app_open closed the old scene before its root changed, so app.scene is null here and this does nothing;
+    // a scene left open here would clean the new project's models folder.
+    (void)rv_editor_app_scene_close(app);
     app.scene_error.clear();
     app.scene_move_note.clear();
     const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);

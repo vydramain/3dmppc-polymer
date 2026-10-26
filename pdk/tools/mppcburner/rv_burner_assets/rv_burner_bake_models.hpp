@@ -21,7 +21,7 @@ struct model_texture {
 ///
 /// Each entry in the plan's model range is passed to mppcmodbaker, whose output lands
 /// at that entry's `payload`. The baked file is read back whole and checked with
-/// rv_mppcmod_parse, the same parser the console uses. The plan is only read.
+/// rv_mppcmod_int_parse, the same parser the console uses. The plan is only read.
 ///
 /// @param baker_hint  value of `--baker` (a directory, or a file in one); empty searches for mppcmodbaker
 /// @param disc_dir    absolute disc directory the sources are relative to
@@ -37,11 +37,11 @@ int bake_models(const std::string &baker_hint,
 
 /// Append the model textures to the plan as entries of their own, and refuse a plan whose names collide.
 ///
-/// Planned before any texture is baked, so a model texture that shares a name with a
-/// [textures] entry is refused with both sources named. The plan is changed only on success.
+/// Planned before any texture is baked, so a model texture that shares a name with an
+/// [assets] texture is refused with both sources named. The plan is changed only on success.
 ///
 /// @param textures     what bake_models collected
-/// @param texture_dir  directory baked .mppctex files are written to, the one [textures] uses
+/// @param texture_dir  directory baked .mppctex files are written to, the one the [assets] textures use
 /// @param plan         the plan to extend; its model texture range is set
 /// @param error        set with the refusal, naming the colliding entries
 /// @return RV_OK on success; else the RV_ERR_* of the refusing step, `error` set
@@ -53,10 +53,10 @@ int plan_model_textures(const std::vector<model_texture> &textures,
 /// Bake each model texture from its PNG into the payload planned for it.
 ///
 /// Textures are baked in planned order, each through bake_one_texture, so the format
-/// and the [budget] are those of [textures].
+/// is that of [assets.texture] and the size limit is [budget] budget.pccv.texture_max_width/height.
 ///
 /// @param baker_hint  value of `--baker`; empty searches for mppctexbaker
-/// @param manifest    the validated manifest; `textures_files.format` and `budget` are read
+/// @param manifest    the validated manifest; `assets_texture_format` and `budget` are read
 /// @param textures    what bake_models collected
 /// @param plan        the plan plan_model_textures extended
 /// @param error       set with the refusal, naming the baker or the texture

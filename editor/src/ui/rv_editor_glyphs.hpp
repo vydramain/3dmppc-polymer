@@ -30,6 +30,18 @@ constexpr const char *mark_moment = "Mk";
 constexpr const char *capture_frame = "Cp";
 constexpr const char *report_issue = "Is";
 constexpr const char *restart = "Rs";
+constexpr const char *add = "Ad";
+constexpr const char *duplicate = "Dp";
+constexpr const char *detach = "Dt";
+constexpr const char *frame = "Fr";
+constexpr const char *hide = "Hi"; // hide the object
+constexpr const char *clear_picks = "Cl";
+constexpr const char *view_all = "Al";
+constexpr const char *home = "Hm";
+constexpr const char *seek = "Sk";
+constexpr const char *show_hidden = "Hd";
+constexpr const char *parts = "Pt";
+constexpr const char *layers = "Ly";
 
 // file types
 constexpr const char *folder = "Fd";

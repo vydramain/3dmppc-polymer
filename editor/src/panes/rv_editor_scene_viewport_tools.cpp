@@ -4,15 +4,23 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <string>
 
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "panes/rv_editor_parts_ops.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
+#include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
+#include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -25,6 +33,15 @@ double rv_editor_snap(double v, double step)
     return std::round(v / step) * step;
 }
 
+// Logs a warning once: `reported` is the caller's function-local flag, set on the first call.
+void rv_editor_warn_once(bool &reported, const char *text)
+{
+    if (!reported) {
+        reported = true;
+        RV_LOG_WARN(scene_log_tag, "{}", text);
+    }
+}
+
 constexpr int space_axes = 3;
 constexpr double half = 0.5;
 constexpr double rotation_speed_factor = 0.5;
@@ -32,7 +49,6 @@ constexpr double rotation_snap_degrees = 15.0;
 constexpr double scale_sensitivity = 0.01;
 constexpr double scale_min = 0.1;
 constexpr double scale_snap_step = 0.1;
-constexpr double bounding_box_infinity = 1e30;
 constexpr double frame_distance_base = 2.0;
 constexpr double frame_distance_multiplier = 1.6;
 constexpr double perspective_view_yaw = 30.0;
@@ -40,17 +56,180 @@ constexpr double perspective_view_pitch = 25.0;
 constexpr double top_view_pitch = 89.9;
 constexpr double right_view_yaw = -90.0;
 constexpr float dropdown_width_factor = 5.0f;
-constexpr double snap_step_epsilon = 1e-9;
+// Blank space between toolbar groups, in font sizes.
+constexpr float group_gap_factor = 0.5f;
 
-// Snap step labels and values for the viewport tool dropdown.
+// Snap steps in scene units. Each is rounded to raw when the camera or the dropdown takes it: 0.1 is raw 410
+// (0.10009765625), and the drag snaps to that step.
 constexpr const char *snap_step_labels[] = { "0.1", "0.25", "0.5", "1" };
 constexpr double snap_step_values[] = { 0.1, 0.25, 0.5, 1.0 };
 static_assert(std::size(snap_step_labels) == std::size(snap_step_values),
     "snap_step_labels and snap_step_values must have equal size");
-// Default snap step choice index (0.25 matches camera_snap_step_default in rv_editor_app.hpp).
+// Default snap step choice index (0.25 matches camera_snap_step_default in editor/src/app/rv_editor_app_parts.hpp).
 constexpr int default_snap_step_index = 1;
 
+// One checkbox per layer of the scene; a layer switched off is not drawn or selected.
+void rv_editor_scene_layers_menu(rv_editor_scene_doc &doc, const rv_editor_theme &theme)
+{
+    const std::vector<std::string> layers = rv_editor_scene_layers(doc.scene);
+    if (layers.empty()) {
+        rv_editor_label(rv_editor_text("scene_tools.layers_none"), rv_editor_label_kind::normal, theme);
+        return;
+    }
+    for (const std::string &layer : layers) {
+        bool on = !doc.off_layers.contains(layer);
+        if (rv_editor_checkbox(layer.c_str(), &on, theme)) {
+            if (on) {
+                doc.off_layers.erase(layer);
+            } else {
+                doc.off_layers.insert(layer);
+            }
+        }
+    }
+}
+
+// Scene view presets; the view dropdown shows the one the camera is at, if any.
+struct rv_editor_scene_view {
+    const char *label_id;
+    double yaw, pitch;
+};
+constexpr rv_editor_scene_view scene_views[] = { { "scene_tools.view_persp", perspective_view_yaw, perspective_view_pitch },
+    { "scene_tools.view_top", 0.0, top_view_pitch },
+    { "scene_tools.view_front", 0.0, 0.0 },
+    { "scene_tools.view_right", right_view_yaw, 0.0 } };
+
+struct rv_editor_scene_shading_option {
+    const char *label_id;
+    const char *tip_id;
+    rv_editor_scene_shading shading;
+};
+constexpr rv_editor_scene_shading_option scene_shadings[] = {
+    { "scene_tools.shading_wireframe", "scene_tools.shading_wireframe_tooltip", rv_editor_scene_shading::wireframe },
+    { "scene_tools.shading_filled", "scene_tools.shading_filled_tooltip", rv_editor_scene_shading::filled },
+    { "scene_tools.shading_textured", "scene_tools.shading_textured_tooltip", rv_editor_scene_shading::textured },
+};
+
+// The preset the camera is at. Yaw may arrive wrapped (cam-1) or not: rv_editor_camera_at_view compares it modulo a
+// full turn. Index is set only on a match: untouched on no match and on error (warning logged once); the caller pre-sets -1.
+[[nodiscard]] int rv_editor_scene_view_index(const rv_editor_scene_camera &cam, int &index)
+{
+    static bool reported = false;
+    for (int i = 0; i < std::ssize(scene_views); ++i) {
+        bool at = false;
+        if (rv_editor_camera_at_view(cam, scene_views[i].yaw, scene_views[i].pitch, at) != RV_OK) {
+            rv_editor_warn_once(reported, "the camera or a scene view preset is outside Q20.12: no scene view is shown");
+            return RV_ERR_INVAL;
+        }
+        if (at) {
+            index = i;
+            return RV_OK;
+        }
+    }
+    return RV_OK;
+}
+
+// Width a dropdown needs for its longest item: the text, the arrow button and the frame padding.
+float rv_editor_scene_dropdown_width(const char *const items[], int count)
+{
+    float widest = 0.0f;
+    for (int i = 0; i < count; ++i) {
+        widest = std::max(widest, ImGui::CalcTextSize(items[i]).x);
+    }
+    return widest + ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.x * 2.0f;
+}
+
+// "View:" and the view presets; a pick turns the camera to that preset's angles.
+void rv_editor_scene_view_select(rv_editor_scene_camera &cam, const rv_editor_theme &theme)
+{
+    ImGui::AlignTextToFramePadding();
+    rv_editor_label(rv_editor_text("scene_tools.view_label"), rv_editor_label_kind::normal, theme);
+    const char *names[std::size(scene_views)];
+    for (size_t i = 0; i < std::size(scene_views); ++i) {
+        names[i] = rv_editor_text(scene_views[i].label_id);
+    }
+    int view = -1;
+    // On error no view is shown (the warning is logged).
+    if (rv_editor_scene_view_index(cam, view) != RV_OK) {
+        view = -1;
+    }
+    const float width = rv_editor_scene_dropdown_width(names, std::ssize(scene_views));
+    rv_editor_flow(width);
+    ImGui::SetNextItemWidth(width);
+    if (rv_editor_dropdown("##scene_view", &view, names, std::ssize(scene_views), theme)) {
+        if (rv_editor_camera_turn_to(cam, scene_views[view].yaw, scene_views[view].pitch) != RV_OK) {
+            RV_LOG_WARN(scene_log_tag, "the picked scene view is outside Q20.12: the camera is not turned");
+        }
+    }
+}
+
+// "Shade:" and the shading modes; the tooltip explains the one that is on.
+void rv_editor_scene_shading_select(rv_editor_scene_camera &cam, const rv_editor_theme &theme)
+{
+    const char *label = rv_editor_text("scene_tools.shading_label");
+    rv_editor_flow(ImGui::CalcTextSize(label).x);
+    ImGui::AlignTextToFramePadding();
+    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    const char *names[std::size(scene_shadings)];
+    int current = 0;
+    for (size_t i = 0; i < std::size(scene_shadings); ++i) {
+        names[i] = rv_editor_text(scene_shadings[i].label_id);
+        if (cam.shading == scene_shadings[i].shading) {
+            current = static_cast<int>(i);
+        }
+    }
+    const float width = rv_editor_scene_dropdown_width(names, std::ssize(scene_shadings));
+    rv_editor_flow(width);
+    ImGui::SetNextItemWidth(width);
+    if (rv_editor_dropdown("##scene_shading", &current, names, std::ssize(scene_shadings), theme)) {
+        cam.shading = scene_shadings[current].shading;
+    }
+    rv_editor_item_tooltip(rv_editor_text(scene_shadings[current].tip_id));
+}
+
+// Blank space between toolbar groups, kept on the row like an item.
+void rv_editor_scene_group_gap()
+{
+    const float gap = ImGui::GetFontSize() * group_gap_factor;
+    rv_editor_flow(gap);
+    ImGui::Dummy(ImVec2(gap, 0.0f));
+}
+
+// The dropdown item the camera's snap step is at, by raw match. Index is set only on a match: untouched on no match
+// and on error (warning logged once); the caller pre-sets the default.
+[[nodiscard]] int rv_editor_snap_step_index(const rv_editor_scene_camera &cam, int &index)
+{
+    // Once per process: the dropdown is drawn every frame.
+    static bool reported = false;
+    for (int i = 0; i < std::ssize(snap_step_values); ++i) {
+        bool at = false;
+        if (rv_editor_camera_snap_at(cam, snap_step_values[i], at) != RV_OK) {
+            rv_editor_warn_once(reported,
+                "the camera snap step or a snap value is outside Q20.12: the dropdown shows the default");
+            return RV_ERR_INVAL;
+        }
+        if (at) {
+            index = i;
+            return RV_OK;
+        }
+    }
+    return RV_OK;
+}
+
 } // namespace
+
+int rv_editor_frame_box(rv_editor_scene_camera &cam, const vec3 &lo, const vec3 &hi)
+{
+    const vec3 middle = mul(add(lo, hi), half);
+    const double distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
+    rv_pdklib::fx_vec3 target{};
+    rv_pdklib::fx reach = 0;
+    if (rv_editor_frame_to_fx(middle, distance, target, reach) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    rv_editor_camera_set_target_fx(cam, target);
+    rv_editor_camera_set_distance_fx(cam, reach);
+    return RV_OK;
+}
 
 // A drag of the selected object by the Toolchest's tool: along one axis for Move,
 // by the mouse for Rotate (yaw across, pitch up and down) and Scale (uniform).
@@ -88,31 +267,42 @@ void rv_editor_manipulate(rv_editor_app &app,
             const rv_editor_affine pw = rv_editor_scene_world(doc.scene, parent);
             world = rv_editor_affine_solve(pw, world);
         }
-        o.position = add(drag.before_position, world);
+        rv_editor_vec3 position = add(drag.before_position, world);
         if (cam.snap) {
-            for (double &c : o.position) {
-                c = rv_editor_snap(c, cam.snap_step);
+            static bool step_reported = false; // Once per process: a drag would repeat it each frame.
+            rv_pdklib::fx step_fx = 0;
+            if (rv_editor_camera_get_snap_step_fx(cam, step_fx) != RV_OK) {
+                rv_editor_warn_once(step_reported, "camera snap step is outside Q20.12: the object is not moved");
+                break;
+            }
+            const double step = rv_editor_camera_units_of(step_fx);
+            for (double &c : position) {
+                c = rv_editor_snap(c, step);
             }
         }
+        rv_editor_object_set_position(o, position);
         break;
     }
-    case rv_editor_scene_tool::rotate:
-        o.rotation = drag.before_rotation;
-        o.rotation[1] += total.x * rotation_speed_factor;
-        o.rotation[0] += total.y * rotation_speed_factor;
+    case rv_editor_scene_tool::rotate: {
+        rv_editor_vec3 rotation = drag.before_rotation;
+        rotation[1] += total.x * rotation_speed_factor;
+        rotation[0] += total.y * rotation_speed_factor;
         if (cam.snap) {
-            o.rotation[0] = rv_editor_snap(o.rotation[0], rotation_snap_degrees);
-            o.rotation[1] = rv_editor_snap(o.rotation[1], rotation_snap_degrees);
+            rotation[0] = rv_editor_snap(rotation[0], rotation_snap_degrees);
+            rotation[1] = rv_editor_snap(rotation[1], rotation_snap_degrees);
         }
+        rv_editor_object_set_rotation(o, rotation);
         break;
+    }
     case rv_editor_scene_tool::scale: {
         const double f = std::exp(-total.y * scale_sensitivity);
-        o.scale = mul(drag.before_scale, f);
+        rv_editor_vec3 scale = mul(drag.before_scale, f);
         if (cam.snap) {
-            for (double &c : o.scale) {
+            for (double &c : scale) {
                 c = std::max(scale_min, rv_editor_snap(c, scale_snap_step));
             }
         }
+        rv_editor_object_set_scale(o, scale);
         break;
     }
     case rv_editor_scene_tool::select:
@@ -125,88 +315,131 @@ void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool
     rv_editor_scene_doc &doc = *app.scene;
     vec3 lo{ bounding_box_infinity, bounding_box_infinity, bounding_box_infinity },
         hi{ -bounding_box_infinity, -bounding_box_infinity, -bounding_box_infinity };
+    // The selected object's drawn pieces frame alone; without them, its edges (or all objects for View All).
+    if (!all && rv_editor_parts_bounds(doc, rv_editor_parts_resolve(doc, app.project), lo, hi)) {
+        if (rv_editor_frame_box(cam, lo, hi) != RV_OK) {
+            RV_LOG_WARN(scene_log_tag, "the frame is outside Q20.12: the camera is not moved");
+        }
+        return;
+    }
+    // The edges' bounds stay in Q20.12 until the end, so they match what the viewport draws.
+    std::array<rv_pdklib::fx, space_axes> lo_fx{}, hi_fx{};
+    lo_fx.fill(std::numeric_limits<rv_pdklib::fx>::max());
+    hi_fx.fill(std::numeric_limits<rv_pdklib::fx>::min());
     bool any = false;
+    int dropped = 0;
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         if (!all && doc.scene.objects[i].id != doc.selected) {
             continue;
         }
-        for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i))) {
-            for (const vec3 &p : { a, b }) {
+        if (rv_editor_scene_visibility(doc, doc.scene.objects[i]) == rv_editor_visibility::absent) {
+            continue;
+        }
+        int left_out = 0;
+        for (const auto &[a, b] : rv_editor_object_edges_fx(doc.scene, app.project, static_cast<int>(i), left_out)) {
+            for (const rv_pdklib::fx_vec3 &p : { a, b }) {
+                const std::array<rv_pdklib::fx, space_axes> c{ p.x, p.y, p.z };
                 for (size_t k = 0; k < space_axes; ++k) {
-                    lo[k] = std::min(lo[k], p[k]);
-                    hi[k] = std::max(hi[k], p[k]);
+                    lo_fx[k] = std::min(lo_fx[k], c[k]);
+                    hi_fx[k] = std::max(hi_fx[k], c[k]);
                 }
                 any = true;
             }
         }
+        dropped += left_out;
     }
     if (!any) {
+        if (dropped > 0) {
+            RV_LOG_WARN(scene_log_tag, "the frame target is outside Q20.12, so the camera is not moved");
+        }
         return;
     }
-    cam.target = mul(add(lo, hi), half);
-    cam.distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
+    // Converted once, exactly (rv_editor_camera_units_of), to the units rv_editor_frame_box takes.
+    for (size_t k = 0; k < space_axes; ++k) {
+        lo[k] = rv_editor_camera_units_of(lo_fx[k]);
+        hi[k] = rv_editor_camera_units_of(hi_fx[k]);
+    }
+    if (rv_editor_frame_box(cam, lo, hi) != RV_OK) {
+        RV_LOG_WARN(scene_log_tag, "the frame is outside Q20.12: the camera is not moved");
+    }
 }
 
+// Scene toolbar, one row at 1280x720: View and the framing buttons, Hidden, Parts and Layers, then Shade.
 void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, const rv_editor_theme &theme)
 {
-    const struct {
-        const char *label_id;
-        double yaw, pitch;
-    } views[] = { { "scene_tools.view_persp", perspective_view_yaw, perspective_view_pitch },
-        { "scene_tools.view_top", 0.0, top_view_pitch },
-        { "scene_tools.view_front", 0.0, 0.0 },
-        { "scene_tools.view_right", right_view_yaw, 0.0 } };
-    for (size_t i = 0; i < std::size(views); ++i) {
-        const char *label = rv_editor_text(views[i].label_id);
-        if (i > 0) {
-            rv_editor_flow(rv_editor_button_width(label));
-        }
-        if (rv_editor_button(label, theme)) {
-            cam.yaw = views[i].yaw;
-            cam.pitch = views[i].pitch;
-        }
-    }
+    const float side = ImGui::GetFrameHeight();
     const char *no_selection = app.scene->selected.empty() ? rv_editor_text("scene_tools.nothing_selected") : nullptr;
-    const char *frame_btn = rv_editor_text("scene_tools.toolbar_frame_selection");
-    rv_editor_flow(rv_editor_button_width(frame_btn));
-    if (rv_editor_button(frame_btn, theme, { rv_editor_look::live, no_selection })) {
+    rv_editor_scene_view_select(cam, theme);
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##frame",
+            rv_editor_glyph::frame,
+            theme.code_blue,
+            rv_editor_text("scene_tools.toolbar_frame_tooltip"),
+            theme,
+            { rv_editor_look::live, no_selection })) {
         rv_editor_scene_frame(app, cam, false);
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_frame_tooltip"));
-    const char *view_all = rv_editor_text("scene_tools.toolbar_view_all");
-    rv_editor_flow(rv_editor_button_width(view_all));
-    if (rv_editor_button(view_all, theme)) {
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##view_all",
+            rv_editor_glyph::view_all,
+            theme.code_blue,
+            rv_editor_text("scene_tools.toolbar_view_all"),
+            theme)) {
         rv_editor_scene_frame(app, cam, true);
     }
-    const char *home = rv_editor_text("scene_tools.toolbar_home");
-    rv_editor_flow(rv_editor_button_width(home));
-    if (rv_editor_button(home, theme)) {
-        cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##home",
+            rv_editor_glyph::home,
+            theme.code_blue,
+            rv_editor_text("scene_tools.toolbar_home_tooltip"),
+            theme)) {
+        cam = rv_editor_camera_home(cam);
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_home_tooltip"));
-    const char *seek = rv_editor_text("scene_tools.toolbar_seek");
-    rv_editor_flow(rv_editor_button_width(seek));
+    rv_editor_flow(side);
     bool seek_val = cam.seeking;
-    if (rv_editor_toggle(seek, &seek_val, theme)) {
+    if (rv_editor_letter_toggle("##seek",
+            rv_editor_glyph::seek,
+            theme.code_blue,
+            rv_editor_text("scene_tools.toolbar_seek_tooltip"),
+            &seek_val,
+            theme)) {
         cam.seeking = seek_val;
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_seek_tooltip"));
-    const struct {
-        const char *label_id;
-        const char *tip_id;
-        rv_editor_scene_shading shading;
-    } shadings[] = {
-        { "scene_tools.shading_wireframe", "scene_tools.shading_wireframe_tooltip", rv_editor_scene_shading::wireframe },
-        { "scene_tools.shading_filled", "scene_tools.shading_filled_tooltip", rv_editor_scene_shading::filled },
-        { "scene_tools.shading_textured", "scene_tools.shading_textured_tooltip", rv_editor_scene_shading::textured },
-    };
-    for (const auto &s : shadings) {
-        const char *label = rv_editor_text(s.label_id);
-        rv_editor_flow(rv_editor_button_width(label));
-        if (rv_editor_radio(label, cam.shading == s.shading, theme)) {
-            cam.shading = s.shading;
-        }
-        ImGui::SetItemTooltip("%s", rv_editor_text(s.tip_id));
+    rv_editor_scene_group_gap();
+    rv_editor_flow(side);
+    bool hidden_val = app.scene->show_hidden;
+    if (rv_editor_letter_toggle("##hidden",
+            rv_editor_glyph::show_hidden,
+            theme.code_green,
+            rv_editor_text("scene_tools.toolbar_hidden_tooltip"),
+            &hidden_val,
+            theme)) {
+        app.scene->show_hidden = hidden_val;
+    }
+    rv_editor_flow(side);
+    bool parts_val = app.scene->parts_mode;
+    if (rv_editor_letter_toggle("##parts",
+            rv_editor_glyph::parts,
+            theme.code_green,
+            rv_editor_text("scene_tools.toolbar_parts_tooltip"),
+            &parts_val,
+            theme)) {
+        app.scene->parts_mode = parts_val;
+    }
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##layers",
+            rv_editor_glyph::layers,
+            theme.code_green,
+            rv_editor_text("scene_tools.toolbar_layers_tooltip"),
+            theme)) {
+        ImGui::OpenPopup("##scene_layers");
+    }
+    rv_editor_scene_group_gap();
+    rv_editor_scene_shading_select(cam, theme);
+    // Last, so the popup's items never become the item rv_editor_flow measures.
+    if (rv_editor_popup_begin("##scene_layers")) {
+        rv_editor_scene_layers_menu(*app.scene, theme);
+        rv_editor_popup_end();
     }
 }
 
@@ -225,16 +458,19 @@ void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port
     }
     const char *snap_label = rv_editor_text("scene_tools.snap_label");
     rv_editor_checkbox(snap_label, &cam.snap, theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.snap_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_tooltip"));
     int step = default_snap_step_index;
-    for (int i = 0; i < std::ssize(snap_step_values); ++i) {
-        step = std::fabs(cam.snap_step - snap_step_values[i]) < snap_step_epsilon ? i : step;
+    // On error the dropdown keeps the default (the warning is logged).
+    if (rv_editor_snap_step_index(cam, step) != RV_OK) {
+        step = default_snap_step_index;
     }
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * dropdown_width_factor);
     if (rv_editor_dropdown("##snapstep", &step, snap_step_labels, std::ssize(snap_step_labels), theme)) {
-        cam.snap_step = snap_step_values[step];
+        if (rv_editor_camera_pick_snap(cam, snap_step_values[step]) != RV_OK) {
+            RV_LOG_WARN(scene_log_tag, "the picked snap step is outside Q20.12: the step is not changed");
+        }
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.snap_step_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_step_tooltip"));
     const char *grid_label = rv_editor_text("scene_tools.grid_label");
     rv_editor_checkbox(grid_label, &cam.grid, theme);
     const bool changed = cam != ui.state.scene_camera;

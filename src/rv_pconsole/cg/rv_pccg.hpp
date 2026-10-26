@@ -7,7 +7,7 @@
 #include <span>
 
 #include "pdk/cg/rv_cg.h"
-#include "pdklib/rv_models/rv_mppcmod.hpp"
+#include "pdklib/rv_models/rv_mppcmod_int.hpp"
 
 namespace rv_3dmppc
 {
@@ -49,11 +49,12 @@ public:
     virtual void frame_reset() = 0;
 
     // Address in the model memory, or RV_ERR_NOMEM / RV_ERR_INVAL (one texture per part,
-    // and the model must pass rv_mppcmod_validate: a model the format refuses is INVAL).
+    // and the model must pass rv_mppcmod_int_validate: a model the format refuses is INVAL).
     // The texture addresses and sizes are copied at upload: a texture rewritten at the
     // same address (video_asset_write) stays valid; a new texture address goes through
     // model_textures_set, which keeps the model's address.
-    virtual int64_t model_upload(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures) = 0;
+    virtual int64_t model_upload(const rv_pdklib::rv_mppcmod_int_model &model,
+        std::span<const rv_pccg_part_texture> textures) = 0;
     // RV_OK, or RV_ERR_INVAL with nothing changed: no model at addr, or not one texture per part.
     // rv_pccg_null keeps no models, so it checks the address only, not the texture count.
     virtual int64_t model_textures_set(int64_t addr, std::span<const rv_pccg_part_texture> textures) = 0;

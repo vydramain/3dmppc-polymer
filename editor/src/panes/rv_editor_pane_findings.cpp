@@ -17,7 +17,7 @@ namespace rv_editor
 namespace
 {
 
-// Multiline text input height in lines of text (multiplied by line height).
+// Multiline text input height in lines of text; the field adds its frame padding.
 constexpr float multiline_input_height_lines = 3.5f;
 
 // Result button text keys, in rv_editor_case_result_kind order.
@@ -25,14 +25,12 @@ constexpr size_t result_kind_count = static_cast<size_t>(rv_editor_case_result_k
 constexpr const char *result_label_keys[] = { "findings.passed", "findings.failed", "findings.blocked" };
 static_assert(std::size(result_label_keys) == result_kind_count, "result label keys must match enum count");
 
-void rv_editor_multiline(const char *label, char *buf, size_t size)
+void rv_editor_multiline(const char *label, char *buf, size_t size, const rv_editor_theme &theme)
 {
-    ImGui::TextUnformatted(label);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme);
     ImGui::PushID(label);
-    ImGui::InputTextMultiline("##text",
-        buf,
-        size,
-        ImVec2(-1.0f, ImGui::GetTextLineHeightWithSpacing() * multiline_input_height_lines));
+    ImGui::SetNextItemWidth(-1.0f);
+    rv_editor_text_area("##text", buf, size, multiline_input_height_lines, theme);
     ImGui::PopID();
 }
 
@@ -81,20 +79,23 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     if (rv_editor_button(rv_editor_text("findings.new_test_case"), theme, { rv_editor_look::live, new_why })) {
         (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::case_new });
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("findings.new_test_case_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("findings.new_test_case_tooltip"));
 
     // The chosen case is drawn from the listing's cache; the listing keeps the index in range.
     const rv_editor_listed_case *picked = f.test_case >= 0 ? &f.cases[static_cast<size_t>(f.test_case)] : nullptr;
     if (picked != nullptr) {
-        ImGui::SeparatorText(rv_editor_text("findings.steps"));
-        ImGui::TextWrapped("%s", picked->steps.empty() ? rv_editor_text("findings.none_written") : picked->steps.c_str());
-        ImGui::SeparatorText(rv_editor_text("findings.expected"));
-        ImGui::TextWrapped("%s", picked->expected.empty() ? rv_editor_text("findings.none_written") : picked->expected.c_str());
+        rv_editor_section(rv_editor_text("findings.steps"));
+        const char *steps_text = picked->steps.empty() ? rv_editor_text("findings.none_written") : picked->steps.c_str();
+        rv_editor_label(steps_text, rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+        rv_editor_section(rv_editor_text("findings.expected"));
+        const char *expected_text =
+            picked->expected.empty() ? rv_editor_text("findings.none_written") : picked->expected.c_str();
+        rv_editor_label(expected_text, rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
     }
-    ImGui::SeparatorText(rv_editor_text("findings.result"));
+    rv_editor_section(rv_editor_text("findings.result"));
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##note", f.note, sizeof(f.note), theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("findings.note_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("findings.note_tooltip"));
     const char *no_session = app.session.number() != 0 ? nullptr : rv_editor_text("findings.no_session_yet");
     const bool result_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::case_result);
     const char *result_why = result_pending ? rv_editor_text("app_why_not.request_pending") : no_session;
@@ -113,7 +114,7 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_finding_error(app, theme);
     }
     for (const std::string &r : f.results) {
-        ImGui::BulletText("%s", r.c_str());
+        rv_editor_label(r.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
     }
     rv_editor_well_end();
 }
@@ -147,22 +148,25 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_finding_error(app, theme);
     }
 
-    ImGui::TextUnformatted(rv_editor_text("findings.title"));
+    rv_editor_label(rv_editor_text("findings.title"), rv_editor_label_kind::normal, theme);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##title", f.title, sizeof(f.title), theme);
-    rv_editor_multiline(rv_editor_text("findings.steps"), f.steps, sizeof(f.steps));
-    rv_editor_multiline(rv_editor_text("findings.expected"), f.expected, sizeof(f.expected));
-    rv_editor_multiline(rv_editor_text("findings.actual"), f.actual, sizeof(f.actual));
+    rv_editor_multiline(rv_editor_text("findings.steps"), f.steps, sizeof(f.steps), theme);
+    rv_editor_multiline(rv_editor_text("findings.expected"), f.expected, sizeof(f.expected), theme);
+    rv_editor_multiline(rv_editor_text("findings.actual"), f.actual, sizeof(f.actual), theme);
     rv_editor_path_row(rv_editor_text("findings.screenshot"),
         f.capture.empty() ? std::string(rv_editor_text("findings.none_screenshot")) : f.capture.string(),
         theme);
-    ImGui::TextWrapped("%s", rv_editor_text("findings.session_added"));
+    rv_editor_label(rv_editor_text("findings.session_added"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::wrap);
 
-    ImGui::SeparatorText(rv_editor_text("findings.saved_in_this_window"));
+    rv_editor_section(rv_editor_text("findings.saved_in_this_window"));
     if (f.saved.empty()) {
         const std::string dir_str = dir.string();
         const auto saved_msg = rv_editor_text_format("findings.saved_format", std::make_format_args(dir_str));
-        ImGui::TextWrapped("%s", saved_msg.c_str());
+        rv_editor_label(saved_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
     }
     for (size_t i = 0; i < f.saved.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));

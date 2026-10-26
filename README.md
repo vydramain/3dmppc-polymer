@@ -32,10 +32,10 @@ cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev
 cd build-dev/pconsole
 
 # 3. burn the sample game into a disc, through the launch file
-./mppcburner build <repo>/mppcdiscs/example-cpp -o example-cpp.mppcdisc
+./mppcburner build <repo>/mppcdiscs/example-cpp-pdkkit -o example-cpp-pdkkit.mppcdisc
 
 # 4. run it
-./3dmppc example-cpp.mppcdisc
+./3dmppc example-cpp-pdkkit.mppcdisc
 ```
 
 Press **Esc** (or **Option/Start** on a gamepad) to quit.
@@ -43,11 +43,11 @@ Press **Esc** (or **Option/Start** on a gamepad) to quit.
 Ctrl+C in the terminal stops the console the same ordinary way.
 
 The same burn and run steps work unchanged against
-[`mppcdiscs/example-lua/`](mppcdiscs/example-lua/) - change the directory in
+[`mppcdiscs/example-lua-bare/`](mppcdiscs/example-lua-bare/) - change the directory in
 step 4 and the disc name in step 5, and the console runs a Lua chunk through
 `rv_cl` instead of compiled C++.
 
-A Lua disc's C++ side is two lines: `RV_MPPC_DISC_LUA_DEF("example-lua")` after
+A Lua disc's C++ side is two lines: `RV_MPPC_DISC_LUA_DEF("example-lua-bare")` after
 `#include "pdklib/rv_dscript/rv_dscript.hpp"`, then `RV_MPPC_DISC_ENTRY_DEF` on
 the class it defined. The pdklib macro forwards each `disc_*` hook into the
 same-named Lua function, so the disc's own file carries no forwarding of its
@@ -62,8 +62,9 @@ screen's size and the frame plumbing — `frame_begin`/`frame_end`,
 the disc's own class derives from before being handed to `RV_MPPC_DISC_ENTRY_DEF`.
 It has less to carry than the Lua one - a C++
 disc's own class already is its `rv_de`, so this macro lives in pdklib alone
-and a disc is just as free to skip it and write all five hooks by hand, the
-way `mppcdiscs/example-cpp/` did before this macro existed. A
+and a disc is just as free to skip it and write all five hooks by hand.
+`mppcdiscs/example-cpp-bare/` uses this macro; `mppcdiscs/example-cpp-pdkkit/`
+derives `rv_pdkkit::pdkkit_disc` from `pdk/kit` instead. A
 script pulls in another with `require("name")`, which
 reads `name.luac` (`name.lua` in an `--unpacked` directory) off the disc, runs
 it once and hands every caller the same table.
@@ -83,7 +84,7 @@ than by discipline.
 | Tree | What it is | Depends on |
 | --- | --- | --- |
 | [`pdk/`](pdk/) | **the contract** — the headers describing what the console can do | nothing |
-| [`pdklib/`](pdk/lib/) | **disc-side conveniences** written against the contract: matrices, camera, text | `pdk/` |
+| [`pdklib/`](pdk/lib/) | **disc-side conveniences** written against the contract: matrices, camera, integer geometry (`rv_gte`), text, `.mppcmod` models (`rv_models`) | `pdk/` |
 | `src/` | **the console** — the concrete machine that implements the contract | `pdk/` |
 | [`pdk/tools/`](pdk/tools/) | **authoring tools** that turn a directory into a disc | `pdk/` |
 | [`mppcdiscs/`](mppcdiscs/) | **the games** | `pdk/`, `pdklib/` |
@@ -119,7 +120,7 @@ build-dev/pconsole/
     mppcburner      compiles a disc directory and burns a .mppcdisc
     mppctexbaker    bakes a PNG into a console texture (.mppctex)
     mppcmusbaker    bakes a WAV into console sound (.pcm)
-    mppcmodbaker    bakes a glTF 2.0 .glb model into a .mppcmod and its PNG textures
+    mppcmodbaker    bakes a glTF 2.0 model (.glb, or .gltf with its .bin and PNGs) into a .mppcmod and its PNG textures
 ```
 
 The tools and the editor stay separate CMake projects (`pdk/tools/`,
@@ -331,9 +332,9 @@ not for a contract call, and carries no `rv_err`.
 The console echoes your id back on the answer. Zero is not yours to send: the
 console tags with `0` the events it raises on its own, so a request numbered
 zero would be answered indistinguishably from one of those. A development
-build sends `0 event=scene name=<hex>` once for every resource ending in
-`.scene.toml` the disc's own code opens through the drive; a new medium
-starts that list over, and a player build never sends it.
+build sends `0 event=asset name=<hex>` once for every resource the disc's own
+code opens through the drive; a new medium starts that list over, and a
+player build never sends it.
 
 A request carries bytes by ending its header with `bytes <n>`: exactly `n`
 bytes follow the newline with no terminator, and the next header starts right
@@ -349,7 +350,7 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `reload entry bytes <n>` | the next `n` bytes are the candidate script |
 | `reload module <name>` | re-read the module `require("<name>")` loaded off the drive and update it in place (directory medium only) |
 | `reload module <name> bytes <n>` | the next `n` bytes are the new version of that module |
-| `asset <name>` | refresh the named asset in place, by the kind it is resident as: a texture answers `resident=1` with the new `width=`/`height=`; `resident=0` when nothing holds it resident and there is nothing to refresh; a kind the drive cannot refresh (a SOUND or a SCENE) is refused with `unsupported_kind` (directory medium only) |
+| `asset <name>` | refresh the named asset in place, by the kind it is resident as: a texture answers `resident=1` with the new `width=`/`height=`; `resident=0` when nothing holds it resident and there is nothing to refresh; a kind the drive cannot refresh (a SOUND) is refused with `unsupported_kind` (directory medium only) |
 | `asset <name> bytes <n>` | the next `n` bytes are the new content of `<name>` - a baked `.mppctex` for a texture; same answers as `asset <name>`, and works on any medium. Bytes that are not a valid texture are refused with `asset`, and the last good copy stays resident |
 | `get <key> [<key> ...]` | read the value at a path into the persistent state table, one key per level; a table answers with its `count=` |
 | `keys [<key> ...]` | list the keys of the table at a path - no path lists the state table itself - with their value types |
@@ -388,15 +389,15 @@ still has to be an entry on whatever is mounted.
 From the repository root:
 
 ```sh
-build-dev/pconsole/mppcburner build mppcdiscs/example-lua --unpacked build-dev/example-lua.discdir
-build-dev/pconsole/3dmppc --dev --paused build-dev/example-lua.discdir
+build-dev/pconsole/mppcburner build mppcdiscs/example-lua-bare --unpacked build-dev/example-lua-bare.discdir
+build-dev/pconsole/3dmppc --dev --paused build-dev/example-lua-bare.discdir
 ```
 
 ```
 1 status                    -> 1 ok protocol=1.0 frame=0 mode=paused entry_revision=0 …
 2 step                      -> 2 ok completed=1 frame=1 mode=paused
 3 get frame_count           -> 3 ok found=1 type=number value=1
-                               … edit scripts/example-lua.lua in your editor …
+                               … edit scripts/example-lua-bare.lua in your editor …
 4 reload entry              -> 4 ok entry_revision=1 entry_hash=dac227b078e5407b
 5 step                      -> 5 ok completed=1 frame=2 mode=paused
 6 get frame_count           -> 6 ok found=1 type=number value=2   <- state survived
@@ -501,7 +502,7 @@ reshaping at all.
 | a Lua module | no - `reload module <name>` | the client, by asking; every file that required it sees the new code |
 | an existing texture's bytes | no — `asset <name>` or `asset <name> bytes <n>` | the client, by asking or by sending the new bytes; the drive refreshes it |
 | an existing sound's bytes | **yes**, once it is resident | the client: `asset` on it answers `err unsupported_kind`. A voice is already reading that block, and moving the bytes under its read head is not something the drive can undo |
-| an existing scene's objects | **yes**, once the disc has read it | the client: `asset` on it answers `err unsupported_kind`. The drive reads a scene once and serves its objects from that cache |
+| an existing scene's objects | **yes**, once the disc has read it | the editor: the disc reads a scene file itself when it loads it, so `asset` on it answers `resident=0`; the Scene view's status line says the game read it, and its tooltip says a restart is needed |
 | an asset added | no | the code that asks for it: the drive looks a name up when it is opened, so reloaded code can acquire it |
 | an asset removed | no | a resident texture keeps its last good copy and `asset` on it answers `err asset`; a new open or acquire gets `RV_ERR_NOENT` |
 | `disc.so`, any C++ change | **yes** | the client, comparing `disc_hash` against its own fresh build |
@@ -523,7 +524,7 @@ sends the developer looking in the wrong place.
 
 The state contract a script has to follow to be reloadable at all — what lives
 in the persistent table and what dies with the code — is in
-[`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md), next to
+[`mppcdiscs/example-lua-bare/README.md`](mppcdiscs/example-lua-bare/README.md), next to
 the script that demonstrates it.
 
 ### What an acceptance run has to prove
@@ -585,10 +586,10 @@ whoever wrote the script:
 mygame/
   disc.toml        the manifest: what to compile, what to bake, what to copy
   src/*.cpp        the game — implements rv_de, exports itself with RV_MPPC_DISC_ENTRY_DEF
-  assets/          PNGs and WAVs get baked into texels and samples; the rest is copied in
+  assets/          PNGs, WAVs and glTF models get baked into texels, samples and models; the rest is copied in
 ```
 
-Start by copying [`mppcdiscs/example-cpp/`](mppcdiscs/example-cpp/) — it is the smallest
+Start by copying [`mppcdiscs/example-cpp-pdkkit/`](mppcdiscs/example-cpp-pdkkit/) — it is a
 complete disc and its README walks through what each piece is for.
 
 ### disc.toml
@@ -605,34 +606,33 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-files = ["scenes/*.scene.toml"]
+files = ["scenes/*.scene.toml", "assets/*.png", "assets/*.wav", "assets/models/*.gltf"]
 
-[textures]
-files = ["assets/*.png"]
+[assets.texture]
 format = "idx8"
-
-[sounds]
-files = ["assets/*.wav"]
-
-[models]
-files = ["models/*.glb"]
 ```
 
-`[sounds]` is optional, like `[textures]`: each listed WAV is baked by
-`mppcmusbaker` into a headerless `<name>.pcm` - the console's raw S16LE mono
-44100 Hz samples - and put on the disc beside the textures. The WAV must already
-be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
+`[assets]` is optional. Each file in `files` is sorted by its extension: `.png` is a
+texture, `.wav` a sound, `.gltf` and `.glb` a model, and anything else is copied as is.
+`[assets.texture] format` is the format of the textures; it defaults to `idx8`.
+
+Each listed WAV is baked by `mppcmusbaker` into a headerless `<name>.pcm` - the console's
+raw S16LE mono 44100 Hz samples - and put on the disc beside the textures. The WAV must
+already be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
 else is refused, not resampled.
 
-`[models]` is optional the same way: each listed `.glb` (glTF 2.0) is baked by
-`mppcmodbaker` into a `<name>.mppcmod`; its embedded PNG textures are baked
-into `<stem>-<n>.mppctex` in the same texture directory as `[textures]`.
+Each listed `.glb` or `.gltf` (glTF 2.0) is baked by `mppcmodbaker` into a
+`<name>.mppcmod`. The baker writes each PNG texture beside it as `<stem>-<n>.png`: a
+`.glb` embeds them, a `.gltf` reads them from the relative URIs of its `.bin` and PNG
+files. The burner then bakes those PNGs into `<stem>-<n>.mppctex` in the same texture
+directory as the `[assets]` textures; for a model it never opens the disc's own PNG files.
+A JPEG texture is refused.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
 both. Every `[budget.*]` section is optional - a disc that states none is held to the
 console's own built-in budget, a default-constructed `rv_manifest_budget`. Both
 example discs state theirs explicitly, and
-[`mppcdiscs/example-lua/disc.toml`](mppcdiscs/example-lua/disc.toml) says why
+[`mppcdiscs/example-lua-bare/disc.toml`](mppcdiscs/example-lua-bare/disc.toml) says why
 each number is what it is.
 
 ### Burning
@@ -646,7 +646,7 @@ mppcburner bake-texture mygame assets/hero.png -o hero.mppctex [--baker PATH]
 `inspect` prints the manifest and the entry list to **stdout** (so it pipes into
 `grep` cleanly) and diagnostics to stderr.
 
-`bake-texture` bakes one `[textures]` source into a standalone `.mppctex`, the
+`bake-texture` bakes one PNG listed in `[assets]` files into a standalone `.mppctex`, the
 way `build`'s own plan would - same format and the same `[budget]` size check.
 It writes `-o` only once baking succeeds, so a refusal never leaves a partial
 file, and prints the entry's disc name (what `--map` would call it) as the
@@ -691,23 +691,28 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | Document | What it covers |
 | --- | --- |
 | [`pdk/README.md`](pdk/README.md) | the contract: the facade, the five controllers, why the boundary is where it is |
-| [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, text |
+| [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, integer geometry, text, `.mppcmod` models |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppctexbaker/README.md`](pdk/tools/mppctexbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
 | [`editor/README.md`](editor/README.md) | the editor: what it is, how it builds, where its requirements live |
-| [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |
-| [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md) | the scripting disc |
+| [`mppcdiscs/example-cpp-pdkkit/README.md`](mppcdiscs/example-cpp-pdkkit/README.md) | the sample disc |
+| [`mppcdiscs/README.md`](mppcdiscs/README.md) | `example-cpp-bare`: the same demo in C++ on pdklib alone; it has no README of its own |
+| [`mppcdiscs/example-lua-bare/README.md`](mppcdiscs/example-lua-bare/README.md) | the scripting disc |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
 
 ---
 
 ## Where it stands
 
-- **Contract** — closed. Video, audio, drive, memory card, I/O, plus the binary
-  ABI a packaged disc is loaded through.
+- **Contract** — closed. Video, audio, geometry, drive, memory card, I/O, plus the
+  binary ABI a packaged disc is loaded through.
 - **Video** — virtual VRAM pool, ordering table, rasterizer for lines / sprites
   / triangles / quads, Gouraud interpolation, affine texture sampling (4/8-bit
   paletted + 15-bit direct, PSX cut-out transparency), 4×4 ordered dithering.
+- **Geometry** - `rv_cg` transforms a model by its world matrix and the frame's
+  camera, cuts triangles at the near plane, culls per put (none or back) and puts
+  them into video's frame; `rv_cg_point` projects one point. Integer throughout:
+  Q20.12 metres, 4.12 rotation.
 - **Audio** — sound-RAM pool, 24 voices with ADSR, saturating mixer, rendered
   on the console thread once per frame.
 - **Drive** — mounts a directory or a `.mppcdisc` archive behind one interface.
@@ -739,7 +744,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
   | `rv_pdklib` | `pdk/lib` | the disc-side library |
   | `rv_3dmppc` | `src/` | the console, and nothing else |
   | `rv_pdktools` | `pdk/tools` | the authoring tools |
-  | the disc's own id | each packaged disc | `example_cpp::rv_dmain`, `mygame::rv_dmain`, … |
+  | the disc's own id | each packaged disc | `example_cpp_pdkkit::rv_dmain`, `mygame::rv_dmain`, … |
   | `rv_service` | `src/rv_dmain` | the built-in default disc for checking the console — a disc, but a linked-in one |
 
   A packaged disc needs no prefix and cannot collide with anything: it is built

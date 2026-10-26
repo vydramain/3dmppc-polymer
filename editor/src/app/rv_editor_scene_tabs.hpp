@@ -6,10 +6,11 @@
 namespace rv_editor
 {
 
-// A PNG or sound tab opened from Assets into the Scene tile, beside the scene itself.
+// A PNG, sound or model tab opened from Assets into the Scene tile, beside the scene itself.
 enum class rv_editor_scene_tab_kind {
     picture,
     sound,
+    model,
 };
 
 struct rv_editor_scene_tab {

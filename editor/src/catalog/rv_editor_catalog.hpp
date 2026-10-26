@@ -17,6 +17,7 @@ void rv_editor_catalog_colours(const rv_editor_theme &theme);       // _theme: p
 void rv_editor_catalog_icon_set(const rv_editor_theme &theme);      // _theme: file and tool icons
 void rv_editor_catalog_buttons(const rv_editor_theme &theme);       // _buttons
 void rv_editor_catalog_fields(const rv_editor_theme &theme);        // _fields
+void rv_editor_catalog_text_samples(const rv_editor_theme &theme);  // _fields: text components
 void rv_editor_catalog_headers(const rv_editor_theme &theme);       // _panes: headers, splitters, tiles
 void rv_editor_catalog_lists(const rv_editor_theme &theme);         // _panes: tree, list, table
 void rv_editor_catalog_tab_strips(const rv_editor_theme &theme);    // _panes: tabs

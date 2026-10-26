@@ -14,7 +14,6 @@
 #include "imgui.h"
 
 #include "text/rv_editor_text.hpp"
-#include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -113,10 +112,8 @@ rv_editor_run_profile rv_editor_run_form_profile(const rv_editor_run_form &f)
 // then one group per rv_pcslots slot that this page has a field for.
 void rv_editor_run_group(const char *display_label, const rv_editor_theme &theme)
 {
-    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
-    ImGui::TextUnformatted(display_label);
-    ImGui::PopStyleColor();
-    ImGui::Separator();
+    rv_editor_label(display_label, rv_editor_label_kind::bright, theme);
+    rv_editor_separator();
 }
 
 // A label column, then the field with what an empty one means as its tooltip.
@@ -128,13 +125,13 @@ void rv_editor_run_path(const char *label,
     const char *display_label)
 {
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(display_label);
+    rv_editor_label(display_label, rv_editor_label_kind::normal, theme);
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field((std::string("##") + label).c_str(), buf, size, theme);
     const auto empty_means = rv_editor_text(empty_means_key);
     const auto tip = rv_editor_text_format("pane_run_config.empty_means", std::make_format_args(empty_means));
-    ImGui::SetItemTooltip("%s", tip.c_str());
+    rv_editor_item_tooltip(tip.c_str());
 }
 
 // Any profile request waits: the list and the profile buttons wait with it.
@@ -168,20 +165,20 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
     const char *why = pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
     ImGui::BeginGroup();
     const float side = ImGui::GetFrameHeight();
-    rv_editor_scroll_begin("##profiles", ImVec2(width, height - side - ImGui::GetStyle().ItemSpacing.y));
+    rv_editor_well_begin("##profiles", ImVec2(width, height - side - ImGui::GetStyle().ItemSpacing.y), theme);
     for (size_t i = 0; i < config.profiles.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
-        if (ImGui::Selectable(config.profiles[i].name.c_str(), i == config.active) && i != config.active && !pending) {
+        const rv_editor_list_style style{ .selected = i == config.active };
+        const rv_editor_list_result row =
+            rv_editor_list_row("##profile", config.profiles[i].name.c_str(), theme, style, { rv_editor_look::live, why });
+        if (row.clicked && i != config.active) {
             rv_editor_pane_request select = rv_editor_run_request(rv_editor_pane_request_kind::profile_select);
             select.choice = i;
             (void)rv_editor_app_request(app, select);
         }
-        if (pending) {
-            ImGui::SetItemTooltip("%s", why);
-        }
         ImGui::PopID();
     }
-    rv_editor_scroll_end(theme);
+    rv_editor_well_end();
     if (rv_editor_letter_button("##new",
             rv_editor_glyph::new_,
             theme.code_green,
@@ -210,21 +207,19 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
 void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme &theme)
 {
     rv_editor_run_form &form = run_form_draft;
-    rv_editor_scroll_begin("##fields", size);
+    rv_editor_well_begin("##fields", size, theme);
     if (!app.run_config.error.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
         const auto err = rv_editor_text_format("pane_run_config.profile_error", std::make_format_args(app.run_config.error));
-        ImGui::TextWrapped("%s", err.c_str());
-        ImGui::PopStyleColor();
+        rv_editor_label(err.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
     if (app.session.live()) {
         const auto session_num = app.session.number();
         const auto msg = rv_editor_text_format("pane_run_config.session_active", std::make_format_args(session_num));
-        ImGui::TextWrapped("%s", msg.c_str());
+        rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
     }
     rv_editor_run_group(rv_editor_text("pane_run_config.session_group"), theme);
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(rv_editor_text("pane_run_config.name_label"));
+    rv_editor_label(rv_editor_text("pane_run_config.name_label"), rv_editor_label_kind::normal, theme);
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##name", form.name, sizeof(form.name), theme);
@@ -241,17 +236,18 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
         theme,
         rv_editor_text("pane_run_config.working_dir_label"));
     rv_editor_checkbox(rv_editor_text("pane_run_config.start_paused_label"), &form.paused, theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.start_paused_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_run_config.start_paused_tooltip"));
     ImGui::SameLine(ImGui::GetFontSize() * checkbox_spacing_em);
     rv_editor_checkbox(rv_editor_text("pane_run_config.fixed_step_label"), &form.fixed_step, theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.fixed_step_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_run_config.fixed_step_tooltip"));
     rv_editor_checkbox(rv_editor_text("pane_run_config.reload_on_save_label"), &form.reload_on_save, theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.reload_on_save_tooltip"));
-    const ImVec2 box(-1.0f, ImGui::GetTextLineHeight() * multiline_box_lines);
-    ImGui::TextUnformatted(rv_editor_text("pane_run_config.console_options_label"));
-    ImGui::InputTextMultiline("##args", form.args, sizeof(form.args), box);
-    ImGui::TextUnformatted(rv_editor_text("pane_run_config.environment_label"));
-    ImGui::InputTextMultiline("##env", form.env, sizeof(form.env), box);
+    rv_editor_item_tooltip(rv_editor_text("pane_run_config.reload_on_save_tooltip"));
+    rv_editor_label(rv_editor_text("pane_run_config.console_options_label"), rv_editor_label_kind::normal, theme);
+    ImGui::SetNextItemWidth(-1.0f);
+    rv_editor_text_area("##args", form.args, sizeof(form.args), multiline_box_lines, theme);
+    rv_editor_label(rv_editor_text("pane_run_config.environment_label"), rv_editor_label_kind::normal, theme);
+    ImGui::SetNextItemWidth(-1.0f);
+    rv_editor_text_area("##env", form.env, sizeof(form.env), multiline_box_lines, theme);
 
     ImGui::Spacing();
     rv_editor_run_group(rv_editor_text("pane_run_config.audio_group"), theme);
@@ -265,7 +261,7 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
         "pane_run_config.memory_card_empty_tooltip",
         theme,
         rv_editor_text("pane_run_config.memory_card_label"));
-    rv_editor_scroll_end(theme);
+    rv_editor_well_end();
 }
 
 // Why Apply and Restart waits, the first that holds: a restart already runs (it wins whatever
@@ -291,21 +287,19 @@ void rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
     const rv_editor_run_profile edited = rv_editor_run_form_profile(run_form_draft);
     const std::string problem = rv_editor_app_profile_problem(app, edited);
     if (!problem.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-        ImGui::TextWrapped("%s", problem.c_str());
-        ImGui::PopStyleColor();
+        rv_editor_label(problem.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
     const bool pending = rv_editor_run_profile_pending(app);
     const char *edit_why = problem.empty() ? nullptr : rv_editor_text("pane_run_config.apply_disabled");
     const char *apply_why = pending ? rv_editor_text("app_why_not.request_pending") : edit_why;
     const bool apply =
         rv_editor_button(rv_editor_text("pane_run_config.apply_label"), theme, { rv_editor_look::live, apply_why });
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.apply_button_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_run_config.apply_button_tooltip"));
     ImGui::SameLine();
     const char *restart_why = rv_editor_run_restart_why(app, pending, edit_why);
     const bool restart =
         rv_editor_button(rv_editor_text("pane_run_config.apply_restart_label"), theme, { rv_editor_look::live, restart_why });
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.apply_restart_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_run_config.apply_restart_tooltip"));
     ImGui::SameLine();
     if (rv_editor_button(rv_editor_text("pane_run_config.revert_label"), theme)) {
         rv_editor_run_form_fill(run_form_draft, config.profiles[config.active]);
@@ -318,7 +312,7 @@ void rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-// The list beside the fields in `size`, the actions under both.
+// The list beside the fields in `size`, each in a well of its own.
 void rv_editor_run_editor(rv_editor_app &app, ImVec2 size, const rv_editor_theme &theme)
 {
     rv_editor_run_config &config = app.run_config;
@@ -342,12 +336,9 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
     }
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const float actions = ImGui::GetFrameHeightWithSpacing() * actions_height_frames;
-    // The two-column body in one well; its size still comes from the region left
-    // once the well's own padding is taken out.
-    const float well_height = std::max(ImGui::GetFrameHeight() * min_well_height_frames, avail.y - actions);
-    rv_editor_well_begin("##well", ImVec2(0, well_height), theme);
-    rv_editor_run_editor(app, ImGui::GetContentRegionAvail(), theme);
-    rv_editor_well_end();
+    // The two-column body takes what the region leaves above the actions row.
+    const float body_height = std::max(ImGui::GetFrameHeight() * min_well_height_frames, avail.y - actions);
+    rv_editor_run_editor(app, ImVec2(avail.x, body_height), theme);
     rv_editor_run_actions(app, theme);
 }
 

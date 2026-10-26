@@ -4,6 +4,8 @@
 #include <string_view>
 #include <vector>
 
+#include "pdk/rv_err.h"
+
 namespace rv_pdklib
 {
 
@@ -27,7 +29,13 @@ public:
     }
 
     // Always RV_ERR_INVAL, so a stage can `return failer_.fail(...)`.
-    int fail(int line, const std::string &message);
+    int fail(int line, const std::string &message)
+    {
+        if (!exhausted()) {
+            entries_.push_back(entry{ line, message });
+        }
+        return RV_ERR_INVAL;
+    }
 
     bool empty() const
     {
@@ -48,7 +56,22 @@ public:
 
     // One line per diagnostic. `origin` is the manifest's file name, empty for
     // text that came from nowhere in particular.
-    std::string report(std::string_view origin) const;
+    std::string report(std::string_view origin) const
+    {
+        std::string out;
+        for (const entry &e : entries_) {
+            if (!out.empty()) {
+                out += '\n';
+            }
+            if (origin.empty()) {
+                out += "line " + std::to_string(e.line) + ": ";
+            } else {
+                out += std::string(origin) + ":" + std::to_string(e.line) + ": ";
+            }
+            out += e.message;
+        }
+        return out;
+    }
 
 private:
     std::vector<entry> entries_;

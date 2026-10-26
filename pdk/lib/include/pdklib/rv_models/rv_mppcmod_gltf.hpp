@@ -7,11 +7,13 @@
 #include <vector>
 
 #include "pdklib/rv_models/rv_mppcmod.hpp"
+#include "pdklib/rv_models/rv_mppcmod_gltf_accessor.hpp"
+#include "pdklib/rv_models/rv_mppcmod_quant.hpp"
 
 namespace rv_pdklib
 {
 
-// A PNG the model embeds. `name` is <stem>-<glTF image index>; the texture of a part
+// A PNG the model uses, embedded or named by a relative URI. `name` is <stem>-<glTF image index>; the texture of a part
 // is `<name>.mppctex`, and the CLI writes the PNG as `<name>.png`.
 struct rv_mppcmod_gltf_image {
     std::string name;
@@ -19,12 +21,23 @@ struct rv_mppcmod_gltf_image {
 };
 
 // Flattens every mesh node of `path` into `model`: one part per primitive, moved by the
-// node's world matrix. Each embedded PNG a part uses is appended to `images` once.
+// node's world matrix. Each glTF number goes to Q.16 once; the composition is int64. Each PNG
+// a part uses is appended to `images` once.
 // Returns RV_ERR_INVAL with `error` set to one sentence naming the cause, prefixed by the path.
 int rv_mppcmod_read_gltf(const std::string &path,
     const std::string &stem,
-    rv_mppcmod &model,
+    rv_mppcmod_q16_model &model,
     std::vector<rv_mppcmod_gltf_image> &images,
+    std::string &error);
+
+// As above, and `source` gets one entry per model vertex, in the same order: the glTF floats
+// transformed by the node's world matrix, not yet quantized. On failure, `model`, `images` and `source` hold what was
+// read before the refusal; use only the returned error.
+int rv_mppcmod_read_gltf(const std::string &path,
+    const std::string &stem,
+    rv_mppcmod_q16_model &model,
+    std::vector<rv_mppcmod_gltf_image> &images,
+    std::vector<rv_mppcmod_gltf_source_vertex> &source,
     std::string &error);
 
 } // namespace rv_pdklib

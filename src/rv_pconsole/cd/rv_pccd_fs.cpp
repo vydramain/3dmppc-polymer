@@ -2,7 +2,6 @@
 
 #include <new>
 #include <string>
-#include <string_view>
 #include <utility>
 
 #include "pdk/rv_err.h"
@@ -153,25 +152,22 @@ int64_t rv_pccd_fs::asset_open(const char *resname)
         // The name is COPIED: the contract says `resname` need not outlive the
         // call, so the table may not hold the caller's pointer.
         resnames_.push_back(key);
-        by_name_.emplace(std::move(key), handle);
+        by_name_.emplace(key, handle);
+        // Recorded once per name for this drive: by_name_ above returns early on a
+        // repeat, so this runs only the first time the name resolves.
+        asset_names_.push_back(key);
     } catch (const std::bad_alloc &) {
-        // Keep the two halves of the table consistent, then report the only code
-        // the contract offers for "the table cannot grow".
+        // Undo every table this call may have grown, so the three stay consistent,
+        // then report the only code the contract offers for "the table cannot grow".
         if (static_cast<int64_t>(resnames_.size()) > handle) {
             resnames_.pop_back();
         }
+        by_name_.erase(key);
+        if (!asset_names_.empty() && asset_names_.back() == key) {
+            asset_names_.pop_back();
+        }
         RV_LOG_ERR("pccd", "out of memory growing the resource table");
         return RV_ERR_NOMEM;
-    }
-
-    // A scene is recognised by its resource name's suffix.
-    // Recorded once per medium - by_name_ above already keeps asset_open
-    // idempotent, so this line only runs the first time this name resolves.
-    static constexpr std::string_view scene_suffix = ".scene.toml";
-    const std::string &opened = resnames_.back();
-    if (opened.size() >= scene_suffix.size() &&
-        opened.compare(opened.size() - scene_suffix.size(), scene_suffix.size(), scene_suffix) == 0) {
-        scene_names_.push_back(opened);
     }
 
     RV_LOG_DBG("pccd", "resolved '{}' to handle {} ({} bytes)", resnames_.back(), handle, size);

@@ -37,36 +37,29 @@ constexpr float candidate_dropdown_width_em = 16.0f;
 // Cache subdirectory holding release candidates and their logs.
 constexpr std::string_view candidates_dir_name = "candidates";
 
-void rv_editor_dim_text(const std::string &text)
-{
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s", text.c_str());
-    ImGui::PopStyleColor();
-}
-
 // One reserved single line, full row width: `text` clips rather than wraps,
 // so this row can never split into two. Hovering shows it in full.
-void rv_editor_reserved_line(const char *id, const std::string &text)
+void rv_editor_reserved_line(const char *id, const std::string &text, const rv_editor_theme &theme)
 {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::BeginChild(id, ImVec2(0.0f, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
     if (!text.empty()) {
-        ImGui::TextUnformatted(text.c_str());
+        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme);
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
     if (!text.empty() && ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("%s", text.c_str());
+        rv_editor_tooltip(text.c_str());
     }
 }
 
-void rv_editor_row(const char *label, const std::string &value)
+void rv_editor_row(const char *label, const std::string &value, const rv_editor_theme &theme)
 {
-    ImGui::TableNextRow();
-    ImGui::TableNextColumn();
-    ImGui::TextUnformatted(label);
-    ImGui::TableNextColumn();
-    ImGui::TextWrapped("%s", value.c_str());
+    rv_editor_table_row();
+    rv_editor_table_cell();
+    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    rv_editor_table_cell();
+    rv_editor_label(value.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
 }
 
 rv_editor_status_kind rv_editor_check_lamp(const rv_editor_candidate &c, const rv_editor_check &check)
@@ -145,21 +138,20 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
     rv_editor_check &check = c.checks[id];
     const bool valid = check.state == rv_editor_check_state::not_run || rv_editor_check_valid(c, check);
     ImGui::PushID(static_cast<int>(id));
-    ImGui::TableNextRow();
-    ImGui::TableNextColumn();
-    ImGui::TextUnformatted(check.name);
-    const char *passed_means = rv_editor_text("pane_candidate.passed_means");
-    ImGui::SetItemTooltip("%s %s", passed_means, check.passes_when);
-    ImGui::TableNextColumn();
+    rv_editor_table_row();
+    rv_editor_table_cell();
+    rv_editor_label(check.name, rv_editor_label_kind::normal, theme);
+    rv_editor_item_tooltip((std::string(rv_editor_text("pane_candidate.passed_means")) + " " + check.passes_when).c_str());
+    rv_editor_table_cell();
     const std::string state = valid ? rv_editor_check_state_name(check.state) :
                                       std::string(rv_editor_check_state_name(check.state)) + ", void: other bytes";
     rv_editor_status(state.c_str(), rv_editor_check_lamp(c, check), theme);
     if (!check.at.empty()) {
-        ImGui::SetItemTooltip("%s\nset %s, on %s", check.note.c_str(), check.at.c_str(), check.env.c_str());
+        rv_editor_item_tooltip((check.note + "\nset " + check.at + ", on " + check.env).c_str());
     }
-    ImGui::TableNextColumn();
+    rv_editor_table_cell();
     if (!check.manual) {
-        ImGui::TextUnformatted(rv_editor_text("pane_candidate.by_editor"));
+        rv_editor_label(rv_editor_text("pane_candidate.by_editor"), rv_editor_label_kind::normal, theme);
         ImGui::PopID();
         return;
     }
@@ -194,16 +186,17 @@ void rv_editor_candidate_checks(rv_editor_app &app, rv_editor_candidate &c, cons
 {
     const int check_count = static_cast<int>(c.checks.size());
     std::string help_text = rv_editor_text_format("pane_candidate.checks_help", std::make_format_args(check_count));
-    rv_editor_dim_text(help_text);
-    if (ImGui::BeginTable("##checks", checks_table_columns, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
-        ImGui::TableSetupColumn(rv_editor_text("pane_candidate.check_column"), ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn(rv_editor_text("pane_candidate.state_column"), ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn(rv_editor_text("pane_candidate.result_column"));
-        ImGui::TableHeadersRow();
+    rv_editor_label(help_text.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
+    const rv_editor_table_column columns[] = {
+        { rv_editor_text("pane_candidate.check_column"), rv_editor_table_width::fixed },
+        { rv_editor_text("pane_candidate.state_column"), rv_editor_table_width::fixed },
+        { rv_editor_text("pane_candidate.result_column") },
+    };
+    if (rv_editor_table_begin("##checks", columns, checks_table_columns, { .row_bands = true, .header = true })) {
         for (size_t id = 0; id < c.checks.size(); ++id) {
             rv_editor_check_row(app, c, id, theme);
         }
-        ImGui::EndTable();
+        rv_editor_table_end();
     }
 }
 
@@ -220,7 +213,10 @@ void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme)
     const auto body = [&]() {
         rv_editor_release &r = app.release;
         if (r.candidates.empty()) {
-            ImGui::TextWrapped("%s", rv_editor_text("pane_candidate.no_candidate_yet"));
+            rv_editor_label(rv_editor_text("pane_candidate.no_candidate_yet"),
+                rv_editor_label_kind::normal,
+                theme,
+                rv_editor_label_layout::wrap);
             return;
         }
         rv_editor_candidate &c = r.candidates[r.selected];
@@ -228,7 +224,7 @@ void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme)
         const auto summary = rv_editor_checks_summary(c);
         std::string what =
             rv_editor_text_format("pane_candidate.candidate_header", std::make_format_args(candidate_number, summary));
-        ImGui::TextUnformatted(what.c_str());
+        rv_editor_label(what.c_str(), rv_editor_label_kind::normal, theme);
         rv_editor_candidate_checks(app, c, theme);
     };
     body();
@@ -332,7 +328,7 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     }
     // Own row, clipped rather than flowed after the buttons: its length varies
     // with state, so joining the button row would make that state-dependent too.
-    rv_editor_reserved_line("##facts", facts);
+    rv_editor_reserved_line("##facts", facts, theme);
     // One action row shared by the two: a hung runtime needs Force Stop first,
     // a gap standing in when neither applies, so the strip's height stays fixed.
     if (app.session.hung()) {
@@ -372,10 +368,13 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_status(r.last_failure.c_str(), rv_editor_status_kind::error, theme);
         }
         if (r.candidates.empty()) {
-            ImGui::TextWrapped("%s", rv_editor_text("pane_candidate.no_candidate_yet_candidate_pane"));
+            rv_editor_label(rv_editor_text("pane_candidate.no_candidate_yet_candidate_pane"),
+                rv_editor_label_kind::normal,
+                theme,
+                rv_editor_label_layout::wrap);
             const auto dir = (app.project.cache_dir / std::string(candidates_dir_name)).string();
             std::string note = rv_editor_text_format("pane_candidate.candidates_dir_note", std::make_format_args(dir));
-            rv_editor_dim_text(note);
+            rv_editor_label(note.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
             return;
         }
 
@@ -408,16 +407,17 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_status(rv_editor_text("pane_candidate.bytes_changed"), rv_editor_status_kind::error, theme);
         }
 
-        if (ImGui::BeginTable("##identity", identity_table_columns, ImGuiTableFlags_SizingStretchProp)) {
+        const rv_editor_table_column identity_columns[identity_table_columns] = {};
+        if (rv_editor_table_begin("##identity", identity_columns, identity_table_columns)) {
             const auto num = std::to_string(c.number);
             std::string candidate_info =
                 rv_editor_text_format("pane_candidate.candidate_with_date", std::make_format_args(num, c.built_at));
-            rv_editor_row(rv_editor_text("pane_candidate.candidate_row"), candidate_info);
+            rv_editor_row(rv_editor_text("pane_candidate.candidate_row"), candidate_info, theme);
             const char *hash_verifying = rv_editor_text("pane_candidate.verifying_hash");
             const char *default_hash = c.hash_error.empty() ? hash_verifying : c.hash_error.c_str();
             const char *sha_value = c.sha256.empty() ? default_hash : c.sha256.c_str();
-            rv_editor_row(rv_editor_text("pane_candidate.sha256_row"), sha_value);
-            rv_editor_row(rv_editor_text("pane_candidate.size_row"), std::to_string(c.size) + " bytes");
+            rv_editor_row(rv_editor_text("pane_candidate.sha256_row"), sha_value, theme);
+            rv_editor_row(rv_editor_text("pane_candidate.size_row"), std::to_string(c.size) + " bytes", theme);
             std::string verified_value;
             if (c.hashing.valid()) {
                 verified_value = rv_editor_text("pane_candidate.verified_reading");
@@ -427,17 +427,17 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
                 verified_value =
                     rv_editor_text_format("pane_candidate.verified_different", std::make_format_args(c.verified_at));
             }
-            rv_editor_row(rv_editor_text("pane_candidate.verified_row"), verified_value);
-            rv_editor_row(rv_editor_text("pane_candidate.built_by_row"), rv_editor_text("pane_candidate.built_by_note"));
-            ImGui::SetItemTooltip("%s", c.command.c_str());
-            rv_editor_row(rv_editor_text("pane_candidate.tools_row"), c.burner + "; " + c.baker);
+            rv_editor_row(rv_editor_text("pane_candidate.verified_row"), verified_value, theme);
+            rv_editor_row(rv_editor_text("pane_candidate.built_by_row"), rv_editor_text("pane_candidate.built_by_note"), theme);
+            rv_editor_item_tooltip(c.command.c_str());
+            rv_editor_row(rv_editor_text("pane_candidate.tools_row"), c.burner + "; " + c.baker, theme);
             const char *default_revision = rv_editor_text("pane_candidate.revision_not_recorded");
             const char *revision_value = c.source_revision.empty() ? default_revision : c.source_revision.c_str();
-            rv_editor_row(rv_editor_text("pane_candidate.revision_row"), revision_value);
+            rv_editor_row(rv_editor_text("pane_candidate.revision_row"), revision_value, theme);
             const char *sources_text1 = rv_editor_text("pane_candidate.sources_changed");
             const char *sources_text2 = rv_editor_text("pane_candidate.sources_unchanged");
             std::string sources_value = c.tree_changed ? std::string(sources_text1) : std::string(sources_text2);
-            rv_editor_row(rv_editor_text("pane_candidate.sources_row"), sources_value);
+            rv_editor_row(rv_editor_text("pane_candidate.sources_row"), sources_value, theme);
             const bool playing = app.session.live() && r.playing >= 0 && static_cast<size_t>(r.playing) == r.selected;
             std::string playtest_value;
             if (playing) {
@@ -451,8 +451,8 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
                 playtest_value =
                     rv_editor_text_format("pane_candidate.playtest_ended", std::make_format_args(num, c.last_run_end));
             }
-            rv_editor_row(rv_editor_text("pane_candidate.playtest_row"), playtest_value);
-            ImGui::EndTable();
+            rv_editor_row(rv_editor_text("pane_candidate.playtest_row"), playtest_value, theme);
+            rv_editor_table_end();
         }
         rv_editor_path_row(rv_editor_text("pane_candidate.image_row"), c.image.string(), theme);
         const char *verify_disabled = c.hashing.valid() ? rv_editor_text("pane_candidate.already_verifying") : nullptr;
@@ -462,10 +462,10 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_candidate_hash(c);
         }
 
-        ImGui::SeparatorText(rv_editor_text("pane_candidate.checks_separator"));
+        rv_editor_section(rv_editor_text("pane_candidate.checks_separator"));
         rv_editor_candidate_checks(app, c, theme);
 
-        ImGui::SeparatorText(rv_editor_text("pane_candidate.decision_separator"));
+        rv_editor_section(rv_editor_text("pane_candidate.decision_separator"));
         rv_editor_status(rv_editor_text("pane_candidate.build_succeeded"), rv_editor_status_kind::ok, theme);
         const bool all = rv_editor_why_not_approve(c) == nullptr || c.decision == rv_editor_decision::approved;
         rv_editor_status(rv_editor_checks_summary(c).c_str(),

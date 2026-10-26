@@ -16,18 +16,11 @@
 #include "prefs/rv_editor_prefs.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
-
-bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not)
-{
-    const bool clicked = ImGui::MenuItem(label, shortcut, false, why_not == nullptr);
-    if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("%s", why_not);
-    }
-    return clicked;
-}
 
 namespace
 {
@@ -43,9 +36,9 @@ constexpr const char *code_keys_redo = "<C-S-z>";
 
 // A top-level menu with its mnemonic, the first letter, underlined. Alt
 // moves the keyboard into the bar; the arrows walk it.
-bool rv_editor_menu_begin(const char *label)
+bool rv_editor_top_menu_begin(const char *label)
 {
-    const bool open = ImGui::BeginMenu(label);
+    const bool open = rv_editor_menu_begin(label, nullptr);
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max = ImGui::GetItemRectMax();
     const float text = ImGui::CalcTextSize(label).x;
@@ -86,25 +79,27 @@ void rv_editor_menu_file(rv_editor_shell &shell)
     if (rv_editor_menu_item(rv_editor_text("shell_menu.new_file"), nullptr, no_code)) {
         rv_editor_menu_code_keys(shell, code_keys_new_buffer);
     }
-    if (ImGui::MenuItem(rv_editor_text("shell_start.open_project"))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_start.open_project"), nullptr, nullptr)) {
         rv_editor_shell_open_project(shell);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     if (rv_editor_menu_item(rv_editor_text("shell_menu.save"), rv_editor_text("shell_menu.shortcut_save"), no_code)) {
         rv_editor_menu_code_keys(shell, code_keys_save);
     }
-    if (ImGui::MenuItem(rv_editor_text("catalog_status.menu_save_all"), rv_editor_text("catalog_status.shortcut_save_all"))) {
+    if (rv_editor_menu_item(rv_editor_text("catalog_status.menu_save_all"),
+            rv_editor_text("catalog_status.shortcut_save_all"),
+            nullptr)) {
         rv_editor_shell_save_all(shell);
     }
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.save_as"))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.save_as"), nullptr, nullptr)) {
         rv_editor_shell_save_as_start(shell);
     }
-    ImGui::Separator();
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.settings"))) {
+    rv_editor_separator();
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.settings"), nullptr, nullptr)) {
         rv_editor_shell_page(shell, rv_editor_start_page::settings);
     }
-    ImGui::Separator();
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.quit"))) {
+    rv_editor_separator();
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.quit"), nullptr, nullptr)) {
         SDL_Event quit{};
         quit.type = SDL_EVENT_QUIT;
         SDL_PushEvent(&quit);
@@ -120,8 +115,10 @@ void rv_editor_menu_edit(rv_editor_shell &shell)
     if (rv_editor_menu_item(rv_editor_text("shell_menu.redo"), rv_editor_text("shell_menu.shortcut_redo"), no_code)) {
         rv_editor_menu_code_keys(shell, code_keys_redo);
     }
-    ImGui::Separator();
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.find_in_project"), rv_editor_text("shell_menu.shortcut_find"))) {
+    rv_editor_separator();
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.find_in_project"),
+            rv_editor_text("shell_menu.shortcut_find"),
+            nullptr)) {
         shell.app.project_search.focus = true;
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::search);
     }
@@ -129,7 +126,7 @@ void rv_editor_menu_edit(rv_editor_shell &shell)
 
 void rv_editor_menu_view(rv_editor_shell &shell)
 {
-    if (ImGui::BeginMenu(rv_editor_text("shell_menu.code_text_size"))) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu.code_text_size"), nullptr)) {
         struct {
             rv_editor_code_size size;
             const char *text_key;
@@ -137,13 +134,13 @@ void rv_editor_menu_view(rv_editor_shell &shell)
             { rv_editor_code_size::normal, "shell_menu.size_normal" },
             { rv_editor_code_size::large, "shell_menu.size_large" } };
         for (const auto &s : sizes) {
-            if (ImGui::MenuItem(rv_editor_text(s.text_key), nullptr, rv_editor_font_code_size() == s.size)) {
+            if (rv_editor_menu_choice(rv_editor_text(s.text_key), nullptr, rv_editor_font_code_size() == s.size, nullptr)) {
                 rv_editor_font_code_size_set(s.size);
             }
         }
-        ImGui::EndMenu();
+        rv_editor_menu_end();
     }
-    if (ImGui::BeginMenu(rv_editor_text("shell_menu.game_scale"))) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu.game_scale"), nullptr)) {
         struct {
             rv_editor_game_scale scale;
             const char *text_key;
@@ -154,14 +151,14 @@ void rv_editor_menu_view(rv_editor_shell &shell)
             { rv_editor_game_scale::x3, "pane_game.scale_3x" } };
         for (const auto &s : scales) {
             const bool on = shell.ui.game_scale == s.scale;
-            if (ImGui::MenuItem(rv_editor_text(s.text_key), nullptr, on)) {
+            if (rv_editor_menu_choice(rv_editor_text(s.text_key), nullptr, on, nullptr)) {
                 shell.ui.game_scale = s.scale;
             }
         }
-        ImGui::EndMenu();
+        rv_editor_menu_end();
     }
     // Independent of the code text size and of the Game scale.
-    if (ImGui::BeginMenu(rv_editor_text("shell_menu.ui_scale"))) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu.ui_scale"), nullptr)) {
         struct {
             float scale;
             const char *text_key;
@@ -179,20 +176,15 @@ void rv_editor_menu_view(rv_editor_shell &shell)
                     rv_editor_text_format("shell_menu.scale_needs_display", std::make_format_args(needed_w, needed_h));
                 why_not = why_not_str.c_str();
             }
-            const bool clicked =
-                ImGui::MenuItem(rv_editor_text(s.text_key), nullptr, shell.ui_scale == s.scale, fits || s.scale == 1.0f);
-            if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                ImGui::SetTooltip("%s", why_not);
-            }
-            if (clicked) {
+            if (rv_editor_menu_choice(rv_editor_text(s.text_key), nullptr, shell.ui_scale == s.scale, why_not)) {
                 shell.ui_scale_request = s.scale;
             }
         }
-        ImGui::EndMenu();
+        rv_editor_menu_end();
     }
-    ImGui::Separator();
+    rv_editor_separator();
     // Independent of the focused tile and of a project.
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.widget_catalog"))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.widget_catalog"), nullptr, nullptr)) {
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::catalog);
     }
 }
@@ -200,10 +192,10 @@ void rv_editor_menu_view(rv_editor_shell &shell)
 void rv_editor_menu_project(rv_editor_shell &shell)
 {
     rv_editor_app &app = shell.app;
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.project_settings"))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.project_settings"), nullptr, nullptr)) {
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::project);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     if (rv_editor_menu_item(rv_editor_text("widgets_status.button_build"),
             rv_editor_text("widgets_status.shortcut_build"),
             rv_editor_app_why_not_build(app))) {
@@ -273,13 +265,13 @@ void rv_editor_menu_run(rv_editor_shell &shell)
     if (rv_editor_menu_item(rv_editor_text("widgets_status.tooltip_restart"), nullptr, why_not_build_restart)) {
         rv_editor_app_build_restart(app);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     if (rv_editor_menu_item(rv_editor_text("shell_menu.force_stop"),
             nullptr,
             app.session.live() ? nullptr : rv_editor_text("shell_menu.why_no_runtime"))) {
         rv_editor_app_force_stop(app);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     if (rv_editor_menu_item(rv_editor_text("shell_menu.run_config"),
             nullptr,
             app.project.open ? nullptr : rv_editor_text("shell_menu.why_no_project"))) {
@@ -289,47 +281,51 @@ void rv_editor_menu_run(rv_editor_shell &shell)
 
 void rv_editor_menu_window(rv_editor_shell &shell)
 {
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.terminal"))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.terminal"), nullptr, nullptr)) {
         rv_editor_shell_focus_terminal(shell);
     }
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.focus_next_pane"), rv_editor_text("shell_menu.shortcut_focus_next"))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.focus_next_pane"),
+            rv_editor_text("shell_menu.shortcut_focus_next"),
+            nullptr)) {
         rv_editor_shell_focus_next(shell, false);
     }
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.focus_prev_pane"), rv_editor_text("shell_menu.shortcut_focus_prev"))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.focus_prev_pane"),
+            rv_editor_text("shell_menu.shortcut_focus_prev"),
+            nullptr)) {
         rv_editor_shell_focus_next(shell, true);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     // Every kind of tile, beside the focused one.
-    if (ImGui::BeginMenu(rv_editor_text("shell_menu.new_tile"))) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu.new_tile"), nullptr)) {
         for (uint32_t k = 1; k <= static_cast<uint32_t>(rv_editor_pane_kind_last); ++k) {
             const auto kind = static_cast<rv_editor_pane_kind>(k);
-            if (ImGui::MenuItem(rv_editor_pane_title(kind))) {
+            if (rv_editor_menu_item(rv_editor_pane_title(kind), nullptr, nullptr)) {
                 rv_editor_shell_new_tile(shell, kind);
             }
         }
-        ImGui::EndMenu();
+        rv_editor_menu_end();
     }
-    ImGui::Separator();
+    rv_editor_separator();
     // The same four the bar's right end switches between; each keeps its tiles.
-    if (ImGui::BeginMenu(rv_editor_text("shell_menu.reference_layouts"))) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu.reference_layouts"), nullptr)) {
         for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
+            if (rv_editor_menu_choice(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset, nullptr)) {
                 rv_editor_shell_switch(shell, preset);
             }
         }
-        ImGui::EndMenu();
+        rv_editor_menu_end();
     }
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.reset_layout"))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.reset_layout"), nullptr, nullptr)) {
         rv_editor_shell_reset_layout(shell, shell.active);
     }
 }
 
 void rv_editor_menu_help(rv_editor_shell &shell)
 {
-    if (ImGui::MenuItem(rv_editor_text("manual.menu_item"), "F1")) {
+    if (rv_editor_menu_item(rv_editor_text("manual.menu_item"), "F1", nullptr)) {
         rv_editor_shell_page(shell, rv_editor_start_page::manual);
     }
-    if (ImGui::MenuItem(rv_editor_text("shell_menu.keyboard_shortcuts"))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.keyboard_shortcuts"), nullptr, nullptr)) {
         rv_editor_shell_page(shell, rv_editor_start_page::help);
     }
 }
@@ -349,9 +345,7 @@ bool rv_editor_scene_pane_focused(const rv_editor_workspace &ws)
 
 void rv_editor_shell_menu(rv_editor_shell &shell)
 {
-    rv_editor_menu_style_push();
-    if (!ImGui::BeginMainMenuBar()) {
-        rv_editor_menu_style_pop();
+    if (!rv_editor_main_menu_bar_begin()) {
         return;
     }
     struct {
@@ -366,9 +360,9 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         { "shell_menu.window", rv_editor_menu_window },
         { "shell_menu.help", rv_editor_menu_help } };
     for (const auto &m : menus) {
-        if (rv_editor_menu_begin(rv_editor_text(m.text_key))) {
+        if (rv_editor_top_menu_begin(rv_editor_text(m.text_key))) {
             m.draw(shell);
-            ImGui::EndMenu();
+            rv_editor_menu_end();
         }
     }
     // The layout switch at the bar's right end, as in the references: one place, once a project is open.
@@ -383,14 +377,13 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         // Own ID scope: "Scene" is also a menu on this bar.
         ImGui::PushID("workspaces");
         for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
+            if (rv_editor_menu_choice(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset, nullptr)) {
                 rv_editor_shell_switch(shell, preset);
             }
         }
         ImGui::PopID();
     }
-    ImGui::EndMainMenuBar();
-    rv_editor_menu_style_pop();
+    rv_editor_main_menu_bar_end();
 }
 
 void rv_editor_shell_shortcuts(rv_editor_shell &shell)
@@ -466,7 +459,10 @@ void rv_editor_shell_new_file(rv_editor_shell &shell)
 void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_ask_begin(rv_editor_text("shell_menu.ask_terminal_title"), theme);
-    ImGui::TextWrapped("%s", rv_editor_text("shell_menu.ask_terminal_message"));
+    rv_editor_label(rv_editor_text("shell_menu.ask_terminal_message"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::wrap);
     if (rv_editor_button(rv_editor_text("shell_menu.ask_terminal_end"), theme)) {
         (void)rv_editor_tile_remove(shell.ws.layout, shell.closing_terminal);
         shell.closing_terminal = rv_editor_tile_none;

@@ -2,6 +2,7 @@
 
 #include "project/rv_editor_project.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -9,6 +10,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
+#include "pdklib/rv_manifest/rv_manifest_asset_kind.hpp"
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "project/rv_editor_manifest_edit.hpp"
@@ -30,18 +32,10 @@ constexpr size_t hash_buf_size = 17;
 
 // Manifest file name used by the project.
 constexpr std::string_view manifest_file = "disc.toml";
+// [build] sdk tree that makes a disc pdkkit; no [build], no sdk key, or sdk without it is bare.
+constexpr std::string_view sdk_kit_tree = "kit";
 // Directory name used for editor's cache and state subdirectories.
 constexpr std::string_view editor_dir_name = "3dmppc-editor";
-
-// Disc section names for assets, textures and sounds.
-constexpr std::string_view disc_section_textures = "textures";
-constexpr std::string_view disc_section_sounds = "sounds";
-constexpr std::string_view disc_section_assets = "assets";
-constexpr std::string_view disc_section_models = "models";
-
-// File extensions for automatic section detection.
-constexpr std::string_view file_ext_png = ".png";
-constexpr std::string_view file_ext_wav = ".wav";
 
 // XDG environment variables and fallback paths for user directories per XDG Base Directory spec.
 constexpr std::string_view xdg_cache_var = "XDG_CACHE_HOME";
@@ -227,10 +221,9 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     if (rv_pdklib::rv_manifest_load(project.manifest.string(), manifest, error) != 0) {
         project.manifest_error = error;
         project.assets_patterns.clear();
-        project.textures_patterns.clear();
-        project.sounds_patterns.clear();
         project.models_patterns.clear();
         project.has_build_section = false;
+        project.sdk = rv_editor_sdk_state::unknown;
         return;
     }
     project.manifest_error.clear();
@@ -239,43 +232,37 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     project.screen_w = manifest.budget.pccv.screen_width;
     project.screen_h = manifest.budget.pccv.screen_height;
     project.assets_patterns = manifest.assets_files;
-    project.textures_patterns = manifest.textures_files.files;
-    project.sounds_patterns = manifest.sounds_files;
-    project.models_patterns = manifest.models_files;
+    // The model folder is found from a model pattern: only the [assets] models name it.
+    project.models_patterns.clear();
+    for (const std::string &pattern : manifest.assets_files) {
+        if (rv_pdklib::rv_manifest_asset_kind_of(pattern) == rv_pdklib::rv_manifest_asset_kind::model) {
+            project.models_patterns.push_back(pattern);
+        }
+    }
     project.has_build_section = !manifest.build_sources.empty();
+    const bool on_kit =
+        std::find(manifest.build_sdk.begin(), manifest.build_sdk.end(), sdk_kit_tree) != manifest.build_sdk.end();
+    project.sdk = on_kit ? rv_editor_sdk_state::pdkkit : rv_editor_sdk_state::bare;
 }
 
 bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel)
 {
-    for (const auto *patterns :
-        { &project.assets_patterns, &project.textures_patterns, &project.sounds_patterns, &project.models_patterns }) {
-        for (const std::string &pattern : *patterns) {
-            if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
-                return true;
-            }
+    for (const std::string &pattern : project.assets_patterns) {
+        if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
+            return true;
         }
     }
     return false;
 }
 
-const char *rv_editor_project_disc_section(std::string_view rel)
+bool rv_editor_is_model_file_name(std::string_view name)
 {
-    if (rel.ends_with(std::string(file_ext_png))) {
-        return disc_section_textures.data();
-    }
-    if (rel.ends_with(std::string(file_ext_wav))) {
-        return disc_section_sounds.data();
-    }
-    if (rel.ends_with(std::string(file_ext_glb))) {
-        return disc_section_models.data();
-    }
-    return disc_section_assets.data();
+    return rv_pdklib::rv_manifest_asset_kind_of(name) == rv_pdklib::rv_manifest_asset_kind::model;
 }
 
 int rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error)
 {
-    const char *section = rv_editor_project_disc_section(rel);
-    const int err = rv_editor_manifest_add_pattern(project.manifest, section, rel, error);
+    const int err = rv_editor_manifest_add_pattern(project.manifest, rv_editor_disc_assets_section, rel, error);
     if (err != RV_OK) {
         return err;
     }

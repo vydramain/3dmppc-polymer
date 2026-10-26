@@ -270,8 +270,6 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 // The embedded user manual, as a page and a tab.
 void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme);
 
-// A menu item that is disabled with its reason shown on hover.
-bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
 // The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
 void rv_editor_menu_scene(rv_editor_shell &shell);
 // Save Scene: the menu item and Ctrl+S; does nothing when the item would be disabled.

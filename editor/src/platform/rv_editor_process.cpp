@@ -337,8 +337,14 @@ std::string rv_editor_exit_text(const rv_editor_process::rv_editor_exit &exit)
     std::string text = "exit code " + std::to_string(exit.code);
     if (exit.signal != 0) {
         // Not sigabbrev_np: a GNU extension (glibc 2.32+); a fixed table names the signals the editor reports.
-        static constexpr std::pair<int, const char *> names[] = {{SIGSEGV, "SEGV"}, {SIGABRT, "ABRT"}, {SIGKILL, "KILL"},
-            {SIGTERM, "TERM"}, {SIGINT, "INT"}, {SIGBUS, "BUS"}, {SIGFPE, "FPE"}, {SIGILL, "ILL"}};
+        static constexpr std::pair<int, const char *> names[] = { { SIGSEGV, "SEGV" },
+            { SIGABRT, "ABRT" },
+            { SIGKILL, "KILL" },
+            { SIGTERM, "TERM" },
+            { SIGINT, "INT" },
+            { SIGBUS, "BUS" },
+            { SIGFPE, "FPE" },
+            { SIGILL, "ILL" } };
         const auto *it = std::ranges::find(names, exit.signal, &std::pair<int, const char *>::first);
         text = std::string("killed by SIG") + (it != std::end(names) ? it->second : std::to_string(exit.signal));
     }

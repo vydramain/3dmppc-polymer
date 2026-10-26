@@ -35,7 +35,7 @@ struct rv_burner_asset_paths {
 /// Plan, check, compile or copy scripts, and bake textures, sounds and models.
 ///
 /// @param options      the subcommand options; `baker` is read
-/// @param manifest     the validated manifest; `budget` and `textures` are read
+/// @param manifest     the validated manifest; `budget.pccl` is read, and the manifest goes on to the plan and the bakers
 /// @param paths        the disc directory and the build tree's asset directories
 /// @param destination  decides whether scripts stay .lua or become .luac
 /// @param plan         receives the planned archive

@@ -13,6 +13,8 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_models/rv_mppcmod.hpp"
 #include "pdklib/rv_models/rv_mppcmod_gltf.hpp"
+#include "pdklib/rv_models/rv_mppcmod_int.hpp"
+#include "pdklib/rv_models/rv_mppcmod_quant.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 namespace
@@ -56,12 +58,11 @@ struct modbaker_args {
 void print_usage(std::FILE *out)
 {
     rv_pdklib::rv_fprintf(out,
-        "usage: mppcmodbaker <input.glb> <output.mppcmod>\n"
+        "usage: mppcmodbaker <input.glb|input.gltf> <output.mppcmod>\n"
         "\n"
-        "  A glTF 2.0 model (.glb, as Blender exports it) is baked to a .mppcmod. Its\n"
-        "  embedded PNG textures are written beside the output as <stem>-<n>.png; the\n"
-        "  parts name them <stem>-<n>.mppctex. JPEG textures and external image files\n"
-        "  are refused.\n"
+        "  A glTF 2.0 model is baked to a .mppcmod: a .glb, or a .gltf whose .bin and PNG files\n"
+        "  are named by relative URIs ('..' allowed). Each PNG texture is written beside the\n"
+        "  output as <stem>-<n>.png; the parts name them <stem>-<n>.mppctex. JPEG textures are refused.\n"
         "\n"
         "mppcmodbaker --version prints one line, `mppcmodbaker <major>.<minor>`.\n");
 }
@@ -167,15 +168,20 @@ int run(int argc, char **argv)
         return report(error);
     }
 
-    rv_pdklib::rv_mppcmod model;
+    rv_pdklib::rv_mppcmod_q16_model model;
     std::vector<rv_pdklib::rv_mppcmod_gltf_image> images;
     std::string bake_error;
     if (rv_pdklib::rv_mppcmod_read_gltf(args.input, stem, model, images, bake_error) != RV_OK) {
         error.message = bake_error;
         return report(error);
     }
+    rv_pdklib::rv_mppcmod_int_model int_model;
+    if (rv_pdklib::rv_mppcmod_quantize(model, int_model, bake_error) != RV_OK) {
+        error.message = "'" + args.input + "' " + bake_error;
+        return report(error);
+    }
     std::vector<uint8_t> bytes;
-    if (rv_pdklib::rv_mppcmod_write(model, &bytes, bake_error) != RV_OK) {
+    if (rv_pdklib::rv_mppcmod_int_write(int_model, &bytes, bake_error) != RV_OK) {
         error.message = "'" + args.input + "' " + bake_error;
         return report(error);
     }
@@ -186,14 +192,15 @@ int run(int argc, char **argv)
         return report(error);
     }
 
-    std::printf("%s: %s -> %s (%zu parts, %zu vertices, %zu triangles, %zu PNG)\n",
+    std::printf("%s: %s -> %s (%zu parts, %zu vertices, %zu triangles, %zu PNG, vertex shift %d)\n",
         RV_MODBAKER_PROGNAME,
         args.input.c_str(),
         args.output.c_str(),
         model.parts.size(),
         model.vertices.size(),
         model.triangles.size(),
-        images.size());
+        images.size(),
+        static_cast<int>(int_model.shift));
     return RV_MODBAKER_EXIT_SUCCESS;
 }
 

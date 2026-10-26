@@ -1,0 +1,59 @@
+[disc]
+id = "example-lua-bare"
+title = "mppcdisc example with lua: bare"
+
+[build]
+sources = ["src/*.cpp"]
+
+[scripts]
+sources = ["scripts/*.lua"]
+
+[assets]
+# Each found file is baked by its kind, from its extension: .wav is a sound (baked to .pcm); .gltf is a model
+# with its .bin and PNG pictures (most in assets/tex, street_16's beside it in assets/models), baked to .mppcmod.
+files = ["assets/snd/*.wav", "assets/models/*.gltf"]
+
+[assets.texture]
+# The format each PNG picture of a model is baked in; idx8 is the default, so this section may be absent.
+format = "idx8"
+
+[budget.pcca]
+voice_count = 24
+# The same 1 MiB Solid Maid declares (solid-maid/disc.toml [budget.pcca]); music slots, clack and loops fit in it.
+sound_memory_size = 1048576
+
+[budget.pccv]
+screen_width = 320
+screen_height = 240
+texture_max_width = 256
+texture_max_height = 256
+video_memory_size = 1048576
+frame_capacity = 4096
+ot_bucket_count = 1024
+
+[budget.pccg]
+model_memory_size = 524288
+# Worst frame: 2568 triangles (each model once, model counts: factory 1324, street_16 404, yard 140, house_7 260,
+# apartment 160, machines 144, furniture 76, lamp 28, lamp_light 12, glyphs 16, board and halo 2 each) + 3 x 40
+# for the three extra lamp instances (lamp 28 and lit lamp_light 12) = 2688 <= 4096.
+triangle_capacity = 4096
+
+[budget.pccio]
+iport_count = 2
+
+[budget.pccm]
+card_slots = 16
+card_slot_size = 8192
+
+[budget.pccl]
+# 1 MiB for the whole VM. The state holds the scene copied into plain tables: the meshes,
+# the cam_NN keys, the lamps and the board's world. Module locals hold the music read buffer.
+# Two tables are temporary, built and dropped inside disc_initialize: the route's eyes for the
+# whole period (three arrays of 4320 numbers, for the lamp schedule) and the period's areas
+# (4320 numbers, for the sound init). The music's span starts stay in the state. The modules
+# and the per-frame garbage of cdata (rv_cg_put, int64 returns) and rv_cg_camera are left to
+# the ordinary collector. Measured lua_used over 4400 stepped frames with the music and loops:
+# about 370 to 710 KB (decimal) over three runs, which differ by up to 15 KB; the peak falls in the
+# first frames after disc_initialize (frame 6 or 7), as the collector runs.
+script_memory_size = 1048576
+script_entry = "example-lua-bare.luac"

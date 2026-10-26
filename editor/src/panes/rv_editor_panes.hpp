@@ -4,7 +4,10 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <SDL3/SDL.h>
 #include "imgui.h"
@@ -12,6 +15,7 @@
 #include "app/rv_editor_app.hpp"
 #include "app/rv_editor_scene_tabs.hpp"
 #include "nvim/rv_editor_nvim_grid.hpp"
+#include "panes/rv_editor_scene_actions.hpp"
 #include "theme/rv_editor_theme.hpp"
 
 namespace rv_editor
@@ -23,11 +27,12 @@ struct rv_editor_ui_port;
 // The panes that look at the editor's models. Each draws into the current ImGui
 // window and changes the models only through rv_editor_app's commands.
 
-// Shared by more than one pane: dimmed wrapped text, a clock reading, one row
-// of a two-column facts table.
-void rv_editor_dim(const std::string &text);
+// Shared by more than one pane: a clock reading (session, observe) and a row of a
+// two-column facts table (session, observe, build_result).
+// rv_editor_dim: dimmed wrapped text, pane_session only.
+void rv_editor_dim(const std::string &text, const rv_editor_theme &theme);
 std::string rv_editor_clock(std::chrono::system_clock::time_point at);
-void rv_editor_fact(const char *label, const std::string &value);
+void rv_editor_fact(const char *label, const std::string &value, const rv_editor_theme &theme);
 
 // Build, Run/Resume, Pause, Step, Stop and the session's state on one row that
 // wraps when narrow; Open Project without a project.
@@ -137,22 +142,46 @@ void rv_editor_pane_scene(rv_editor_app &app,
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
 // The New Scene area at the top of the Scene pane while it is asked for (menu_scene.cpp).
 void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
-// A scene tab for `path` (a PNG or a sound: .png, .wav, .pcm), with a sound's duration read
-// now; nullopt for any other file (pane_scene_tabs.cpp).
+// A scene tab for `path` (a PNG, a sound or a model: .png, .wav, .pcm, .gltf, .glb), with a
+// sound's duration read now; nullopt for any other file (pane_scene_tabs.cpp).
 std::optional<rv_editor_scene_tab> rv_editor_scene_tab_build(const std::filesystem::path &path);
+// Opens `path` in the Scene tile when it has a tab view: queues the tab, moves the layout
+// to scene and shows the Scene tile. False, with nothing queued, for any other file.
+bool rv_editor_scene_tab_open(rv_editor_app &app, const rv_editor_ui_port &ui, const std::filesystem::path &path);
 // Draws the Scene tile's tab strip (only when a tab is open) and, when the front
-// tab is a picture or a sound, its content. True when the scene viewport belongs
-// in front instead (no tabs open, or the scene tab is in front). The front tab
-// and Close Tab are queued on `ui` (rv_editor_ui_request).
+// tab is a picture, a sound or a model, its content. True when the scene part belongs
+// in front instead (the viewport, or the no-pdkkit note on a bare disc): no tabs open,
+// or the scene tab is in front. The front tab and Close Tab are queued on `ui` (rv_editor_ui_request).
 bool rv_editor_scene_tabs_draw(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui);
+// A model tab (.gltf/.glb) of the Scene tile: the model drawn textured through its own camera, which
+// the mouse and keys move (rv_editor_scene_tab_model.cpp). Its camera is kept per absolute path.
+void rv_editor_scene_tab_model(SDL_Renderer *renderer, const rv_editor_scene_tab &tab, const rv_editor_theme &theme);
 // Hierarchy and the scene's Inspector; rv_editor_scene_keys takes Ctrl+Z, Ctrl+Shift+Z,
 // Delete and Ctrl+D for the scene while the calling pane has the keyboard.
-void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme);
-void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme);
-void rv_editor_scene_keys(rv_editor_app &app);
+void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// A mesh object's Pieces node under its row: its model's pieces, picked by click (rv_editor_pane_hierarchy_pieces.cpp).
+void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o, const rv_editor_theme &theme);
+// Hierarchy's shelf: Add opens the kinds menu, then the command buttons (rv_editor_pane_hierarchy_actions.cpp).
+void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// What the commands act on, with Clear Picks when pieces are picked (rv_editor_pane_hierarchy_actions.cpp).
+void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// Runs an action on a copy of the Scene camera, queuing a changed camera (rv_editor_pane_hierarchy_actions.cpp).
+void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv_editor_scene_action action);
+// The object kinds the Add menus offer, in menu order, and the label each one shows.
+// The label points into `kind` (except mesh's "model"): it lives only as long as `kind`.
+std::span<const std::string_view> rv_editor_hierarchy_kinds();
+const char *rv_editor_scene_kind_label(const std::string &kind);
+void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// The snapshot's description records when it is loaded, else nullptr: the built-ins apply (rv_editor_pane_scene_fields.cpp).
+const std::vector<rv_pdkkit::ecs_component_record> *rv_editor_descs_records(const rv_editor_app &app);
+// The components of the object at `at`, each a section of its fields by their descriptions (rv_editor_pane_scene_fields.cpp).
+void rv_editor_inspector_fields(rv_editor_app &app, const rv_editor_theme &theme, size_t at);
+// The selected object's entity type, Visible and Add component (rv_editor_pane_scene_components.cpp).
+void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &theme, const std::string &id, bool read_only);
+void rv_editor_scene_keys(rv_editor_app &app, const rv_editor_ui_port &ui);
 // The Scene viewport, and the Scene Toolchest's tools it uses.
 void rv_editor_scene_viewport(rv_editor_app &app,
     SDL_Renderer *renderer,

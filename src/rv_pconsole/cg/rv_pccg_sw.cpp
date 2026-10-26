@@ -1,14 +1,15 @@
 #include "rv_pconsole/cg/rv_pccg_sw.hpp"
 
 #include <algorithm>
-#include <array>
-#include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
 
 namespace rv_3dmppc
@@ -24,13 +25,13 @@ constexpr int64_t RV_PCCG_SW_FIRST_ADDR = 16;
 // The bytes a model costs against model_memory_size: its .mppcmod size, field by field
 // as the format lays it out. The budget is in the burner's units, so a model that fits
 // a disc fits the console; the decoded copy kept in host memory is not what is charged.
-int64_t model_cost(const rv_pdklib::rv_mppcmod &model)
+int64_t model_cost(const rv_pdklib::rv_mppcmod_int_model &model)
 {
-    int64_t bytes = rv_pdklib::rv_mppcmod_header_size;
+    int64_t bytes = rv_pdklib::rv_mppcmod_int_header_size;
     for (const rv_pdklib::rv_mppcmod_part &part : model.parts) {
         bytes += rv_pdklib::RV_MPPCMOD_PART_FIXED_BYTES + static_cast<int64_t>(part.texture.size());
     }
-    bytes += static_cast<int64_t>(model.vertices.size()) * rv_pdklib::RV_MPPCMOD_VERT_BYTES;
+    bytes += static_cast<int64_t>(model.vertices.size()) * rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES;
     bytes += static_cast<int64_t>(model.triangles.size()) * rv_pdklib::rv_mppcmod_triangle_bytes;
     return bytes;
 }
@@ -39,7 +40,7 @@ int64_t model_cost(const rv_pdklib::rv_mppcmod &model)
 // with no part is valid, so no part is counted. Every accepted model costs at least this,
 // so the record array sized from it is never outgrown.
 constexpr int64_t RV_PCCG_SW_MIN_MODEL_BYTES =
-    rv_pdklib::rv_mppcmod_header_size + rv_pdklib::RV_MPPCMOD_VERT_BYTES + rv_pdklib::rv_mppcmod_triangle_bytes;
+    rv_pdklib::rv_mppcmod_int_header_size + rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES + rv_pdklib::rv_mppcmod_triangle_bytes;
 
 // The most models model_memory_size can hold, each costing at least the minimum.
 int64_t max_models(int64_t model_memory_size)
@@ -53,47 +54,57 @@ int64_t ceil_div(int64_t a, int64_t b)
 }
 
 // The most host bytes any one record kind takes per .mppcmod byte, rounded up to a whole
-// number so the bound is an integer. A part is the decoded rv_mppcmod_part plus its
-// resident texture entry against the 12 fixed bytes. Its name, once it outgrows the
-// string's inline buffer, takes len+1 heap bytes; the +1 is taken at zero length, which
-// bounds every length since (A+1+len)/(12+len) never exceeds (A+1)/12. Vertices and
-// triangles are the struct size against their record size.
+// number so the bound is an integer. Counted: the struct sizes and the heap bytes of every
+// name, len+1 each (an over-count for a name inside the inline buffer). Not counted:
+// allocator overhead.
+// A part is C = sizeof(rv_mppcmod_part) + sizeof(rv_pccg_part_texture), plus the heap bytes
+// of its name, len+1, against the 12 fixed bytes. The +1 is taken at zero length, which
+// bounds every length since (C+1+len)/(12+len) never exceeds (C+1)/12 for C >= 11.
+// Vertices and triangles are their struct sizes against their record size.
 int64_t host_bytes_per_file_byte()
 {
-    const int64_t part = ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_part) + sizeof(rv_pccg_part_texture) + 1),
-        rv_pdklib::RV_MPPCMOD_PART_FIXED_BYTES);
+    const int64_t part_bytes = static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_part) + sizeof(rv_pccg_part_texture) + 1);
+    const int64_t part = ceil_div(part_bytes, rv_pdklib::RV_MPPCMOD_PART_FIXED_BYTES);
     const int64_t vertex =
-        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_vertex)), rv_pdklib::RV_MPPCMOD_VERT_BYTES);
+        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_int_vertex)), rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES);
     const int64_t triangle =
         ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_triangle)), rv_pdklib::rv_mppcmod_triangle_bytes);
     return std::max({ part, vertex, triangle });
 }
 
-// A NaN or an inf in eye, target or up poisons the projection as surely as a bad fov or
-// plane, so all twelve floats are refused together.
-bool camera_finite(const rv_cg_camera &camera)
-{
-    const std::array<float, 12> values = { camera.eye.x,
-        camera.eye.y,
-        camera.eye.z,
-        camera.target.x,
-        camera.target.y,
-        camera.target.z,
-        camera.up.x,
-        camera.up.y,
-        camera.up.z,
-        camera.fov_y,
-        camera.near_plane,
-        camera.far_plane };
-    return std::all_of(values.begin(), values.end(), [](float value) {
-        return std::isfinite(value);
-    });
-}
-
 // One texture entry per part, in part order: the rule model_upload and model_textures_set share.
-bool textures_per_part(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures)
+bool textures_per_part(const rv_pdklib::rv_mppcmod_int_model &model, std::span<const rv_pccg_part_texture> textures)
 {
     return textures.size() == model.parts.size();
+}
+
+// rv_cg_camera and rv_gte_camera are the same fields in the same layout, so the console copies
+// the disc's camera whole. The asserts keep that true if either header changes.
+static_assert(sizeof(rv_cg_matrix) == sizeof(rv_pdklib::rv_gte_matrix), "rv_cg_matrix must match rv_gte_matrix");
+static_assert(sizeof(rv_cg_camera) == sizeof(rv_pdklib::rv_gte_camera), "rv_cg_camera must match rv_gte_camera");
+static_assert(offsetof(rv_cg_matrix, r) == offsetof(rv_pdklib::rv_gte_matrix, r), "rv_cg_matrix: r offset");
+static_assert(offsetof(rv_cg_matrix, t) == offsetof(rv_pdklib::rv_gte_matrix, t), "rv_cg_matrix: t offset");
+static_assert(offsetof(rv_cg_camera, view) == offsetof(rv_pdklib::rv_gte_camera, view), "rv_cg_camera: view offset");
+static_assert(offsetof(rv_cg_camera, h) == offsetof(rv_pdklib::rv_gte_camera, h), "rv_cg_camera: h offset");
+static_assert(offsetof(rv_cg_camera, near_plane) == offsetof(rv_pdklib::rv_gte_camera, near_plane),
+    "rv_cg_camera: near offset");
+static_assert(offsetof(rv_cg_camera, far_plane) == offsetof(rv_pdklib::rv_gte_camera, far_plane), "rv_cg_camera: far offset");
+
+// rv_gte_depth_key takes count * (far minus near) and refuses above gte_key_span_max. A triangle takes
+// RV_PCCG_SW_TRI_CORNERS points, so a larger span would refuse every triangle of the frame. out is untouched on error.
+int gte_camera_copy(const rv_cg_camera &camera, rv_pdklib::rv_gte_camera &out)
+{
+    const int64_t span = static_cast<int64_t>(camera.far_plane) - camera.near_plane;
+    const int64_t triangle_span = span * RV_PCCG_SW_TRI_CORNERS;
+    if (triangle_span > rv_pdklib::gte_key_span_max) {
+        RV_LOG_WARN("pccg",
+            "camera refused: three times far minus near is {} in Q20.12, above the depth key span {}",
+            triangle_span,
+            rv_pdklib::gte_key_span_max);
+        return RV_ERR_INVAL;
+    }
+    std::memcpy(&out, &camera, sizeof(out));
+    return RV_OK;
 }
 
 } // namespace
@@ -169,22 +180,29 @@ int64_t rv_pccg_sw::frame_camera(const rv_cg_camera *camera)
 {
     const bool absent = camera == nullptr;
     if (absent) {
+        RV_LOG_WARN("pccg", "camera refused: no camera");
         return RV_ERR_INVAL;
     }
-    const bool not_finite = !camera_finite(*camera);
-    if (not_finite) {
-        return RV_ERR_INVAL;
-    }
-    // Written as "not greater than zero" so a NaN is refused as well.
-    const bool bad_fov = !(camera->fov_y > 0.0f);
-    if (bad_fov) {
-        return RV_ERR_INVAL;
-    }
-    const bool bad_planes = !(camera->near_plane > 0.0f && camera->near_plane < camera->far_plane);
+    const bool bad_planes = camera->near_plane <= 0 || camera->near_plane >= camera->far_plane;
     if (bad_planes) {
+        RV_LOG_WARN("pccg", "camera refused: the planes are not 0 < near < far");
         return RV_ERR_INVAL;
     }
-    camera_ = *camera;
+    const bool bad_h = camera->h < 1;
+    if (bad_h) {
+        RV_LOG_WARN("pccg", "camera refused: h is below 1 px");
+        return RV_ERR_INVAL;
+    }
+    int32_t height = 0;
+    if (rv_pccg_sw_screen_side(cv_.screen_height(), height) != RV_OK) {
+        RV_LOG_WARN("pccg", "camera refused: the screen height is outside (0, INT32_MAX]");
+        return RV_ERR_INVAL;
+    }
+    rv_pdklib::rv_gte_camera gte_camera = {};
+    if (gte_camera_copy(*camera, gte_camera) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    gte_camera_ = gte_camera;
     camera_set_ = true;
     return RV_OK;
 }
@@ -197,7 +215,7 @@ void rv_pccg_sw::frame_reset()
     triangles_ = 0;
 }
 
-int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures)
+int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod_int_model &model, std::span<const rv_pccg_part_texture> textures)
 {
     const bool texture_per_part = textures_per_part(model, textures);
     if (!texture_per_part) {
@@ -209,7 +227,7 @@ int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod &model, std::span<c
         return RV_ERR_INVAL;
     }
     std::string error;
-    const int format_rc = rv_pdklib::rv_mppcmod_validate(model, error);
+    const int format_rc = rv_pdklib::rv_mppcmod_int_validate(model, error);
     if (format_rc != RV_OK) {
         RV_LOG_WARN("pccg", "model refused: {}", error);
         return RV_ERR_INVAL;
@@ -234,9 +252,9 @@ int64_t rv_pccg_sw::model_textures_set(int64_t addr, std::span<const rv_pccg_par
         RV_LOG_WARN("pccg", "textures refused: no model at address {}", addr);
         return RV_ERR_INVAL;
     }
-    const bool texture_per_part = textures_per_part(it->model, textures);
+    const bool texture_per_part = textures_per_part(it->int_model, textures);
     if (!texture_per_part) {
-        RV_LOG_WARN("pccg", "textures refused: {} texture(s) for {} part(s)", textures.size(), it->model.parts.size());
+        RV_LOG_WARN("pccg", "textures refused: {} texture(s) for {} part(s)", textures.size(), it->int_model.parts.size());
         return RV_ERR_INVAL;
     }
     // Only the texture entries change: the bytes charged and the record's address stay.

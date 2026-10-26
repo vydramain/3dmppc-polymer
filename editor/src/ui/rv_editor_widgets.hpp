@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <map>
+#include <optional>
 #include <string>
 
 #include "layout/rv_editor_tile.hpp"
@@ -9,6 +10,8 @@
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_icons.hpp"
 #include "ui/rv_editor_widget_item.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -43,6 +46,14 @@ bool rv_editor_letter_button(const char *id,
     const char *code,
     uint32_t color,
     const char *tooltip,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state = {});
+// A letter_button that stays pressed while *on; a click flips *on.
+bool rv_editor_letter_toggle(const char *id,
+    const char *code,
+    uint32_t color,
+    const char *tooltip,
+    bool *on,
     const rv_editor_theme &theme,
     const rv_editor_state &state = {});
 
@@ -87,9 +98,24 @@ bool rv_editor_text_field(const char *label,
     size_t size,
     const rv_editor_theme &theme,
     const rv_editor_field &field = {});
+// A multi-line field `lines` text lines tall (plus its frame padding), as wide as the
+// item width; ImGui scrolls it. The markers sit on its first line.
+bool rv_editor_text_area(const char *label,
+    char *buf,
+    size_t size,
+    float lines,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field = {});
+// Int and 64-bit spinners: true on every change, by an arrow or by typing. The last ImGui
+// item is the layout Dummy, so IsItemDeactivatedAfterEdit() does not describe the edit.
 bool rv_editor_spinner(const char *label,
     int *value,
     int step,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field = {});
+bool rv_editor_spinner(const char *label,
+    int64_t *value,
+    int64_t step,
     const rv_editor_theme &theme,
     const rv_editor_field &field = {});
 bool rv_editor_dropdown(const char *label,
@@ -114,15 +140,87 @@ void rv_editor_shelf_begin(const char *id, const rv_editor_theme &theme);
 void rv_editor_shelf_end();
 
 // A child region with the inset background and a sunken bevel, for a pane's
-// content (trees, lists, the Game picture, inspector fields, logs). `size`
-// works as for BeginChild: 0 fills what is left. `flags` pass through.
+// content. `size` works as for BeginChild: 0 fills what is left. Unless `flags`
+// has NoScrollbar, the content scrolls in a Motif area (rv_editor_scroll_begin);
+// in scroll mode only HorizontalScrollbar of `flags` is used (it allows the horizontal bar).
 // Always pair with the end call.
 bool rv_editor_well_begin(const char *id, ImVec2 size, const rv_editor_theme &theme, ImGuiWindowFlags flags = 0);
 void rv_editor_well_end();
 
+// --- trees --------------------------------------------------------------------
+
+// How a tree row looks and opens. `open` is set this frame and opens or closes
+// the branch; `default_open` applies on first use only.
+struct rv_editor_tree_style {
+    bool leaf = false;    // no arrow
+    bool no_push = false; // no children: ImGui pushes no id, so nothing to pop
+    bool selected = false;
+    bool dim = false; // label in text_disabled; the caller says why (hidden, left out)
+    bool default_open = false;
+    bool open_on_double_click = false; // a double click opens too, as the arrow does
+    bool lines = false;                // lines down to the children
+    std::optional<bool> open;
+};
+
+// What the row did. `open` is true when the caller draws the children and calls
+// rv_editor_tree_pop. Drag source, drop target and context menu come after this
+// call; the row is the last item it leaves. A frozen look reports no click or toggle.
+struct rv_editor_tree_result {
+    bool open = false;
+    bool clicked = false;       // left click on the label, not the arrow
+    bool right_clicked = false; // right click on the row
+    bool toggled = false;       // the arrow or a double click opened or closed the branch
+};
+
+// A tree row: ImGui's TreeNodeEx in the theme's colours. Opens by the arrow, or by
+// a double click when the style says so.
+rv_editor_tree_result rv_editor_tree_row(const char *id,
+    const char *label,
+    const rv_editor_theme &theme,
+    const rv_editor_tree_style &style = {},
+    const rv_editor_state &state = {});
+void rv_editor_tree_pop();
+
+// --- lists --------------------------------------------------------------------
+
+// How a list row looks. `height` 0 is the usual line height. `dim` only dims the label
+// (text_disabled); a dim row is not disabled and has no tooltip. `span_columns` spans
+// every table column; `overlap` lets the next items overlap the row.
+struct rv_editor_list_style {
+    bool selected = false;
+    bool dim = false;
+    bool span_columns = false;
+    bool overlap = false;
+    float height = 0.0f;
+};
+
+// What the row did. A frozen look or a disabled row reports nothing. Order: the second
+// press of a double click sets double_clicked, and clicked comes on its release, so a
+// double click gives both.
+struct rv_editor_list_result {
+    bool clicked = false;
+    bool double_clicked = false;
+    bool right_clicked = false;
+};
+
+// A list's frame is a well; its scroll area (rv_editor_scroll_begin) gives it the
+// Motif scrollbar. `size` works as for rv_editor_well_begin. Rows go between the two
+// calls; always pair them.
+bool rv_editor_list_begin(const char *id, ImVec2 size, const rv_editor_theme &theme);
+void rv_editor_list_end();
+
+// A list row: ImGui's Selectable in the theme's colours, spanning table columns and
+// letting the next items overlap it as the style says. Drag source and context menu
+// come after this call; the row is the last item it leaves.
+rv_editor_list_result rv_editor_list_row(const char *id,
+    const char *label,
+    const rv_editor_theme &theme,
+    const rv_editor_list_style &style = {},
+    const rv_editor_state &state = {});
+
 // --- panes --------------------------------------------------------------------
-// Trees, lists and tables are ImGui's own (TreeNodeEx, BeginListBox, BeginTable)
-// in the theme's colours; these are the pane pieces ImGui has no public form of.
+// Tables are the editor's own (rv_editor_table_begin); the pane pieces below
+// are the ones ImGui has no public form of.
 
 // Slanted folder tabs, one per label: the front tab in brass, the rest
 // behind it. Returns true when a click moved *active. Non-null `pressed` gets
@@ -279,14 +377,47 @@ int rv_editor_workspace_draw(rv_editor_workspace &ws,
     rv_editor_rect area,
     std::string &error);
 
-// --- status, log, transport, dialogs --------------------------------------------
-// Menus and context menus are ImGui's own (BeginMenuBar, BeginMenu, MenuItem,
-// BeginPopupContextItem) in the theme's colours.
+// --- menus ----------------------------------------------------------------------
+// Menus, popups and context menus are the editor's over ImGui's calls, in the
+// theme's menu colours. OpenPopup stays with the caller: it has no look to give.
 
 // Menus hover in brass, so an open menu keeps its pressed look under the
-// pointer. Every menu bar and popup menu is drawn between these two calls.
+// pointer. The components below use this pair; a popup not yet on them calls it itself.
 void rv_editor_menu_style_push();
 void rv_editor_menu_style_pop();
+
+// Main menu bar; end only when begin returned true (a false begin clears the style).
+bool rv_editor_main_menu_bar_begin();
+void rv_editor_main_menu_bar_end();
+
+// Menu bar of the current window (it needs ImGuiWindowFlags_MenuBar); end only when begin returned true.
+bool rv_editor_menu_bar_begin();
+void rv_editor_menu_bar_end();
+
+// A menu; `why_not` (non-null) disables it and shows the reason on hover. End only when begin returned true.
+bool rv_editor_menu_begin(const char *label, const char *why_not);
+void rv_editor_menu_end();
+
+// A popup opened with OpenPopup(id); end only when begin returned true.
+bool rv_editor_popup_begin(const char *id);
+void rv_editor_popup_end();
+
+// A context menu opened by a right click on `id`; nullptr means the last item. End only when begin returned true.
+bool rv_editor_context_menu_begin(const char *id);
+void rv_editor_context_menu_end();
+
+// Right-click menu of the current window's empty space; end only when begin returned true.
+bool rv_editor_window_context_menu_begin(const char *id);
+void rv_editor_window_context_menu_end();
+
+// A menu item that is disabled with its reason shown on hover.
+bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
+// A menu item with a check mark while *on (not null); a click flips *on. `why_not` as for rv_editor_menu_item.
+bool rv_editor_menu_check(const char *label, const char *shortcut, bool *on, const char *why_not);
+// A choice item marked while `selected`; a click returns true, the caller sets the choice. `why_not` as for menu_item.
+bool rv_editor_menu_choice(const char *label, const char *shortcut, bool selected, const char *why_not);
+
+// --- status, log, transport, dialogs --------------------------------------------
 
 enum class rv_editor_status_kind {
     idle,

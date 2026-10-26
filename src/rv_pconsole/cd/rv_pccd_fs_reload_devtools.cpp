@@ -35,9 +35,6 @@ int64_t rv_pccd_fs::asset_reload(const char *resname, rv_cd_resource_kind &kind_
         kind_out = RV_CD_RESOURCE_AUDIO;
         return RV_PCCD_UNSUPPORTED_KIND;
     }
-    if (scene_by_name_.find(key) != scene_by_name_.end()) {
-        return RV_PCCD_SCENE_RESIDENT;
-    }
     return RV_PCCD_NOT_RESIDENT;
 }
 
@@ -126,9 +123,6 @@ int64_t rv_pccd_fs::asset_refresh(const char *resname, const void *bytes, int64_
     if (audio_by_name_.find(key) != audio_by_name_.end()) {
         kind_out = RV_CD_RESOURCE_AUDIO;
         return RV_PCCD_UNSUPPORTED_KIND;
-    }
-    if (scene_by_name_.find(key) != scene_by_name_.end()) {
-        return RV_PCCD_SCENE_RESIDENT;
     }
     return RV_PCCD_NOT_RESIDENT;
 }

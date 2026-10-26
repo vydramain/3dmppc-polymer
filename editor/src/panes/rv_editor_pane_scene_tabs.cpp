@@ -1,6 +1,6 @@
-// The Scene tile's tabs: the scene itself in front, PNGs and sounds opened
-// from Assets beside it, each a further tab (mirrors the Assets preview strip's
-// look for a picture and a player, without touching that file).
+// The Scene tile's tabs: the scene itself in front, PNGs, sounds and models
+// opened from Assets beside it, each a further tab (a picture and a player
+// mirror the Assets preview strip's look, without touching that file).
 
 #include "panes/rv_editor_panes.hpp"
 
@@ -34,6 +34,10 @@ constexpr std::string_view png_extension = ".png";
 constexpr std::string_view wav_extension = ".wav";
 constexpr std::string_view pcm_extension = ".pcm";
 
+// Model file extensions (glTF text and binary).
+constexpr std::string_view gltf_extension = ".gltf";
+constexpr std::string_view glb_extension = ".glb";
+
 // Path escape indicator: relative path goes outside project root.
 constexpr std::string_view path_escape_indicator = "..";
 
@@ -45,6 +49,8 @@ constexpr struct {
     { png_extension, rv_editor_scene_tab_kind::picture },
     { wav_extension, rv_editor_scene_tab_kind::sound },
     { pcm_extension, rv_editor_scene_tab_kind::sound },
+    { gltf_extension, rv_editor_scene_tab_kind::model },
+    { glb_extension, rv_editor_scene_tab_kind::model },
 };
 
 std::optional<rv_editor_scene_tab_kind> rv_editor_scene_tab_kind_for(std::string_view ext)
@@ -76,7 +82,10 @@ std::string rv_editor_scene_tab_rel(const rv_editor_app &app, const std::filesys
     return rel.generic_string();
 }
 
-void rv_editor_scene_tab_picture(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_scene_tab &tab)
+void rv_editor_scene_tab_picture(rv_editor_app &app,
+    SDL_Renderer *renderer,
+    const rv_editor_scene_tab &tab,
+    const rv_editor_theme &theme)
 {
     rv_editor_asset a;
     a.path = tab.path;
@@ -84,21 +93,24 @@ void rv_editor_scene_tab_picture(rv_editor_app &app, SDL_Renderer *renderer, con
     const rv_editor_icon picture = rv_editor_asset_picture(renderer, a);
     if (picture.id == ImTextureID{}) {
         const std::string error_msg = rv_editor_text_format("pane_scene_tabs.error_picture_load", std::make_format_args(a.rel));
-        ImGui::TextWrapped("%s", error_msg.c_str());
+        rv_editor_label(error_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         return;
     }
     const std::string picture_info =
         rv_editor_text_format("pane_scene_tabs.picture_info", std::make_format_args(picture.w, picture.h, a.rel));
-    ImGui::Text("%s", picture_info.c_str());
+    rv_editor_label(picture_info.c_str(), rv_editor_label_kind::normal, theme);
     const ImVec2 room = ImGui::GetContentRegionAvail();
     ImGui::Image(picture.id, rv_editor_fit_picture(picture, room.x, room.y));
 }
 
 void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_theme &theme)
 {
-    ImGui::Text("%s", tab.path.filename().string().c_str());
+    const std::string file_name = tab.path.filename().string();
+    rv_editor_label(file_name.c_str(), rv_editor_label_kind::normal, theme);
     const double sound_seconds = tab.sound_seconds;
-    ImGui::Text("%s", rv_editor_text_format("pane_scene_tabs.sound_seconds", std::make_format_args(sound_seconds)).c_str());
+    const std::string seconds_text =
+        rv_editor_text_format("pane_scene_tabs.sound_seconds", std::make_format_args(sound_seconds));
+    rv_editor_label(seconds_text.c_str(), rv_editor_label_kind::normal, theme);
     const bool playing_this = rv_editor_sound_playing() && rv_editor_sound_path() == tab.path;
     if (rv_editor_button(rv_editor_text("pane_scene_tabs.button_play"), theme)) {
         std::string error;
@@ -114,10 +126,13 @@ void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_t
     }
     if (playing_this) {
         ImGui::SameLine();
-        ImGui::TextDisabled("%s", rv_editor_text("pane_scene_tabs.status_playing"));
+        rv_editor_label(rv_editor_text("pane_scene_tabs.status_playing"), rv_editor_label_kind::dim, theme);
     }
     if (rv_editor_scene_sound_last_error.path == tab.path && !rv_editor_scene_sound_last_error.text.empty()) {
-        ImGui::TextWrapped("%s", rv_editor_scene_sound_last_error.text.c_str());
+        rv_editor_label(rv_editor_scene_sound_last_error.text.c_str(),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::wrap);
     }
 }
 
@@ -154,6 +169,18 @@ std::optional<rv_editor_scene_tab> rv_editor_scene_tab_build(const std::filesyst
     return tab;
 }
 
+bool rv_editor_scene_tab_open(rv_editor_app &app, const rv_editor_ui_port &ui, const std::filesystem::path &path)
+{
+    const std::optional<rv_editor_scene_tab> tab = rv_editor_scene_tab_build(path);
+    if (!tab) {
+        return false;
+    }
+    ui.requests.push_back({ .kind = rv_editor_ui_request_kind::open_scene_tab, .scene_tab = *tab });
+    app.layout_request = rv_editor_layout_preset::scene;
+    app.show_request = rv_editor_pane_kind::scene;
+    return true;
+}
+
 bool rv_editor_scene_tabs_draw(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
@@ -185,20 +212,16 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
     if (ImGui::IsMouseHoveringRect(row_min, ImGui::GetItemRectMax()) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
         ImGui::OpenPopup("##scene_tabmenu");
     }
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopup("##scene_tabmenu")) {
+    if (rv_editor_popup_begin("##scene_tabmenu")) {
         const bool closable = front > 0;
-        if (ImGui::MenuItem(rv_editor_text("pane_scene_tabs.menu_close_tab"), nullptr, false, closable)) {
+        const char *why_not = closable ? nullptr : rv_editor_text("pane_scene_tabs.tooltip_scene_stays_front");
+        if (rv_editor_menu_item(rv_editor_text("pane_scene_tabs.menu_close_tab"), nullptr, why_not)) {
             rv_editor_scene_tab_stop_sound(st.tabs[static_cast<size_t>(front - 1)]);
             ui.requests.push_back({ .kind = rv_editor_ui_request_kind::close_scene_tab, .scene_tab_index = front });
             front = 0; // the scene shows this frame, as the close is applied after the draw
         }
-        if (!closable && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip("%s", rv_editor_text("pane_scene_tabs.tooltip_scene_stays_front"));
-        }
-        ImGui::EndPopup();
+        rv_editor_popup_end();
     }
-    rv_editor_menu_style_pop();
 
     if (front == 0) {
         // rv_editor_flow's first call below looks at the last item's rect to
@@ -208,10 +231,16 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
         return true;
     }
     const rv_editor_scene_tab &tab = st.tabs[static_cast<size_t>(front - 1)];
-    if (tab.kind == rv_editor_scene_tab_kind::picture) {
-        rv_editor_scene_tab_picture(app, renderer, tab);
-    } else {
+    switch (tab.kind) {
+    case rv_editor_scene_tab_kind::picture:
+        rv_editor_scene_tab_picture(app, renderer, tab, theme);
+        break;
+    case rv_editor_scene_tab_kind::sound:
         rv_editor_scene_tab_sound(tab, theme);
+        break;
+    case rv_editor_scene_tab_kind::model:
+        rv_editor_scene_tab_model(renderer, tab, theme);
+        break;
     }
     return false;
 }

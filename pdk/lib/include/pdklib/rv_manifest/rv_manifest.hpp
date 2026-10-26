@@ -8,16 +8,6 @@
 namespace rv_pdklib
 {
 
-// One PNG-to-texel conversion rule. `files` are globs relative to the disc
-// directory; `format` is the rv_texfmt to bake into. The manifest spells it as
-// text and the binder turns that text into the enumerator - the accepted
-// spellings are the rows of rv_texfmt_names (pdklib/rv_textures/rv_texfmt_name.hpp) and are not
-// restated anywhere in this tool.
-struct rv_manifest_textures {
-    std::vector<std::string> files;
-    rv_texfmt format;
-};
-
 // --- the defaults -------------------------------------------------------------
 //
 // Every number below IS the reference machine - there is no other copy of
@@ -132,13 +122,15 @@ struct rv_manifest_budget {
 
 struct rv_manifest {
     // [disc]
-    std::string disc_id;    // short machine name, e.g. "example-cpp"
+    std::string disc_id;    // short machine name, e.g. "example-cpp-pdkkit"
     std::string disc_title; // human title for the window and logs
 
     // [build] - globs relative to the disc directory
     std::vector<std::string> build_sources;
     std::vector<std::string> build_defines;
     std::vector<std::string> build_include_dirs;
+    // Names of SDK trees beside the contract (<pdk root>/<name>/include) the disc asks the burner to compile against.
+    std::vector<std::string> build_sdk;
 
     // [scripts] - globs relative lua scripts to the disc directory
     std::vector<std::string> scripts_sources;
@@ -146,15 +138,9 @@ struct rv_manifest {
     // [assets] - globs copied into the archive verbatim
     std::vector<std::string> assets_files;
 
-    // [textures] - globs baked through mppctexbaker on the way in
-    rv_manifest_textures textures_files;
-
-    // [sounds] - WAV globs baked into headerless S16LE mono 44100 "<name>.pcm"
-    // by mppcmusbaker on the way in; no format key yet, there is only one output.
-    std::vector<std::string> sounds_files;
-
-    // [models] - .glb globs baked by mppcmodbaker into "<name>.mppcmod" and its textures
-    std::vector<std::string> models_files;
+    // [assets.texture] - texel format the burner bakes the PNG files of [assets] and the model pictures into;
+    // idx8 is the reference machine's.
+    rv_texfmt assets_texture_format = rv_texfmt::RV_TEXFMT_IDX8;
 
     // [budget]
     rv_manifest_budget budget;

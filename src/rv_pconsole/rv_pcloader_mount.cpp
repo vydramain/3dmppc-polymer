@@ -105,7 +105,7 @@ int64_t read_manifest_text(const rv_zipreader &zip, const char *archive_path, st
 // The console parses the whole manifest with the burner's own parser (one
 // shared schema, rv_pdklib::rv_manifest) but ACTS only on the disc's
 // identity/title, the code entry and [budget.*]; [scripts] sources is read
-// only for the all-or-none check below, and [build], [assets], [textures]
+// only for the all-or-none check below, and [build], [assets], [assets.texture]
 // are never read back out here.
 int64_t parse_manifest(const std::string &manifest_text, const char *archive_path, rv_pdklib::rv_manifest &out_manifest)
 {

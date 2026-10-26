@@ -80,8 +80,9 @@ target_link_libraries(mppcburner PRIVATE libluajit)
 # Stamps every log line with its origin; see pdklib/rv_logs/rv_logs.hpp.
 target_compile_definitions(mppcburner PRIVATE RV_LOG_ORIGIN="tool")
 
-# Copies the contract (pdk/include) and pdklib (pdk/lib/include) into <bindir>/pdk, so
-# the tools package is one portable directory; the burner will take its defaults from there.
+# Copies the contract (pdk/include), pdklib (pdk/lib/include) and pdkkit (pdk/kit/include)
+# into <bindir>/pdk, so the tools package is one portable directory; the burner will take
+# its defaults from there.
 # Runs on every build, not only on relink: a header change the burner does not include
 # still changes the copy the discs are built against. The old copy is removed first, so
 # a header deleted from pdk/ does not survive beside the binary.
@@ -90,6 +91,7 @@ add_custom_target(mppcburner_pdk ALL
   COMMAND ${CMAKE_COMMAND} -E remove_directory $<TARGET_FILE_DIR:mppcburner>/pdk
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/pdk/include $<TARGET_FILE_DIR:mppcburner>/pdk/include
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/pdk/lib/include $<TARGET_FILE_DIR:mppcburner>/pdk/lib/include
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/pdk/kit/include $<TARGET_FILE_DIR:mppcburner>/pdk/kit/include
   VERBATIM
 )
 add_dependencies(mppcburner_pdk mppcburner)

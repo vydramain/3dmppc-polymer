@@ -4,7 +4,8 @@
 
 add_executable(mppcmodbaker mppcmodbaker.cpp
   ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf.cpp
-  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp)
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_image.cpp)
 
 # SYSTEM: cgltf.h is third-party and not warning-clean under -Wextra; the diagnostics
 # of our own code stay standing.

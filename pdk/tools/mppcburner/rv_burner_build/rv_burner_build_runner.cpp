@@ -360,6 +360,12 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return include_err;
     }
 
+    const int sdk_err = resolve_sdk_trees(manifest, options.pdk_dir, absolute_includes, error);
+    if (sdk_err != RV_OK) {
+        rv_burner_print_error("[build] sdk: " + error);
+        return sdk_err;
+    }
+
     // --- the build tree ---
 
     const fs::path project_dir =

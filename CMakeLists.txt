@@ -92,6 +92,17 @@ add_custom_target(check-length
     VERBATIM
 )
 
+# The pdkkit layer boundary is checked by its own target, as check-length is.
+# Run it with: cmake --build <build-dir> --target check-layers
+# See cmake/rv_check_layers.cmake for the rules.
+add_custom_target(check-layers
+    COMMAND ${CMAKE_COMMAND}
+            "-DRV_ROOT=${CMAKE_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_check_layers.cmake"
+    COMMENT "Checking pdkkit layer boundaries"
+    VERBATIM
+)
+
 # --- the contract and pdklib --------------------------------------------------
 # 3dmppc_pdk and 3dmppc_pdklib come from one module the tools and the editor
 # include too; see cmake/pdklib.cmake for what each one is. Discs get pdklib a

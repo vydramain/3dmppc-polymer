@@ -1,7 +1,9 @@
-// Text fields, numeric spinners and dropdowns: ImGui edits the value, the
+// Text fields, text areas, numeric spinners and dropdowns: ImGui edits the value, the
 // editor draws the sunken well, the state frame and the markers.
 
 #include <cmath>
+#include <limits>
+#include <type_traits>
 
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -16,6 +18,8 @@ namespace
 
 // Divisor for vertical centering and half-height calculations.
 constexpr float half_divisor = 2.0f;
+// Top and bottom frame padding a text area adds around its text lines.
+constexpr float frame_padding_sides = 2.0f;
 // Number of ImGui style colors pushed by rv_editor_field_begin.
 constexpr int field_style_colors = 3;
 // Number of spinner arrow buttons (up and down).
@@ -71,7 +75,8 @@ void rv_editor_field_frame(ImDrawList *dl,
 
     const float pad = static_cast<float>(t.pad_px * t.scale);
     const float glyph = ImGui::CalcTextSize(error_marker_glyph).x;
-    const float y = std::floor((min.y + max.y - ImGui::GetFontSize()) / half_divisor);
+    // Centred in the first frame-high band: a one-line field has max.y - min.y of that height.
+    const float y = std::floor(min.y + (ImGui::GetFrameHeight() - ImGui::GetFontSize()) / half_divisor);
     float x = max.x - reserve - pad - glyph;
     if (f.invalid != nullptr) {
         dl->AddText(ImVec2(std::floor(x), y), rv_editor_col(t.error), error_marker_glyph);
@@ -109,26 +114,25 @@ void rv_editor_field_end(const rv_editor_field &f)
     }
 }
 
-} // namespace
-
-bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_editor_theme &theme, const rv_editor_field &field)
+// Adds a step and clamps at the type's limits: a plain add past them overflows a signed value.
+template <typename T>
+T rv_editor_spinner_step(T value, T delta)
 {
-    // Before the call: SetNextItemWidth applies to the next item only.
-    const float width = ImGui::CalcItemWidth();
-    rv_editor_field_begin(theme, field);
-    const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
-    const bool changed = ImGui::InputText(label, buf, size, flags);
-    const ImVec2 min = ImGui::GetItemRectMin();
-    const ImVec2 max(min.x + width, ImGui::GetItemRectMax().y);
-    const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), ImGui::IsItemActive());
-    rv_editor_field_end(field);
-
-    rv_editor_field_frame(ImGui::GetWindowDrawList(), min, max, theme, field, look, 0.0f);
-    return changed;
+    if (delta > 0 && value > std::numeric_limits<T>::max() - delta) {
+        return std::numeric_limits<T>::max();
+    }
+    if (delta < 0 && value < std::numeric_limits<T>::min() - delta) {
+        return std::numeric_limits<T>::min();
+    }
+    return value + delta;
 }
 
-bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_theme &theme, const rv_editor_field &field)
+// Spinner for int and int64_t: a text edit, then the arrows stepping the value.
+template <typename T>
+bool rv_editor_spinner_body(const char *label, T *value, T step, const rv_editor_theme &theme, const rv_editor_field &field)
 {
+    static_assert(std::is_same_v<T, int> || std::is_same_v<T, int64_t>, "spinner value must be int or int64_t");
+    constexpr ImGuiDataType type = std::is_same_v<T, int> ? ImGuiDataType_S32 : ImGuiDataType_S64;
     const float h = ImGui::GetFrameHeight();
     const float width = ImGui::CalcItemWidth();
     ImGui::PushID(label);
@@ -136,7 +140,7 @@ bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_
     rv_editor_field_begin(theme, field);
     ImGui::SetNextItemWidth(width - h);
     const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
-    bool changed = ImGui::InputInt("##value", value, 0, 0, flags);
+    bool changed = ImGui::InputScalar("##value", type, value, nullptr, nullptr, nullptr, flags);
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max = ImGui::GetItemRectMax();
     const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), ImGui::IsItemActive());
@@ -165,8 +169,9 @@ bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_
             down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
         rv_editor_draw_arrow(dl, item.min, item.max, theme, dirs[i], rv_editor_item_text(theme, item));
         if (item.clicked) {
-            *value += i == 0 ? step : -step;
-            changed = true;
+            const T before = *value;
+            *value = rv_editor_spinner_step(before, i == 0 ? step : -step);
+            changed = changed || *value != before;
         }
     }
     // One layout item over the whole spinner, so what follows starts below it.
@@ -175,6 +180,61 @@ bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_
 
     ImGui::PopID();
     return changed;
+}
+
+} // namespace
+
+bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_editor_theme &theme, const rv_editor_field &field)
+{
+    // Before the call: SetNextItemWidth applies to the next item only.
+    const float width = ImGui::CalcItemWidth();
+    rv_editor_field_begin(theme, field);
+    const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
+    const bool changed = ImGui::InputText(label, buf, size, flags);
+    const ImVec2 min = ImGui::GetItemRectMin();
+    const ImVec2 max(min.x + width, ImGui::GetItemRectMax().y);
+    const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), ImGui::IsItemActive());
+    rv_editor_field_end(field);
+
+    rv_editor_field_frame(ImGui::GetWindowDrawList(), min, max, theme, field, look, 0.0f);
+    return changed;
+}
+
+bool rv_editor_text_area(const char *label,
+    char *buf,
+    size_t size,
+    float lines,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field)
+{
+    // Before the call: SetNextItemWidth applies to the next item only.
+    const float width = ImGui::CalcItemWidth();
+    const float height = ImGui::GetTextLineHeight() * lines + ImGui::GetStyle().FramePadding.y * frame_padding_sides;
+    rv_editor_field_begin(theme, field);
+    const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
+    const bool changed = ImGui::InputTextMultiline(label, buf, size, ImVec2(width, height), flags);
+    const ImVec2 min = ImGui::GetItemRectMin();
+    const ImVec2 max = ImGui::GetItemRectMax();
+    const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), ImGui::IsItemActive());
+    rv_editor_field_end(field);
+
+    // Keeps the markers clear of the scrollbar ImGui draws at the right end.
+    rv_editor_field_frame(ImGui::GetWindowDrawList(), min, max, theme, field, look, ImGui::GetStyle().ScrollbarSize);
+    return changed;
+}
+
+bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_theme &theme, const rv_editor_field &field)
+{
+    return rv_editor_spinner_body(label, value, step, theme, field);
+}
+
+bool rv_editor_spinner(const char *label,
+    int64_t *value,
+    int64_t step,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field)
+{
+    return rv_editor_spinner_body(label, value, step, theme, field);
 }
 
 bool rv_editor_dropdown(const char *label,

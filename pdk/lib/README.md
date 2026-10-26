@@ -11,12 +11,14 @@ again in every game.
 | [`pdk/`](../) | the **contract** — the hardware vocabulary | the console **and** every disc |
 | `src/` | the **console** — implements the contract | — |
 | [`mppcdiscs/`](../../mppcdiscs/) | the **discs** — games | `pdk/` + (optionally) `pdklib/` |
-| `pdklib/` | **conveniences for discs**, written *on top of* the contract | discs only, and only if they want to |
+| `pdklib/` | **conveniences**, written *on top of* the contract | the console and mppcburner (link `3dmppc_pdklib`), the editor (through `3dmppc_pdkkit`), mppcmodbaker, mppctexbaker and mppcmusbaker (compile or include it); a disc only if it wants to |
 
-`pdklib/` depends on `pdk/` and the standard library. Nothing else — no `src/`,
-no SDL. The `3dmppc_pdklib` target exposes `pdk/lib/include` publicly and
-compiles the manifest parser from `pdklib/rv_manifest/`; the console tree and
-the tools tree each build that target and link it instead of carrying their own
+`pdklib/` depends on `pdk/` and the standard library. Nothing else: no `src/`, no SDL,
+and no cgltf, except the glTF reader sources (below). The glTF reader's sources (`rv_models/rv_mppcmod_gltf*.cpp`) need cgltf, so
+`cmake/pdklib.cmake` leaves them out of `3dmppc_pdklib`; mppcmodbaker and the editor compile
+them themselves, with cgltf from `third_party/cgltf`. The `3dmppc_pdklib` target exposes
+`pdk/lib/include` publicly and compiles the rest of `pdklib/*.cpp`, the manifest parser among
+them. The console (`3dmppc`, root `CMakeLists.txt`) and mppcburner link it, so they share one
 parser copy.
 
 A burned disc does **not** link it. mppcburner hands the generated disc project
@@ -51,20 +53,26 @@ its own names. Discs are free to write `using namespace rv_pdklib;` in their own
 `rv_3dmppc` appears nowhere in this tree. If it ever does, something from the
 console has been misfiled — see below.
 
-## Why the console does not link it
+## Why the contract does not depend on it
 
-Because `pdklib/` is **not part of the contract**. The console implements `pdk/`;
-it has no business knowing which maths library a disc chose. If the console ever
-needed something from here, that something was misfiled — it belongs in `pdk/`
-(if both sides must agree on it) or in `src/` (if it is the machine's own).
+Because `pdklib/` is **not part of the contract**. The console implements `pdk/` and
+also links `pdklib/`: its software `rv_cg` backend (`src/rv_pconsole/cg/rv_pccg_sw_view.cpp`)
+runs the integer geometry of `rv_gte/`, and `rv_pccg_sw.cpp` asserts that its `rv_cg`
+structs match the `rv_gte` types. If a contract header needed something from here, that
+something was misfiled: it belongs in `pdk/` (if both sides must agree on it) or in `src/`
+(if it is the machine's own).
 
-The direction is one-way and worth stating plainly: `pdklib/` is built *over* the
-contract, never *into* it. Deleting this whole tree must leave the console
-byte-identical and every disc still buildable — merely more tedious to write.
+The direction is one-way: `pdklib/` sits above `pdk/`, and the console, mppcburner and the editor (through `pdkkit`) link it.
+`pdklib/` is built *over* the contract, never *into* it: no header in `pdk/include`
+includes `pdklib/`. Deleting this whole tree would stop the console and the tools from
+building, but the contract would be unchanged, and a disc could still build on `pdk/` alone.
 
-The concrete thing it buys: the console has **no 3D**. `rv_vertex` is a pair of
-screen `int16`, and projection is entirely the disc's job, exactly as the PSX's
-GTE was a coprocessor the programmer drove by hand. `pdklib/` is that hand.
+The concrete thing it buys: `rv_vertex` is still a pair of screen `int16`. The 3D
+stages live in the console's geometry controller, `rv_cg` (`pdk/include/pdk/cg/rv_cg.h`,
+the GTE role of the PSX): it transforms a model by its world matrix and the camera's
+view, cuts triangles at the near plane, culls them and puts them into the frame of
+`rv_cv`, which does not change. `pdklib/` holds the integer mirror of those stages
+(`rv_gte/`), which the console's software backend runs and a disc may run the same way.
 
 ## Why the disc-side parsers do not read files
 
@@ -88,6 +96,9 @@ Same reason there is no image loader here: decoding PNG is an **offline
 authoring** job (`pdk/tools/`), and what ships on a disc is texels the console can
 upload as-is.
 
+The baked model is a file on the disc too: the integer `.mppcmod` layout
+(`rv_models/rv_mppcmod_int.hpp`), which `rv_cg` puts.
+
 ## The headers
 
 | Header | What it holds |
@@ -102,6 +113,16 @@ upload as-is.
 | `pdklib/rv_dscript/rv_dscript.hpp` | `RV_MPPC_DISC_LUA_DEF`; the whole rv_de-hook-to-Lua forwarding, a fixed title and a post-`frame_render` flush. Defines the class only: the disc plants it with pdk's `RV_MPPC_DISC_ENTRY_DEF` |
 | `pdklib/rv_cppdisc/rv_cppdisc.hpp` | `RV_MPPC_DISC_CPP_DEF`; a base class a hand-written C++ disc derives from for the startup guards, MENU-button press-edge tracking, `read_asset()`, the screen's size and the frame plumbing (`frame_begin`/`frame_end`, `texture_resident`, `draw_sprite`) every such disc repeats |
 | `pdklib/rv_manifest/rv_manifest.hpp` | manifest data model plus parse / load / render / validate entry points; the parser implementation is compiled into `3dmppc_pdklib` |
+| `pdklib/rv_gte/rv_gte_matrix.hpp` | integer transform: `rv_gte_matrix` (row-major 4.12 `r`, Q20.12 `t`), compose, point and vertex products |
+| `pdklib/rv_gte/rv_gte_trs.hpp` | integer twin of `rv_scene_local_trs`: T * Ry * Rx * Rz * S, angles snapped to 1/4096 turn |
+| `pdklib/rv_gte/rv_gte_trig.hpp` | integer sin and cos: 4096 steps to a turn, 4.12 results |
+| `pdklib/rv_gte/rv_gte_camera.hpp` | integer camera in Q20.12, the `rv_camera_make` of `rv_camera.hpp` |
+| `pdklib/rv_gte/rv_gte_project.hpp` | integer stages of `rv_xform`: near-plane cut, screen projection, back-face cull, depth key, the console's int16 vertex |
+| `pdklib/rv_models/rv_mppcmod.hpp` | the `.mppcmod` container: header offsets, record and name rules, the float model |
+| `pdklib/rv_models/rv_mppcmod_int.hpp` | the integer `.mppcmod` layout: validate, parse, write |
+| `pdklib/rv_models/rv_mppcmod_quant.hpp` | float to integer model: each value to Q.16 once, then the largest vertex shift that fits int16 |
+| `pdklib/rv_models/rv_mppcmod_gltf_trs.hpp` | glTF node transforms in int64; header-only |
+| `pdklib/rv_models/rv_mppcmod_gltf.hpp`, `rv_mppcmod_gltf_accessor.hpp`, `rv_mppcmod_gltf_image.hpp` | the glTF 2.0 reader with its accessor and image parts (and their `.cpp`); compiled by mppcmodbaker and the editor, never by the console |
 
 Text deserves a word, because its absence from the contract is deliberate. The
 console has no text primitive and never will: on the machine this imitates a
@@ -116,6 +137,8 @@ vertex colour the contract cannot yet modulate.
 - `rv_mat4` is **row-major storage** (`m[row][column]`) applied to **column
   vectors** on the right: `v' = M * v`, translation in the last column,
   composition read right-to-left — `mvp = mul(projection, mul(view, model))`.
+- `rv_gte_matrix` (`rv_gte/rv_gte_matrix.hpp`) follows the same row-major, column-vector
+  rule, `r[row * 3 + col]`, but keeps the translation apart in `t`, not in a last column.
 - Clip space after `rv_perspective`: `w` equals the view-space `z`, and after the
   divide `x, y ∈ [-1, +1]` (`+y` still up), `z ∈ [0, 1]`.
 - Screen mapping flips `y` (the framebuffer's `y` grows down) and **saturates**
@@ -125,9 +148,11 @@ vertex colour the contract cannot yet modulate.
 
 ## Deferred, deliberately
 
-- **Real near-plane clipping.** Today a polygon with any vertex behind the near
-  plane is rejected whole, so a large polygon vanishes the instant one corner
-  passes the eye. Splitting it into new interpolated vertices is future work.
+- **Near-plane clipping in the float path.** `rv_xform_near_reject` (`rv_xform.hpp`)
+  still rejects a whole polygon when any vertex is behind the near plane, so it
+  vanishes the instant one corner passes the eye. The integer path already cuts:
+  `rv_gte_near_clip` (`rv_gte/rv_gte_project.hpp`), used by the console's
+  `rv_pccg_sw_clip_near`.
 - **Inverse-transpose normals** under non-uniform scale.
 - **Quaternions**, frustum culling, and any scene graph — a disc that wants those
   is describing a game engine, and this is not one.

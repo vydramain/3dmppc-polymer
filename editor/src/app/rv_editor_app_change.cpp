@@ -123,6 +123,7 @@ int rv_editor_app_changed_files_apply(rv_editor_app &app)
     app.inputs_changed = true;
     const bool reload_on_save = app.run_config.profiles[app.run_config.active].reload_on_save;
     for (const std::filesystem::path &changed : app.files.changed) {
+        rv_editor_app_descriptions_file_changed(app, changed);
         if (reload_on_save) {
             rv_editor_app_reload_queue_note(app, changed);
         }

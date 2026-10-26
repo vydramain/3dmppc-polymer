@@ -29,8 +29,8 @@
 // the console.
 //
 // It carries the project's `rv_` prefix while a packaged disc (see
-// mppcdiscs/example-cpp, whose namespace is simply `example_cpp`) does not, and
-// the difference is not taste. A packaged disc is compiled with
+// mppcdiscs/example-cpp-pdkkit, whose namespace is simply `example_cpp_pdkkit`)
+// does not, and the difference is not taste. A packaged disc is compiled with
 // -fvisibility=hidden and loaded with RTLD_LOCAL, so nothing but its two
 // extern "C" entry points is visible outside it: two discs could both pick
 // `namespace example_cpp` and never meet. This one is STATICALLY LINKED INTO

@@ -1,17 +1,17 @@
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstdint>
+#include <iterator>
+#include <limits>
 #include <span>
 #include <vector>
 
 #include "pdk/cv/rv_primitives.h"
 #include "pdk/cv/rv_vertex.h"
 #include "pdk/rv_err.h"
-#include "pdklib/rv_camera/rv_camera.hpp"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
+#include "pdklib/rv_gte/rv_gte_project.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "pdklib/rv_math/rv_math.hpp"
-#include "pdklib/rv_math/rv_xform.hpp"
 #include "rv_pconsole/cg/rv_pccg_sw.hpp"
 
 namespace rv_3dmppc
@@ -20,249 +20,206 @@ namespace rv_3dmppc
 namespace
 {
 
-// A vertex in the clip space of one put. The near cut interpolates the colour (0..255 per
-// channel, before the tint) and the glTF uv along with the position.
-struct rv_pccg_sw_clip_vertex {
-    rv_pdklib::rv_vec4 clip;
-    rv_pdklib::rv_vec3 colour;
-    rv_pdklib::rv_vec2 uv;
+// Per put: the viewport, the depth range, the cull mode and the tint.
+struct rv_pccg_sw_setup {
+    rv_pdklib::rv_gte_viewport viewport;
+    rv_pdklib::rv_gte_depth_range depth;
+    uint32_t cull;
+    rv_color tint;
 };
 
-// A vertex colour, a part colour and a tint each scale 0..255, so the product of three is
-// divided by 255 * 255 to come back to 0..255.
-constexpr float RV_PCCG_SW_COLOUR_SCALE = 255.0f * 255.0f;
-constexpr float RV_PCCG_SW_CHANNEL_MAX = 255.0f;
-
-// rv_uv holds unsigned texels.
-constexpr float RV_PCCG_SW_TEXEL_MAX = 65535.0f;
-
-rv_pdklib::rv_vec3 to_vec3(const rv_cg_vec3 &value)
-{
-    return { value.x, value.y, value.z };
-}
-
-rv_pdklib::rv_mat4 world_matrix(const float (&world)[16])
-{
-    rv_pdklib::rv_mat4 matrix{};
-    for (int row = 0; row < 4; ++row) {
-        for (int col = 0; col < 4; ++col) {
-            matrix.m[row][col] = world[row * 4 + col];
-        }
-    }
-    return matrix;
-}
-
-// RV_CG_CULL_BACK drops the faces turned away from the eye. A front face stays counter-clockwise
-// on screen (y points down, so the pixel area sign flips in rv_xform_culled), and RV_CULL_SCREEN_CW
-// keeps exactly those.
-uint32_t cull_mode(uint32_t cull)
-{
-    return cull == RV_CG_CULL_NONE ? rv_pdklib::RV_CULL_NONE : rv_pdklib::RV_CULL_SCREEN_CW;
-}
-
-rv_pccg_sw_clip_vertex clip_vertex_make(const rv_pdklib::rv_mat4 &mvp, const rv_pdklib::rv_mppcmod_vertex &vertex)
-{
-    const rv_pdklib::rv_vec3 position = { vertex.pos[0], vertex.pos[1], vertex.pos[2] };
-    const rv_pdklib::rv_vec3 colour = { static_cast<float>(vertex.color[0]),
-        static_cast<float>(vertex.color[1]),
-        static_cast<float>(vertex.color[2]) };
-    return { rv_pdklib::rv_world_to_clip(mvp, position), colour, { vertex.uv[0], vertex.uv[1] } };
-}
-
-rv_pccg_sw_clip_vertex lerp_vertex(const rv_pccg_sw_clip_vertex &a, const rv_pccg_sw_clip_vertex &b, float t)
-{
-    return { a.clip + (b.clip - a.clip) * t, a.colour + (b.colour - a.colour) * t, a.uv + (b.uv - a.uv) * t };
-}
-
-// Sutherland-Hodgman against the plane w == near. Clip space has w == view z, the same
-// quantity rv_xform_near_reject tests; the cut lands exactly on w == near, so the divide
-// of a cut vertex is finite. Returns 0, 3 or 4 vertices in `out`.
-int clip_near(const rv_pccg_sw_clip_vertex (&in)[3], float near_plane, rv_pccg_sw_clip_vertex (&out)[4])
-{
-    int count = 0;
-    for (int i = 0; i < 3; ++i) {
-        const rv_pccg_sw_clip_vertex &a = in[i];
-        const rv_pccg_sw_clip_vertex &b = in[(i + 1) % 3];
-        const float da = a.clip.w - near_plane;
-        const float db = b.clip.w - near_plane;
-        if (da >= 0.0f) {
-            out[count++] = a;
-        }
-        if ((da >= 0.0f) != (db >= 0.0f)) {
-            out[count++] = lerp_vertex(a, b, da / (da - db));
-        }
-    }
-    return count;
-}
-
-uint8_t scale_channel(float vertex, uint8_t part, uint8_t tint)
-{
-    const float value = vertex * static_cast<float>(part) * static_cast<float>(tint) / RV_PCCG_SW_COLOUR_SCALE;
-    return static_cast<uint8_t>(std::clamp(std::floor(value + 0.5f), 0.0f, RV_PCCG_SW_CHANNEL_MAX));
-}
-
-rv_color tint_colour(const rv_pdklib::rv_vec3 &vertex, const std::array<uint8_t, 3> &part, const rv_color &tint)
-{
-    return { scale_channel(vertex.x, part[0], tint.r),
-        scale_channel(vertex.y, part[1], tint.g),
-        scale_channel(vertex.z, part[2], tint.b) };
-}
-
-// NaN and values <= 0 become 0; the screen path saturates to -32768 instead.
-uint16_t to_texel(float value)
-{
-    if (!(value > 0.0f)) {
-        return 0;
-    }
-    return static_cast<uint16_t>(std::min(std::floor(value + 0.5f), RV_PCCG_SW_TEXEL_MAX));
-}
-
-// False for NaN and for anything that rounds past the largest texel rv_uv holds.
-bool texel_fits(float value)
-{
-    return value < RV_PCCG_SW_TEXEL_MAX + 0.5f;
-}
-
-// Texel coordinates of one triangle. TILE repeats the texture, so moving every vertex by
-// whole periods keeps the picture; the shift puts the smallest coordinate in [0, period).
-// False if a coordinate still does not fit rv_uv: the triangle is then not drawn.
-bool texel_uvs(const rv_pccg_sw_clip_vertex (&tri)[3], const rv_pccg_part_texture &texture, rv_uv (&out)[3])
-{
-    const float period_u = static_cast<float>(texture.width);
-    const float period_v = static_cast<float>(texture.height);
-    rv_pdklib::rv_vec2 texel[3];
-    for (int k = 0; k < 3; ++k) {
-        texel[k] = { tri[k].uv.x * period_u, tri[k].uv.y * period_v };
-    }
-    const float min_u = std::min({ texel[0].x, texel[1].x, texel[2].x });
-    const float min_v = std::min({ texel[0].y, texel[1].y, texel[2].y });
-    const float shift_u = -std::floor(min_u / period_u) * period_u;
-    const float shift_v = -std::floor(min_v / period_v) * period_v;
-    for (int k = 0; k < 3; ++k) {
-        const float u = texel[k].x + shift_u;
-        const float v = texel[k].y + shift_v;
-        if (!texel_fits(u) || !texel_fits(v)) {
-            return false;
-        }
-        out[k] = rv_uv{ to_texel(u), to_texel(v) };
-    }
-    return true;
-}
-
-// The part being drawn: its colour, its texture and the put's tint, passed as one value.
 struct rv_pccg_sw_material {
     const rv_pdklib::rv_mppcmod_part &part;
     const rv_pccg_part_texture &texture;
-    const rv_color &tint;
 };
 
-// One cut triangle as a polygon primitive: screen, zero area, cull, depth key, fill. False if it
-// draws nothing; a zero-area triangle is not counted against the budget either.
-// ponytail: screen coordinates are int16 (rv_vertex), so a vertex far off the screen saturates
-// there and the triangle is distorted. A triangle cut at the near plane can have such a vertex;
-// it is kept, because dropping it would remove the floor next to the camera. Upgrade: clip
-// against the screen rectangle before the vertex is made.
-bool make_primitive(const rv_pdklib::rv_xform_conf &conf,
-    const rv_pccg_sw_clip_vertex (&tri)[3],
-    const rv_pccg_sw_material &material,
-    rv_primitive &out,
-    int64_t &texel_skipped)
+// Triangles not drawn in one put: a uv span that does not fit rv_uv, a vertex outside int32.
+struct rv_pccg_sw_skipped {
+    int64_t texel = 0;
+    int64_t vertex = 0;
+};
+
+// A vertex colour, a part colour and a tint each scale 0..255: divide the product by 255 * 255.
+constexpr int64_t RV_PCCG_SW_COLOUR_SCALE = 255 * 255;
+
+// rv_uv holds unsigned texels.
+constexpr int64_t RV_PCCG_SW_TEXEL_MAX = 65535;
+
+// rv_cg_matrix and rv_gte_matrix have the same fields, so the copy is field by field.
+rv_pdklib::rv_gte_matrix gte_world(const rv_cg_matrix &world)
 {
-    const rv_pdklib::rv_mppcmod_part &part = material.part;
-    const rv_pccg_part_texture &texture = material.texture;
-    const rv_color &tint = material.tint;
-    const rv_pdklib::rv_vec4 clip[3] = { tri[0].clip, tri[1].clip, tri[2].clip };
-    rv_pdklib::rv_vec2 screen[3];
-    for (int k = 0; k < 3; ++k) {
-        screen[k] = rv_pdklib::rv_xform_to_screen(rv_pdklib::rv_xform_divide(clip[k]), conf.screen_width, conf.screen_height);
+    rv_pdklib::rv_gte_matrix out = {};
+    for (size_t i = 0; i < std::size(world.r); ++i) {
+        out.r[i] = world.r[i];
     }
-    if (rv_pdklib::rv_xform_signed_area2(screen[0], screen[1], screen[2]) == 0.0f) {
-        return false;
+    for (size_t i = 0; i < std::size(world.t); ++i) {
+        out.t[i] = world.t[i];
     }
-    if (rv_pdklib::rv_xform_culled(screen[0], screen[1], screen[2], conf.cull)) {
-        return false;
-    }
+    return out;
+}
 
-    const bool textured = texture.addr_texture != 0;
-    rv_uv texel[3] = {};
-    if (textured && !texel_uvs(tri, texture, texel)) {
-        ++texel_skipped;
-        return false;
-    }
-    out = rv_primitive{};
-    out.type = RV_PRIMITIVE_POLYGON;
-    out.depth = rv_pdklib::rv_xform_depth_key(clip, 3, conf);
+// RV_CG_CULL_BACK drops the faces turned away from the eye. A front face is counter-clockwise on
+// screen (y points down), and gte_cull_screen_cw keeps exactly those, as in rv_gte_culled.
+uint32_t gte_cull_mode(uint32_t cull)
+{
+    return cull == RV_CG_CULL_NONE ? rv_pdklib::gte_cull_none : rv_pdklib::gte_cull_screen_cw;
+}
 
-    rv_polygon &polygon = out.data.polygon;
-    polygon.fill_mode = textured ? RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE : RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
-    polygon.addr_texture = textured ? texture.addr_texture : 0;
-    polygon.addr_palette = textured ? texture.addr_palette : 0;
-    polygon.mapping = textured ? RV_TEXWRAP_TILE : RV_TEXWRAP_CLAMP;
-    polygon.vertex_count = 3;
-    for (int k = 0; k < 3; ++k) {
-        polygon.vertexes[k] =
-            rv_pdklib::rv_xform_vertex_make(screen[k], tint_colour(tri[k].colour, part.color, tint), texel[k]);
+// The vertex value is 0..255 and the product of three at most 255^3, so the result is 0..255.
+uint8_t scale_channel(int32_t vertex, uint8_t part, uint8_t tint)
+{
+    const int64_t product = static_cast<int64_t>(vertex) * part * tint;
+    return static_cast<uint8_t>(rv_pdklib::rv_gte_div_round(product, RV_PCCG_SW_COLOUR_SCALE));
+}
+
+// Floor of n / d for d > 0: integer division rounds toward zero, the repeat shift needs the floor.
+int64_t floor_div(int64_t n, int64_t d)
+{
+    const int64_t q = n / d;
+    return n % d < 0 ? q - 1 : q;
+}
+
+// Texel coordinates of one triangle, uv * size in 1/4096 texel. TILE repeats the texture, so whole
+// periods move every vertex so the smallest coordinate is in [0, period). A yes or no: no means the
+// triangle does not fit rv_uv and is not drawn.
+bool texel_uvs(const rv_pccg_sw_clip_vertex (&tri)[RV_PCCG_SW_TRI_CORNERS],
+    const rv_pccg_part_texture &texture,
+    rv_uv (&out)[RV_PCCG_SW_TRI_CORNERS])
+{
+    const int64_t period_u = texture.width << rv_pdklib::gte_frac_bits;
+    const int64_t period_v = texture.height << rv_pdklib::gte_frac_bits;
+    int64_t u[RV_PCCG_SW_TRI_CORNERS] = {};
+    int64_t v[RV_PCCG_SW_TRI_CORNERS] = {};
+    for (int k = 0; k < RV_PCCG_SW_TRI_CORNERS; ++k) {
+        u[k] = tri[k].uv[0] * texture.width;
+        v[k] = tri[k].uv[1] * texture.height;
     }
-    polygon.vertexes[3] = rv_vertex{};
+    const int64_t shift_u = -floor_div(std::min({ u[0], u[1], u[2] }), period_u) * period_u;
+    const int64_t shift_v = -floor_div(std::min({ v[0], v[1], v[2] }), period_v) * period_v;
+    for (int k = 0; k < RV_PCCG_SW_TRI_CORNERS; ++k) {
+        const int64_t tu = (u[k] + shift_u) >> rv_pdklib::gte_frac_bits;
+        const int64_t tv = (v[k] + shift_v) >> rv_pdklib::gte_frac_bits;
+        if (tu > RV_PCCG_SW_TEXEL_MAX || tv > RV_PCCG_SW_TEXEL_MAX) {
+            return false;
+        }
+        out[k] = rv_uv{ static_cast<uint16_t>(tu), static_cast<uint16_t>(tv) };
+    }
     return true;
 }
 
-// Every triangle of every part, cut at the near plane and culled, in part order. Returns the
-// triangles skipped because their uv span does not fit rv_uv.
-int64_t build_primitives(const rv_pdklib::rv_xform_conf &conf,
-    const rv_pdklib::rv_mppcmod &model,
-    std::span<const rv_pccg_part_texture> textures,
-    const rv_color &tint,
-    std::vector<rv_primitive> &out)
+// One cut triangle as a polygon primitive: screen, zero area, cull, depth key, fill. `drawn` is false
+// if it draws nothing; a zero-area triangle is not counted against the budget either.
+// ponytail: a vertex far off the screen saturates in int16 (rv_vertex) and distorts the triangle; kept,
+// so the floor next to the camera stays. Upgrade: clip against the screen before the vertex is made.
+int make_primitive(const rv_pccg_sw_setup &setup,
+    const rv_pccg_sw_clip_vertex (&tri)[RV_PCCG_SW_TRI_CORNERS],
+    const rv_pccg_sw_material &material,
+    rv_primitive &out,
+    bool &drawn,
+    rv_pccg_sw_skipped &skipped)
 {
-    int64_t texel_skipped = 0;
+    drawn = false;
+    rv_pdklib::rv_gte_screen screen[RV_PCCG_SW_TRI_CORNERS] = {};
+    for (int k = 0; k < RV_PCCG_SW_TRI_CORNERS; ++k) {
+        const int rc = rv_pdklib::rv_gte_project(tri[k].view, setup.viewport, screen[k]);
+        if (rc != RV_OK) {
+            return rc;
+        }
+    }
+    // Zero area is culled in both modes and the two differ only in sign: both true means zero area.
+    const bool zero_area = rv_pdklib::rv_gte_culled(screen[0], screen[1], screen[2], rv_pdklib::gte_cull_screen_cw) &&
+        rv_pdklib::rv_gte_culled(screen[0], screen[1], screen[2], rv_pdklib::gte_cull_screen_ccw);
+    if (zero_area || rv_pdklib::rv_gte_culled(screen[0], screen[1], screen[2], setup.cull)) {
+        return RV_OK;
+    }
+
+    const bool textured = material.texture.addr_texture != 0;
+    rv_uv texel[RV_PCCG_SW_TRI_CORNERS] = {};
+    if (textured && !texel_uvs(tri, material.texture, texel)) {
+        ++skipped.texel;
+        return RV_OK;
+    }
+    const rv_pdklib::fx depth_z[RV_PCCG_SW_TRI_CORNERS] = { tri[0].view.z, tri[1].view.z, tri[2].view.z };
+    int32_t key = 0;
+    const int rc = rv_pdklib::rv_gte_depth_key(depth_z, RV_PCCG_SW_TRI_CORNERS, setup.depth, key);
+    if (rc != RV_OK) {
+        return rc;
+    }
+
+    out = rv_primitive{};
+    out.type = RV_PRIMITIVE_POLYGON;
+    out.depth = key;
+    rv_polygon &polygon = out.data.polygon;
+    polygon.fill_mode = textured ? RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE : RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
+    polygon.addr_texture = textured ? material.texture.addr_texture : 0;
+    polygon.addr_palette = textured ? material.texture.addr_palette : 0;
+    polygon.mapping = textured ? RV_TEXWRAP_TILE : RV_TEXWRAP_CLAMP;
+    polygon.vertex_count = RV_PCCG_SW_TRI_CORNERS;
+    for (int k = 0; k < RV_PCCG_SW_TRI_CORNERS; ++k) {
+        const rv_pdklib::rv_gte_screen16 point = rv_pdklib::rv_gte_to_int16(screen[k]);
+        const std::array<uint8_t, 3> &part = material.part.color;
+        const rv_color colour = { scale_channel(tri[k].colour[0], part[0], setup.tint.r),
+            scale_channel(tri[k].colour[1], part[1], setup.tint.g),
+            scale_channel(tri[k].colour[2], part[2], setup.tint.b) };
+        polygon.vertexes[k] = { point.x, point.y, colour, texel[k] };
+    }
+    drawn = true;
+    return RV_OK;
+}
+
+// Every triangle of every part, cut at the near plane and culled, in part order. A triangle with a
+// vertex outside int32 is skipped and counted, before the cut.
+int build_primitives(const rv_pccg_sw_setup &setup,
+    const rv_pdklib::rv_mppcmod_int_model &model,
+    const std::vector<rv_pccg_sw_view_vertex> &view,
+    std::span<const rv_pccg_part_texture> textures,
+    std::vector<rv_primitive> &out,
+    rv_pccg_sw_skipped &skipped)
+{
     for (size_t p = 0; p < model.parts.size(); ++p) {
-        const rv_pdklib::rv_mppcmod_part &part = model.parts[p];
-        const rv_pccg_sw_material material = { part, textures[p], tint };
-        for (uint32_t t = part.first_tri; t < part.first_tri + part.tri_count; ++t) {
-            rv_pccg_sw_clip_vertex in[3];
-            for (size_t k = 0; k < 3; ++k) {
-                in[k] = clip_vertex_make(conf.mvp, model.vertices[model.triangles[t].index[k]]);
+        const rv_pccg_sw_material material = { model.parts[p], textures[p] };
+        for (uint32_t t = model.parts[p].first_tri; t < model.parts[p].first_tri + model.parts[p].tri_count; ++t) {
+            rv_pccg_sw_clip_vertex in[RV_PCCG_SW_TRI_CORNERS];
+            bool valid = true;
+            for (size_t k = 0; k < RV_PCCG_SW_TRI_CORNERS; ++k) {
+                const auto index = model.triangles[t].index[k];
+                const rv_pdklib::rv_mppcmod_int_vertex &vertex = model.vertices[index];
+                in[k] = { view[index].view,
+                    { vertex.color[0], vertex.color[1], vertex.color[2] },
+                    { vertex.uv[0], vertex.uv[1] } };
+                valid = valid && view[index].valid;
             }
-            rv_pccg_sw_clip_vertex cut[4];
-            const int count = clip_near(in, conf.near_plane, cut);
+            if (!valid) {
+                ++skipped.vertex;
+                continue;
+            }
+            rv_pccg_sw_clip_vertex cut[RV_PCCG_SW_CUT_CORNERS];
+            int count = 0;
+            const int clip_rc = rv_pccg_sw_clip_near(in, setup.depth.near_plane, cut, count);
+            if (clip_rc != RV_OK) {
+                return clip_rc;
+            }
             // A quad left by the cut is a fan of two triangles from its first vertex.
             for (int k = 1; k + 1 < count; ++k) {
-                const rv_pccg_sw_clip_vertex tri[3] = { cut[0], cut[k], cut[k + 1] };
+                const rv_pccg_sw_clip_vertex tri[RV_PCCG_SW_TRI_CORNERS] = { cut[0], cut[k], cut[k + 1] };
                 rv_primitive primitive{};
-                if (make_primitive(conf, tri, material, primitive, texel_skipped)) {
+                bool drawn = false;
+                const int rc = make_primitive(setup, tri, material, primitive, drawn, skipped);
+                if (rc != RV_OK) {
+                    return rc;
+                }
+                if (drawn) {
                     out.push_back(primitive);
                 }
             }
         }
     }
-    return texel_skipped;
+    return RV_OK;
 }
 
 } // namespace
 
 // --- the frame ---------------------------------------------------------------
-
-rv_pdklib::rv_xform_conf
-rv_pccg_sw::frame_conf(const rv_pdklib::rv_mat4 &world, int32_t depth_min, int32_t depth_max, uint32_t cull)
-{
-    const float width = static_cast<float>(cv_.screen_width());
-    const float height = static_cast<float>(cv_.screen_height());
-    const rv_pdklib::rv_camera camera = rv_pdklib::rv_camera_make(to_vec3(camera_.eye),
-        to_vec3(camera_.target),
-        to_vec3(camera_.up),
-        camera_.fov_y,
-        width / height,
-        camera_.near_plane,
-        camera_.far_plane);
-    return rv_pdklib::rv_xform_conf_make(rv_pdklib::rv_camera_mvp(camera, world),
-        camera,
-        width,
-        height,
-        depth_min,
-        depth_max,
-        cull);
-}
 
 int64_t rv_pccg_sw::model_put(int64_t model_addr, const rv_cg_put *put)
 {
@@ -300,16 +257,43 @@ int64_t rv_pccg_sw::model_put(int64_t model_addr, const rv_cg_put *put)
         RV_LOG_WARN("pccg", "model {} refused: a textured part has no size", model_addr);
         return RV_ERR_INVAL;
     }
-
-    const rv_pdklib::rv_xform_conf conf =
-        frame_conf(world_matrix(put->world), put->depth_min, put->depth_max, cull_mode(put->cull));
+    const rv_pdklib::rv_gte_matrix world = gte_world(put->world);
+    std::vector<rv_pccg_sw_view_vertex> view;
+    const int view_rc = rv_pccg_sw_view_vertexes(gte_camera_.view, world, it->int_model, view);
+    if (view_rc != RV_OK) {
+        RV_LOG_WARN("pccg", "model {} refused: the composed matrix leaves rv_gte's range (rc {})", model_addr, view_rc);
+        return RV_ERR_INVAL;
+    }
+    int32_t width = 0;
+    int32_t height = 0;
+    const bool width_bad = rv_pccg_sw_screen_side(cv_.screen_width(), width) != RV_OK;
+    const bool height_bad = rv_pccg_sw_screen_side(cv_.screen_height(), height) != RV_OK;
+    if (width_bad || height_bad) {
+        RV_LOG_WARN("pccg", "model {} refused: the screen side is outside (0, INT32_MAX]", model_addr);
+        return RV_ERR_INVAL;
+    }
+    const rv_pccg_sw_setup setup = {
+        { gte_camera_.h, width / 2, height / 2 },
+        { gte_camera_.near_plane, gte_camera_.far_plane, put->depth_min, put->depth_max },
+        gte_cull_mode(put->cull),
+        put->tint,
+    };
     std::vector<rv_primitive> primitives;
-    const int64_t texel_skipped = build_primitives(conf, it->model, it->textures, put->tint, primitives);
-    if (texel_skipped > 0) {
+    rv_pccg_sw_skipped skipped = {};
+    const bool build_bad = build_primitives(setup, it->int_model, view, it->textures, primitives, skipped) != RV_OK;
+    if (build_bad) {
+        RV_LOG_WARN("pccg", "model {} refused: a triangle leaves rv_gte's range", model_addr);
+        return RV_ERR_INVAL;
+    }
+    // Warned once per put with the count, as texel_skipped: the frame keeps no state for a once-per-frame warning.
+    if (skipped.vertex > 0) {
+        RV_LOG_WARN("pccg", "model {}: {} triangle(s) not drawn, a vertex is outside int32", model_addr, skipped.vertex);
+    }
+    if (skipped.texel > 0) {
         RV_LOG_WARN("pccg",
             "model {}: {} triangle(s) not drawn, their uv span is wider than rv_uv's texel range or not a number",
             model_addr,
-            texel_skipped);
+            skipped.texel);
     }
 
     const int64_t count = static_cast<int64_t>(primitives.size());
@@ -336,6 +320,51 @@ int64_t rv_pccg_sw::model_put(int64_t model_addr, const rv_cg_put *put)
     return count;
 }
 
+int rv_pccg_sw_screen_side(int64_t side, int32_t &out)
+{
+    const bool fits = side > 0 && side <= std::numeric_limits<int32_t>::max();
+    if (!fits) {
+        return RV_ERR_INVAL;
+    }
+    out = static_cast<int32_t>(side);
+    return RV_OK;
+}
+
+int rv_pccg_sw_point_int(const rv_pdklib::rv_gte_camera &camera,
+    rv_pdklib::rv_gte_viewport viewport,
+    rv_pdklib::fx_vec3 world,
+    int32_t depth_min,
+    int32_t depth_max,
+    rv_pdklib::rv_gte_screen &screen,
+    int32_t &depth)
+{
+    const int32_t in[3] = { world.x, world.y, world.z };
+    int32_t view_raw[3] = {};
+    int rc = rv_pdklib::rv_gte_point(camera.view, in, view_raw);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    const rv_pdklib::fx_vec3 view = { view_raw[0], view_raw[1], view_raw[2] };
+    if (view.z < camera.near_plane) {
+        return RV_ERR_INVAL;
+    }
+    const rv_pdklib::fx depth_z[1] = { view.z };
+    const rv_pdklib::rv_gte_depth_range range = { camera.near_plane, camera.far_plane, depth_min, depth_max };
+    int32_t key = 0;
+    rc = rv_pdklib::rv_gte_depth_key(depth_z, 1, range, key);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    rv_pdklib::rv_gte_screen point = {};
+    rc = rv_pdklib::rv_gte_project(view, viewport, point);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    screen = point;
+    depth = key;
+    return RV_OK;
+}
+
 int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, int32_t depth_min, int32_t depth_max, rv_cg_screen *out)
 {
     const bool no_point = world == nullptr || out == nullptr;
@@ -353,12 +382,21 @@ int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, int32_t depth_min, int32_t de
         RV_LOG_WARN("pccg", "point refused: depth_min {} is above depth_max {}", depth_min, depth_max);
         return RV_ERR_INVAL;
     }
-    const rv_pdklib::rv_xform_conf conf =
-        frame_conf(rv_pdklib::rv_mat4_identity(), depth_min, depth_max, rv_pdklib::RV_CULL_NONE);
-    rv_pdklib::rv_vec2 screen{};
+    const rv_pdklib::fx_vec3 world_fx = { world->x, world->y, world->z };
+    int32_t width = 0;
+    int32_t height = 0;
+    const bool width_bad = rv_pccg_sw_screen_side(cv_.screen_width(), width) != RV_OK;
+    const bool height_bad = rv_pccg_sw_screen_side(cv_.screen_height(), height) != RV_OK;
+    if (width_bad || height_bad) {
+        RV_LOG_WARN("pccg", "point refused: the screen side is outside (0, INT32_MAX]");
+        return RV_ERR_INVAL;
+    }
+    // the centre: rv_xform_to_screen maps ndc 0 to half the side
+    const rv_pdklib::rv_gte_viewport viewport = { gte_camera_.h, width / 2, height / 2 };
+    rv_pdklib::rv_gte_screen screen = {};
     int32_t depth = 0;
-    // A point nearer than the near plane is an ordinary answer: the HUD asks every frame.
-    if (!rv_pdklib::rv_xform_point(conf, to_vec3(*world), screen, depth)) {
+    // A point nearer than the near plane is refused with RV_ERR_INVAL and out is untouched, as rv_cg.h says.
+    if (rv_pccg_sw_point_int(gte_camera_, viewport, world_fx, depth_min, depth_max, screen, depth) != RV_OK) {
         return RV_ERR_INVAL;
     }
     out->x = screen.x;

@@ -22,6 +22,7 @@
 #include "log/rv_editor_log_file.hpp"
 #include "nvim/rv_editor_nvim.hpp"
 #include "project/rv_editor_change.hpp"
+#include "project/rv_editor_descriptions.hpp"
 #include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
 #include "project/rv_editor_run_profile.hpp"
@@ -32,6 +33,20 @@
 
 namespace rv_editor
 {
+
+// The component descriptions of the open project: the snapshot and what the editor shows of it
+// (editor/src/app/rv_editor_app_descriptions.cpp).
+struct rv_editor_app_descriptions {
+    rv_editor_descriptions snapshot;
+    // Code entries of the map of the build the snapshot came from, relative to the project root; empty when that
+    // build had no map, and until a build ends in this session.
+    std::vector<std::string> sources;
+    // A code source changed after the snapshot's build: the descriptions may be out of date.
+    bool sources_newer = false;
+    bool build_failed = false; // the last development build failed: the snapshot is the previous one
+    bool no_records = false;   // the last build had no component records: no snapshot
+    std::string shown_text;    // the state text last logged; empty when no text applies
+};
 
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them.
@@ -128,6 +143,7 @@ struct rv_editor_app {
     std::chrono::steady_clock::time_point reload_due{};
     // Reload on a texture: the running bake, if any, and the last one's outcome.
     rv_editor_texture_bake texture_bake;
+    rv_editor_app_descriptions descriptions;
 };
 
 // Scene (editor/src/app/rv_editor_app_scene.cpp): the project's scenes/*.scene.toml,
@@ -141,9 +157,14 @@ std::string rv_editor_app_scene_name(const rv_editor_app &app);
 // RV_ERR_BUSY when an unsaved scene refuses; the load's RV_ERR_* otherwise. ALREADY writes its own
 // warning to the log.
 int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
+// Drops the open scene (none: RV_OK) and deletes every pending model: a saved file names only models its save
+// already moved into the models folder, and the undo and redo names die with the scene. Used for a discarded or
+// replaced scene. A failed cleanup is a warning in the log; the scene is dropped anyway, and the result is RV_OK.
+int rv_editor_app_scene_close(rv_editor_app &app);
 // The next free name ("main", else "sceneN") a new scene would get today.
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
-// Longest scene name in bytes, without ".scene.toml": the drive loads only names that fit RV_CD_NAME_CAPACITY.
+// Longest scene name in bytes, without ".scene.toml": the editor's convention from the old console limit;
+// the new console and pdkkit do not check it.
 size_t rv_editor_app_scene_name_max();
 // Non-empty, at most rv_editor_app_scene_name_max() bytes, letters/digits/_/- only: the one name rule.
 bool rv_editor_app_scene_name_valid(std::string_view name);
@@ -353,6 +374,16 @@ int rv_editor_app_run_last(rv_editor_app &app);
 // Build ended steps, asked for by rv_editor_app_update_build_ended (questions there).
 // Note: old builds are pruned and the end time is kept.
 void rv_editor_app_build_ended_note(rv_editor_app &app);
+// Component descriptions (rv_editor_app_descriptions.cpp), both on the UI thread. Open: loads the snapshot; the build's
+// sources are unknown, so state 3 is not computed. Build ended: a development build (not an image) captures the snapshot
+// on success, marks the previous one on failure. Failures are warnings in the log; nothing returns a code.
+void rv_editor_app_descriptions_open(rv_editor_app &app);
+void rv_editor_app_descriptions_build_ended(rv_editor_app &app);
+// Question for state 3: `changed`, relative to the project root, is a code source of the snapshot's build.
+bool rv_editor_app_descriptions_sources_changed(const rv_editor_app &app, const std::filesystem::path &changed);
+// A changed file, absolute as the watcher gives it: a source of the snapshot's build marks the descriptions as possibly
+// out of date and logs it once. Other files do nothing.
+void rv_editor_app_descriptions_file_changed(rv_editor_app &app, const std::filesystem::path &changed);
 // Refuse: the build a waiting Run waited for did not succeed; logs why. RV_ERR_BUSY.
 int rv_editor_app_run_after_build_refuse(rv_editor_app &app);
 // Start: runs the last successful build for a waiting Run. RV_OK or rv_editor_app_run_session's RV_ERR_*;

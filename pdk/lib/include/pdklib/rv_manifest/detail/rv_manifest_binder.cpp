@@ -46,6 +46,11 @@ constexpr bind_rule RULES[] = {
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.build_include_dirs = v.arr;
         } },
+    { rv_manifest_section_build, // [build] sdk = [ … ]
+        rv_manifest_key_build_sdk,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.build_sdk = v.arr;
+        } },
 
     { rv_manifest_section_scripts, // [scripts] sources = [ … ]
         rv_manifest_key_scripts_sources,
@@ -58,28 +63,11 @@ constexpr bind_rule RULES[] = {
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.assets_files = v.arr;
         } },
-    { rv_manifest_section_textures, // [textures] files = [ … ]
-        rv_manifest_key_textures_files,
-        [](rv_manifest &m, const rv_manifest_mvalue &v) {
-            m.textures_files.files = v.arr;
-        } },
-    { rv_manifest_section_textures, // [textures] format = "…"
-        rv_manifest_key_textures_format,
+    { rv_manifest_section_assets_texture, // [assets.texture] format = "…"
+        rv_manifest_key_assets_texture_format,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             const rv_pdklib::rv_texfmt_name *row = rv_pdklib::rv_texfmt_name::by_text(v.str.c_str());
-            if (row != nullptr) {
-                m.textures_files.format = row->format;
-            }
-        } },
-    { rv_manifest_section_sounds, // [sounds] files = [ … ]
-        rv_manifest_key_sounds_files,
-        [](rv_manifest &m, const rv_manifest_mvalue &v) {
-            m.sounds_files = v.arr;
-        } },
-    { rv_manifest_section_models, // [models] files = [ … ]
-        rv_manifest_key_models_files,
-        [](rv_manifest &m, const rv_manifest_mvalue &v) {
-            m.models_files = v.arr;
+            m.assets_texture_format = (row != nullptr) ? row->format : rv_manifest_texfmt_unknown_spelling;
         } },
     { rv_manifest_section_budget_pcca, // [budget.pcca] voice_count = N
         rv_manifest_key_budget_pcca_voice_count,

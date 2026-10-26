@@ -3,13 +3,6 @@
 
 #include <stdint.h>
 
-#include "pdk/cv/rv_vertex.h" // rv_color: scene object tint
-
-// Bytes per name in rv_cd_scene_object, NUL included. The arrays of
-// rv_cd_scene_object use the same number; ffi.cdef cannot expand a #define.
-// Lua sees it as pdk.CD_NAME_CAPACITY.
-#define RV_CD_NAME_CAPACITY 64
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -88,63 +81,7 @@ int64_t rv_cd_resource_palette_addr(rv_cd *cd, rv_cd_resource_kind kind, const c
 int64_t rv_cd_resource_width(rv_cd *cd, rv_cd_resource_kind kind, const char *resname);
 int64_t rv_cd_resource_height(rv_cd *cd, rv_cd_resource_kind kind, const char *resname);
 
-// Kinds of objects in a scene: the object kinds of the editor's scene.
-enum rv_cd_scene_kind {
-    RV_CD_SCENE_GROUP = 1,
-    RV_CD_SCENE_CAMERA,
-    RV_CD_SCENE_MESH,
-    RV_CD_SCENE_QUAD,
-    RV_CD_SCENE_BILLBOARD,
-    RV_CD_SCENE_VOLUME,
-};
-
-typedef enum rv_cd_scene_kind rv_cd_scene_kind;
-
-// A scene is a .scene.toml on the disc, resident from its first query and
-// freed when the disc unloads. A name longer than RV_CD_NAME_CAPACITY-1 is
-// not loaded at all (RV_ERR_INVAL; the reason goes to the console log). A mesh
-// is named "x.glb" in the scene; the drive maps it to x.mppcmod.
-//
-// One object as a plain copy. Names are NUL-terminated inside their arrays;
-// an empty model or texture means none.
-struct rv_cd_scene_object {
-    char id[64]; // RV_CD_NAME_CAPACITY, spelled out for ffi.cdef
-    char name[64];
-    int64_t parent; // index of the parent object, -1 for a root
-    rv_cd_scene_kind kind;
-    // row-major: element (row, col) is world[row*4+col]; column vectors multiplied
-    // from the right, the layout of pdklib's rv_mat4
-    float world[16];
-    char model[64]; // .mppcmod name on the disc
-    char texture[64];
-    float uv[4]; // u0, v0, u1, v1 in pixels; quad and billboard only
-    struct rv_color tint;
-    float tess; // quad/billboard subdivision density, as the editor's scene
-};
-
-typedef struct rv_cd_scene_object rv_cd_scene_object;
-
-// Number of objects in the scene, or a negative rv_err (RV_ERR_NOENT for an
-// unknown scene).
-int64_t rv_cd_scene_object_count(rv_cd *cd, const char *scene);
-
-// Copies object `index` into `out`. RV_ERR_INVAL for an index out of range or
-// a null argument, RV_ERR_NOENT for an unknown scene.
-int64_t rv_cd_scene_object_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_object *out);
-
 /* RV_CDEF_END */
-
-// Every name array of the struct must match the name capacity (the cdef carries
-// the literal, so only C and C++ can check it).
-#ifdef __cplusplus
-#define RV_CD_STATIC_ASSERT_ static_assert
-#else
-#define RV_CD_STATIC_ASSERT_ _Static_assert
-#endif
-RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->id) == RV_CD_NAME_CAPACITY, "scene id capacity");
-RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->name) == RV_CD_NAME_CAPACITY, "scene name capacity");
-RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->model) == RV_CD_NAME_CAPACITY, "scene model capacity");
-RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->texture) == RV_CD_NAME_CAPACITY, "scene texture capacity");
 
 #ifdef __cplusplus
 } /* extern "C" */

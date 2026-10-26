@@ -23,8 +23,15 @@ constexpr float catalog_tile_height_frames = 8.0f;
 // Catalog lists and well view height in frame heights (GetFrameHeight() multiplier)
 constexpr float catalog_view_height_frames = 6.0f;
 
+// Shelf-over-well demo well height in frame heights: shorter than the catalog tree,
+// so the well's scrollbar shows in the catalog.
+constexpr float catalog_layers_well_height_frames = 4.0f;
+
 // Number of columns in the catalog demo table (rows[][N])
-constexpr int catalog_table_columns = 2;
+constexpr int catalog_table_columns = 3;
+
+// The demo table's row drawn as a list row (rv_editor_list_row), spanning its columns
+constexpr size_t catalog_table_selected_row = 1;
 
 // Number of columns in the catalog panes overview table
 constexpr int catalog_panes_table_columns = 3;
@@ -39,7 +46,6 @@ constexpr float splitter_half_divisor = 2.0f;
 constexpr float half_divisor = 2.0f;
 
 struct rv_editor_pane_values {
-    int selected = 1;
     int tab = 0;
     float left_share = splitter_demo_initial_left_share;
     float top = 0.0f; // splitter demo heights, set on first use
@@ -48,65 +54,123 @@ struct rv_editor_pane_values {
 
 rv_editor_pane_values rv_editor_pane_data;
 
-void rv_editor_catalog_tree()
+// A leaf row whose label names its state (a key of catalog_panes).
+void rv_editor_catalog_leaf(const char *id,
+    const char *key,
+    const rv_editor_theme &t,
+    const rv_editor_tree_style &style = {},
+    const rv_editor_state &state = {})
 {
-    constexpr ImGuiTreeNodeFlags open = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_DrawLinesFull;
-    constexpr ImGuiTreeNodeFlags leaf = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-    if (!ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_my_game"), open)) {
-        return;
-    }
-    ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_disc_toml"), leaf | ImGuiTreeNodeFlags_Selected);
-    ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_main_lua"), leaf);
-    if (ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_assets"), open)) {
-        ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_tone_pcm"), leaf);
-        ImGui::BeginDisabled();
-        ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_broken_png"), leaf);
-        ImGui::EndDisabled();
-        ImGui::TreePop();
-    }
-    ImGui::TreePop();
+    rv_editor_tree_style leaf = style;
+    leaf.leaf = true;
+    leaf.no_push = true;
+    rv_editor_tree_row(id, rv_editor_text(key), t, leaf, state);
 }
 
-void rv_editor_catalog_list(float height)
+// One row per state under an open root with lines; the frozen looks come last.
+void rv_editor_catalog_tree(const rv_editor_theme &t)
 {
-    const char *items[] = { rv_editor_text("catalog_panes.list_solid_maid"),
-        rv_editor_text("catalog_panes.list_example_lua"),
-        rv_editor_text("catalog_panes.list_example_cpp"),
-        rv_editor_text("catalog_panes.list_missing_disc") };
-    if (!ImGui::BeginListBox("##list", ImVec2(-1.0f, height))) {
+    rv_editor_tree_style root;
+    root.default_open = true;
+    root.lines = true;
+    if (!rv_editor_tree_row("##root", rv_editor_text("catalog_panes.tree_my_game"), t, root).open) {
         return;
     }
-    for (int i = 0; i < static_cast<int>(std::size(items)); ++i) {
-        ImGui::BeginDisabled(i == static_cast<int>(std::size(items)) - 1);
-        if (ImGui::Selectable(items[i], rv_editor_pane_data.selected == i)) {
-            rv_editor_pane_data.selected = i;
-        }
-        ImGui::EndDisabled();
+    rv_editor_tree_style selected;
+    selected.selected = true;
+    rv_editor_tree_style dim;
+    dim.dim = true;
+    rv_editor_tree_style open_branch;
+    open_branch.default_open = true;
+    rv_editor_catalog_leaf("##leaf", "catalog_panes.tree_leaf", t);
+    rv_editor_catalog_leaf("##selected", "catalog_panes.tree_selected", t, selected);
+    rv_editor_catalog_leaf("##dim", "catalog_panes.tree_dim", t, dim);
+    rv_editor_catalog_leaf("##disabled",
+        "catalog_panes.tree_disabled",
+        t,
+        {},
+        { rv_editor_look::normal, rv_editor_text("catalog_panes.tree_disabled_reason") });
+    rv_editor_catalog_leaf("##hovered", "catalog_panes.tree_hovered", t, {}, { rv_editor_look::hovered });
+    rv_editor_catalog_leaf("##pressed", "catalog_panes.tree_pressed", t, {}, { rv_editor_look::pressed });
+    rv_editor_catalog_leaf("##focused", "catalog_panes.tree_focused", t, {}, { rv_editor_look::focused });
+    if (rv_editor_tree_row("##open", rv_editor_text("catalog_panes.tree_open_branch"), t, open_branch).open) {
+        rv_editor_catalog_leaf("##child", "catalog_panes.tree_child", t);
+        rv_editor_tree_pop();
     }
-    ImGui::EndListBox();
+    if (rv_editor_tree_row("##closed", rv_editor_text("catalog_panes.tree_closed_branch"), t).open) {
+        rv_editor_catalog_leaf("##closed_child", "catalog_panes.tree_child", t);
+        rv_editor_tree_pop();
+    }
+    rv_editor_tree_pop();
 }
 
-void rv_editor_catalog_table()
+// One row per state, the frozen looks last; the live rows follow the pointer.
+void rv_editor_catalog_list(float height, const rv_editor_theme &t)
 {
-    constexpr ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
-    if (!ImGui::BeginTable("##table", catalog_table_columns, flags)) {
-        return;
+    rv_editor_list_style selected;
+    selected.selected = true;
+    rv_editor_list_style dim;
+    dim.dim = true;
+    if (rv_editor_list_begin("##list", ImVec2(0.0f, height), t)) {
+        rv_editor_list_row("##normal", rv_editor_text("catalog_panes.list_normal"), t);
+        rv_editor_list_row("##selected", rv_editor_text("catalog_panes.list_selected"), t, selected);
+        rv_editor_list_row("##dim", rv_editor_text("catalog_panes.list_dim"), t, dim);
+        rv_editor_list_row("##disabled",
+            rv_editor_text("catalog_panes.list_disabled"),
+            t,
+            {},
+            { rv_editor_look::normal, rv_editor_text("catalog_panes.list_disabled_reason") });
+        rv_editor_list_row("##hovered", rv_editor_text("catalog_panes.list_hovered"), t, {}, { rv_editor_look::hovered });
+        rv_editor_list_row("##pressed", rv_editor_text("catalog_panes.list_pressed"), t, {}, { rv_editor_look::pressed });
+        rv_editor_list_row("##focused", rv_editor_text("catalog_panes.list_focused"), t, {}, { rv_editor_look::focused });
     }
-    ImGui::TableSetupColumn(rv_editor_text("catalog_panes.column_name"));
-    ImGui::TableSetupColumn(rv_editor_text("catalog_panes.column_directory"));
-    ImGui::TableHeadersRow();
+    rv_editor_list_end();
+}
+
+// A table in a well: header, borders and bands. The selected row is a list row that spans
+// the columns; the fixed Kind column sits between the two stretched ones.
+void rv_editor_catalog_table(float height, const rv_editor_theme &t)
+{
+    const rv_editor_table_column columns[] = {
+        { rv_editor_text("catalog_panes.column_name") },
+        { rv_editor_text("catalog_panes.column_kind"), rv_editor_table_width::fixed },
+        { rv_editor_text("catalog_panes.column_directory") },
+    };
+    const rv_editor_table_style style = { .borders = true, .row_bands = true, .header = true };
     const char *rows[][catalog_table_columns] = { { rv_editor_text("catalog_panes.table_solid_maid"),
+                                                      rv_editor_text("catalog_panes.table_kind_project"),
                                                       rv_editor_text("catalog_panes.table_path_projects") },
-        { rv_editor_text("catalog_panes.table_example_lua"), rv_editor_text("catalog_panes.table_path_mppcdiscs") },
-        { rv_editor_text("catalog_panes.table_example_cpp"), rv_editor_text("catalog_panes.table_path_mppcdiscs") } };
-    for (const auto &row : rows) {
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
-        ImGui::TextUnformatted(row[0]);
-        ImGui::TableNextColumn();
-        ImGui::TextUnformatted(row[1]);
+        { rv_editor_text("catalog_panes.table_example_lua"),
+            rv_editor_text("catalog_panes.table_kind_disc"),
+            rv_editor_text("catalog_panes.table_path_mppcdiscs") },
+        { rv_editor_text("catalog_panes.table_example_cpp"),
+            rv_editor_text("catalog_panes.table_kind_disc"),
+            rv_editor_text("catalog_panes.table_path_mppcdiscs") } };
+    if (rv_editor_well_begin("##table_well", ImVec2(0.0f, height), t)) {
+        if (rv_editor_table_begin("##table", columns, static_cast<int>(std::size(columns)), style)) {
+            for (size_t i = 0; i < std::size(rows); ++i) {
+                rv_editor_table_row();
+                rv_editor_table_cell();
+                if (i == catalog_table_selected_row) {
+                    rv_editor_list_style selected;
+                    selected.selected = true;
+                    selected.span_columns = true;
+                    selected.overlap = true;
+                    rv_editor_list_row("##selected", rows[i][0], t, selected);
+                } else {
+                    ImGui::TextUnformatted(rows[i][0]);
+                }
+                const rv_editor_label_kind cell_kind =
+                    i == catalog_table_selected_row ? rv_editor_label_kind::on_selection : rv_editor_label_kind::normal;
+                rv_editor_table_cell();
+                rv_editor_label(rows[i][1], cell_kind, t);
+                rv_editor_table_cell();
+                rv_editor_label(rows[i][2], cell_kind, t);
+            }
+            rv_editor_table_end();
+        }
     }
-    ImGui::EndTable();
+    rv_editor_well_end();
 }
 
 void rv_editor_catalog_tabs(const rv_editor_theme &t)
@@ -214,8 +278,8 @@ void rv_editor_catalog_layers(const rv_editor_theme &t)
             t)) {
     }
     rv_editor_shelf_end();
-    if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * catalog_view_height_frames), t)) {
-        rv_editor_catalog_tree();
+    if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * catalog_layers_well_height_frames), t)) {
+        rv_editor_catalog_tree(t);
     }
     rv_editor_well_end();
 }
@@ -234,18 +298,18 @@ void rv_editor_catalog_headers(const rv_editor_theme &theme)
     rv_editor_catalog_layers(theme);
 }
 
-void rv_editor_catalog_lists(const rv_editor_theme &)
+void rv_editor_catalog_lists(const rv_editor_theme &theme)
 {
     const float height = ImGui::GetFrameHeight() * catalog_view_height_frames;
     if (ImGui::BeginTable("##panes", catalog_panes_table_columns)) {
         ImGui::TableNextColumn();
         ImGui::BeginChild("##tree", ImVec2(0.0f, height), ImGuiChildFlags_Borders);
-        rv_editor_catalog_tree();
+        rv_editor_catalog_tree(theme);
         ImGui::EndChild();
         ImGui::TableNextColumn();
-        rv_editor_catalog_list(height);
+        rv_editor_catalog_list(height, theme);
         ImGui::TableNextColumn();
-        rv_editor_catalog_table();
+        rv_editor_catalog_table(height, theme);
         ImGui::EndTable();
     }
 }

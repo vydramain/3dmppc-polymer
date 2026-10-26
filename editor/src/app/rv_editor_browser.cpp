@@ -13,8 +13,8 @@
 #include "imgui.h"
 
 #include "text/rv_editor_text.hpp"
-#include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -130,9 +130,7 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
     }
     rv_editor_browse_result result = rv_editor_browse_result::none;
     ImGui::PushID(&b);
-    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
-    ImGui::TextUnformatted(b.purpose.c_str());
-    ImGui::PopStyleColor();
+    rv_editor_label(b.purpose.c_str(), rv_editor_label_kind::bright, theme);
 
     const std::filesystem::path parent = b.dir.parent_path();
     if (rv_editor_button(rv_editor_text("browser.up"),
@@ -154,34 +152,30 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
     const float footer = ImGui::GetFrameHeightWithSpacing() * footer_frames;
     const float list_room = height - footer - ImGui::GetFrameHeightWithSpacing() * footer_frames;
     const float list_h = height > 0.0f ? std::max(list_room, ImGui::GetFrameHeight() * list_min_frames) : -footer;
-    if (ImGui::BeginListBox("##entries", ImVec2(-1.0f, list_h))) {
-        std::filesystem::path enter;
+    std::filesystem::path enter;
+    if (rv_editor_list_begin("##entries", ImVec2(-1.0f, list_h), theme)) {
         for (const rv_editor_browser::rv_editor_entry &e : b.entries) {
             const std::filesystem::path full = b.dir / e.name;
             const std::string label = e.name + (e.dir ? dir_marker : "");
-            const bool selected = b.selected == full;
-            if (!e.dir) {
-                ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-            }
-            if (ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_AllowDoubleClick)) {
+            const rv_editor_list_style style{ .selected = b.selected == full, .dim = !e.dir };
+            const rv_editor_list_result row = rv_editor_list_row(e.name.c_str(), label.c_str(), theme, style);
+            if (row.clicked || row.double_clicked) {
                 b.selected = full;
-                if (ImGui::IsMouseDoubleClicked(0)) {
-                    if (e.dir) {
-                        enter = full;
-                    } else if (why_not == nullptr && rv_editor_is_executable(full)) {
-                        out = full;
-                        result = rv_editor_browse_result::picked;
-                    }
-                }
             }
-            if (!e.dir) {
-                ImGui::PopStyleColor();
+            if (!row.double_clicked) {
+                continue;
+            }
+            if (e.dir) {
+                enter = full;
+            } else if (why_not == nullptr && rv_editor_is_executable(full)) {
+                out = full;
+                result = rv_editor_browse_result::picked;
             }
         }
-        ImGui::EndListBox();
-        if (!enter.empty()) {
-            rv_editor_browser_go(b, enter);
-        }
+    }
+    rv_editor_list_end();
+    if (!enter.empty()) {
+        rv_editor_browser_go(b, enter);
     }
 
     const std::filesystem::path target = rv_editor_browser_target(b);
@@ -190,7 +184,8 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
         usable                                      ? nullptr :
         b.pick == rv_editor_browse_pick::executable ? rv_editor_text("browser.select_executable") :
                                                       rv_editor_text("browser.select_directory");
-    ImGui::TextUnformatted(target.empty() ? rv_editor_text("browser.nothing_selected") : target.c_str());
+    const char *const shown = target.empty() ? rv_editor_text("browser.nothing_selected") : target.c_str();
+    rv_editor_label(shown, rv_editor_label_kind::normal, theme);
     if (rv_editor_button(b.action.c_str(), theme, { rv_editor_look::live, why })) {
         out = target;
         result = rv_editor_browse_result::picked;

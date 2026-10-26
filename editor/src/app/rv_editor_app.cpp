@@ -56,11 +56,14 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot open: " + error);
         return err;
     }
+    // The old project's scene and pending models go before its root is replaced: the cleanup works in that root.
+    (void)rv_editor_app_scene_close(app);
     app.project = std::move(project);
     // Candidates, Observe's pins and findings belong to the project they came from.
     app.release = {};
     app.observe = {};
     app.findings = {};
+    rv_editor_app_descriptions_open(app);
     if (app.session.pad_pending(0)) {
         std::string pad_error;
         if (app.session.pad(0, app.log, pad_error) != RV_OK) {
@@ -238,6 +241,7 @@ void rv_editor_app_build_ended_note(rv_editor_app &app)
 {
     app.build.prune(app.session.live() ? app.session.disc_dir() : std::filesystem::path());
     app.build_ended = std::filesystem::file_time_type::clock::now();
+    rv_editor_app_descriptions_build_ended(app);
 }
 
 int rv_editor_app_run_after_build_refuse(rv_editor_app &app)
@@ -372,6 +376,8 @@ int rv_editor_app_build_cancel(rv_editor_app &app)
 
 void rv_editor_app_shutdown(rv_editor_app &app)
 {
+    // The window closes with the scene, saved or not: its leftover pending models go while the project is open.
+    (void)rv_editor_app_scene_close(app);
     const bool cancel_needed = app.build.state() == rv_editor_build_state::building;
     if (cancel_needed) {
         rv_editor_app_build_cancel(app);

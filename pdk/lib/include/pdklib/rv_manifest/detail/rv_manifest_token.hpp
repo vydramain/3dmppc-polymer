@@ -24,8 +24,9 @@ enum class rv_manifest_token_kind : int {
     INVALID      // NOT `ERROR`: <wingdi.h> defines that name as a macro
 };
 
-// `text` carries the spelling of an IDENT, the decoded contents of a STRING, or
-// the ready message of an INVALID; `num` only ever holds an INTEGER, `real` a REAL.
+// `text` carries the spelling of an IDENT, the decoded contents of a STRING, the
+// source spelling of an INTEGER or REAL, or the ready message of an INVALID; `num`
+// only ever holds an INTEGER, `real` a REAL.
 struct rv_manifest_token {
     rv_manifest_token_kind kind = rv_manifest_token_kind::END_OF_FILE;
     std::string text;

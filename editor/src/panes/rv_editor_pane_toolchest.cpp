@@ -13,6 +13,7 @@
 #include "ui/rv_editor_field_sizes.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -118,7 +119,10 @@ void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme, 
         // Scene's tools act on a scene document; without one, none is offered.
         rv_editor_scene_tools(theme, ui);
     } else {
-        ImGui::TextWrapped("%s", rv_editor_text("pane_toolchest.no_scene"));
+        rv_editor_label(rv_editor_text("pane_toolchest.no_scene"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::wrap);
     }
     rv_editor_shelf_end();
 }

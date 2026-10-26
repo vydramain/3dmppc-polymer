@@ -4,12 +4,13 @@
 #include "panes/rv_editor_scene_draw.hpp"
 
 #include <chrono>
-#include <cmath>
+#include <cstdint>
 #include <functional>
 
 #include "imgui.h"
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 
 #include "panes/rv_editor_scene_glb.hpp"
@@ -23,10 +24,16 @@ namespace rv_editor
 namespace
 {
 
-// Half-extent of placeholder geometric primitives (unit cube and quad, local coordinates).
+// Half-extent of the placeholder unit cube (local coordinates).
 constexpr double unit_half_extent = 0.5;
+// The same half-extent in Q20.12: exact, so the cube's corners are integer points before the world matrix.
+constexpr std::int32_t cube_half_raw = static_cast<std::int32_t>(unit_half_extent * static_cast<double>(rv_pdklib::gte_one));
 // Corners of a unit cube.
 constexpr int cube_corner_count = 8;
+// Signs of each corner's x, y, z, in the order cube_faces indexes them.
+constexpr std::array<std::array<int, 3>, cube_corner_count> cube_corner_signs = {
+    { { -1, -1, -1 }, { 1, -1, -1 }, { 1, 1, -1 }, { -1, 1, -1 }, { -1, -1, 1 }, { 1, -1, 1 }, { 1, 1, 1 }, { -1, 1, 1 } }
+};
 // Face definitions of a unit cube: six faces with four corner indices each.
 constexpr std::array<std::array<int, 4>, 6> cube_faces = { {
     { 0, 1, 2, 3 },
@@ -36,9 +43,9 @@ constexpr std::array<std::array<int, 4>, 6> cube_faces = { {
     { 3, 2, 6, 7 },
     { 4, 5, 1, 0 },
 } };
-// Vertices of a quad.
+// Corners of a cube face: each face's two triangles take four uv corners.
 constexpr int quad_vertex_count = 4;
-// UV of a quad's corners: (0,0), (1,0), (1,1), (0,1).
+// UV of a cube face's corners: (0,0), (1,0), (1,1), (0,1).
 constexpr std::array<ImVec2, quad_vertex_count> quad_uv_corners = { { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } } };
 
 void set_error(std::string *error, const std::string &text)
@@ -48,82 +55,110 @@ void set_error(std::string *error, const std::string &text)
     }
 }
 
-// The placeholder unit cube, twelve triangles, transformed by `m`.
-std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
+// A placeholder cube corner: its scene-space metres, its Q20.12 raw, and whether that raw fit.
+struct cube_corner {
+    vec3 p{};
+    rv_pdklib::fx_vec3 q{};
+    bool q_valid = false;
+};
+
+// The triangle of corners idx of c, with uv in the same order. q_valid is set only when all three corners fit
+// Q20.12; q is copied either way.
+rv_editor_tri cube_tri(const cube_corner (&c)[cube_corner_count],
+    const std::array<int, tri_vertices> &idx,
+    const std::array<ImVec2, tri_vertices> &uv)
 {
-    auto p = [&m](double x, double y, double z) {
-        return rv_editor_affine_point(m, { x, y, z });
-    };
-    const vec3 c[cube_corner_count] = { p(-unit_half_extent, -unit_half_extent, -unit_half_extent),
-        p(unit_half_extent, -unit_half_extent, -unit_half_extent),
-        p(unit_half_extent, unit_half_extent, -unit_half_extent),
-        p(-unit_half_extent, unit_half_extent, -unit_half_extent),
-        p(-unit_half_extent, -unit_half_extent, unit_half_extent),
-        p(unit_half_extent, -unit_half_extent, unit_half_extent),
-        p(unit_half_extent, unit_half_extent, unit_half_extent),
-        p(-unit_half_extent, unit_half_extent, unit_half_extent) };
+    rv_editor_tri tri;
+    tri.q_valid = true;
+    for (int k = 0; k < tri_vertices; ++k) {
+        const cube_corner &corner = c[idx[k]];
+        tri.q[k] = corner.q;
+        tri.uv[k] = uv[k];
+        tri.q_valid = tri.q_valid && corner.q_valid;
+    }
+    return tri;
+}
+
+// The placeholder cube's twelve triangles from its eight scene-space corners.
+std::vector<rv_editor_tri> cube_triangles(const cube_corner (&c)[cube_corner_count])
+{
     std::vector<rv_editor_tri> tris;
     for (const auto &f : cube_faces) {
-        tris.push_back({ { c[f[0]], c[f[1]], c[f[2]] }, { quad_uv_corners[0], quad_uv_corners[1], quad_uv_corners[2] } });
-        tris.push_back({ { c[f[0]], c[f[2]], c[f[3]] }, { quad_uv_corners[0], quad_uv_corners[2], quad_uv_corners[3] } });
+        tris.push_back(cube_tri(c, { f[0], f[1], f[2] }, { quad_uv_corners[0], quad_uv_corners[1], quad_uv_corners[2] }));
+        tris.push_back(cube_tri(c, { f[0], f[2], f[3] }, { quad_uv_corners[0], quad_uv_corners[2], quad_uv_corners[3] }));
     }
     return tris;
 }
 
-// The four corners' pixel-rect uv, top-left, top-right, bottom-left, bottom-right, from an
-// object's `uv` (u0,v0,u1,v1). Raw pixels; rv_editor_draw_filled normalizes once a texture's
-// pixel size is known, or leaves them unused when the object draws flat.
-std::array<ImVec2, quad_vertex_count> rv_editor_quad_uv(const rv_editor_uv &uv)
+// Q20.12 raw of a metres point, each component rounded to the nearest step. RV_OK, or fx_from_double's
+// RV_ERR_INVAL when one leaves fx; q is then untouched.
+int fx_point_from_metres(const vec3 &p, rv_pdklib::fx_vec3 &q)
 {
-    return { ImVec2{ static_cast<float>(uv[0]), static_cast<float>(uv[1]) },
-        ImVec2{ static_cast<float>(uv[2]), static_cast<float>(uv[1]) },
-        ImVec2{ static_cast<float>(uv[0]), static_cast<float>(uv[3]) },
-        ImVec2{ static_cast<float>(uv[2]), static_cast<float>(uv[3]) } };
+    rv_pdklib::fx_vec3 raw{};
+    if (const int rc = rv_pdklib::fx_from_double(p[0], raw.x); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(p[1], raw.y); rc != RV_OK) {
+        return rc;
+    }
+    if (const int rc = rv_pdklib::fx_from_double(p[2], raw.z); rc != RV_OK) {
+        return rc;
+    }
+    q = raw;
+    return RV_OK;
 }
 
-// A quad's two triangles: rv_pdklib::rv_scene_quad_corners' own local square and corner
-// order (top-left, top-right, bottom-left, bottom-right; scale is already in `m`).
-std::vector<rv_editor_tri> rv_editor_quad_triangles(const rv_editor_affine &m, const rv_editor_uv &uv)
+// The placeholder cube through the double affine `m`: the fallback when the integer world cannot be built.
+std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
 {
-    const vec3 c[4] = { rv_editor_affine_point(m, { -unit_half_extent, unit_half_extent, 0.0 }),
-        rv_editor_affine_point(m, { unit_half_extent, unit_half_extent, 0.0 }),
-        rv_editor_affine_point(m, { -unit_half_extent, -unit_half_extent, 0.0 }),
-        rv_editor_affine_point(m, { unit_half_extent, -unit_half_extent, 0.0 }) };
-    const std::array<ImVec2, quad_vertex_count> t = rv_editor_quad_uv(uv);
-    return {
-        { { c[0], c[2], c[1] }, { t[0], t[2], t[1] } },
-        { { c[1], c[2], c[3] }, { t[1], t[2], t[3] } },
-    };
+    cube_corner c[cube_corner_count] = {};
+    for (int i = 0; i < cube_corner_count; ++i) {
+        const auto &s = cube_corner_signs[i];
+        c[i].p = rv_editor_affine_point(m, { s[0] * unit_half_extent, s[1] * unit_half_extent, s[2] * unit_half_extent });
+        c[i].q_valid = fx_point_from_metres(c[i].p, c[i].q) == RV_OK;
+    }
+    return cube_triangles(c);
 }
 
-// The world-space length of `m`'s column `col` (0: X, 1: Y): the parent chain's scale and
-// rotation folded in, unlike the object's own local `scale`.
-double rv_editor_affine_column_length(const rv_editor_affine &m, int col)
+// The placeholder cube through the integer `world`: each corner is a Q20.12 point. A corner that
+// leaves int32 returns RV_ERR_INVAL with the reason in `error`; `tris` is then left empty.
+int rv_editor_cube_gte_triangles(const rv_pdklib::rv_gte_matrix &world,
+    const std::string &name,
+    std::vector<rv_editor_tri> &tris,
+    std::string &error)
 {
-    return std::sqrt(m[0][col] * m[0][col] + m[1][col] * m[1][col] + m[2][col] * m[2][col]);
+    cube_corner c[cube_corner_count] = {};
+    for (int i = 0; i < cube_corner_count; ++i) {
+        const auto &s = cube_corner_signs[i];
+        const std::int32_t local[3] = { s[0] * cube_half_raw, s[1] * cube_half_raw, s[2] * cube_half_raw };
+        std::int32_t raw[3] = {};
+        if (rv_pdklib::rv_gte_point(world, local, raw) != RV_OK) {
+            error = rv_editor_text_format("project.cube_corner_out_of_range", std::make_format_args(name));
+            return RV_ERR_INVAL;
+        }
+        c[i].q = { raw[0], raw[1], raw[2] };
+        c[i].q_valid = true;
+    }
+    tris = cube_triangles(c);
+    return RV_OK;
+}
+
+// The integer cube for `rv_editor_object_triangles`. A refused corner's reason is shown only when `error` holds no
+// earlier one, so the first reason stays.
+std::vector<rv_editor_tri> cube_or_undrawn(const rv_pdklib::rv_gte_matrix &world, const std::string &name, std::string *error)
+{
+    std::vector<rv_editor_tri> tris;
+    std::string cube_error;
+    if (rv_editor_cube_gte_triangles(world, name, tris, cube_error) != RV_OK && error != nullptr && error->empty()) {
+        *error = cube_error;
+    }
+    return tris;
 }
 
 } // namespace
 
-std::vector<rv_editor_tri>
-rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o)
-{
-    const vec3 center = rv_editor_affine_point(m, { 0.0, 0.0, 0.0 });
-    const vec3 right = mul(v.right, rv_editor_affine_column_length(m, 0) * unit_half_extent);
-    const vec3 up = mul(v.up, rv_editor_affine_column_length(m, 1) * unit_half_extent);
-    const vec3 c[4] = { add(center, sub(up, right)),
-        add(center, add(up, right)),
-        sub(center, add(up, right)),
-        add(center, sub(right, up)) };
-    const std::array<ImVec2, quad_vertex_count> t = rv_editor_quad_uv(o.uv);
-    return {
-        { { c[0], c[2], c[1] }, { t[0], t[2], t[1] } },
-        { { c[1], c[2], c[3] }, { t[1], t[2], t[3] } },
-    };
-}
-
 // A scene's `texture` is a flat disc texture name (mppcburner: the source's stem plus
-// ".mppctex"), resolved to the project file under [textures] whose stem matches.
+// ".mppctex"), resolved to the project file among the [assets] textures whose stem matches.
 std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name)
 {
     const std::string stem = std::filesystem::path(name).stem().string();
@@ -135,25 +170,34 @@ std::vector<rv_editor_tri>
 rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
     const rv_editor_scene_object &o = scene.objects[static_cast<size_t>(index)];
-    if (o.kind == kind_quad) {
-        return rv_editor_quad_triangles(rv_editor_scene_world(scene, index), o.uv);
-    }
-    if (o.kind != kind_mesh) {
+    const std::string kind = rv_editor_object_get_kind(o);
+    if (kind != kind_quad && kind != kind_billboard && kind != kind_mesh) {
         return {};
     }
-    const rv_editor_affine m = rv_editor_scene_world(scene, index);
-    if (o.mesh.empty()) {
-        return rv_editor_cube_triangles(m);
+    const std::string name = rv_editor_object_get_name(o);
+    rv_pdklib::rv_gte_matrix world = {};
+    if (rv_editor_scene_world_gte(scene, index, world) != RV_OK) {
+        set_error(error, rv_editor_text_format("project.object_world_out_of_range", std::make_format_args(name)));
+        return rv_editor_cube_triangles(rv_editor_scene_world(scene, index));
     }
-    if (!o.mesh.ends_with(file_ext_glb)) {
-        set_error(error, rv_editor_text_format("project.mesh_not_glb", std::make_format_args(o.mesh)));
-        return rv_editor_cube_triangles(m);
+    // A legacy quad or billboard has no model: the placeholder box, as a source-less mesh.
+    const std::string mesh = rv_editor_object_get_mesh(o);
+    if (kind != kind_mesh || mesh.empty()) {
+        return cube_or_undrawn(world, name, error);
+    }
+    if (!rv_editor_is_model_file_name(mesh)) {
+        set_error(error, rv_editor_text_format("project.mesh_not_supported", std::make_format_args(mesh)));
+        return cube_or_undrawn(world, name, error);
     }
     std::vector<rv_editor_tri> glb_tris;
     std::string glb_error;
-    if (rv_editor_glb_object_triangles(project, o.mesh, m, glb_tris, glb_error) != RV_OK) {
+    if (rv_editor_glb_object_triangles(project, mesh, world, glb_tris, glb_error) != RV_OK) {
         set_error(error, glb_error);
-        return rv_editor_cube_triangles(m);
+        return cube_or_undrawn(world, name, error);
+    }
+    // A warning from a model with triangles not drawn; the triangles that fit are still shown.
+    if (!glb_error.empty()) {
+        set_error(error, glb_error);
     }
     return glb_tris;
 }

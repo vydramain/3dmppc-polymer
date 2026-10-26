@@ -1,0 +1,1794 @@
+# The scene of the Solid Maid demo (pdkkit/scene/rv_scene.hpp): the factory, machines,
+# street, house, apartment and furniture meshes, the board, lamps, and the camera route. 3dmppc-editor's
+# Scene layout edits it; the disc reads and draws it through the PDK.
+# The demo flies the route cam_00..cam_19. Camera rotation: pitch, yaw, roll in
+# degrees; the view direction is R * (0, 0, 1), R = Ry * Rx * Rz.
+
+[scene]
+version = "1.0"
+
+[[object]]
+id = "5ce00001"
+parent = ""
+
+[[component]]
+object = "5ce00001"
+name = "name"
+text = "factory"
+
+[[component]]
+object = "5ce00001"
+name = "transform"
+
+[[component]]
+object = "5ce00001"
+name = "model"
+source = "factory.gltf"
+
+[[object]]
+id = "5ce00002"
+parent = ""
+
+[[component]]
+object = "5ce00002"
+name = "name"
+text = "board"
+
+[[component]]
+object = "5ce00002"
+name = "transform"
+position = [-13.8035, 4.3, 0]
+
+[[component]]
+object = "5ce00002"
+name = "model"
+source = "board.gltf"
+
+[[object]]
+id = "5ce00003"
+parent = ""
+
+[[component]]
+object = "5ce00003"
+name = "name"
+text = "street"
+
+[[component]]
+object = "5ce00003"
+name = "transform"
+
+[[component]]
+object = "5ce00003"
+name = "model"
+source = "street_16.gltf"
+
+[[object]]
+id = "5ce00004"
+parent = ""
+
+[[component]]
+object = "5ce00004"
+name = "name"
+text = "house"
+
+[[component]]
+object = "5ce00004"
+name = "transform"
+position = [2.1, 0, 0]
+
+[[component]]
+object = "5ce00004"
+name = "model"
+source = "house_7.gltf"
+
+[[object]]
+id = "5ce00005"
+parent = ""
+
+[[component]]
+object = "5ce00005"
+name = "name"
+text = "apartment"
+
+[[component]]
+object = "5ce00005"
+name = "transform"
+position = [2.1853, 0.2375, -1.5938]
+
+[[component]]
+object = "5ce00005"
+name = "model"
+source = "apartment.gltf"
+
+[[object]]
+id = "5ce00006"
+parent = ""
+entity = "lamp"
+
+[[component]]
+object = "5ce00006"
+name = "name"
+text = "lamp_1"
+
+[[component]]
+object = "5ce00006"
+name = "transform"
+position = [4, 0, 3.6]
+
+[[component]]
+object = "5ce00006"
+name = "model"
+source = "lamp.gltf"
+
+[[component]]
+object = "5ce00006"
+name = "lamp_light"
+
+[[object]]
+id = "5ce00007"
+parent = ""
+entity = "lamp"
+
+[[component]]
+object = "5ce00007"
+name = "name"
+text = "lamp_2"
+
+[[component]]
+object = "5ce00007"
+name = "transform"
+position = [12, 0, -3.6]
+rotation = [0, 180, 0]
+
+[[component]]
+object = "5ce00007"
+name = "model"
+source = "lamp.gltf"
+
+[[component]]
+object = "5ce00007"
+name = "lamp_light"
+
+[[object]]
+id = "5ce00008"
+parent = ""
+entity = "lamp"
+
+[[component]]
+object = "5ce00008"
+name = "name"
+text = "lamp_3"
+
+[[component]]
+object = "5ce00008"
+name = "transform"
+position = [20, 0, 3.6]
+
+[[component]]
+object = "5ce00008"
+name = "model"
+source = "lamp.gltf"
+
+[[component]]
+object = "5ce00008"
+name = "lamp_light"
+
+[[object]]
+id = "5ce00009"
+parent = ""
+entity = "lamp"
+
+[[component]]
+object = "5ce00009"
+name = "name"
+text = "lamp_4"
+
+[[component]]
+object = "5ce00009"
+name = "transform"
+position = [28, 0, -3.6]
+rotation = [0, 180, 0]
+
+[[component]]
+object = "5ce00009"
+name = "model"
+source = "lamp.gltf"
+
+[[component]]
+object = "5ce00009"
+name = "lamp_light"
+
+[[object]]
+id = "5ce0000b"
+parent = ""
+
+[[component]]
+object = "5ce0000b"
+name = "name"
+text = "machines"
+
+[[component]]
+object = "5ce0000b"
+name = "transform"
+
+[[component]]
+object = "5ce0000b"
+name = "model"
+source = "machines.gltf"
+
+[[object]]
+id = "5ce0000c"
+parent = ""
+
+[[component]]
+object = "5ce0000c"
+name = "name"
+text = "furniture"
+
+[[component]]
+object = "5ce0000c"
+name = "transform"
+position = [2, 0.2375, -1.5938]
+
+[[component]]
+object = "5ce0000c"
+name = "model"
+source = "furniture.gltf"
+
+[[object]]
+id = "5ce0000d"
+parent = ""
+
+[[component]]
+object = "5ce0000d"
+name = "name"
+text = "yard"
+
+[[component]]
+object = "5ce0000d"
+name = "transform"
+
+[[component]]
+object = "5ce0000d"
+name = "model"
+source = "yard.gltf"
+
+[[object]]
+id = "5ce0000a"
+parent = ""
+
+[[component]]
+object = "5ce0000a"
+name = "name"
+text = "route"
+
+[[component]]
+object = "5ce0000a"
+name = "transform"
+
+[[object]]
+id = "5ce10000"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10000"
+name = "name"
+text = "cam_00"
+
+[[component]]
+object = "5ce10000"
+name = "transform"
+position = [-9, 4.2, 0]
+rotation = [0, -90, 0]
+
+[[component]]
+object = "5ce10000"
+name = "camera"
+
+[[component]]
+object = "5ce10000"
+name = "route_key"
+order = 0
+
+[[object]]
+id = "5ce10001"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10001"
+name = "name"
+text = "cam_01"
+
+[[component]]
+object = "5ce10001"
+name = "transform"
+position = [-8, 4, 0.6]
+rotation = [2, -90, 0]
+
+[[component]]
+object = "5ce10001"
+name = "camera"
+
+[[component]]
+object = "5ce10001"
+name = "route_key"
+order = 1
+
+[[object]]
+id = "5ce10002"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10002"
+name = "name"
+text = "cam_02"
+
+[[component]]
+object = "5ce10002"
+name = "transform"
+position = [-6.5, 3.4, 1.5]
+
+[[component]]
+object = "5ce10002"
+name = "camera"
+
+[[component]]
+object = "5ce10002"
+name = "route_key"
+order = 2
+
+[[object]]
+id = "5ce10003"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10003"
+name = "name"
+text = "cam_03"
+
+[[component]]
+object = "5ce10003"
+name = "transform"
+position = [-3, 2, 0]
+rotation = [0, 90, 0]
+
+[[component]]
+object = "5ce10003"
+name = "camera"
+
+[[component]]
+object = "5ce10003"
+name = "route_key"
+order = 3
+
+[[object]]
+id = "5ce10004"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10004"
+name = "name"
+text = "cam_04"
+
+[[component]]
+object = "5ce10004"
+name = "transform"
+position = [-0.5, 1.7, 0]
+rotation = [0, 90, 0]
+
+[[component]]
+object = "5ce10004"
+name = "camera"
+
+[[component]]
+object = "5ce10004"
+name = "route_key"
+order = 4
+
+[[object]]
+id = "5ce10005"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10005"
+name = "name"
+text = "cam_05"
+
+[[component]]
+object = "5ce10005"
+name = "transform"
+position = [3, 1.9, 0]
+rotation = [0, 90, 0]
+
+[[component]]
+object = "5ce10005"
+name = "camera"
+
+[[component]]
+object = "5ce10005"
+name = "route_key"
+order = 5
+
+[[object]]
+id = "5ce10006"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10006"
+name = "name"
+text = "cam_06"
+
+[[component]]
+object = "5ce10006"
+name = "transform"
+position = [12, 2.8, 0]
+rotation = [0, 90, 0]
+
+[[component]]
+object = "5ce10006"
+name = "camera"
+
+[[component]]
+object = "5ce10006"
+name = "route_key"
+order = 6
+
+[[object]]
+id = "5ce10007"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10007"
+name = "name"
+text = "cam_07"
+
+[[component]]
+object = "5ce10007"
+name = "transform"
+position = [22.4949, 2.7053, 0]
+rotation = [-3, 90, 0]
+
+[[component]]
+object = "5ce10007"
+name = "camera"
+
+[[component]]
+object = "5ce10007"
+name = "route_key"
+order = 7
+
+[[object]]
+id = "5ce10008"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10008"
+name = "name"
+text = "cam_08"
+
+[[component]]
+object = "5ce10008"
+name = "transform"
+position = [30.5, 7.2375, -1.5938]
+rotation = [-2, 90, 0]
+
+[[component]]
+object = "5ce10008"
+name = "camera"
+
+[[component]]
+object = "5ce10008"
+name = "route_key"
+order = 8
+
+[[object]]
+id = "5ce10009"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10009"
+name = "name"
+text = "cam_09"
+
+[[component]]
+object = "5ce10009"
+name = "transform"
+position = [34.0496, 7.6875, -1.7258]
+rotation = [0, 90, 0]
+
+[[component]]
+object = "5ce10009"
+name = "camera"
+
+[[component]]
+object = "5ce10009"
+name = "route_key"
+order = 9
+
+[[object]]
+id = "5ce1000a"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce1000a"
+name = "name"
+text = "cam_10"
+
+[[component]]
+object = "5ce1000a"
+name = "transform"
+position = [36.674, 7.6375, -1.5938]
+rotation = [5, 90, 0]
+
+[[component]]
+object = "5ce1000a"
+name = "camera"
+
+[[component]]
+object = "5ce1000a"
+name = "route_key"
+order = 10
+
+[[object]]
+id = "5ce1000b"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce1000b"
+name = "name"
+text = "cam_11"
+
+[[component]]
+object = "5ce1000b"
+name = "transform"
+position = [38.3525, 7.6375, -2.4927]
+rotation = [10, 0, 0]
+
+[[component]]
+object = "5ce1000b"
+name = "camera"
+
+[[component]]
+object = "5ce1000b"
+name = "route_key"
+order = 11
+
+[[object]]
+id = "5ce1000c"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce1000c"
+name = "name"
+text = "cam_12"
+
+[[component]]
+object = "5ce1000c"
+name = "transform"
+position = [39.569, 7.6875, -1.5938]
+rotation = [0, -90, 0]
+
+[[component]]
+object = "5ce1000c"
+name = "camera"
+
+[[component]]
+object = "5ce1000c"
+name = "route_key"
+order = 12
+
+[[object]]
+id = "5ce1000d"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce1000d"
+name = "name"
+text = "cam_13"
+
+[[component]]
+object = "5ce1000d"
+name = "transform"
+position = [35.3457, 7.4375, -1.5938]
+rotation = [3, -90, 0]
+
+[[component]]
+object = "5ce1000d"
+name = "camera"
+
+[[component]]
+object = "5ce1000d"
+name = "route_key"
+order = 13
+
+[[object]]
+id = "5ce1000e"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce1000e"
+name = "name"
+text = "cam_14"
+
+[[component]]
+object = "5ce1000e"
+name = "transform"
+position = [27, 5, 0]
+rotation = [0, -90, 0]
+
+[[component]]
+object = "5ce1000e"
+name = "camera"
+
+[[component]]
+object = "5ce1000e"
+name = "route_key"
+order = 14
+
+[[object]]
+id = "5ce1000f"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce1000f"
+name = "name"
+text = "cam_15"
+
+[[component]]
+object = "5ce1000f"
+name = "transform"
+position = [18, 3.2, 0]
+rotation = [0, -90, 0]
+
+[[component]]
+object = "5ce1000f"
+name = "camera"
+
+[[component]]
+object = "5ce1000f"
+name = "route_key"
+order = 15
+
+[[object]]
+id = "5ce10010"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10010"
+name = "name"
+text = "cam_16"
+
+[[component]]
+object = "5ce10010"
+name = "transform"
+position = [9, 2.4, 0]
+rotation = [0, -90, 0]
+
+[[component]]
+object = "5ce10010"
+name = "camera"
+
+[[component]]
+object = "5ce10010"
+name = "route_key"
+order = 16
+
+[[object]]
+id = "5ce10011"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10011"
+name = "name"
+text = "cam_17"
+
+[[component]]
+object = "5ce10011"
+name = "transform"
+position = [2, 1.8, 0]
+rotation = [0, -90, 0]
+
+[[component]]
+object = "5ce10011"
+name = "camera"
+
+[[component]]
+object = "5ce10011"
+name = "route_key"
+order = 17
+
+[[object]]
+id = "5ce10012"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10012"
+name = "name"
+text = "cam_18"
+
+[[component]]
+object = "5ce10012"
+name = "transform"
+position = [-1.5, 1.8, 0]
+rotation = [0, -90, 0]
+
+[[component]]
+object = "5ce10012"
+name = "camera"
+
+[[component]]
+object = "5ce10012"
+name = "route_key"
+order = 18
+
+[[object]]
+id = "5ce10013"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10013"
+name = "name"
+text = "cam_19"
+
+[[component]]
+object = "5ce10013"
+name = "transform"
+position = [-5, 3, 0]
+rotation = [-3, -90, 0]
+
+[[component]]
+object = "5ce10013"
+name = "camera"
+
+[[component]]
+object = "5ce10013"
+name = "route_key"
+order = 19
+
+[[object]]
+id = "5ce10100"
+parent = "5ce0000a"
+
+[[component]]
+object = "5ce10100"
+name = "name"
+text = "eye"
+
+[[component]]
+object = "5ce10100"
+name = "transform"
+position = [-9, 4.2, 0]
+rotation = [0, -90, 0]
+
+[[component]]
+object = "5ce10100"
+name = "camera"
+
+[[component]]
+object = "5ce10100"
+name = "lens"
+
+[[component]]
+object = "5ce10100"
+name = "route_rider"
+
+[[component]]
+object = "5ce10100"
+name = "listener"
+
+[[object]]
+id = "5ce30000"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30000"
+name = "name"
+text = "halo_0"
+
+[[component]]
+object = "5ce30000"
+name = "transform"
+position = [0.005, 0, -1.2]
+
+[[component]]
+object = "5ce30000"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30000"
+name = "decal"
+
+[[component]]
+object = "5ce30000"
+name = "flicker"
+cell = 0
+
+[[component]]
+object = "5ce30000"
+name = "hidden"
+
+[[object]]
+id = "5ce30001"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30001"
+name = "name"
+text = "halo_1"
+
+[[component]]
+object = "5ce30001"
+name = "transform"
+position = [0.005, 0, -0.96]
+
+[[component]]
+object = "5ce30001"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30001"
+name = "decal"
+
+[[component]]
+object = "5ce30001"
+name = "flicker"
+cell = 1
+wear = 97
+
+[[component]]
+object = "5ce30001"
+name = "hidden"
+
+[[object]]
+id = "5ce30002"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30002"
+name = "name"
+text = "halo_2"
+
+[[component]]
+object = "5ce30002"
+name = "transform"
+position = [0.005, 0, -0.72]
+
+[[component]]
+object = "5ce30002"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30002"
+name = "decal"
+
+[[component]]
+object = "5ce30002"
+name = "flicker"
+cell = 2
+
+[[component]]
+object = "5ce30002"
+name = "hidden"
+
+[[object]]
+id = "5ce30003"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30003"
+name = "name"
+text = "halo_3"
+
+[[component]]
+object = "5ce30003"
+name = "transform"
+position = [0.005, 0, -0.48]
+
+[[component]]
+object = "5ce30003"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30003"
+name = "decal"
+
+[[component]]
+object = "5ce30003"
+name = "flicker"
+cell = 3
+
+[[component]]
+object = "5ce30003"
+name = "hidden"
+
+[[object]]
+id = "5ce30004"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30004"
+name = "name"
+text = "halo_4"
+
+[[component]]
+object = "5ce30004"
+name = "transform"
+position = [0.005, 0, -0.24]
+
+[[component]]
+object = "5ce30004"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30004"
+name = "decal"
+
+[[component]]
+object = "5ce30004"
+name = "flicker"
+cell = 4
+wear = 55
+
+[[component]]
+object = "5ce30004"
+name = "hidden"
+
+[[object]]
+id = "5ce30005"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30005"
+name = "name"
+text = "halo_5"
+
+[[component]]
+object = "5ce30005"
+name = "transform"
+position = [0.005, 0, 0]
+
+[[component]]
+object = "5ce30005"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30005"
+name = "decal"
+
+[[component]]
+object = "5ce30005"
+name = "flicker"
+cell = 5
+
+[[component]]
+object = "5ce30005"
+name = "hidden"
+
+[[object]]
+id = "5ce30006"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30006"
+name = "name"
+text = "halo_6"
+
+[[component]]
+object = "5ce30006"
+name = "transform"
+position = [0.005, 0, 0.24]
+
+[[component]]
+object = "5ce30006"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30006"
+name = "decal"
+
+[[component]]
+object = "5ce30006"
+name = "flicker"
+cell = 6
+
+[[component]]
+object = "5ce30006"
+name = "hidden"
+
+[[object]]
+id = "5ce30007"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30007"
+name = "name"
+text = "halo_7"
+
+[[component]]
+object = "5ce30007"
+name = "transform"
+position = [0.005, 0, 0.48]
+
+[[component]]
+object = "5ce30007"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30007"
+name = "decal"
+
+[[component]]
+object = "5ce30007"
+name = "flicker"
+cell = 7
+
+[[component]]
+object = "5ce30007"
+name = "hidden"
+
+[[object]]
+id = "5ce30008"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30008"
+name = "name"
+text = "halo_8"
+
+[[component]]
+object = "5ce30008"
+name = "transform"
+position = [0.005, 0, 0.72]
+
+[[component]]
+object = "5ce30008"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30008"
+name = "decal"
+
+[[component]]
+object = "5ce30008"
+name = "flicker"
+cell = 8
+wear = 40
+
+[[component]]
+object = "5ce30008"
+name = "hidden"
+
+[[object]]
+id = "5ce30010"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce30010"
+name = "name"
+text = "halo_10"
+
+[[component]]
+object = "5ce30010"
+name = "transform"
+position = [0.005, 0, 1.2]
+
+[[component]]
+object = "5ce30010"
+name = "model"
+source = "halo.gltf"
+
+[[component]]
+object = "5ce30010"
+name = "decal"
+
+[[component]]
+object = "5ce30010"
+name = "flicker"
+cell = 10
+
+[[component]]
+object = "5ce30010"
+name = "hidden"
+
+[[object]]
+id = "5ce31000"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31000"
+name = "name"
+text = "glyph_0"
+
+[[component]]
+object = "5ce31000"
+name = "transform"
+position = [0.01, 0, -1.2]
+
+[[component]]
+object = "5ce31000"
+name = "model"
+source = "glyph_o.gltf"
+
+[[component]]
+object = "5ce31000"
+name = "decal"
+
+[[component]]
+object = "5ce31000"
+name = "flicker"
+cell = 0
+
+[[component]]
+object = "5ce31000"
+name = "hidden"
+
+[[object]]
+id = "5ce31001"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31001"
+name = "name"
+text = "glyph_1"
+
+[[component]]
+object = "5ce31001"
+name = "transform"
+position = [0.01, 0, -0.96]
+
+[[component]]
+object = "5ce31001"
+name = "model"
+source = "glyph_s.gltf"
+
+[[component]]
+object = "5ce31001"
+name = "decal"
+
+[[component]]
+object = "5ce31001"
+name = "flicker"
+cell = 1
+wear = 97
+
+[[component]]
+object = "5ce31001"
+name = "hidden"
+
+[[object]]
+id = "5ce31002"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31002"
+name = "name"
+text = "glyph_2"
+
+[[component]]
+object = "5ce31002"
+name = "transform"
+position = [0.01, 0, -0.72]
+
+[[component]]
+object = "5ce31002"
+name = "model"
+source = "glyph_t.gltf"
+
+[[component]]
+object = "5ce31002"
+name = "decal"
+
+[[component]]
+object = "5ce31002"
+name = "flicker"
+cell = 2
+
+[[component]]
+object = "5ce31002"
+name = "hidden"
+
+[[object]]
+id = "5ce31003"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31003"
+name = "name"
+text = "glyph_3"
+
+[[component]]
+object = "5ce31003"
+name = "transform"
+position = [0.01, 0, -0.48]
+
+[[component]]
+object = "5ce31003"
+name = "model"
+source = "glyph_a.gltf"
+
+[[component]]
+object = "5ce31003"
+name = "decal"
+
+[[component]]
+object = "5ce31003"
+name = "flicker"
+cell = 3
+
+[[component]]
+object = "5ce31003"
+name = "hidden"
+
+[[object]]
+id = "5ce31004"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31004"
+name = "name"
+text = "glyph_4"
+
+[[component]]
+object = "5ce31004"
+name = "transform"
+position = [0.01, 0, -0.24]
+
+[[component]]
+object = "5ce31004"
+name = "model"
+source = "glyph_l.gltf"
+
+[[component]]
+object = "5ce31004"
+name = "decal"
+
+[[component]]
+object = "5ce31004"
+name = "flicker"
+cell = 4
+wear = 55
+
+[[component]]
+object = "5ce31004"
+name = "hidden"
+
+[[object]]
+id = "5ce31005"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31005"
+name = "name"
+text = "glyph_5"
+
+[[component]]
+object = "5ce31005"
+name = "transform"
+position = [0.01, 0, 0]
+
+[[component]]
+object = "5ce31005"
+name = "model"
+source = "glyph_o.gltf"
+
+[[component]]
+object = "5ce31005"
+name = "decal"
+
+[[component]]
+object = "5ce31005"
+name = "flicker"
+cell = 5
+
+[[component]]
+object = "5ce31005"
+name = "hidden"
+
+[[object]]
+id = "5ce31006"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31006"
+name = "name"
+text = "glyph_6"
+
+[[component]]
+object = "5ce31006"
+name = "transform"
+position = [0.01, 0, 0.24]
+
+[[component]]
+object = "5ce31006"
+name = "model"
+source = "glyph_s.gltf"
+
+[[component]]
+object = "5ce31006"
+name = "decal"
+
+[[component]]
+object = "5ce31006"
+name = "flicker"
+cell = 6
+
+[[component]]
+object = "5ce31006"
+name = "hidden"
+
+[[object]]
+id = "5ce31007"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31007"
+name = "name"
+text = "glyph_7"
+
+[[component]]
+object = "5ce31007"
+name = "transform"
+position = [0.01, 0, 0.48]
+
+[[component]]
+object = "5ce31007"
+name = "model"
+source = "glyph_soft.gltf"
+
+[[component]]
+object = "5ce31007"
+name = "decal"
+
+[[component]]
+object = "5ce31007"
+name = "flicker"
+cell = 7
+
+[[component]]
+object = "5ce31007"
+name = "hidden"
+
+[[object]]
+id = "5ce31008"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31008"
+name = "name"
+text = "glyph_8"
+
+[[component]]
+object = "5ce31008"
+name = "transform"
+position = [0.01, 0, 0.72]
+
+[[component]]
+object = "5ce31008"
+name = "model"
+source = "glyph_colon.gltf"
+
+[[component]]
+object = "5ce31008"
+name = "decal"
+
+[[component]]
+object = "5ce31008"
+name = "flicker"
+cell = 8
+wear = 40
+
+[[component]]
+object = "5ce31008"
+name = "hidden"
+
+[[object]]
+id = "5ce31010"
+parent = "5ce00002"
+
+[[component]]
+object = "5ce31010"
+name = "name"
+text = "glyph_10"
+
+[[component]]
+object = "5ce31010"
+name = "transform"
+position = [0.01, 0, 1.2]
+
+[[component]]
+object = "5ce31010"
+name = "model"
+source = "glyph_5.gltf"
+
+[[component]]
+object = "5ce31010"
+name = "decal"
+
+[[component]]
+object = "5ce31010"
+name = "flicker"
+cell = 10
+
+[[component]]
+object = "5ce31010"
+name = "hidden"
+
+[[object]]
+id = "5ce40001"
+parent = ""
+
+[[component]]
+object = "5ce40001"
+name = "name"
+text = "zone_lamp_1"
+
+[[component]]
+object = "5ce40001"
+name = "transform"
+position = [4, 5, 0]
+
+[[component]]
+object = "5ce40001"
+name = "zone"
+size = [16, 10, 6]
+
+[[component]]
+object = "5ce40001"
+name = "zone_lamp"
+lamp = "lamp_1"
+
+[[object]]
+id = "5ce40002"
+parent = ""
+
+[[component]]
+object = "5ce40002"
+name = "name"
+text = "zone_lamp_2"
+
+[[component]]
+object = "5ce40002"
+name = "transform"
+position = [12, 5, 0]
+
+[[component]]
+object = "5ce40002"
+name = "zone"
+size = [16, 10, 6]
+
+[[component]]
+object = "5ce40002"
+name = "zone_lamp"
+lamp = "lamp_2"
+
+[[object]]
+id = "5ce40003"
+parent = ""
+
+[[component]]
+object = "5ce40003"
+name = "name"
+text = "zone_lamp_3"
+
+[[component]]
+object = "5ce40003"
+name = "transform"
+position = [20, 5, 0]
+
+[[component]]
+object = "5ce40003"
+name = "zone"
+size = [16, 10, 6]
+
+[[component]]
+object = "5ce40003"
+name = "zone_lamp"
+lamp = "lamp_3"
+
+[[object]]
+id = "5ce40004"
+parent = ""
+
+[[component]]
+object = "5ce40004"
+name = "name"
+text = "zone_lamp_4"
+
+[[component]]
+object = "5ce40004"
+name = "transform"
+position = [28, 5, 0]
+
+[[component]]
+object = "5ce40004"
+name = "zone"
+size = [16, 10, 6]
+
+[[component]]
+object = "5ce40004"
+name = "zone_lamp"
+lamp = "lamp_4"
+
+[[object]]
+id = "5ce40011"
+parent = "5ce00006"
+
+[[component]]
+object = "5ce40011"
+name = "name"
+text = "lamp_1_light"
+
+[[component]]
+object = "5ce40011"
+name = "transform"
+
+[[component]]
+object = "5ce40011"
+name = "model"
+source = "lamp_light.gltf"
+
+[[component]]
+object = "5ce40011"
+name = "hidden"
+
+[[object]]
+id = "5ce40012"
+parent = "5ce00006"
+
+[[component]]
+object = "5ce40012"
+name = "name"
+text = "lamp_1_pool"
+
+[[component]]
+object = "5ce40012"
+name = "transform"
+position = [0, 0.03, 1.35]
+
+[[component]]
+object = "5ce40012"
+name = "model"
+source = "light_pool.gltf"
+
+[[component]]
+object = "5ce40012"
+name = "decal"
+
+[[component]]
+object = "5ce40012"
+name = "hidden"
+
+[[object]]
+id = "5ce40013"
+parent = "5ce00007"
+
+[[component]]
+object = "5ce40013"
+name = "name"
+text = "lamp_2_light"
+
+[[component]]
+object = "5ce40013"
+name = "transform"
+
+[[component]]
+object = "5ce40013"
+name = "model"
+source = "lamp_light.gltf"
+
+[[component]]
+object = "5ce40013"
+name = "hidden"
+
+[[object]]
+id = "5ce40014"
+parent = "5ce00007"
+
+[[component]]
+object = "5ce40014"
+name = "name"
+text = "lamp_2_pool"
+
+[[component]]
+object = "5ce40014"
+name = "transform"
+position = [0, 0.03, 1.35]
+
+[[component]]
+object = "5ce40014"
+name = "model"
+source = "light_pool.gltf"
+
+[[component]]
+object = "5ce40014"
+name = "decal"
+
+[[component]]
+object = "5ce40014"
+name = "hidden"
+
+[[object]]
+id = "5ce40015"
+parent = "5ce00008"
+
+[[component]]
+object = "5ce40015"
+name = "name"
+text = "lamp_3_light"
+
+[[component]]
+object = "5ce40015"
+name = "transform"
+
+[[component]]
+object = "5ce40015"
+name = "model"
+source = "lamp_light.gltf"
+
+[[component]]
+object = "5ce40015"
+name = "hidden"
+
+[[object]]
+id = "5ce40016"
+parent = "5ce00008"
+
+[[component]]
+object = "5ce40016"
+name = "name"
+text = "lamp_3_pool"
+
+[[component]]
+object = "5ce40016"
+name = "transform"
+position = [0, 0.03, 1.35]
+
+[[component]]
+object = "5ce40016"
+name = "model"
+source = "light_pool.gltf"
+
+[[component]]
+object = "5ce40016"
+name = "decal"
+
+[[component]]
+object = "5ce40016"
+name = "hidden"
+
+[[object]]
+id = "5ce40017"
+parent = "5ce00009"
+
+[[component]]
+object = "5ce40017"
+name = "name"
+text = "lamp_4_light"
+
+[[component]]
+object = "5ce40017"
+name = "transform"
+
+[[component]]
+object = "5ce40017"
+name = "model"
+source = "lamp_light.gltf"
+
+[[component]]
+object = "5ce40017"
+name = "hidden"
+
+[[object]]
+id = "5ce40018"
+parent = "5ce00009"
+
+[[component]]
+object = "5ce40018"
+name = "name"
+text = "lamp_4_pool"
+
+[[component]]
+object = "5ce40018"
+name = "transform"
+position = [0, 0.03, 1.35]
+
+[[component]]
+object = "5ce40018"
+name = "model"
+source = "light_pool.gltf"
+
+[[component]]
+object = "5ce40018"
+name = "decal"
+
+[[component]]
+object = "5ce40018"
+name = "hidden"
+
+[[object]]
+id = "5ce40005"
+parent = ""
+
+[[component]]
+object = "5ce40005"
+name = "name"
+text = "factory"
+
+[[component]]
+object = "5ce40005"
+name = "transform"
+position = [-15, 5, 0]
+
+[[component]]
+object = "5ce40005"
+name = "zone"
+size = [30, 12, 10]
+
+[[component]]
+object = "5ce40005"
+name = "zone_music"
+music = "factory"
+loop = "sfx_loop_assembly"
+
+[[component]]
+object = "5ce40005"
+name = "zone_clack"
+
+[[object]]
+id = "5ce40006"
+parent = ""
+
+[[component]]
+object = "5ce40006"
+name = "name"
+text = "street"
+
+[[component]]
+object = "5ce40006"
+name = "transform"
+position = [16.9, 5, 0]
+
+[[component]]
+object = "5ce40006"
+name = "zone"
+size = [33.8, 12, 10]
+
+[[component]]
+object = "5ce40006"
+name = "zone_music"
+music = "street"
+loop = ""
+
+[[object]]
+id = "5ce40007"
+parent = ""
+
+[[component]]
+object = "5ce40007"
+name = "name"
+text = "home"
+
+[[component]]
+object = "5ce40007"
+name = "transform"
+position = [41.9, 5, 0]
+
+[[component]]
+object = "5ce40007"
+name = "zone"
+size = [16.2, 12, 10]
+
+[[component]]
+object = "5ce40007"
+name = "zone_music"
+music = "home"
+loop = ""

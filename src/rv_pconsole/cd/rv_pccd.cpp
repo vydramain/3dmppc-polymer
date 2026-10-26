@@ -46,13 +46,3 @@ extern "C" int64_t rv_cd_resource_height(rv_cd *cd, rv_cd_resource_kind kind, co
 {
     return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->resource_height(kind, resname);
 }
-
-extern "C" int64_t rv_cd_scene_object_count(rv_cd *cd, const char *scene)
-{
-    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->scene_object_count(scene);
-}
-
-extern "C" int64_t rv_cd_scene_object_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_object *out)
-{
-    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->scene_object_read(scene, index, out);
-}

@@ -5,14 +5,18 @@
 #include "rv_mppcmod_gltf.hpp"
 
 #include "rv_mppcmod_gltf_accessor.hpp"
+#include "rv_mppcmod_gltf_image.hpp"
+#include "rv_mppcmod_gltf_trs.hpp"
+
+#include "pdklib/rv_models/rv_mppcmod_quant.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "pdk/rv_err.h"
@@ -23,10 +27,18 @@ namespace rv_pdklib
 namespace
 {
 
-using rv_pdklib::rv_mppcmod;
+using detail::entries_within;
+using detail::find_attribute;
+using detail::lanes_to_q16;
+using detail::q16_matrix;
+using detail::RV_MPPCMOD_GLTF_ENTRY_LIMIT;
+using detail::RV_MPPCMOD_GLTF_MATRIX_DIM;
+using detail::RV_MPPCMOD_GLTF_MATRIX_FLOATS;
+using detail::within;
 using rv_pdklib::rv_mppcmod_part;
+using rv_pdklib::rv_mppcmod_q16_model;
+using rv_pdklib::rv_mppcmod_q16_vertex;
 using rv_pdklib::rv_mppcmod_triangle;
-using rv_pdklib::rv_mppcmod_vertex;
 
 using gltf_ptr = std::unique_ptr<cgltf_data, decltype(&cgltf_free)>;
 
@@ -45,22 +57,20 @@ constexpr size_t RV_MPPCMOD_GLTF_CORNERS = 3;
 // vertex limit. This is the tool's own bound, not the format's: a shared index buffer
 // repeated by many primitives would otherwise grow the model without limit.
 constexpr size_t RV_MPPCMOD_GLTF_MAX_TRIANGLES = 2 * static_cast<size_t>(rv_pdklib::rv_mppcmod_max_vertices);
-// glTF matrices are 4x4 and column-major; the last column holds the translation.
-constexpr size_t RV_MPPCMOD_GLTF_MATRIX_DIM = 4;
-constexpr size_t RV_MPPCMOD_GLTF_MATRIX_FLOATS = RV_MPPCMOD_GLTF_MATRIX_DIM * RV_MPPCMOD_GLTF_MATRIX_DIM;
-constexpr std::string_view RV_MPPCMOD_GLTF_MIME_PNG = "image/png";
-constexpr std::string_view RV_MPPCMOD_GLTF_MIME_JPEG = "image/jpeg";
-constexpr std::string_view RV_MPPCMOD_GLTF_TEXTURE_EXT = ".mppctex";
-// A data: URI is embedded in the file, so it is not an external buffer.
-constexpr std::string_view RV_MPPCMOD_GLTF_DATA_URI = "data:";
+// Bound in Q.16 on a position: 2^15 m (2^31 in Q.16). An entry below 2^14 times a position below 2^15 m is below
+// 2^61, so a sum of three fits int64. The model holds at most 32767 m at shift 0 anyway, so no model that could be
+// baked is refused by this bound.
+constexpr int64_t RV_MPPCMOD_GLTF_POS_LIMIT = int64_t{ 1 } << 31;
+using q16_point = std::array<int64_t, RV_MPPCMOD_GLTF_POS_LANES>;
 
 // What the walk over the scene carries from one primitive to the next.
 struct flatten_state {
-    const cgltf_data *data = nullptr;
-    std::string stem;
-    rv_mppcmod *model = nullptr;
-    std::vector<rv_mppcmod_gltf_image> *images = nullptr;
-    std::vector<bool> image_seen;
+    rv_mppcmod_q16_model *model = nullptr;
+    detail::image_sink sink;
+    // Null unless the caller asks for the source; the baker never reads it.
+    std::vector<rv_mppcmod_gltf_source_vertex> *source = nullptr;
+    // World matrix of the node being walked, as cgltf gives it, widened to double.
+    std::array<double, RV_MPPCMOD_GLTF_MATRIX_FLOATS> node_world = {};
 };
 
 uint8_t to_channel(float v)
@@ -81,55 +91,114 @@ std::array<uint8_t, 3> base_color(const cgltf_material *material)
     return to_rgb(material->pbr_metallic_roughness.base_color_factor);
 }
 
-// The accessor of the attribute `type`, set 0; null if the primitive has none.
-const cgltf_accessor *find_attribute(const cgltf_primitive &prim, cgltf_attribute_type type)
+// The identity in Q.16: 1.0 on the diagonal.
+q16_matrix identity_q16()
 {
-    for (size_t a = 0; a < prim.attributes_count; ++a) {
-        if (prim.attributes[a].type == type && prim.attributes[a].index == 0) {
-            return prim.attributes[a].data;
+    q16_matrix m = {};
+    for (size_t d = 0; d < RV_MPPCMOD_GLTF_MATRIX_DIM; ++d) {
+        m[(RV_MPPCMOD_GLTF_MATRIX_DIM + 1) * d] = rv_mppcmod_q16_one;
+    }
+    return m;
+}
+
+// out = a * b for column-major matrices, each entry rounded to Q.16 half away from zero.
+// A product of two entries is below 2^60, so a sum of four is below 2^62.
+void compose(const q16_matrix &a, const q16_matrix &b, q16_matrix &out)
+{
+    for (size_t col = 0; col < RV_MPPCMOD_GLTF_MATRIX_DIM; ++col) {
+        for (size_t row = 0; row < RV_MPPCMOD_GLTF_MATRIX_DIM; ++row) {
+            int64_t sum = 0;
+            for (size_t k = 0; k < RV_MPPCMOD_GLTF_MATRIX_DIM; ++k) {
+                sum += a[RV_MPPCMOD_GLTF_MATRIX_DIM * k + row] * b[RV_MPPCMOD_GLTF_MATRIX_DIM * col + k];
+            }
+            out[RV_MPPCMOD_GLTF_MATRIX_DIM * col + row] = detail::rv_mppcmod_round_shift(sum, rv_mppcmod_q16_bits);
         }
     }
-    return nullptr;
 }
 
-// A buffer that is not embedded in the file: cgltf would read a file beside the model.
-bool is_external_uri(const char *uri)
-{
-    return uri != nullptr && std::string_view(uri).substr(0, RV_MPPCMOD_GLTF_DATA_URI.size()) != RV_MPPCMOD_GLTF_DATA_URI;
-}
-
-// out = M * (p, 1) for the column-major matrix M.
-void transform_point(const float *m, const float *p, float *out)
+// out = M * (p, 1) in int64, rounded to Q.16. The translation is a Q.16 entry, lifted to Q.32 for the sum.
+// RV_ERR_INVAL if a lane reaches the 2^15 m bound.
+int transform_point(const q16_matrix &m, const q16_point &p, q16_point &out)
 {
     for (size_t row = 0; row < RV_MPPCMOD_GLTF_POS_LANES; ++row) {
-        float sum = m[RV_MPPCMOD_GLTF_MATRIX_DIM * RV_MPPCMOD_GLTF_POS_LANES + row];
+        int64_t sum = m[RV_MPPCMOD_GLTF_MATRIX_DIM * RV_MPPCMOD_GLTF_POS_LANES + row] * rv_mppcmod_q16_one;
         for (size_t col = 0; col < RV_MPPCMOD_GLTF_POS_LANES; ++col) {
             sum += m[RV_MPPCMOD_GLTF_MATRIX_DIM * col + row] * p[col];
         }
-        out[row] = sum;
+        out[row] = detail::rv_mppcmod_round_shift(sum, rv_mppcmod_q16_bits);
+        if (!within(out[row], RV_MPPCMOD_GLTF_POS_LIMIT)) {
+            return RV_ERR_INVAL;
+        }
     }
+    return RV_OK;
 }
 
 // glTF is right-handed (+Z toward the viewer); the project is left-handed (rv_camera.hpp:
 // right = cross(up, forward), +z in front). Negating z maps one frame onto the other. The
 // camera then sees the model from the side glTF's viewer did, so the windings and the mirror
 // test on the glTF world matrix need no change.
-void to_project_frame(float *p)
+void to_project_frame(q16_point &p)
 {
     p[RV_MPPCMOD_GLTF_DEPTH_LANE] = -p[RV_MPPCMOD_GLTF_DEPTH_LANE];
 }
 
-// Determinant of the 3x3 part of a column-major matrix; negative when the matrix mirrors.
-float determinant3(const float *m)
+// True when the 3x3 part of a column-major matrix has a negative determinant. Each of its terms is three
+// Q.16 entries, up to 2^90 in Q.48, so int64 cannot hold the sum.
+// ponytail: __int128 is the wide type. Clang and gcc provide it on every target built here (Linux, emscripten);
+// MSVC has none, and Windows is deferred. Replace it with a 64x64->128 multiply when that target arrives.
+bool is_mirrored(const q16_matrix &m)
 {
-    return m[0] * (m[5] * m[10] - m[9] * m[6]) - m[4] * (m[1] * m[10] - m[9] * m[2]) + m[8] * (m[1] * m[6] - m[5] * m[2]);
+    const auto at = [&m](size_t i) {
+        return static_cast<__int128>(m[i]);
+    };
+    const __int128 det = at(0) * (at(5) * at(10) - at(9) * at(6)) - at(4) * (at(1) * at(10) - at(9) * at(2)) +
+        at(8) * (at(1) * at(6) - at(5) * at(2));
+    return det < 0;
+}
+
+// The local matrix of `node`, each glTF number to Q.16 once. A node with a matrix keeps the file's floats; otherwise
+// its TRS is built in int64. A node with no TRS has cgltf's defaults (zero, identity quaternion, unit scale), so the
+// build gives the identity.
+int local_matrix(const cgltf_node *node, q16_matrix &local)
+{
+    if (node->has_matrix) {
+        return lanes_to_q16(node->matrix, RV_MPPCMOD_GLTF_MATRIX_FLOATS, RV_MPPCMOD_GLTF_ENTRY_LIMIT, local.data());
+    }
+    return detail::trs_to_q16(node->translation, node->rotation, node->scale, local);
+}
+
+// World matrix of `node`: the locals of its ancestors and of itself, composed root to leaf. Each composed matrix is
+// checked, so the next product stays inside int64.
+int world_matrix(const cgltf_data *data, const cgltf_node *node, q16_matrix &world, std::string &error)
+{
+    std::vector<const cgltf_node *> chain;
+    for (const cgltf_node *n = node; n != nullptr; n = n->parent) {
+        chain.push_back(n);
+    }
+    world = identity_q16();
+    for (size_t i = chain.size(); i-- > 0;) {
+        const size_t index = static_cast<size_t>(chain[i] - data->nodes);
+        q16_matrix local = {};
+        if (local_matrix(chain[i], local) != RV_OK) {
+            error = "node " + std::to_string(index) + " has a matrix entry at or beyond 2^14 in magnitude, or not finite";
+            return RV_ERR_INVAL;
+        }
+        q16_matrix composed = {};
+        compose(world, local, composed);
+        if (!entries_within(composed, RV_MPPCMOD_GLTF_ENTRY_LIMIT)) {
+            error = "node " + std::to_string(index) + " has a world matrix entry at or beyond 2^14 in magnitude";
+            return RV_ERR_INVAL;
+        }
+        world = composed;
+    }
+    return RV_OK;
 }
 
 // The vertices of one primitive in model space. A missing UV is (0,0), a missing colour white.
 int read_vertices(const cgltf_primitive &prim,
-    const float *world,
+    const q16_matrix &world,
     const std::string &where,
-    std::vector<rv_mppcmod_vertex> &out,
+    std::vector<rv_mppcmod_q16_vertex> &out,
     std::string &error)
 {
     const cgltf_accessor *pos_acc = find_attribute(prim, cgltf_attribute_type_position);
@@ -178,15 +247,29 @@ int read_vertices(const cgltf_primitive &prim,
     const bool has_uv = uv_acc != nullptr;
     const bool has_color = color_acc != nullptr;
     const size_t color_lanes = has_color ? cgltf_num_components(color_acc->type) : 0;
-    rv_mppcmod_vertex blank;
+    rv_mppcmod_q16_vertex blank;
     blank.color = RV_MPPCMOD_GLTF_WHITE;
     out.assign(count, blank);
     for (size_t i = 0; i < count; ++i) {
-        rv_mppcmod_vertex &vertex = out[i];
-        transform_point(world, &pos[i * RV_MPPCMOD_GLTF_POS_LANES], vertex.pos.data());
-        to_project_frame(vertex.pos.data());
+        rv_mppcmod_q16_vertex &vertex = out[i];
+        q16_point p = {};
+        const float *src = &pos[i * RV_MPPCMOD_GLTF_POS_LANES];
+        if (lanes_to_q16(src, RV_MPPCMOD_GLTF_POS_LANES, RV_MPPCMOD_GLTF_POS_LIMIT, p.data()) != RV_OK) {
+            error = where + " vertex " + std::to_string(i) + " has a POSITION at or beyond 2^15 m, or not finite";
+            return RV_ERR_INVAL;
+        }
+        if (transform_point(world, p, vertex.pos) != RV_OK) {
+            error = where + " vertex " + std::to_string(i) + " has a transformed position at or beyond 2^15 m";
+            return RV_ERR_INVAL;
+        }
+        to_project_frame(vertex.pos);
         if (has_uv) {
-            vertex.uv = { uv[i * RV_MPPCMOD_GLTF_UV_LANES], uv[i * RV_MPPCMOD_GLTF_UV_LANES + 1] };
+            const float *uv_src = &uv[i * RV_MPPCMOD_GLTF_UV_LANES];
+            if (lanes_to_q16(uv_src, RV_MPPCMOD_GLTF_UV_LANES, rv_mppcmod_q16_limit, vertex.uv.data()) != RV_OK) {
+                error = where + " vertex " + std::to_string(i) +
+                    " has a uv component at or beyond 2^40 in magnitude, or not finite";
+                return RV_ERR_INVAL;
+            }
         }
         if (has_color) {
             vertex.color = to_rgb(&color[i * color_lanes]);
@@ -195,78 +278,27 @@ int read_vertices(const cgltf_primitive &prim,
     return RV_OK;
 }
 
-// The name of an image's kind in a message: JPEG is named, a missing type is said so.
-std::string image_kind(std::string_view mime)
+// Appends the source vertices of one primitive, in the order of its model vertices. Called before the model's vertices
+// are appended, so a refusal leaves source and model.vertices the same size.
+int append_source(flatten_state &st, const cgltf_primitive &prim, const std::string &where, std::string &error)
 {
-    if (mime == RV_MPPCMOD_GLTF_MIME_JPEG) {
-        return "JPEG";
-    }
-    return mime.empty() ? "no MIME type" : std::string(mime);
-}
-
-// Names the texture of `material` and keeps its PNG once. Leaves `texture` empty when
-// the material has none.
-int bake_texture(flatten_state &st,
-    const cgltf_material *material,
-    const std::string &where,
-    std::string &texture,
-    std::string &error)
-{
-    texture.clear();
-    if (material == nullptr || !material->has_pbr_metallic_roughness) {
+    if (st.source == nullptr) {
         return RV_OK;
     }
-    const cgltf_texture_view &view = material->pbr_metallic_roughness.base_color_texture;
-    if (view.texture == nullptr) {
-        return RV_OK;
+    // read_source_vertices assigns its output, so each primitive is read apart and appended.
+    std::vector<rv_mppcmod_gltf_source_vertex> part;
+    const int rc = detail::read_source_vertices(prim, st.node_world, where, part, error);
+    if (rc != RV_OK) {
+        return rc;
     }
-    if (view.texcoord != 0) {
-        error = where + " uses TEXCOORD_" + std::to_string(view.texcoord) + " for its texture; only TEXCOORD_0 is baked";
-        return RV_ERR_INVAL;
-    }
-    const cgltf_image *image = view.texture->image;
-    if (image == nullptr) {
-        error = "has a texture with no image";
-        return RV_ERR_INVAL;
-    }
-    const size_t index = static_cast<size_t>(image - st.data->images);
-    const std::string image_where = "image " + std::to_string(index);
-    if (is_external_uri(image->uri)) {
-        error = image_where + " is an external file; the model must embed its textures";
-        return RV_ERR_INVAL;
-    }
-    if (image->buffer_view == nullptr) {
-        error = image_where + " has no bufferView; the baker reads images from one (a .glb embeds them)";
-        return RV_ERR_INVAL;
-    }
-    const std::string_view mime = image->mime_type != nullptr ? std::string_view(image->mime_type) : std::string_view();
-    if (mime != RV_MPPCMOD_GLTF_MIME_PNG) {
-        error = image_where + " is " + image_kind(mime) +
-            ", not PNG; the baker reads PNG only, so export the model with PNG textures";
-        return RV_ERR_INVAL;
-    }
-
-    const std::string name = st.stem + "-" + std::to_string(index);
-    if (!st.image_seen[index]) {
-        const auto *src = static_cast<const uint8_t *>(cgltf_buffer_view_data(image->buffer_view));
-        if (src == nullptr) {
-            error = image_where + " has no data";
-            return RV_ERR_INVAL;
-        }
-        rv_mppcmod_gltf_image out;
-        out.name = name;
-        out.png.assign(src, src + image->buffer_view->size);
-        st.images->push_back(std::move(out));
-        st.image_seen[index] = true;
-    }
-    texture = name + std::string(RV_MPPCMOD_GLTF_TEXTURE_EXT);
+    st.source->insert(st.source->end(), part.begin(), part.end());
     return RV_OK;
 }
 
 // Appends one primitive as one part: its own vertices, its triangles, its colour and texture.
 int append_primitive(flatten_state &st,
     const cgltf_primitive &prim,
-    const float *world,
+    const q16_matrix &world,
     const std::string &where,
     std::string &error)
 {
@@ -278,7 +310,7 @@ int append_primitive(flatten_state &st,
         error = where + " has morph targets, which are not baked";
         return RV_ERR_INVAL;
     }
-    std::vector<rv_mppcmod_vertex> vertices;
+    std::vector<rv_mppcmod_q16_vertex> vertices;
     int rc = read_vertices(prim, world, where, vertices, error);
     if (rc != RV_OK) {
         return rc;
@@ -305,7 +337,11 @@ int append_primitive(flatten_state &st,
         return RV_ERR_INVAL;
     }
     rv_mppcmod_part part;
-    rc = bake_texture(st, prim.material, where, part.texture, error);
+    rc = detail::bake_texture(st.sink, prim.material, where, part.texture, error);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    rc = append_source(st, prim, where, error);
     if (rc != RV_OK) {
         return rc;
     }
@@ -315,7 +351,7 @@ int append_primitive(flatten_state &st,
 
     // A mirrored node reverses the winding: glTF front faces are counter-clockwise, and the
     // console culls back faces, so corners 1 and 2 swap to keep the faces the author drew.
-    const bool mirrored = determinant3(world) < 0.0f;
+    const bool mirrored = is_mirrored(world);
     const size_t first = mirrored ? 2 : 1;
     const size_t second = mirrored ? 1 : 2;
 
@@ -381,12 +417,8 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
         return RV_ERR_INVAL;
     }
     const gltf_ptr data(raw, cgltf_free);
-    for (size_t b = 0; b < raw->buffers_count; ++b) {
-        const bool external = is_external_uri(raw->buffers[b].uri);
-        if (external) {
-            error = "has a buffer in an external file; the model must embed its buffers";
-            return RV_ERR_INVAL;
-        }
+    if (const int rc = detail::check_uris(raw, error); rc != RV_OK) {
+        return rc;
     }
     if (cgltf_load_buffers(&options, raw, path.c_str()) != cgltf_result_success) {
         error = "has buffers that cannot be loaded";
@@ -397,15 +429,23 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
         return RV_ERR_INVAL;
     }
 
-    st.data = raw;
-    st.image_seen.assign(raw->images_count, false);
+    st.sink.data = raw;
+    st.sink.image_seen.assign(raw->images_count, false);
     for (const cgltf_node *node : scene_nodes(raw)) {
         if (node->mesh == nullptr) {
             continue;
         }
         const size_t n = static_cast<size_t>(node - raw->nodes);
-        float world[RV_MPPCMOD_GLTF_MATRIX_FLOATS];
-        cgltf_node_transform_world(node, world);
+        q16_matrix world = {};
+        const int world_rc = world_matrix(raw, node, world, error);
+        if (world_rc != RV_OK) {
+            return world_rc;
+        }
+        if (st.source != nullptr) {
+            std::array<float, RV_MPPCMOD_GLTF_MATRIX_FLOATS> float_world = {};
+            cgltf_node_transform_world(node, float_world.data());
+            std::copy(float_world.begin(), float_world.end(), st.node_world.begin());
+        }
         for (size_t p = 0; p < node->mesh->primitives_count; ++p) {
             const std::string where = "node " + std::to_string(n) + ", primitive " + std::to_string(p);
             const int rc = append_primitive(st, node->mesh->primitives[p], world, where, error);
@@ -421,26 +461,51 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
     return RV_OK;
 }
 
-} // namespace
-
-int rv_mppcmod_read_gltf(const std::string &path,
+// Both overloads land here. A null `source` leaves the source unread, so the baker's output is the same as before.
+int read_model(const std::string &path,
     const std::string &stem,
-    rv_mppcmod &model,
+    rv_mppcmod_q16_model &model,
     std::vector<rv_mppcmod_gltf_image> &images,
+    std::vector<rv_mppcmod_gltf_source_vertex> *source,
     std::string &error)
 {
-    model = rv_mppcmod{};
+    model = rv_mppcmod_q16_model{};
     images.clear();
     flatten_state st;
-    st.stem = stem;
+    st.sink.stem = stem;
+    // cgltf's split: the directory runs up to the last '/' or '\'. npos + 1 wraps to 0: no directory.
+    st.sink.dir = path.substr(0, path.find_last_of("/\\") + 1);
     st.model = &model;
-    st.images = &images;
+    st.sink.images = &images;
+    st.source = source;
     const int rc = read_gltf(path, st, error);
     if (rc != RV_OK) {
         error = "'" + path + "' " + error;
         return rc;
     }
     return RV_OK;
+}
+
+} // namespace
+
+int rv_mppcmod_read_gltf(const std::string &path,
+    const std::string &stem,
+    rv_mppcmod_q16_model &model,
+    std::vector<rv_mppcmod_gltf_image> &images,
+    std::string &error)
+{
+    return read_model(path, stem, model, images, nullptr, error);
+}
+
+int rv_mppcmod_read_gltf(const std::string &path,
+    const std::string &stem,
+    rv_mppcmod_q16_model &model,
+    std::vector<rv_mppcmod_gltf_image> &images,
+    std::vector<rv_mppcmod_gltf_source_vertex> &source,
+    std::string &error)
+{
+    source.clear();
+    return read_model(path, stem, model, images, &source, error);
 }
 
 } // namespace rv_pdklib

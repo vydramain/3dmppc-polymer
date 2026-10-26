@@ -9,17 +9,20 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <string>
 
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
 #include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_thumbwheel.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -32,16 +35,8 @@ constexpr float min_viewport_size = 40.0f;
 constexpr float wheel_width_spacing = 2.0f;
 constexpr float line_height_spacing = 2.0f;
 constexpr float gap_multiplier = 4.0f;
-constexpr double rotation_sensitivity = 0.4;
-constexpr double pitch_min = -89.9;
-constexpr double pitch_max = 89.9;
 constexpr float half = 0.5f;
 constexpr double dolly_sensitivity = 0.01;
-constexpr double camera_distance_min = 0.5;
-constexpr double camera_distance_max = 200.0;
-constexpr double pan_sensitivity = 0.002;
-constexpr double zoom_base = 0.9;
-constexpr double keyboard_rotation_step = 2.0;
 constexpr float line_width_selected = 2.0f;
 constexpr float gizmo_line_width_normal = 2.0f;
 constexpr float gizmo_line_width_hot = 4.0f;
@@ -49,6 +44,8 @@ constexpr float gizmo_circle_radius = 40.0f;
 constexpr int gizmo_circle_segments = 32;
 constexpr float gizmo_circle_line_width = 1.5f;
 constexpr double gizmo_size_factor = 0.15;
+// The same factor in Q20.12, rounded to the nearest raw; the gizmo length is the camera distance times it.
+constexpr rv_pdklib::fx gizmo_size_fx = static_cast<rv_pdklib::fx>(gizmo_size_factor * rv_pdklib::fx_one + 0.5);
 constexpr float gizmo_click_threshold = 40.0f;
 constexpr float text_wrap_width = 28.0f;
 constexpr float status_text_offset = 2.0f;
@@ -57,13 +54,30 @@ constexpr size_t camera_status_buffer_size = 160; // the camera status line: yaw
 
 // The Scene viewport's own tool drag, shared by every Scene tile.
 rv_editor_gizmo_drag tool_drag;
+// The camera's sub-raw navigation rest, carried to the next frame; shared by the Scene tiles, like tool_drag.
+rv_editor_camera_carry camera_carry;
+
+// The origin's screen point, the rotate and scale circle's centre (a zero-length edge). NOENT, behind the near plane,
+// is silent; INVAL, outside Q20.12, logs once.
+int rv_editor_origin_screen(const rv_editor_view &v, const rv_pdklib::fx_vec3 &o, ImVec2 &so)
+{
+    static bool reported = false;
+    ImVec2 unused;
+    const int rc = rv_editor_edge_screen_fx(v, o, o, so, unused);
+    if (rc != RV_ERR_INVAL || reported) {
+        return rc;
+    }
+    reported = true;
+    RV_LOG_WARN(scene_log_tag, "the gizmo's origin is outside Q20.12 in the view: no circle for this object");
+    return rc;
+}
 
 // The gizmo axis under the mouse for the active tool; -1 when none.
 int rv_editor_tool_axis(rv_editor_scene_tool tool,
     const rv_editor_scene_doc &doc,
     const rv_editor_view &v,
     const ImVec2 &mouse,
-    double gizmo,
+    rv_pdklib::fx gizmo,
     int at)
 {
     switch (tool) {
@@ -73,15 +87,27 @@ int rv_editor_tool_axis(rv_editor_scene_tool tool,
         return -1;
     case rv_editor_scene_tool::rotate:
     case rv_editor_scene_tool::scale: {
+        rv_pdklib::fx_vec3 o{};
         ImVec2 so;
-        const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
-        if (v.point(o, so) && std::hypot(mouse.x - so.x, mouse.y - so.y) < gizmo_click_threshold) {
-            return 0;
+        if (rv_editor_gizmo_origin(doc.scene, at, o) != RV_OK || rv_editor_origin_screen(v, o, so) != RV_OK) {
+            return -1;
         }
-        return -1;
+        const bool on_circle = std::hypot(mouse.x - so.x, mouse.y - so.y) < gizmo_click_threshold;
+        return on_circle ? 0 : -1;
     }
     }
     return -1;
+}
+
+// The selected object's index, or -1 when none or when it is absent: no gizmo and no drag for it.
+int rv_editor_selected_index(const rv_editor_scene_doc &doc)
+{
+    const int at = rv_editor_scene_find(doc.scene, doc.selected);
+    if (at < 0) {
+        return -1;
+    }
+    const rv_editor_visibility vis = rv_editor_scene_visibility(doc, doc.scene.objects[static_cast<size_t>(at)]);
+    return vis == rv_editor_visibility::absent ? -1 : at;
 }
 
 } // namespace
@@ -94,10 +120,14 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     rv_editor_scene_doc &doc = *app.scene;
     // Worked on as a copy; the shell gets the result once, at the end.
     rv_editor_scene_camera cam = ui.state.scene_camera;
+    // Checked before anything reads the camera: a stale saved view is reset here, with one warning, and its carry goes.
+    if (rv_editor_camera_check(cam) != RV_OK) {
+        camera_carry = rv_editor_camera_carry{};
+    }
     rv_editor_shelf_begin("##shelf", theme);
     rv_editor_scene_toolbar(app, cam, theme);
     rv_editor_shelf_end();
-    rv_editor_scene_keys(app);
+    rv_editor_scene_keys(app, ui);
 
     // The well never scrolls: the Scene tile's picture shrinks to fit instead.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
@@ -119,16 +149,16 @@ void rv_editor_scene_viewport(rv_editor_app &app,
         std::max(min_viewport_size, avail.y - wheel - line_height_spacing * line - gap));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
-    cam.pitch =
-        std::clamp(cam.pitch - rv_editor_thumbwheel("##rotx", rot_x_label, true, size.y, theme, reset) * rotation_sensitivity,
-            pitch_min,
-            pitch_max);
+    // The navigation calls in this function log their own refusal and leave the view as it was; the codes are dropped.
+    const float rot_x_turn = rv_editor_thumbwheel("##rotx", rot_x_label, true, size.y, theme, reset);
+    (void)rv_editor_camera_orbit(cam, camera_carry, 0.0, -rot_x_turn * rv_editor_camera_rotation_sensitivity);
     if (reset) {
-        cam.pitch = rv_editor_scene_camera{}.pitch;
+        (void)rv_editor_camera_reset_pitch(cam);
+        camera_carry.pitch = 0.0;
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, top.y + (size.y - label_x.y) * half));
-    ImGui::TextUnformatted(rot_x_label);
+    rv_editor_label(rot_x_label, rv_editor_label_kind::normal, theme);
     ImGui::SameLine();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##viewport",
@@ -139,61 +169,53 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     const bool focused = ImGui::IsItemFocused() || ImGui::IsWindowFocused();
     ImGui::SameLine();
     const ImVec2 dolly_top = ImGui::GetCursorScreenPos();
-    cam.distance = std::clamp(cam.distance *
-            std::exp(-rv_editor_thumbwheel("##dolly", dolly_label, true, size.y, theme, reset) * dolly_sensitivity),
-        camera_distance_min,
-        camera_distance_max);
+    const float dolly_turn = rv_editor_thumbwheel("##dolly", dolly_label, true, size.y, theme, reset);
+    (void)rv_editor_camera_dolly(cam, camera_carry, -dolly_turn * dolly_sensitivity);
     if (reset) {
-        cam.distance = rv_editor_scene_camera{}.distance;
+        (void)rv_editor_camera_reset_distance(cam);
+        camera_carry.dolly = 0.0;
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, dolly_top.y + (size.y - label_d.y) * half));
-    ImGui::TextUnformatted(dolly_label);
+    rv_editor_label(dolly_label, rv_editor_label_kind::normal, theme);
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap));
-    cam.yaw +=
-        rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme, reset) * rotation_sensitivity;
+    const float rot_y_turn = rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme, reset);
+    (void)rv_editor_camera_orbit(cam, camera_carry, rot_y_turn * rv_editor_camera_rotation_sensitivity, 0.0);
     if (reset) {
-        cam.yaw = rv_editor_scene_camera{}.yaw;
+        (void)rv_editor_camera_reset_yaw(cam);
+        camera_carry.yaw = 0.0;
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, p0.y + size.y + gap + (wheel - label_y.y) * half));
-    ImGui::TextUnformatted(rot_y_label);
+    rv_editor_label(rot_y_label, rv_editor_label_kind::normal, theme);
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
+    if (!v.valid) {
+        // No camera, no frame: the well closes and the scene is not drawn. A changed camera still reaches the shell.
+        rv_editor_well_end();
+        if (cam != ui.state.scene_camera) {
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
+        }
+        return;
+    }
     ImGuiIO &io = ImGui::GetIO();
     const ImVec2 mouse = io.MousePos;
-    const double gizmo = cam.distance * gizmo_size_factor;
+    // A failed read is logged by rv_editor_camera_read_units and leaves the units at zero.
+    rv_editor_camera_units units{};
+    (void)rv_editor_camera_read_units(cam, units);
+    // The gizmo's arm in raw: the camera distance times gizmo_size_fx. The factor is below one, so the product always fits.
+    rv_pdklib::fx camera_distance = 0;
+    rv_pdklib::fx gizmo = 0;
+    // The inline getter only returns RV_OK.
+    (void)rv_editor_camera_get_distance_fx(cam, camera_distance);
+    (void)rv_pdklib::fx_mul(camera_distance, gizmo_size_fx, gizmo);
     const bool read_only = !doc.scene.read_only.empty();
 
-    // Navigation: right drag orbits, middle drag pans, the wheel dollies; keys as well.
-    if (active && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-        cam.yaw += io.MouseDelta.x * rotation_sensitivity;
-        cam.pitch = std::clamp(cam.pitch + io.MouseDelta.y * rotation_sensitivity, pitch_min, pitch_max);
-    }
-    if (active && ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-        const double k = cam.distance * pan_sensitivity;
-        cam.target = add(cam.target, add(mul(v.right, -io.MouseDelta.x * k), mul(v.up, io.MouseDelta.y * k)));
-    }
-    if (hovered && io.MouseWheel != 0.0f) {
-        cam.distance = std::clamp(cam.distance * std::pow(zoom_base, io.MouseWheel), camera_distance_min, camera_distance_max);
-    }
-    if (focused && !io.WantTextInput && !ImGui::IsAnyItemActive()) {
-        cam.yaw += ImGui::IsKeyDown(ImGuiKey_LeftArrow) ? -keyboard_rotation_step :
-            ImGui::IsKeyDown(ImGuiKey_RightArrow)       ? keyboard_rotation_step :
-                                                          0.0;
-        cam.pitch = std::clamp(cam.pitch + (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? keyboard_rotation_step : 0.0) -
-                (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? keyboard_rotation_step : 0.0),
-            pitch_min,
-            pitch_max);
-        if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd)) {
-            cam.distance = std::max(camera_distance_min, cam.distance * zoom_base);
-        }
-        if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract)) {
-            cam.distance = std::min(camera_distance_max, cam.distance / zoom_base);
-        }
-        if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
-            cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
-        }
+    // Keys need focus, no typing and no active item; F and the tool letters share this test.
+    const bool keys_free = focused && !io.WantTextInput && !ImGui::IsAnyItemActive();
+    // The camera calls log their refusal; the navigation's first code is dropped, as the wheels' codes are.
+    (void)rv_editor_camera_navigate(cam, camera_carry, v, hovered, active, keys_free);
+    if (keys_free) {
         if (ImGui::IsKeyPressed(ImGuiKey_F) && !doc.selected.empty()) {
             rv_editor_scene_frame(app, cam, false);
         }
@@ -208,9 +230,9 @@ void rv_editor_scene_viewport(rv_editor_app &app,
 
     // A left press starts a drag of the tool when it lands on the gizmo, else it picks.
     if (ImGui::IsItemActivated() || (active && ImGui::IsMouseClicked(ImGuiMouseButton_Left))) {
-        const int at = rv_editor_scene_find(doc.scene, doc.selected);
+        const int at = rv_editor_selected_index(doc);
         int axis = -1;
-        if (at >= 0 && !read_only && !cam.seeking) {
+        if (at >= 0 && !read_only && !cam.seeking && !doc.parts_mode) {
             axis = rv_editor_tool_axis(cam.tool, doc, v, mouse, gizmo, at);
         }
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && axis >= 0) {
@@ -218,36 +240,40 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
             tool_drag.axis = axis;
             tool_drag.from = { mouse.x, mouse.y };
-            tool_drag.before_position = o.position;
-            tool_drag.before_rotation = o.rotation;
-            tool_drag.before_scale = o.scale;
+            tool_drag.before_position = rv_editor_object_get_position(o);
+            tool_drag.before_rotation = rv_editor_object_get_rotation(o);
+            tool_drag.before_scale = rv_editor_object_get_scale(o);
             tool_drag.dragging = true;
+        } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && doc.parts_mode && !cam.seeking) {
+            rv_editor_parts_click(doc, app.project, v, mouse, io.KeyShift);
         } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            const std::string hit = rv_editor_pick(doc.scene, app.project, v, mouse);
+            const std::string hit = rv_editor_pick(doc, app.project, v, mouse);
             if (cam.seeking) {
                 const int h = rv_editor_scene_find(doc.scene, hit);
                 if (h >= 0) {
-                    cam.target = rv_editor_affine_point(rv_editor_scene_world(doc.scene, h), { 0, 0, 0 });
+                    (void)rv_editor_camera_seek(cam, rv_editor_affine_point(rv_editor_scene_world(doc.scene, h), { 0, 0, 0 }));
                 }
                 cam.seeking = false;
             } else {
-                doc.selected = hit;
+                rv_editor_scene_select(doc, hit);
             }
         }
     }
     if (tool_drag.dragging) {
-        const int at = rv_editor_scene_find(doc.scene, doc.selected);
-        if (at >= 0 && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        const int at = rv_editor_selected_index(doc);
+        // Escape takes back even when the object has become absent: the drag's values are still its own.
+        const int found = rv_editor_scene_find(doc.scene, doc.selected);
+        if (found >= 0 && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             // Taken back: the values from before the press, and the step it took goes.
-            rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
-            o.position = tool_drag.before_position;
-            o.rotation = tool_drag.before_rotation;
-            o.scale = tool_drag.before_scale;
+            rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(found)];
+            rv_editor_object_set_position(o, tool_drag.before_position);
+            rv_editor_object_set_rotation(o, tool_drag.before_rotation);
+            rv_editor_object_set_scale(o, tool_drag.before_scale);
             if (!doc.undo.empty()) {
                 doc.undo.pop_back();
             }
             tool_drag.dragging = false;
-        } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        } else if (at >= 0 && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             rv_editor_manipulate(app, cam, v, tool_drag);
         } else {
             tool_drag.dragging = false;
@@ -261,30 +287,26 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     dl->AddRectFilled(p0, p1, rv_editor_col(theme.code_base));
     if (cam.grid) {
         const ImU32 grid = rv_editor_col(theme.dark);
+        const rv_pdklib::fx extent = grid_half_extent * rv_pdklib::fx_one;
         for (int i = -grid_half_extent; i <= grid_half_extent; ++i) {
-            const double f = static_cast<double>(i);
-            rv_editor_line(dl,
-                v,
-                { f, 0, -grid_half_extent },
-                { f, 0, grid_half_extent },
-                i == 0 ? rv_editor_col(theme.code_blue) : grid,
-                1.0f);
-            rv_editor_line(dl,
-                v,
-                { -grid_half_extent, 0, f },
-                { grid_half_extent, 0, f },
-                i == 0 ? rv_editor_col(theme.code_red) : grid,
-                1.0f);
+            const rv_pdklib::fx f = i * rv_pdklib::fx_one;
+            rv_editor_line_fx(dl, v, { f, 0, -extent }, { f, 0, extent }, i == 0 ? rv_editor_col(theme.code_blue) : grid, 1.0f);
+            rv_editor_line_fx(dl, v, { -extent, 0, f }, { extent, 0, f }, i == 0 ? rv_editor_col(theme.code_red) : grid, 1.0f);
         }
     }
+    // Filled/Textured: the selected object is filled as unselected when rv_editor_parts_resolve draws its
+    // picked pieces. The lines keep the picks' own rule; Wireframe has no fill.
+    const rv_editor_parts_target parts = rv_editor_parts_resolve(doc, app.project);
+    const bool selected_picked = parts.model != nullptr;
+    const std::string no_selection;
     const bool filled = cam.shading != rv_editor_scene_shading::wireframe;
     std::string mesh_error; // the first mesh resolve/parse error this frame, if any
     if (filled) {
         rv_editor_draw_filled(dl,
             v,
-            doc.scene,
+            doc,
             app.project,
-            doc.selected,
+            selected_picked ? no_selection : doc.selected,
             rv_editor_col(theme.code_subtext),
             rv_editor_col(theme.selection),
             renderer,
@@ -292,44 +314,68 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             size,
             cam.shading == rv_editor_scene_shading::textured);
     }
+    // The ids reported in this process, kept for its lifetime, so each object is named once.
+    static std::set<std::string> edges_skip_reported;
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
-        const std::string &kind = doc.scene.objects[i].kind;
-        const bool sel = doc.scene.objects[i].id == doc.selected;
+        const rv_editor_scene_object &obj = doc.scene.objects[i];
+        const rv_editor_visibility vis = rv_editor_scene_visibility(doc, obj);
+        if (vis == rv_editor_visibility::absent) {
+            continue;
+        }
+        const std::string kind = rv_editor_object_get_kind(obj);
+        // The owner of selected pieces is drawn unselected in the lines; the pieces are drawn over it only when
+        // rv_editor_parts_resolve gave a model.
+        const bool has_picks =
+            obj.id == doc.picked_owner && doc.picked_mesh == rv_editor_object_get_mesh(obj) && !doc.picked_pieces.empty();
+        const bool sel = obj.id == doc.selected && !has_picks;
         const ImU32 color = rv_editor_col(sel                                    ? theme.selection :
+                vis == rv_editor_visibility::outline                             ? theme.text_disabled :
                 kind == kind_mesh || kind == kind_quad || kind == kind_billboard ? theme.text :
                 kind == kind_camera                                              ? theme.code_yellow :
                                                                                    theme.code_subtext);
         std::string error;
         // Filled/Textured mode already paints non-selected mesh/quad/billboard geometry; the
         // selected one keeps its outline, and a volume (never filled) always keeps its edges.
-        const bool painted = filled && !sel && (kind == kind_mesh || kind == kind_quad || kind == kind_billboard);
+        // An outline is always edges.
+        const bool painted = filled && vis == rv_editor_visibility::shown && !sel &&
+            (kind == kind_mesh || kind == kind_quad || kind == kind_billboard);
         if (painted) {
             if (kind == kind_mesh) {
                 rv_editor_object_triangles(doc.scene, app.project, static_cast<int>(i), &error);
             }
         } else {
-            for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i), &error)) {
-                rv_editor_line(dl, v, a, b, color, sel ? line_width_selected : 1.0f);
+            int skipped = 0;
+            for (const auto &[a, b] : rv_editor_object_edges_fx(doc.scene, app.project, static_cast<int>(i), skipped, &error)) {
+                rv_editor_line_fx(dl, v, a, b, color, sel ? line_width_selected : 1.0f);
+            }
+            if (skipped > 0 && !edges_skip_reported.contains(obj.id)) {
+                edges_skip_reported.insert(obj.id);
+                RV_LOG_WARN(scene_log_tag, "object '{}': {} edges or triangles outside Q20.12 are left out", obj.id, skipped);
             }
         }
         if (mesh_error.empty() && !error.empty()) {
             mesh_error = error;
         }
     }
-    const int at = rv_editor_scene_find(doc.scene, doc.selected);
-    if (at >= 0 && cam.tool == rv_editor_scene_tool::move) {
-        const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
+    rv_editor_parts_highlight(dl, v, doc, parts, rv_editor_col(theme.selection));
+    const int at = rv_editor_selected_index(doc);
+    // No origin, no gizmo: rv_editor_gizmo_origin logs why.
+    rv_pdklib::fx_vec3 o{};
+    const bool anchored = at >= 0 && rv_editor_gizmo_origin(doc.scene, at, o) == RV_OK;
+    if (anchored && cam.tool == rv_editor_scene_tool::move) {
         const uint32_t colors[] = { theme.code_red, theme.code_green, theme.code_blue };
         for (int a = 0; a < std::ssize(colors); ++a) {
-            vec3 tip = o;
-            tip[static_cast<size_t>(a)] += gizmo;
+            rv_pdklib::fx_vec3 tip{};
+            if (rv_editor_gizmo_tip(o, a, gizmo, tip) != RV_OK) {
+                continue;
+            }
             const bool hot = (tool_drag.dragging && tool_drag.axis == a) ||
                 (!tool_drag.dragging && hovered && rv_editor_gizmo_axis(doc.scene, doc.selected, v, mouse, gizmo) == a);
-            rv_editor_line(dl, v, o, tip, rv_editor_col(colors[a]), hot ? gizmo_line_width_hot : gizmo_line_width_normal);
+            rv_editor_line_fx(dl, v, o, tip, rv_editor_col(colors[a]), hot ? gizmo_line_width_hot : gizmo_line_width_normal);
         }
-    } else if (at >= 0 && cam.tool != rv_editor_scene_tool::select) {
+    } else if (anchored && cam.tool != rv_editor_scene_tool::select) {
         ImVec2 so;
-        if (v.point(rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 }), so)) {
+        if (rv_editor_origin_screen(v, o, so) == RV_OK) {
             dl->AddCircle(so,
                 gizmo_circle_radius,
                 rv_editor_col(theme.selection),
@@ -341,8 +387,9 @@ void rv_editor_scene_viewport(rv_editor_app &app,
 
     // What the view is, in numbers, and which camera this is.
     const std::string seek_msg = cam.seeking ? rv_editor_text("scene_viewport.seek_hint") : "";
+    (void)rv_editor_camera_read_units(cam, units);
     const std::string camera_info = rv_editor_text_format("scene_viewport.camera_status",
-        std::make_format_args(cam.yaw, cam.pitch, cam.distance, seek_msg));
+        std::make_format_args(units.yaw, units.pitch, units.distance, seek_msg));
     char buf[camera_status_buffer_size];
     std::snprintf(buf, sizeof(buf), "%s", camera_info.c_str());
     // Whether the running game has read this open scene document (its resource
@@ -361,21 +408,16 @@ void rv_editor_scene_viewport(rv_editor_app &app,
         }
     }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset));
-    if (mesh_error.empty()) {
-        const std::string status_line =
-            rv_editor_text_format("scene_viewport.status_line_format", std::make_format_args(buf, read_line));
-        ImGui::TextDisabled("%s", status_line.c_str());
-    } else {
-        const char *error_str = mesh_error.c_str();
-        const std::string status_line =
-            rv_editor_text_format("scene_viewport.mesh_placeholder_format", std::make_format_args(buf, read_line, error_str));
-        ImGui::TextDisabled("%s", status_line.c_str());
-    }
+    const char *const error_str = mesh_error.c_str();
+    const std::string status_line = mesh_error.empty() ?
+        rv_editor_text_format("scene_viewport.status_line_format", std::make_format_args(buf, read_line)) :
+        rv_editor_text_format("scene_viewport.mesh_placeholder_format", std::make_format_args(buf, read_line, error_str));
+    rv_editor_label(status_line.c_str(), rv_editor_label_kind::dim, theme);
     if (!read_tip.empty()) {
-        ImGui::SetItemTooltip("%s", read_tip.c_str());
+        rv_editor_item_tooltip(read_tip.c_str());
     }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset + line));
-    ImGui::TextDisabled("%s", rv_editor_text("scene_viewport.example_meshes_title"));
+    rv_editor_label(rv_editor_text("scene_viewport.example_meshes_title"), rv_editor_label_kind::dim, theme);
     if (ImGui::BeginItemTooltip()) {
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * text_wrap_width);
         ImGui::TextUnformatted(rv_editor_text("scene_viewport.example_meshes_tooltip"));

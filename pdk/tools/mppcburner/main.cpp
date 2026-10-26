@@ -117,7 +117,7 @@ static void print_usage(std::FILE *stream)
         "                goes to stderr, nothing to stdout.\n"
         "  inspect       Print the manifest and the entry sizes to stdout. Nothing\n"
         "                is unpacked and nothing is written.\n"
-        "  bake-texture  Bake one [textures] source of the disc into a standalone\n"
+        "  bake-texture  Bake one [assets] PNG of the disc into a standalone\n"
         "                .mppctex, the way build's own plan would. The baked\n"
         "                entry's archive name is the only thing on stdout.\n"
         "  setup         Install a pinned tool once, per user, under\n"

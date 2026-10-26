@@ -1,11 +1,15 @@
 // Pane rendering dispatch for all pane kinds.
 
+#include <string>
+
 #include "app/rv_editor_shell.hpp"
 
 #include "imgui.h"
 
 #include "catalog/rv_editor_catalog.hpp"
 #include "panes/rv_editor_panes.hpp"
+#include "text/rv_editor_text.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -15,12 +19,24 @@ namespace
 
 // A control strip's width, in font sizes.
 constexpr int rv_editor_strip_width_em = 20;
+// A pane kind without a view says so; the title fills the {}.
+constexpr const char *no_view_text_id = "shell_pane.no_view";
+// Hierarchy and inspector edit a pdkkit scene; a bare disc runs none, so they say why instead.
+constexpr const char *no_pdkkit_text_id = "shell_pane.no_pdkkit";
 
 } // namespace
 
 void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_kind kind, const rv_editor_theme &theme)
 {
     rv_editor_shell &shell = *static_cast<rv_editor_shell *>(context);
+    // Only a bare disc gates: unknown (no project, or manifest not loaded) keeps the panes.
+    // The scene pane gates itself: its tabs work on a bare disc.
+    const bool scene_kind = kind == rv_editor_pane_kind::hierarchy || kind == rv_editor_pane_kind::inspector;
+    const bool no_pdkkit = scene_kind && shell.app.project.sdk == rv_editor_sdk_state::bare;
+    if (no_pdkkit) {
+        rv_editor_label(rv_editor_text(no_pdkkit_text_id), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
+        return;
+    }
     switch (kind) {
     case rv_editor_pane_kind::catalog:
         rv_editor_catalog_draw(theme);
@@ -35,13 +51,13 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         rv_editor_pane_scene(shell.app, shell.renderer, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::hierarchy:
-        rv_editor_pane_hierarchy(shell.app, theme);
+        rv_editor_pane_hierarchy(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::assets:
         rv_editor_pane_assets(shell.app, shell.renderer, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::inspector:
-        rv_editor_pane_scene_inspector(shell.app, theme);
+        rv_editor_pane_scene_inspector(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::build_result:
         rv_editor_pane_build_result(shell.app, theme);
@@ -147,9 +163,10 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     default:
         break;
     }
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s: this pane kind has no view", rv_editor_pane_title(kind));
-    ImGui::PopStyleColor();
+    // make_format_args takes lvalues: the title is named first.
+    const char *title = rv_editor_pane_title(kind);
+    const std::string no_view = rv_editor_text_format(no_view_text_id, std::make_format_args(title));
+    rv_editor_label(no_view.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
 }
 
 } // namespace rv_editor

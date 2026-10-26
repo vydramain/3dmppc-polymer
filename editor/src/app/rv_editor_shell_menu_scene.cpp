@@ -35,7 +35,7 @@ constexpr std::string_view scenes_dir = "scenes";
 constexpr std::string_view scene_file_suffix = ".scene.toml";
 
 // Kinds the Add menu offers, in menu order
-constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
+constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_volume };
 
 // Add menu label for each node kind; anything else is a group.
 struct rv_editor_kind_label {
@@ -44,10 +44,8 @@ struct rv_editor_kind_label {
 };
 
 constexpr rv_editor_kind_label kind_labels[] = {
-    { kind_mesh, "shell_menu_scene.add_box" },
+    { kind_mesh, "shell_menu_scene.add_model" },
     { kind_camera, "shell_menu_scene.add_camera" },
-    { kind_quad, "shell_menu_scene.add_quad" },
-    { kind_billboard, "shell_menu_scene.add_billboard" },
     { kind_volume, "shell_menu_scene.add_volume" },
 };
 
@@ -88,8 +86,21 @@ std::string rv_editor_new_scene_header_id(std::string_view name)
     return id;
 }
 
+// The scene tools edit a pdkkit scene; a bare disc runs none, so the menu says why instead.
+constexpr const char *no_pdkkit_text_id = "shell_pane.no_pdkkit";
+
+// The reason the scene tools are off on a bare disc, else nullptr.
+const char *rv_editor_scene_bare_reason(const rv_editor_app &app)
+{
+    return app.project.open && app.project.sdk == rv_editor_sdk_state::bare ? rv_editor_text(no_pdkkit_text_id) : nullptr;
+}
+
 const char *rv_editor_scene_why_not_save(const rv_editor_app &app)
 {
+    const char *bare = rv_editor_scene_bare_reason(app);
+    if (bare != nullptr) {
+        return bare;
+    }
     if (app.scene == nullptr) {
         return rv_editor_text("shell_menu_scene.no_scene_open");
     }
@@ -138,7 +149,7 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, 
         rv_editor_ask_end();
         return;
     }
-    ImGui::TextUnformatted(rv_editor_text("shell_menu_scene.name_label"));
+    rv_editor_label(rv_editor_text("shell_menu_scene.name_label"), rv_editor_label_kind::normal, theme);
     if (g_new_scene.focus_name) {
         // the scene's own tab, so the created scene shows (applied after this draw)
         ui.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = 0 });
@@ -168,9 +179,7 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, 
     rv_editor_checkbox(cpp_label.c_str(), &g_new_scene.write_cpp, theme, cpp_state);
 
     if (!g_new_scene.error.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-        ImGui::TextWrapped("%s", g_new_scene.error.c_str());
-        ImGui::PopStyleColor();
+        rv_editor_label(g_new_scene.error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
 
     const rv_editor_state create_state{ rv_editor_look::live, disabled };
@@ -194,29 +203,34 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, 
 void rv_editor_menu_scene(rv_editor_shell &shell)
 {
     rv_editor_app &app = shell.app;
+    // First link of the chain: no project, else a bare disc; New and Open take it directly.
+    const char *bare = rv_editor_scene_bare_reason(app);
     const char *no_project = app.project.open ? nullptr : rv_editor_text("shell_menu_scene.no_project_open");
-    if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.new_scene"), nullptr, no_project)) {
+    const char *no_tools = no_project != nullptr ? no_project : bare;
+    if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.new_scene"), nullptr, no_tools)) {
         rv_editor_shell_new_scene_request(app);
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::scene);
     }
-    if (ImGui::BeginMenu(rv_editor_text("shell_menu_scene.open_scene"), app.project.open)) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu_scene.open_scene"), no_tools)) {
         const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
         for (const std::filesystem::path &path : files) {
-            if (ImGui::MenuItem(path.filename().string().c_str())) {
+            const std::string file_name = path.filename().string();
+            if (rv_editor_menu_item(file_name.c_str(), nullptr, nullptr)) {
                 rv_editor_app_scene_open(app, path);
             }
         }
         if (files.empty()) {
             ImGui::TextDisabled("%s", rv_editor_text("shell_menu_scene.no_scenes"));
         }
-        ImGui::EndMenu();
+        rv_editor_menu_end();
     }
-    const char *no_scene = app.scene == nullptr ? rv_editor_text("shell_menu_scene.no_scene_open") : nullptr;
+    const char *no_scene =
+        bare != nullptr ? bare : (app.scene == nullptr ? rv_editor_text("shell_menu_scene.no_scene_open") : nullptr);
     const auto save_shortcut = rv_editor_text("shell_menu_scene.save_scene_shortcut");
     if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.save_scene"), save_shortcut, rv_editor_scene_why_not_save(app))) {
         rv_editor_shell_scene_save(shell);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     const char *no_undo = [&]() -> const char * {
         if (no_scene != nullptr) {
             return no_scene;
@@ -241,7 +255,7 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.redo_scene_edit"), nullptr, no_redo)) {
         rv_editor_scene_redo(*app.scene);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     // New objects go under the selected group, else at the root.
     const char *read_only;
     if (no_scene != nullptr) {
@@ -251,18 +265,18 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     } else {
         read_only = nullptr;
     }
-    if (ImGui::BeginMenu(rv_editor_text("shell_menu_scene.add_menu"), read_only == nullptr)) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu_scene.add_menu"), read_only)) {
         const int sel = rv_editor_scene_find(app.scene->scene, app.scene->selected);
-        const std::string parent = sel >= 0 && app.scene->scene.objects[static_cast<size_t>(sel)].kind == kind_group ?
-            app.scene->selected :
-            std::string();
+        const bool sel_group =
+            sel >= 0 && rv_editor_object_get_kind(app.scene->scene.objects[static_cast<size_t>(sel)]) == kind_group;
+        const std::string parent = sel_group ? app.scene->selected : std::string();
         for (std::string_view kind : scene_kinds) {
             const char *label = rv_editor_text(rv_editor_kind_text_id(kind));
-            if (ImGui::MenuItem(label)) {
+            if (rv_editor_menu_item(label, nullptr, nullptr)) {
                 rv_editor_scene_add(*app.scene, kind.data(), parent);
             }
         }
-        ImGui::EndMenu();
+        rv_editor_menu_end();
     }
     const char *no_selection;
     if (read_only != nullptr) {

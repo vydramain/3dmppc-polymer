@@ -5,7 +5,7 @@
     ┌──────────────────────────────────────────────┐
     │ 1. LEXER (scanner)                           │
     ├──────────────────────────────────────────────┤
-    │ detail/rv_manifest_lexer.cpp                 │
+    │ detail/rv_manifest_lexer.hpp                 │
     │ characters → tokens, whitespace and # eaten  │
     │ NEWLINE — a real token                       │
     │ garbage → INVALID, carries its own text      │
@@ -15,7 +15,7 @@
     ┌──────────────────────────────────────────────┐       ┌──────────────────────────────────────┐
     │ 2. PARSER (syntax)                           │       │ ERROR HANDLER ← stages 2 and 3       │
     ├──────────────────────────────────────────────┤       ├──────────────────────────────────────┤
-    │ detail/rv_manifest_parser.cpp                │       │ detail/rv_manifest_failer.cpp        │
+    │ detail/rv_manifest_parser.hpp                │       │ detail/rv_manifest_failer.hpp        │
     │ tokens → tree: section → key → value         │─────▶ │ line + text, input order              │
     │ knows NOTHING of rv_pdklib::rv_manifest's    │       │ all errors | first one (stop_at_first)│
     │ fields                                       │       │ report(origin) →                     │
