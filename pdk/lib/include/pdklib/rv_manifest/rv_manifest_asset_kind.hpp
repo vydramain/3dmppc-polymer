@@ -14,6 +14,7 @@ enum class rv_manifest_asset_kind {
     texture,
     sound,
     model,
+    music,
     copy,
 };
 
@@ -23,6 +24,7 @@ inline constexpr std::string_view rv_manifest_asset_ext_png = ".png";
 inline constexpr std::string_view rv_manifest_asset_ext_wav = ".wav";
 inline constexpr std::string_view rv_manifest_asset_ext_gltf = ".gltf";
 inline constexpr std::string_view rv_manifest_asset_ext_glb = ".glb";
+inline constexpr std::string_view rv_manifest_asset_ext_mp3 = ".mp3";
 
 struct rv_manifest_asset_ext {
     std::string_view extension;
@@ -35,6 +37,7 @@ inline constexpr rv_manifest_asset_ext rv_manifest_asset_exts[] = {
     { rv_manifest_asset_ext_wav, rv_manifest_asset_kind::sound },
     { rv_manifest_asset_ext_gltf, rv_manifest_asset_kind::model },
     { rv_manifest_asset_ext_glb, rv_manifest_asset_kind::model },
+    { rv_manifest_asset_ext_mp3, rv_manifest_asset_kind::music },
 };
 
 /// Kind of the file with this name or relative path.

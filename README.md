@@ -606,14 +606,15 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-files = ["scenes/*.scene.toml", "assets/*.png", "assets/*.wav", "assets/models/*.gltf"]
+files = ["scenes/*.scene.toml", "assets/*.png", "assets/*.wav", "assets/*.mp3", "assets/models/*.gltf"]
 
 [assets.texture]
 format = "idx8"
 ```
 
 `[assets]` is optional. Each file in `files` is sorted by its extension: `.png` is a
-texture, `.wav` a sound, `.gltf` and `.glb` a model, and anything else is copied as is.
+texture, `.wav` a sound, `.mp3` a music track, `.gltf` and `.glb` a model, and anything
+else is copied as is.
 `[assets.texture] format` is the format of the textures; it defaults to `idx8`.
 
 Each listed WAV is baked by `mppcmusbaker` into a headerless `<name>.pcm` - the console's
@@ -627,6 +628,15 @@ Each listed `.glb` or `.gltf` (glTF 2.0) is baked by `mppcmodbaker` into a
 files. The burner then bakes those PNGs into `<stem>-<n>.mppctex` in the same texture
 directory as the `[assets]` textures; for a model it never opens the disc's own PNG files.
 A JPEG texture is refused.
+
+Each listed `.mp3` is baked by `mppcmusbaker` into a headerless `<name>.pcm` - S16LE mono
+44100 Hz, like a sound - in the sound directory of the image. An MP3 must be MPEG Layer III
+at 44100 Hz; anything else is refused. Unlike a sound, a music track is not loaded into sound
+memory: the disc reads the whole track with `rv_cd_asset_open` and `rv_cd_asset_read` into
+its own memory, and can page it in chunks into a small sound-memory region that a voice
+plays. A long track costs main RAM, which the console does not budget: a 25-minute track is
+about 132 MB. The PCM is not stored in the project, only in the build directory and the
+image. A `.mp3` and a `.wav` with the same stem collide and the burn is refused.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
 both. Every `[budget.*]` section is optional - a disc that states none is held to the

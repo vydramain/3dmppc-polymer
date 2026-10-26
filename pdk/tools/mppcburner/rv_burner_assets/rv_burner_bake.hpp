@@ -83,4 +83,19 @@ int bake_sounds(const std::string &baker_hint,
     const archive_plan &plan,
     std::string &error);
 
+/// Bake every planned music track to .pcm and refuse one whose baked .pcm is malformed.
+///
+/// The same step as bake_sounds, over the plan's music range: mppcmusbaker decodes each
+/// .mp3 entry of [assets] to the S16 mono the console plays, and the output lands at its `payload`.
+///
+/// @param baker_hint  value of `--baker` (a directory, or a file in one); empty searches for mppcmusbaker
+/// @param disc_dir    absolute disc directory the sources are relative to
+/// @param plan        the planned archive; only its music range is touched
+/// @param error       set with the refusal, naming the file
+/// @return RV_OK on success; else the RV_ERR_* of the refusing step, `error` set
+int bake_music(const std::string &baker_hint,
+    const std::filesystem::path &disc_dir,
+    const archive_plan &plan,
+    std::string &error);
+
 } // namespace rv_pdktools

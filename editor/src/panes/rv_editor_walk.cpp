@@ -80,7 +80,7 @@ bool held_for(const name_index &index, const rv_editor_project &project)
 }
 
 // The section bit of a file an [assets] pattern matched: texture and model get their own bit;
-// a copy or a sound keeps the assets bit.
+// a copy, a sound or a music track keeps the assets bit.
 unsigned asset_kind_bit(const std::string &rel)
 {
     switch (rv_pdklib::rv_manifest_asset_kind_of(rel)) {

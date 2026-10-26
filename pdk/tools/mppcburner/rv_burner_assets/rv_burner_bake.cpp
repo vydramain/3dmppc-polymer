@@ -19,7 +19,7 @@ namespace fs = std::filesystem;
 namespace rv_pdktools
 {
 
-// The sound baker's program name; the texture baker's is in rv_burner_baker_path.hpp.
+// The PCM baker's program name; sounds and music both use it.
 static constexpr const char *k_sound_baker = "mppcmusbaker";
 
 // S16 sample is 16 bits = 2 bytes; PCM size must be a whole multiple.
@@ -71,11 +71,11 @@ static int check_pcm_size(const fs::path &path, std::string &error)
     std::error_code ec;
     const uintmax_t size = fs::file_size(path, ec);
     if (ec || size == 0) {
-        error = "baked sound '" + path.string() + "' is empty";
+        error = "baked audio '" + path.string() + "' is empty";
         return RV_ERR_IO;
     }
     if (size % k_pcm_sample_bytes != 0) {
-        error = "baked sound '" + path.string() + "' is not a whole number of S16 samples";
+        error = "baked audio '" + path.string() + "' is not a whole number of S16 samples";
         return RV_ERR_INVAL;
     }
     return RV_OK;
@@ -150,19 +150,25 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
     return RV_OK;
 }
 
-int rv_pdktools::bake_sounds(const std::string &baker_hint,
+namespace rv_pdktools
+{
+
+// Bakes the plan items [first, first + count) with mppcmusbaker; sounds and music share it.
+static int bake_pcm_range(const std::string &baker_hint,
     const fs::path &disc_dir,
     const archive_plan &plan,
+    std::size_t first,
+    std::size_t count,
     std::string &error)
 {
-    // An empty sound range needs no baker, and the loop below then does nothing.
+    // An empty range needs no baker, and the loop below then does nothing.
     std::string baker;
-    const int baker_err = plan.sound_count == 0 ? RV_OK : find_baker(baker_hint, k_sound_baker, baker, error);
+    const int baker_err = count == 0 ? RV_OK : find_baker(baker_hint, k_sound_baker, baker, error);
     if (baker_err != RV_OK) {
         return baker_err;
     }
 
-    for (std::size_t i = plan.first_sound; i < plan.first_sound + plan.sound_count; ++i) {
+    for (std::size_t i = first; i < first + count; ++i) {
         const archive_item &item = plan.items[i];
 
         const std::string command =
@@ -183,4 +189,22 @@ int rv_pdktools::bake_sounds(const std::string &baker_hint,
     }
 
     return RV_OK;
+}
+
+} // namespace rv_pdktools
+
+int rv_pdktools::bake_sounds(const std::string &baker_hint,
+    const fs::path &disc_dir,
+    const archive_plan &plan,
+    std::string &error)
+{
+    return bake_pcm_range(baker_hint, disc_dir, plan, plan.first_sound, plan.sound_count, error);
+}
+
+int rv_pdktools::bake_music(const std::string &baker_hint,
+    const fs::path &disc_dir,
+    const archive_plan &plan,
+    std::string &error)
+{
+    return bake_pcm_range(baker_hint, disc_dir, plan, plan.first_music, plan.music_count, error);
 }

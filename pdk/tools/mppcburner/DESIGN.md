@@ -55,3 +55,17 @@
     └──────────────────────────────────────────────┘
 
 Paths of .cpp/.hpp are given relative to pdk/lib/include/pdklib/rv_manifest/.
+
+--- music in the burner ---
+
+A .mp3 in [assets] is a music track (rv_manifest_asset_kind music). The track is not
+loaded into sound memory: the disc reads it itself, as a drive asset.
+
+    plan   rv_burner_assets/rv_burner_plan.cpp   .mp3 of [assets] -> .pcm name in the sound dir,
+                                                 shares the sound collision check
+    bake   rv_burner_assets/rv_burner_bake.cpp   bake_music(): mppcmusbaker, same
+                                                 range helper as bake_sounds()
+    map    rv_burner_build/rv_burner_map.cpp     one "music" line per track
+    burn   rv_burner_burn/rv_burner_burn.cpp     copied into the disc directory like
+                                                 a baked sound (never a symlink);
+                                                 a zip archive takes it as a file

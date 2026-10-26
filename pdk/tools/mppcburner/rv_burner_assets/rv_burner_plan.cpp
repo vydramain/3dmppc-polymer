@@ -162,6 +162,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     const std::vector<std::string> &copies = by_kind[kind_slot(rv_pdklib::rv_manifest_asset_kind::copy)];
     const std::vector<std::string> &textures = by_kind[kind_slot(rv_pdklib::rv_manifest_asset_kind::texture)];
     const std::vector<std::string> &sounds = by_kind[kind_slot(rv_pdklib::rv_manifest_asset_kind::sound)];
+    const std::vector<std::string> &music = by_kind[kind_slot(rv_pdklib::rv_manifest_asset_kind::music)];
 
     // --- copied assets ---
 
@@ -201,6 +202,16 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     const int sounds_err = plan_block(sounds, k_assets_section, disc_dir, sound_rule, plan, plan.sound_count, error);
     if (sounds_err != RV_OK) {
         return sounds_err;
+    }
+
+    // --- music ---
+    //
+    // A track is baked to .pcm in the sound directory, so it shares the sound
+    // naming and the whole-plan collision check.
+    plan.first_music = plan.items.size();
+    const int music_err = plan_block(music, k_assets_section, disc_dir, sound_rule, plan, plan.music_count, error);
+    if (music_err != RV_OK) {
+        return music_err;
     }
 
     // --- the whole plan at once ---
