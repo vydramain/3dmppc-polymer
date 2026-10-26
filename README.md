@@ -606,15 +606,18 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-files = ["scenes/*.scene.toml", "assets/*.png", "assets/*.wav", "assets/*.mp3", "assets/models/*.gltf"]
+files = ["scenes/*.scene.toml", "assets/*.png", "assets/*.wav", "assets/models/*.gltf"]
 
 [assets.texture]
 format = "idx8"
+
+[assets.stream]
+files = ["assets/music/*.mp3"]
 ```
 
 `[assets]` is optional. Each file in `files` is sorted by its extension: `.png` is a
-texture, `.wav` a sound, `.mp3` a music track, `.gltf` and `.glb` a model, and anything
-else is copied as is.
+texture, `.wav` and `.mp3` a sound, `.gltf` and `.glb` a model, and anything else is copied
+as is.
 `[assets.texture] format` is the format of the textures; it defaults to `idx8`.
 
 Each listed WAV is baked by `mppcmusbaker` into a headerless `<name>.pcm` - the console's
@@ -629,14 +632,16 @@ files. The burner then bakes those PNGs into `<stem>-<n>.mppctex` in the same te
 directory as the `[assets]` textures; for a model it never opens the disc's own PNG files.
 A JPEG texture is refused.
 
-Each listed `.mp3` is baked by `mppcmusbaker` into a headerless `<name>.pcm` - S16LE mono
-44100 Hz, like a sound - in the sound directory of the image. An MP3 must be MPEG Layer III
-at 44100 Hz; anything else is refused. Unlike a sound, a music track is not loaded into sound
-memory: the disc reads the whole track with `rv_cd_asset_open` and `rv_cd_asset_read` into
-its own memory, and can page it in chunks into a small sound-memory region that a voice
-plays. A long track costs main RAM, which the console does not budget: a 25-minute track is
-about 132 MB. The PCM is not stored in the project, only in the build directory and the
-image. A `.mp3` and a `.wav` with the same stem collide and the burn is refused.
+Each listed `.mp3` is a sound too: baked by `mppcmusbaker` like a `.wav`. An MP3 must be
+MPEG Layer III at 44100 Hz; anything else is refused.
+
+`[assets.stream]` is optional. Its `files` globs list the audio a disc plays as streamed
+music. Each file is a `.wav` or `.mp3`, with the input rules of a sound, and is baked by
+`mppcmusbaker` into a headerless `<name>.pcm` - S16LE mono 44100 Hz. The `.pcm` is a plain
+drive asset, not loaded into sound memory. The PCM is not stored in the project, only in the
+build directory and the image. A path listed in both `[assets]` and `[assets.stream]`
+refuses the burn, naming both sections; so does a stream file that is not `.wav` or `.mp3`.
+A sound and a stream with the same stem collide and the burn is refused.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
 both. Every `[budget.*]` section is optional - a disc that states none is held to the
