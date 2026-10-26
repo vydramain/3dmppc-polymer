@@ -102,4 +102,33 @@ void rv_pcca_null::advance(int16_t *out, int64_t frames)
     std::fill(out, out + RV_PCCA_PCM_CHANNELS * frames, static_cast<int16_t>(0));
 }
 
+int64_t rv_pcca_null::stream_volume(int16_t /*volume_l*/, int16_t /*volume_r*/)
+{
+    return RV_OK;
+}
+
+void rv_pcca_null::stream_start()
+{
+}
+
+int64_t rv_pcca_null::stream_push(const int16_t * /*src*/, int64_t /*frames*/)
+{
+    // No mixer: no frames are taken.
+    return 0;
+}
+
+void rv_pcca_null::stream_end_input()
+{
+}
+
+void rv_pcca_null::stream_clear()
+{
+}
+
+rv_pcstream_report rv_pcca_null::stream_report()
+{
+    // No mixer: the report is all zeros, so free is 0 and the drive reads nothing for it.
+    return rv_pcstream_report{};
+}
+
 } // namespace rv_3dmppc

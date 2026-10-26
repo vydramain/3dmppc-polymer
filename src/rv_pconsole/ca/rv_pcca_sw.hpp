@@ -71,9 +71,10 @@ public:
 
     // The peak host bytes this class allocates for `budget`: sram_
     // (sound_memory_size) + the pool's block bookkeeping + mixer_'s voices
-    // (one rv_pcvoice each) and its fixed render accumulator. Overflow fails
-    // with RV_ERR_INVAL and `error` set; every field it reads was already
-    // validated as non-negative by rv_pboot_check_budget() before any evaluate().
+    // (one rv_pcvoice each), its fixed render accumulator and its stream ring
+    // (RV_PCSTREAM_RING_FRAMES int16). Overflow fails with RV_ERR_INVAL and `error` set;
+    // every field it reads was already validated as non-negative by rv_pboot_check_budget()
+    // before any evaluate().
     static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     int64_t voice_count() override;
@@ -103,6 +104,18 @@ public:
     int64_t voice_marked(int64_t voice_mask) override;
 
     void advance(int16_t *out, int64_t frames) override;
+
+    int64_t stream_volume(int16_t volume_l, int16_t volume_r) override;
+
+    void stream_start() override;
+
+    int64_t stream_push(const int16_t *src, int64_t frames) override;
+
+    void stream_end_input() override;
+
+    void stream_clear() override;
+
+    rv_pcstream_report stream_report() override;
 
     // Does the memory this controller owns actually exist? False when the
     // sound RAM pool failed to reserve.

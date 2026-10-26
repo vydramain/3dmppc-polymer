@@ -10,6 +10,8 @@
 #include "pdk/ca/rv_sample.h"
 #include "pdk/ca/rv_voice_conf.h"
 
+#include "rv_pconsole/ca/rv_pcstream.hpp"
+
 namespace rv_3dmppc
 {
 
@@ -67,6 +69,18 @@ public:
     // read heads and voice_status() change here and nowhere else. Not reached through
     // the extern "C" block.
     virtual void advance(int16_t *out, int64_t frames) = 0;
+
+    // Stream input level, as voice volume: RV_OK. Holds until the next call and survives
+    // the stream's stream_start() and stream_clear() (rv_cd_stream_play / rv_cd_stream_stop).
+    virtual int64_t stream_volume(int16_t volume_l, int16_t volume_r) = 0;
+
+    // Console-side, called by the drive; not reached through the extern "C" block.
+    // Semantics: rv_pcstream.hpp.
+    virtual void stream_start() = 0;                                     // begin a stream
+    virtual int64_t stream_push(const int16_t *src, int64_t frames) = 0; // mono frames in, returns frames taken
+    virtual void stream_end_input() = 0;                                 // no more data will come
+    virtual void stream_clear() = 0;                                     // stop and empty
+    virtual rv_pcstream_report stream_report() = 0;                      // the whole stream state at once
 
     // Does the memory this controller owns actually exist? Console-side only -
     // not reached through the extern "C" block.

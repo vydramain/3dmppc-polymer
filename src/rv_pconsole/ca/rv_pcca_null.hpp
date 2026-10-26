@@ -55,6 +55,18 @@ public:
 
     void advance(int16_t *out, int64_t frames) override;
 
+    int64_t stream_volume(int16_t volume_l, int16_t volume_r) override;
+
+    void stream_start() override;
+
+    int64_t stream_push(const int16_t *src, int64_t frames) override;
+
+    void stream_end_input() override;
+
+    void stream_clear() override;
+
+    rv_pcstream_report stream_report() override;
+
     bool valid() const override
     {
         return true;
