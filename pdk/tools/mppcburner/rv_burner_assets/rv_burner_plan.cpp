@@ -244,10 +244,10 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     if (streams_glob_err != RV_OK) {
         return streams_glob_err;
     }
-    plan.first_music = plan.items.size();
-    const int music_err = plan_stream_block(assets, streams, disc_dir, sound_rule, plan, plan.music_count, error);
-    if (music_err != RV_OK) {
-        return music_err;
+    plan.first_stream = plan.items.size();
+    const int stream_err = plan_stream_block(assets, streams, disc_dir, sound_rule, plan, plan.stream_count, error);
+    if (stream_err != RV_OK) {
+        return stream_err;
     }
 
     // --- the whole plan at once ---

@@ -143,10 +143,10 @@ int rv_burner_build_assets(const rv_burner_options &options,
         return sounds_err;
     }
 
-    const int music_err = bake_music(options.baker, disc_dir, plan, error);
-    if (music_err != RV_OK) {
+    const int stream_err = bake_stream(options.baker, disc_dir, plan, error);
+    if (stream_err != RV_OK) {
         rv_burner_print_error(error);
-        return music_err;
+        return stream_err;
     }
 
     std::vector<model_texture> model_textures;
@@ -174,7 +174,7 @@ int rv_burner_build_assets(const rv_burner_options &options,
         "assets",
         std::format("{} png -> .mppctex, {} wav/mp3 -> .pcm, {} {}, {} copied",
             plan.texture_count + plan.model_texture_count,
-            plan.sound_count + plan.music_count,
+            plan.sound_count + plan.stream_count,
             plan.script_count,
             scripts_wording,
             plan.asset_count));

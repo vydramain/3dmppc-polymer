@@ -19,7 +19,7 @@ namespace fs = std::filesystem;
 namespace rv_pdktools
 {
 
-// The PCM baker's program name; sounds and music both use it.
+// The PCM baker's program name; sounds and streams both use it.
 static constexpr const char *k_sound_baker = "mppcmusbaker";
 
 // S16 sample is 16 bits = 2 bytes; PCM size must be a whole multiple.
@@ -153,7 +153,7 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
 namespace rv_pdktools
 {
 
-// Bakes the plan items [first, first + count) with mppcmusbaker; sounds and music share it.
+// Bakes the plan items [first, first + count) with mppcmusbaker; sounds and streams share it.
 static int bake_pcm_range(const std::string &baker_hint,
     const fs::path &disc_dir,
     const archive_plan &plan,
@@ -201,10 +201,10 @@ int rv_pdktools::bake_sounds(const std::string &baker_hint,
     return bake_pcm_range(baker_hint, disc_dir, plan, plan.first_sound, plan.sound_count, error);
 }
 
-int rv_pdktools::bake_music(const std::string &baker_hint,
+int rv_pdktools::bake_stream(const std::string &baker_hint,
     const fs::path &disc_dir,
     const archive_plan &plan,
     std::string &error)
 {
-    return bake_pcm_range(baker_hint, disc_dir, plan, plan.first_music, plan.music_count, error);
+    return bake_pcm_range(baker_hint, disc_dir, plan, plan.first_stream, plan.stream_count, error);
 }

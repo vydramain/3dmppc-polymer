@@ -21,6 +21,7 @@ namespace rv_pdktools
 /// kind is `code` (a [build] source; the entry is disc.so), `file` (copied as
 /// it is), `texture` (the parameter is the format it was baked to), `sound`
 /// (the parameter is the PCM shape the baker writes, `s16le-44100-mono`),
+/// `stream` (a file of [assets.stream]; the same parameter as `sound`),
 /// `entry` (the lua script_entry) or `module` (another script; the parameter
 /// is the name `require` takes). Written only after a build that succeeded,
 /// through a temporary file and a rename.
