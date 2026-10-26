@@ -379,47 +379,10 @@ rv_zipread rv_zipreader::read(const char *name, void *baddr, int64_t cap, int64_
         return rv_zipread::short_buffer;
     }
 
-    // The data offset comes from the LOCAL header, never from the
-    // central directory. The two headers describe the same entry twice, and the
-    // lengths of their `name` and `extra` fields are INDEPENDENT: writers
-    // routinely put a zip64/timestamp/unix-uid extra field in one and not the
-    // other, so `local_header_offset + 46 + cdir_name_len + cdir_extra_len` is
-    // not where the bytes are. The only correct route is to seek to
-    // local_header_offset, read the 30-byte fixed local header, and take ITS
-    // name/extra lengths: data begins at lho + 30 + local_name_len +
-    // local_extra_len. Computing it from the central directory instead is the
-    // classic zip-reader bug - it lands a few bytes off and yields plausible
-    // garbage rather than an error, which is the worst possible failure mode for
-    // a texture or a model.
-    unsigned char lh[rv_pdklib::rv_zip_local_header_size];
-    if (read_at(lho, lh, static_cast<int64_t>(rv_pdklib::rv_zip_local_header_size)) != RV_OK) {
-        RV_LOG_ERR("pczip", "entry '{}': local header unreadable", rv_pdklib::rv_log_escape(name));
-        return rv_zipread::corrupt;
-    }
-    const rv_pdklib::rv_zip_local_header lhdr =
-        rv_pdklib::rv_zip_decode_local_header({ lh, rv_pdklib::rv_zip_local_header_size });
-    if (lhdr.signature != rv_pdklib::rv_zip_sig_local) {
-        RV_LOG_ERR("pczip", "entry '{}': no local header at its offset", rv_pdklib::rv_log_escape(name));
-        return rv_zipread::corrupt;
-    }
-    if (lhdr.method != rv_pdklib::rv_zip_method_store) {
-        RV_LOG_ERR("pczip",
-            "entry '{}': local header claims compression method {}",
-            rv_pdklib::rv_log_escape(name),
-            lhdr.method);
-        return rv_zipread::corrupt;
-    }
-
-    const int64_t local_name_len = lhdr.name_length;
-    const int64_t local_extra_len = lhdr.extra_length;
-    const int64_t data_offset =
-        lho + static_cast<int64_t>(rv_pdklib::rv_zip_local_header_size) + local_name_len + local_extra_len;
-
-    // Bounds first, seek second - always in that order, and phrased as
-    // subtraction so nothing can wrap.
-    if (data_offset > file_size_ || size > file_size_ - data_offset) {
-        RV_LOG_ERR("pczip", "entry '{}': data lies outside the archive", rv_pdklib::rv_log_escape(name));
-        return rv_zipread::corrupt;
+    int64_t data_offset = 0;
+    const rv_zipread located = resolve_data(name, lho, size, data_offset);
+    if (located != rv_zipread::ok) {
+        return located;
     }
 
     if (size == 0) {
@@ -461,6 +424,85 @@ rv_zipread rv_zipreader::read(const char *name, void *baddr, int64_t cap, int64_
     }
 
     nread = size;
+    return rv_zipread::ok;
+}
+
+rv_zipread rv_zipreader::read_range(const char *name, int64_t offset, void *dst, int64_t count) const
+{
+    if (!ok_) {
+        return rv_zipread::io_error;
+    }
+    if (offset < 0 || count < 0 || (dst == nullptr && count > 0)) {
+        return rv_zipread::short_buffer;
+    }
+
+    const rv_zipentry *entry = find(name);
+    if (entry == nullptr) {
+        return rv_zipread::not_found;
+    }
+    // Subtraction, not `offset + count`, so a hostile offset cannot wrap.
+    if (offset > entry->size || count > entry->size - offset) {
+        return rv_zipread::short_buffer;
+    }
+    int64_t data_offset = 0;
+    const rv_zipread located = resolve_data(name, entry->local_header_offset, entry->size, data_offset);
+    if (located != rv_zipread::ok) {
+        return located;
+    }
+    if (count == 0) {
+        return rv_zipread::ok;
+    }
+
+    if (read_at(data_offset + offset, dst, count) != RV_OK) {
+        std::memset(dst, 0, static_cast<std::size_t>(count));
+        RV_LOG_ERR("pczip", "entry '{}': short read of {} bytes at {}", rv_pdklib::rv_log_escape(name), count, offset);
+        return rv_zipread::io_error;
+    }
+    return rv_zipread::ok;
+}
+
+// Shared by read() and read_range(); writes nothing to the caller's buffer.
+rv_zipread rv_zipreader::resolve_data(const char *name, int64_t lho, int64_t size, int64_t &data_offset) const
+{
+    // The data offset comes from the LOCAL header, never from the
+    // central directory. The two headers describe the same entry twice, and the
+    // lengths of their `name` and `extra` fields are INDEPENDENT: writers
+    // routinely put a zip64/timestamp/unix-uid extra field in one and not the
+    // other, so `local_header_offset + 46 + cdir_name_len + cdir_extra_len` is
+    // not where the bytes are. The only correct route is to seek to
+    // local_header_offset, read the 30-byte fixed local header, and take ITS
+    // name/extra lengths: data begins at lho + 30 + local_name_len +
+    // local_extra_len. Computing it from the central directory instead is the
+    // classic zip-reader bug - it lands a few bytes off and yields plausible
+    // garbage rather than an error, which is the worst possible failure mode for
+    // a texture or a model.
+    unsigned char lh[rv_pdklib::rv_zip_local_header_size];
+    if (read_at(lho, lh, static_cast<int64_t>(rv_pdklib::rv_zip_local_header_size)) != RV_OK) {
+        RV_LOG_ERR("pczip", "entry '{}': local header unreadable", rv_pdklib::rv_log_escape(name));
+        return rv_zipread::corrupt;
+    }
+    const rv_pdklib::rv_zip_local_header lhdr =
+        rv_pdklib::rv_zip_decode_local_header({ lh, rv_pdklib::rv_zip_local_header_size });
+    if (lhdr.signature != rv_pdklib::rv_zip_sig_local) {
+        RV_LOG_ERR("pczip", "entry '{}': no local header at its offset", rv_pdklib::rv_log_escape(name));
+        return rv_zipread::corrupt;
+    }
+    if (lhdr.method != rv_pdklib::rv_zip_method_store) {
+        RV_LOG_ERR("pczip",
+            "entry '{}': local header claims compression method {}",
+            rv_pdklib::rv_log_escape(name),
+            lhdr.method);
+        return rv_zipread::corrupt;
+    }
+
+    data_offset = lho + static_cast<int64_t>(rv_pdklib::rv_zip_local_header_size) + lhdr.name_length + lhdr.extra_length;
+
+    // Bounds first, seek second - always in that order, and phrased as
+    // subtraction so nothing can wrap.
+    if (data_offset > file_size_ || size > file_size_ - data_offset) {
+        RV_LOG_ERR("pczip", "entry '{}': data lies outside the archive", rv_pdklib::rv_log_escape(name));
+        return rv_zipread::corrupt;
+    }
     return rv_zipread::ok;
 }
 

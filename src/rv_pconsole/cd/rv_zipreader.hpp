@@ -104,6 +104,12 @@ public:
     // mistake half an entry for a whole one.
     rv_zipread read(const char *name, void *baddr, int64_t cap, int64_t &nread) const;
 
+    // Copy exactly `count` bytes of `name` starting at byte `offset` into `dst`: one
+    // local-header read and one read; never writes past `count` bytes of `dst`. A range
+    // carries no CRC check - the checksum covers the whole entry only. Argument and range
+    // refusals are not logged here; the caller reports them. `dst` is zeroed on io_error.
+    rv_zipread read_range(const char *name, int64_t offset, void *dst, int64_t count) const;
+
     // Every entry, in central-directory order. The loader enumerates to find the
     // service entries, the medium enumerates to build the asset namespace, and a
     // human enumerates to find out why a disc is empty.
@@ -134,6 +140,10 @@ private:
     // Seek + read exactly `count` bytes at `offset`. Returns RV_OK on success,
     // RV_ERR_IO on any short read; the caller has already bounds-checked `offset`/`count` against file_size_.
     int read_at(int64_t offset, void *dst, int64_t count) const;
+
+    // Resolve the data start of an entry whose local header is at `lho`, and check its
+    // `size` bytes lie inside the file. Returns ok, or corrupt with a logged reason.
+    rv_zipread resolve_data(const char *name, int64_t lho, int64_t size, int64_t &data_offset) const;
 
     // The archive is read through a const interface (the medium is const), but
     // reading moves a file position: the stream is mutable state behind a

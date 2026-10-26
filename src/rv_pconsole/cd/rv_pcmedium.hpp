@@ -57,6 +57,15 @@ public:
     //   RV_ERR_IO     the transfer failed
     // The medium never allocates the destination and never writes past `cap`.
     virtual int64_t entry_read(const char *resname, void *baddr, int64_t cap) const = 0;
+
+    // Copy `count` bytes of the entry, starting at byte `offset`, into `dst`.
+    // Returns `count` (>= 0), or a negative rv_err:
+    //   RV_ERR_INVAL  `dst` null with count > 0, offset or count < 0, or the range runs past the entry's
+    //                 current size (an entry shrunk since the caller measured it lands here)
+    //   RV_ERR_NOENT  no such entry
+    //   RV_ERR_IO     the transfer failed, including a short read
+    // The medium never allocates the destination and never writes past `count`.
+    virtual int64_t entry_read_at(const char *resname, int64_t offset, void *dst, int64_t count) const = 0;
 };
 
 // A medium that is just a directory on the host filesystem: every regular file
@@ -77,6 +86,8 @@ public:
 
     int64_t entry_size(const char *resname) const override;
     int64_t entry_read(const char *resname, void *baddr, int64_t cap) const override;
+    // Opens the entry for every transfer and keeps no descriptor between calls.
+    int64_t entry_read_at(const char *resname, int64_t offset, void *dst, int64_t count) const override;
 
 private:
     // Maps an already-validated name onto a path inside `root_`, and re-checks

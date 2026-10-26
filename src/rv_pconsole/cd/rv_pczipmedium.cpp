@@ -148,4 +148,39 @@ int64_t rv_pczipmedium::entry_read(const char *resname, void *baddr, int64_t cap
     return RV_ERR_IO;
 }
 
+int64_t rv_pczipmedium::entry_read_at(const char *resname, int64_t offset, void *dst, int64_t count) const
+{
+    // Checked before the name, so this message does not name the entry.
+    if ((dst == nullptr && count > 0) || offset < 0 || count < 0) {
+        RV_LOG_WARN("pczipmedium", "bad range arguments: offset {}, count {}", offset, count);
+        return RV_ERR_INVAL;
+    }
+    if (!visible(resname)) {
+        return RV_ERR_NOENT;
+    }
+
+    // The reader checks the range against the entry itself, so an overrun comes
+    // back as short_buffer and is reported with the entry's size below.
+    const rv_zipread rc = zip_.read_range(resname, offset, dst, count);
+    switch (rc) {
+    case rv_zipread::ok:
+        return count;
+    case rv_zipread::not_found:
+        return RV_ERR_NOENT;
+    case rv_zipread::short_buffer:
+        RV_LOG_WARN("pczipmedium",
+            "range {}+{} is outside entry '{}' of {} bytes",
+            offset,
+            count,
+            rv_pdklib::rv_log_escape(resname),
+            zip_.size(resname));
+        return RV_ERR_INVAL;
+    case rv_zipread::corrupt:
+    case rv_zipread::crc_mismatch:
+    case rv_zipread::io_error:
+        return RV_ERR_IO;
+    }
+    return RV_ERR_IO;
+}
+
 } // namespace rv_3dmppc

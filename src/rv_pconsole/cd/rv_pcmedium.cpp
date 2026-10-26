@@ -181,4 +181,71 @@ int64_t rv_pcdirmedium::entry_read(const char *resname, void *baddr, int64_t cap
     return size;
 }
 
+int64_t rv_pcdirmedium::entry_read_at(const char *resname, int64_t offset, void *dst, int64_t count) const
+{
+    if ((dst == nullptr && count > 0) || offset < 0 || count < 0) {
+        RV_LOG_WARN("pcmedium", "bad range arguments: offset {}, count {}", offset, count);
+        return RV_ERR_INVAL;
+    }
+
+    std::filesystem::path path;
+    if (entry_path(resname, path) != RV_OK) {
+        RV_LOG_WARN("pcmedium", "no entry '{}' on the medium", rv_pdklib::rv_log_escape(resname));
+        return RV_ERR_NOENT;
+    }
+
+    // Range is checked against the measured size before any byte moves. Written as
+    // `count > size - offset` so the sum can never overflow int64.
+    const int64_t size = entry_size(resname);
+    if (size < 0) {
+        // entry_size logs its IO failures itself; a non-regular file is NOENT and silent there.
+        if (size == RV_ERR_NOENT) {
+            RV_LOG_WARN("pcmedium", "entry '{}' is not a regular file", rv_pdklib::rv_log_escape(resname));
+        }
+        return size;
+    }
+    if (offset > size || count > size - offset) {
+        RV_LOG_WARN("pcmedium",
+            "range {}+{} is outside entry '{}' of {} bytes",
+            offset,
+            count,
+            rv_pdklib::rv_log_escape(resname),
+            size);
+        return RV_ERR_INVAL;
+    }
+
+    // Nothing to transfer: no descriptor is opened for a zero-length portion.
+    if (count == 0) {
+        return 0;
+    }
+
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        RV_LOG_ERR("pcmedium", "cannot open entry '{}' for reading", rv_pdklib::rv_log_escape(resname));
+        return RV_ERR_IO;
+    }
+
+    in.seekg(static_cast<std::streamoff>(offset));
+    if (!in) {
+        RV_LOG_ERR("pcmedium", "cannot seek entry '{}' to byte {}", rv_pdklib::rv_log_escape(resname), offset);
+        return RV_ERR_IO;
+    }
+
+    in.read(static_cast<char *>(dst), static_cast<std::streamsize>(count));
+    const std::streamsize got = in.gcount();
+    if (got != static_cast<std::streamsize>(count)) {
+        // Same scrub as entry_read: the game must not mistake a partial portion for a whole one.
+        std::memset(dst, 0, static_cast<size_t>(count));
+        RV_LOG_ERR("pcmedium",
+            "short read on '{}' at {}: {} of {} bytes",
+            rv_pdklib::rv_log_escape(resname),
+            offset,
+            static_cast<int64_t>(got),
+            count);
+        return RV_ERR_IO;
+    }
+
+    return count;
+}
+
 } // namespace rv_3dmppc
