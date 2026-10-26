@@ -135,17 +135,20 @@ and updates it in place. Two deliveries come out of it:
 - The player delivery, `build/pconsole/`, holds the launch file `3dmppc`, `bin/3dmppc`,
   `SteamLinuxRuntime_4/` (its own copy of the runtime, about 700 MB), `LICENSES/` and
   `VERSIONS.txt`. Its SDK stays in `build/steamrt4-sdk` and is not part of the delivery.
-- The devtools delivery, `build-dev/pconsole/`, is about 5.1 GB, 3.4 GB of it the Steam
+- The devtools delivery, `build-dev/pconsole/`, is about 4.4 GB, 3.4 GB of it the Steam
   Runtime 4 SDK. It holds the launch files listed above; `bin/` (the programs, `editor/`,
   `pdk/`, and `firmware/`); `tools/`
   (clangd, with clang's resource dir in `tools/llvm`, Neovim, lua-language-server, the
   compat check and the toolchain file; no compiler, CMake or Ninja); `steamrt4-sdk/` (the
   Steam Runtime 4 SDK, unpacked here directly, which the launch files use as their
   runtime and whose clang 19, CMake, Ninja and GNU ld build `disc.so`);
-  `SteamLinuxRuntime_4/`; `LICENSES/` and `VERSIONS.txt`.
+  `SteamLinuxRuntime_4/`, a relative link to `bin/firmware/SteamLinuxRuntime_4` (the only
+  copy of the runtime); `var/` (pressure-vessel state, kept out of the runtime); `LICENSES/`
+  and `VERSIONS.txt`.
 
 `bin/firmware/` is the player delivery: a `-t player` burn copies it beside the game. Its
-browser kit for export is `bin/firmware/web/`.
+browser kit for export is `bin/firmware/web/`. The editor's disc templates are in
+`bin/editor/templates/`, without their top-level `export/` and `.mppcburn/`.
 
 A delivery can be copied, or zipped and unpacked elsewhere, including into a path with
 spaces; its root directory may be renamed. Its symbolic links are either relative inside
@@ -160,9 +163,11 @@ run their programs with `steamrt4-sdk/` as the runtime instead, so `mppcburner` 
 the SDK's clang 19 and CMake and needs no distribution compiler.
 
 The directory must be writable. Each build updates it in place: `bin/` is kept, because
-the console writes `memcard.mppccard` and `modes.toml` beside `bin/3dmppc`; the runtime is
-copied only when its VERSIONS.txt changes; a file the build no longer makes stays until you
-delete `pconsole/` by hand. Steam Linux Runtime 4 keeps its state in `SteamLinuxRuntime_4/var`.
+the console writes `memcard.mppccard` and `modes.toml` beside `bin/3dmppc`; the player's runtime
+copy is replaced only when its VERSIONS.txt differs, and the devtools `SteamLinuxRuntime_4/` is a
+link, never copied; a file the build no longer makes stays until you delete `pconsole/` by hand.
+The player's runtime keeps its state in `SteamLinuxRuntime_4/var`; the devtools state is in
+`pconsole/var/`, outside the runtime.
 
 ### Build output
 
@@ -764,17 +769,19 @@ and the headers come from the Steam Runtime 4 SDK.
 `build/steamrt4`, linked as `build/SteamLinuxRuntime_4`; the delivery `build/pconsole`
 gets a copy of the runtime as `pconsole/SteamLinuxRuntime_4`. A development build
 (`-D3DMPPC_DEVTOOLS=ON`, `cmake -S . -B build-dev`) unpacks the SDK straight into its
-delivery, `build-dev/pconsole/steamrt4-sdk`. The internal build goes in `<build>/sdk`,
+delivery, `build-dev/pconsole/steamrt4-sdk`, and links its `SteamLinuxRuntime_4` to the runtime
+in `bin/firmware/`, so the devtools delivery holds one copy. The internal build goes in `<build>/sdk`,
 inside the SDK through pressure-vessel, and the SDK's clang 19 builds it there.
 pressure-vessel needs unprivileged user namespaces allowed on the host.
-The devtools build also fetches LLVM 19.1.7 (1.65 GB; only its clangd and clang's
-resource dir ship), Neovim, lua-language-server and emsdk for the web kit.
+The devtools build also fetches LLVM 19.1.7 (a 1.65 GB archive; only clangd, clang's resource
+dir and the LLVM license are unpacked, about 0.26 GB), Neovim, lua-language-server and emsdk
+for the web kit.
 
 Archives are downloaded to `${XDG_CACHE_HOME:-~/.cache}/3dmppc/downloads` and removed
 after unpacking; each fresh build directory downloads them again. Pinned archives are
 checked by SHA-256; a mismatch is a warning.
 
-Disk: a player build takes about 5 GB, a development build about 17 GB.
+Disk: a player build takes about 5 GB, a development build about 8.6 GB.
 
 A development build run outside a delivery (`build-dev/sdk/bin/mppcburner`)
 takes its compiler from `PATH`, and its headers and libraries from the compiler's

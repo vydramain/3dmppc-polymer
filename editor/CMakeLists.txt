@@ -187,9 +187,10 @@ target_link_libraries(3dmppc-editor PRIVATE Threads::Threads)
 
 # Run-time resources, copied to the delivery layout beside the executable (editor/...), where
 # the editor finds them from its own executable, so a delivery can be moved as a whole.
-# Templates are removed and copied again on every build, so a file removed from a source is removed from the copy.
-# .mppcburn is the mppcburner build tree with a host disc.so; the devtools delivery compat check fails on it,
-# so it is removed from each template copy.
+# Templates are copied by cmake/rv_template_copy.cmake on every build, so a file removed from a source is removed
+# from the copy.
+# Its top-level export/ (game export) and .mppcburn (mppcburner build tree, host disc.so; the devtools delivery compat
+# check fails on it) are left out of each copy.
 add_custom_target(3dmppc-editor-resources ALL VERBATIM
   COMMENT "Copying the editor resources (icons, fonts, Neovim setup, disc templates) into editor/ beside the executable"
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/third_party/win55-icons
@@ -204,14 +205,12 @@ add_custom_target(3dmppc-editor-resources ALL VERBATIM
     ${CMAKE_CURRENT_SOURCE_DIR}/nvim/rv_editor_init.lua
     ${RV_PALETTE_LUA}
     $<TARGET_FILE_DIR:3dmppc-editor>/editor/nvim
-  COMMAND ${CMAKE_COMMAND} -E rm -r -f $<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-cpp
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/mppcdiscs/example-cpp
-    $<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-cpp
-  COMMAND ${CMAKE_COMMAND} -E rm -r -f $<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-cpp/.mppcburn
-  COMMAND ${CMAKE_COMMAND} -E rm -r -f $<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-lua
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/mppcdiscs/example-lua
-    $<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-lua
-  COMMAND ${CMAKE_COMMAND} -E rm -r -f $<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-lua/.mppcburn)
+  COMMAND ${CMAKE_COMMAND} -DRV_TEMPLATE_SRC=${RV_REPO_ROOT}/mppcdiscs/example-cpp
+    -DRV_TEMPLATE_DST=$<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-cpp
+    -P ${RV_REPO_ROOT}/cmake/rv_template_copy.cmake
+  COMMAND ${CMAKE_COMMAND} -DRV_TEMPLATE_SRC=${RV_REPO_ROOT}/mppcdiscs/example-lua
+    -DRV_TEMPLATE_DST=$<TARGET_FILE_DIR:3dmppc-editor>/editor/templates/example-lua
+    -P ${RV_REPO_ROOT}/cmake/rv_template_copy.cmake)
 add_dependencies(3dmppc-editor 3dmppc-editor-resources)
 
 if(MSVC)

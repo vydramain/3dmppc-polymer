@@ -46,7 +46,9 @@ set(RV_DEVTOOLS_LUALS_DIR "${RV_DEVTOOLS_DIR}/lua-language-server")
 set(RV_DEVTOOLS_LLVM_DIR "${RV_DEVTOOLS_DIR}/llvm/LLVM-${RV_LLVM_VERSION}-Linux-X64")
 
 # One target per tool: fetch into the shared cache, verify the pin, extract into dir when dir is set.
+# The optional paths (a list) extract only those archive paths; empty extracts the whole archive.
 function(rv_devtools_fetch target url sha256 file dir name)
+    set(fetch_paths "${ARGV6}")
     # Log paths are shown relative to the user's build dir; without RV_LOG_BASE, the build dir itself.
     if(RV_LOG_BASE)
         set(fetch_base "${RV_LOG_BASE}")
@@ -60,6 +62,7 @@ function(rv_devtools_fetch target url sha256 file dir name)
                 -DRV_FETCH_SHA256=${sha256}
                 "-DRV_FETCH_FILE=${RV_FETCH_CACHE}/${file}"
                 "-DRV_FETCH_DIR=${dir}"
+                "-DRV_FETCH_PATHS=${fetch_paths}"
                 "-DRV_FETCH_NAME=${name}"
                 "-DRV_FETCH_BASE=${fetch_base}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_fetch.cmake"
@@ -82,13 +85,19 @@ rv_devtools_fetch(
     "${RV_DEVTOOLS_LUALS_FILE}"
     "${RV_DEVTOOLS_LUALS_DIR}"
     "${RV_DEVTOOLS_LUALS_NAME}")
+# The archive is about 8 GB unpacked: only what the delivery takes (clangd, clang's resource dir, the LLVM license).
+set(RV_DEVTOOLS_LLVM_PATHS
+    "LLVM-${RV_LLVM_VERSION}-Linux-X64/bin/clangd"
+    "LLVM-${RV_LLVM_VERSION}-Linux-X64/lib/clang/"
+    "LLVM-${RV_LLVM_VERSION}-Linux-X64/include/llvm/Support/LICENSE.TXT")
 rv_devtools_fetch(
     3dmppc_devtools_llvm
     "${RV_DEVTOOLS_LLVM_URL}"
     "${RV_DEVTOOLS_LLVM_SHA256}"
     "${RV_DEVTOOLS_LLVM_FILE}"
     "${RV_DEVTOOLS_DIR}/llvm"
-    "${RV_DEVTOOLS_LLVM_NAME}")
+    "${RV_DEVTOOLS_LLVM_NAME}"
+    "${RV_DEVTOOLS_LLVM_PATHS}")
 
 add_custom_target(3dmppc_devtools_tools
     DEPENDS 3dmppc_devtools_nvim 3dmppc_devtools_lua_language_server 3dmppc_devtools_llvm
