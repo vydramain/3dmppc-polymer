@@ -8,7 +8,7 @@ namespace rv_pdklib
 // --- disc asset kind by extension ---
 //
 // The one table of which kind a file in disc.toml's [assets] is. The burner (packing)
-// and the editor (opening) are to read it; neither includes it yet. Pure lookup, no I/O.
+// and the editor (opening) read it. Pure lookup, no I/O.
 
 enum class rv_manifest_asset_kind {
     texture,

@@ -18,10 +18,8 @@ namespace rv_pdklib
 // this is it - the console's built-in budget is a default-constructed
 // rv_manifest_budget rather than a second list that can drift from this one.
 //
-// The defaulted operator== on each section is what rendering uses to decide
-// whether a section is worth writing at all: a section equal to its default was
-// not a decision, and printing it would put the tool's own answer on the disc
-// dressed up as the author's.
+// Rendering writes every budget section in full, default or not. The only things
+// it may leave out are the [build] sdk key and the [assets.stream] section, only when empty.
 
 struct rv_manifest_budget_pcca {
     int64_t voice_count = 24;
