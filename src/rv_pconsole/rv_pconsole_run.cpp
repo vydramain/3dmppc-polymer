@@ -404,6 +404,8 @@ void rv_pconsole::run_pace(run_state &run)
     const bool behind = start >= run.deadline;
     // Wait in slices; the last one stops at the deadline, never past it.
     for (rv_pcclock::time_point now = start; !behind && now < run.deadline; now = rv_pcclock::now()) {
+        // Same read as in frame_step; a failure is already state ERROR in rv_cd_stream_status and logged once.
+        static_cast<void>(cd_->stream_pump());
         platform_.audio().service();
         std::this_thread::sleep_until(std::min(now + RV_PCONSOLE_PACE_SLICE, run.deadline));
     }
