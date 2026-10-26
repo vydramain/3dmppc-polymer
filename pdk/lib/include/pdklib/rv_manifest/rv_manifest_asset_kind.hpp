@@ -14,7 +14,8 @@ enum class rv_manifest_asset_kind {
     texture,
     sound,
     model,
-    music,
+    // No extension maps to stream: the [assets.stream] section does.
+    stream,
     copy,
 };
 
@@ -37,7 +38,7 @@ inline constexpr rv_manifest_asset_ext rv_manifest_asset_exts[] = {
     { rv_manifest_asset_ext_wav, rv_manifest_asset_kind::sound },
     { rv_manifest_asset_ext_gltf, rv_manifest_asset_kind::model },
     { rv_manifest_asset_ext_glb, rv_manifest_asset_kind::model },
-    { rv_manifest_asset_ext_mp3, rv_manifest_asset_kind::music },
+    { rv_manifest_asset_ext_mp3, rv_manifest_asset_kind::sound },
 };
 
 /// Kind of the file with this name or relative path.
