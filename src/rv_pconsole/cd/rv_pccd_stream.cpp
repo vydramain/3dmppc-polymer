@@ -93,6 +93,9 @@ int64_t rv_pccd_stream::play(const rv_pcmedium &medium, rv_pcca &ca, const char 
     reader_active_ = true;
     state_ = RV_CD_STREAM_PLAYING;
     error_ = 0;
+    last_starved_ = 0;
+    starving_ = false;
+    pushed_ = false;
     ca.stream_clear();
     ca.stream_start();
     return RV_OK;
@@ -125,6 +128,104 @@ int64_t rv_pccd_stream::status(rv_pcca &ca, rv_cd_stream_info *out)
     out->loops = at.loops;
     out->starved_frames = idle ? 0 : report.starved;
     return RV_OK;
+}
+
+int64_t rv_pccd_stream::pump(const rv_pcmedium &medium, rv_pcca &ca)
+{
+    if (state_ != RV_CD_STREAM_PLAYING) {
+        return RV_OK;
+    }
+
+    const rv_pcstream_report report = ca.stream_report();
+    warn_starved_(report);
+    // Nothing to read: the reader is done or the ring is full. Still settle, so ENDED can appear.
+    if (!reader_active_ || report.free == 0) {
+        settle_(report);
+        return RV_OK;
+    }
+
+    // One read per pump, so a pump costs the same whatever the medium. Web pumps at rAF (~60 Hz):
+    // a loop shorter than ~735 frames (44100 / 60) starves between pumps there. Native pumps every
+    // 1 ms slice and has a wide margin. Starvation is counted by the mixer.
+    const int64_t n = std::min({ report.free, RV_PCCD_STREAM_PORTION_FRAMES, read_bound_() - read_pos_ });
+    const int64_t err = read_and_push_(medium, ca, n);
+    if (err != RV_OK) {
+        return err;
+    }
+    read_pos_ += n;
+    wrap_or_end_(ca);
+    settle_(report);
+    return RV_OK;
+}
+
+void rv_pccd_stream::warn_starved_(const rv_pcstream_report &report)
+{
+    // Silence before the first push is the wait for the first portion, not a starved episode.
+    const bool starving = pushed_ && report.starved > last_starved_;
+    if (starving && !starving_) {
+        RV_LOG_WARN("pccd",
+            "stream '{}': ring empty, {} silent frames since the last pump",
+            rv_pdklib::rv_log_escape(name_.c_str()),
+            report.starved - last_starved_);
+    }
+    starving_ = starving;
+    last_starved_ = report.starved;
+}
+
+int64_t rv_pccd_stream::read_and_push_(const rv_pcmedium &medium, rv_pcca &ca, int64_t n)
+{
+    const int64_t bytes = n * RV_PCCD_STREAM_BYTES_PER_FRAME;
+    const int64_t got = medium.entry_read_at(name_.c_str(), read_pos_ * RV_PCCD_STREAM_BYTES_PER_FRAME, staging_.data(), bytes);
+    // INVAL: the entry shrank after play measured it, so the content changed under us.
+    if (got < 0) {
+        return fail_(ca, got == RV_ERR_INVAL ? RV_ERR_IO : got);
+    }
+    if (got != bytes) {
+        return fail_(ca, RV_ERR_IO);
+    }
+    // One producer; the consumer only drains, so the room from the report cannot shrink before the push.
+    if (ca.stream_push(staging_.data(), n) != n) {
+        return fail_(ca, RV_ERR_IO);
+    }
+    pushed_ = true;
+    return RV_OK;
+}
+
+void rv_pccd_stream::wrap_or_end_(rv_pcca &ca)
+{
+    if (read_pos_ != read_bound_()) {
+        return;
+    }
+    if (loop_ == 1) {
+        read_pos_ = loop_start_;
+        return;
+    }
+    reader_active_ = false;
+    ca.stream_end_input();
+}
+
+void rv_pccd_stream::settle_(const rv_pcstream_report &report)
+{
+    // The ring may still hold frames here; ENDED waits for a pump that sees it drained.
+    if (!reader_active_ && report.drained) {
+        state_ = RV_CD_STREAM_ENDED;
+    }
+}
+
+// A loop never reads past loop_end; a stream without a loop never reads past the entry.
+int64_t rv_pccd_stream::read_bound_() const
+{
+    return loop_ == 1 ? loop_end_ : frames_;
+}
+
+int64_t rv_pccd_stream::fail_(rv_pcca &ca, int64_t error)
+{
+    RV_LOG_ERR("pccd", "stream '{}' stopped at frame {}: rv_err {}", rv_pdklib::rv_log_escape(name_.c_str()), read_pos_, error);
+    state_ = RV_CD_STREAM_ERROR;
+    error_ = error;
+    reader_active_ = false;
+    ca.stream_clear();
+    return error;
 }
 
 } // namespace rv_3dmppc
