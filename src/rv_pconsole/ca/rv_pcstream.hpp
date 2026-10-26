@@ -1,6 +1,6 @@
 // The programmed SPU's stream input: a ring of MONO int16 frames the drive fills and the
 // mixer drains, with a level per channel. Every call after construction runs under the
-// mixer's lock_ (rv_pcmixer.hpp:141); the class has no lock and no thread of its own.
+// mixer's rv_pcmixer::lock_; the class has no lock and no thread of its own.
 #pragma once
 
 #include <cstdint>
