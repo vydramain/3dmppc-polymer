@@ -156,13 +156,13 @@ struct rv_pconsole_params {
     uint64_t target_fps = 60;
 
     // Where to write the last presented frame as a binary PPM when the run
-    // ends. Empty = never. Devkit only - it is how "what did the console draw"
+    // ends. Empty = never. It is how "what did the console draw"
     // becomes a file that can be diffed instead of a screenshot that cannot.
     std::string dump_frame_path;
 
     // Where to write everything the sound module mixed during the run, as raw
     // S16LE stereo at 44.1 kHz, appended as it is produced. Empty = never.
-    // Devkit only - the same role as dump_frame_path, for sound.
+    // The same role as dump_frame_path, for sound.
     std::string dump_audio_path;
 
     // `dev` is the only thing that makes the console read stdin at all. It

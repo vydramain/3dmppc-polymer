@@ -198,8 +198,8 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
 
 // True once the user asked the window to close. Pointer coordinates are turned
 // into render pixels first: ImGui works in pixels, not in the desktop's points.
-// `focused` follows the window's keyboard focus.
-bool rv_editor_poll(SDL_Window *window, SDL_Renderer *renderer, bool &focused)
+// `focused` follows the window's keyboard focus; `clipboard_pending` is set on a clipboard change; the caller clears it.
+bool rv_editor_poll(SDL_Window *window, SDL_Renderer *renderer, bool &focused, bool &clipboard_pending)
 {
     bool quit = false;
     SDL_Event event;
@@ -212,6 +212,7 @@ bool rv_editor_poll(SDL_Window *window, SDL_Renderer *renderer, bool &focused)
         if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST || event.type == SDL_EVENT_WINDOW_FOCUS_GAINED) {
             focused = event.type == SDL_EVENT_WINDOW_FOCUS_GAINED;
         }
+        clipboard_pending = clipboard_pending || event.type == SDL_EVENT_CLIPBOARD_UPDATE;
         if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window)) {
             quit = true;
         }
@@ -401,10 +402,17 @@ int main(int argc, char **argv)
         rv_editor::rv_editor_shell_request_open(*shell, open_path);
     }
 
+    bool clipboard_pending = true; // read and sent to nvim this frame: set at start, then on each clipboard change
     while (!shell->quit_now) {
         const Uint64 frame_start = SDL_GetTicksNS();
-        if (rv_editor_poll(window, renderer, shell->window_focused) && rv_editor::rv_editor_shell_may_quit(*shell)) {
+        if (rv_editor_poll(window, renderer, shell->window_focused, clipboard_pending) &&
+            rv_editor::rv_editor_shell_may_quit(*shell)) {
             break;
+        }
+        if (clipboard_pending) {
+            std::unique_ptr<char, decltype(&SDL_free)> text(SDL_GetClipboardText(), SDL_free);
+            shell->app.nvim.set_clipboard(text ? text.get() : "");
+            clipboard_pending = false;
         }
         // Keyboard navigation is ImGui's use of arrows and Tab: off while a code
         // tile had the keyboard last frame, so those keys reach nvim.

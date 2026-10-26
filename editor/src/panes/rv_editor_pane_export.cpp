@@ -10,11 +10,11 @@
 #include <filesystem>
 #include <iterator>
 #include <string>
-#include <vector>
+
+#include <SDL3/SDL.h>
 
 #include "imgui.h"
 
-#include "platform/rv_editor_process.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -29,8 +29,13 @@ namespace
 // The directory under the project root offered as the destination.
 constexpr const char *export_dir_name = "export";
 
-// The desktop's opener for a web page; found on PATH, not shipped with the editor.
-constexpr const char *opener_name = "xdg-open";
+// The scheme that makes SDL_OpenURL open a local file in the desktop's browser.
+constexpr const char *file_uri_prefix = "file://";
+
+// Digits of a percent escape, and the bits one hex digit takes from a byte.
+constexpr const char *uri_hex_digits = "0123456789ABCDEF";
+constexpr unsigned hex_digit_bits = 4;
+constexpr unsigned hex_digit_mask = 0x0F;
 
 // Text keys of the kinds, in rv_editor_export_kind order.
 constexpr std::array kind_keys = { "pane_export.kind_disc", "pane_export.kind_player", "pane_export.kind_web" };
@@ -192,16 +197,39 @@ const char *rv_editor_export_open_why(const rv_editor_export_form &form, const r
     return exporter.state() == rv_editor_build_state::succeeded ? nullptr : rv_editor_text("pane_export.open_not_done_why");
 }
 
-// Hands the web page to the desktop's xdg-open, which runs detached from the editor.
+// Unreserved bytes of RFC 3986 and '/', which separates the path's segments; the rest is escaped.
+bool rv_editor_export_uri_keeps(unsigned char byte)
+{
+    return (byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z') || (byte >= '0' && byte <= '9') || byte == '-' ||
+        byte == '.' || byte == '_' || byte == '~' || byte == '/';
+}
+
+// The file:// URI of an absolute path (the caller checks it), every byte outside the kept set written as %XX.
+std::string rv_editor_export_file_uri(const std::string &path)
+{
+    std::string uri = file_uri_prefix;
+    for (const char ch : path) {
+        const auto byte = static_cast<unsigned char>(ch);
+        if (rv_editor_export_uri_keeps(byte)) {
+            uri += ch;
+            continue;
+        }
+        uri += '%';
+        uri += uri_hex_digits[byte >> hex_digit_bits];
+        uri += uri_hex_digits[byte & hex_digit_mask];
+    }
+    return uri;
+}
+
+// Hands the web page to the desktop through SDL_OpenURL, which tries the OpenURI portal first.
 int rv_editor_export_open_run(const rv_editor_export &exporter, std::string &error)
 {
-    const std::filesystem::path opener = rv_editor_process_find(opener_name);
-    if (opener.empty()) {
-        error = rv_editor_text("pane_export.open_no_xdg");
-        return RV_ERR_NOENT;
+    const std::string uri = rv_editor_export_file_uri(exporter.result().string());
+    if (!SDL_OpenURL(uri.c_str())) {
+        error = SDL_GetError();
+        return RV_ERR_IO;
     }
-    const std::vector<std::string> argv = { opener.string(), exporter.result().string() };
-    return rv_editor_launch_detached(argv, error);
+    return RV_OK;
 }
 
 void rv_editor_export_open(rv_editor_app &app, rv_editor_export_form &form)

@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
 
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_TOOLCHAIN_FILE)
+  project(3dmppc LANGUAGES NONE)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_steamrt4_host.cmake)
+  return()
+endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,6 +17,15 @@ project(3dmppc LANGUAGES CXX)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
+
+# The delivery directory of this build: the player tree is written here. The external
+# Linux build passes <build>/pconsole; a nested or toolchain build keeps pconsole/ in its own build dir.
+set(RV_PCONSOLE_DIR "${CMAKE_BINARY_DIR}/pconsole" CACHE PATH "Delivery directory of this build (the player tree)")
+# Log paths in this build's messages are relative to the directory the user passed to cmake: the parent of
+# RV_PCONSOLE_DIR, which is <build> for the external build. A nested build (firmware-build) keeps its own
+# pconsole/, so cmake/luajit.cmake there names its own build dir.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_log.cmake)
+get_filename_component(RV_LOG_BASE "${RV_PCONSOLE_DIR}" DIRECTORY)
 
 # The development runtime (the dev command channel, booting a game from a
 # loose directory, ...) is a build-time choice, not a runtime flag: with this
@@ -58,6 +72,10 @@ if(3DMPPC_LUAJIT)
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/luajit.cmake)
 endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake)
+# The Steam Linux Runtime 4 of the Linux delivery (its check and its packaging).
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_steamrt4_runtime.cmake)
+endif()
 
 # stb_image is gone with the demo that used it. The console never decodes an
 # image format: a game uploads raw texels through rv_cv::video_asset_write, and
@@ -288,12 +306,12 @@ endif()
 # (which is -rdynamic) the executable's dynamic symbol table is empty and neither
 # side finds anything.
 #
-# The binary lands in build/pconsole/, next to its modes.toml and its default
+# The binary lands in build/bin/, next to its modes.toml and its default
 # memory card.
 if(NOT 3DMPPC_WEB_KIT)
   set_target_properties(3dmppc PROPERTIES
     ENABLE_EXPORTS ON
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/pconsole)
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 endif()
 
 target_include_directories(3dmppc PRIVATE src)
@@ -340,7 +358,7 @@ endif()
 # No asset copying: nothing reads files yet. Disc assets come back when the disc
 # drive (rv_cd) lands and a disc reads them by name instead of by path.
 
-# --- the development kit ------------------------------------------------------
+# --- devtools -----------------------------------------------------------------
 # A player console builds alone. It is firmware: it loads a disc and runs it,
 # and building it must not drag in a compiler driver, an image decoder, an
 # editor, or anything else a player's machine has no use for.
@@ -349,67 +367,151 @@ endif()
 # builds the authoring tools (pdk/tools/) and the editor (editor/). Each stays
 # its own CMake project, configured in its own subdirectory of this build tree
 # and linking nothing from here; only their binaries land next to the console
-# in pconsole/. Both still build on their own with their own command.
+# in bin/. Both still build on their own with their own command.
 if(3DMPPC_DEVTOOLS)
   include(ExternalProject)
+  # The pinned tools of the devtools delivery (fetched by 3dmppc_devtools_tools); Linux only, as Steam Linux Runtime 4 is.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_devtools_tools.cmake)
+  endif()
 
-  set(RV_DEVKIT_CMAKE_ARGS
-    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-    -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/pconsole
-  )
+  # One SDK clang for console and disc; nested builds need the toolchain and SDK or firmware re-enters the host half.
+  set(RV_KIT_CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+      -DRV_STEAMRT4_SDK=${RV_STEAMRT4_SDK})
+  # The nested builds reuse the SDL3 and LuaJIT sources fetched here instead of downloading them again.
+  if(DEFINED sdl3_SOURCE_DIR)
+    list(APPEND RV_KIT_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_SDL3=${sdl3_SOURCE_DIR})
+  endif()
+  if(DEFINED luajit_SOURCE_DIR)
+    list(APPEND RV_KIT_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_LUAJIT=${luajit_SOURCE_DIR})
+  endif()
 
+  # The nested builds write their steps to logs in <build>/logs instead of this output. A failed step
+  # prints its log tail and the log path; the directory is made here so each step can write into it.
+  set(RV_LOGS_DIR ${CMAKE_BINARY_DIR}/logs)
+  file(MAKE_DIRECTORY ${RV_LOGS_DIR})
+  rv_log_relpath(RV_LOGS_REL "${RV_LOGS_DIR}" "${RV_LOG_BASE}")
+  rv_log_step("nested builds: pdktools, editor, firmware, and webkit at build time; logs in ${RV_LOGS_REL}/")
+  if(DEFINED luajit_SOURCE_DIR)
+    rv_log_step("editor/ has no LuaJIT: its unused FETCHCONTENT_SOURCE_DIR_LUAJIT warning is in its log, expected")
+  endif()
   # BUILD_ALWAYS: this build cannot see their sources, so it asks their own
   # build every time and lets it answer "no work to do".
   ExternalProject_Add(3dmppc_pdktools
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/pdk/tools
     BINARY_DIR ${CMAKE_BINARY_DIR}/pdktools
-    CMAKE_ARGS ${RV_DEVKIT_CMAKE_ARGS}
+    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/bin
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
+    LOG_DIR ${RV_LOGS_DIR}
+    LOG_CONFIGURE ON
+    LOG_BUILD ON
+    LOG_MERGED_STDOUTERR ON
+    LOG_OUTPUT_ON_FAILURE ON
+  )
+  ExternalProject_Add_Step(3dmppc_pdktools rv_announce DEPENDEES configure DEPENDERS build
+    COMMAND ${CMAKE_COMMAND} -E true
+    COMMENT "Nested build pdktools (mppcburner, bakers): log ${RV_LOGS_REL}/3dmppc_pdktools-*.log"
+    ALWAYS 1
   )
   ExternalProject_Add(3dmppc_editor
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/editor
     BINARY_DIR ${CMAKE_BINARY_DIR}/editor
-    CMAKE_ARGS ${RV_DEVKIT_CMAKE_ARGS}
+    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/bin
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
+    LOG_DIR ${RV_LOGS_DIR}
+    LOG_CONFIGURE ON
+    LOG_BUILD ON
+    LOG_MERGED_STDOUTERR ON
+    LOG_OUTPUT_ON_FAILURE ON
+  )
+  ExternalProject_Add_Step(3dmppc_editor rv_announce DEPENDEES configure DEPENDERS build
+    COMMAND ${CMAKE_COMMAND} -E true
+    COMMENT "Nested build editor (3dmppc-editor): log ${RV_LOGS_REL}/3dmppc_editor-*.log"
+    ALWAYS 1
   )
 
   # The player console is the firmware that goes into the burned discs; the dev
-  # console above is not it. DEVTOOLS is one option per build tree, so the firmware
-  # is a nested build with it OFF. It reuses the SDL3 and LuaJIT sources fetched
-  # here instead of downloading them again.
-  set(RV_FIRMWARE_CMAKE_ARGS
-    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-    -D3DMPPC_DEVTOOLS=OFF
-    -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
-  )
-  if(DEFINED sdl3_SOURCE_DIR)
-    list(APPEND RV_FIRMWARE_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_SDL3=${sdl3_SOURCE_DIR})
-  endif()
-  if(DEFINED luajit_SOURCE_DIR)
-    list(APPEND RV_FIRMWARE_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_LUAJIT=${luajit_SOURCE_DIR})
-  endif()
-
-  # DEPENDS 3dmppc: LuaJIT is built in its source tree by the dev build, and the
-  # nested build must not run its make at the same time.
+  # console is not it. DEVTOOLS is one option per build tree, so the firmware
+  # is a nested build with it OFF.
   ExternalProject_Add(3dmppc_firmware
     SOURCE_DIR ${CMAKE_SOURCE_DIR}
     BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build
-    CMAKE_ARGS ${RV_FIRMWARE_CMAKE_ARGS}
+    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS}
+      -D3DMPPC_DEVTOOLS=OFF
+      -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
+      -DRV_STEAMRT4_DIR=${RV_STEAMRT4_DIR}
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
-    DEPENDS 3dmppc
+    LOG_DIR ${RV_LOGS_DIR}
+    LOG_CONFIGURE ON
+    LOG_BUILD ON
+    LOG_MERGED_STDOUTERR ON
+    LOG_OUTPUT_ON_FAILURE ON
   )
-  # The nested console lands in its own pconsole/ dir; copy it to the firmware dir.
-  ExternalProject_Add_Step(3dmppc_firmware copy_firmware
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pconsole/firmware
-    COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_BINARY_DIR}/firmware-build/pconsole/3dmppc
-            ${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc
-    DEPENDEES build
+  ExternalProject_Add_Step(3dmppc_firmware rv_announce DEPENDEES configure DEPENDERS build
+    COMMAND ${CMAKE_COMMAND} -E true
+    COMMENT "Nested build firmware (player console): log ${RV_LOGS_REL}/3dmppc_firmware-*.log"
     ALWAYS 1
   )
+  # The player delivery tree (player-tree) exists only where the player delivery does: Linux, LuaJIT, not
+  # Emscripten, not static disc. There the nested build writes it to firmware-build/pconsole, and
+  # bin/firmware/ receives it (launch file 3dmppc, bin/3dmppc, the runtime, LICENSES/, VERSIONS.txt);
+  # the web kit is in bin/firmware/web. Elsewhere it is the bare ELF at bin/firmware/3dmppc.
+  set(RV_FIRMWARE_TREE OFF)
+  set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/bin/firmware/3dmppc)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN AND 3DMPPC_LUAJIT AND NOT 3DMPPC_STATIC_DISC)
+    set(RV_FIRMWARE_TREE ON)
+    set(RV_FIRMWARE_ELF ${CMAKE_BINARY_DIR}/bin/firmware/bin/3dmppc)
+  endif()
+  if(RV_FIRMWARE_TREE)
+    # cp -a, not copy_directory: copy_directory dereferences the runtime's symlinks. Files of an older
+    # tree stay in place; web/ is not touched.
+    ExternalProject_Add_Step(3dmppc_firmware copy_firmware
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin/firmware
+      COMMAND cp -a --remove-destination ${CMAKE_BINARY_DIR}/firmware-build/pconsole/.
+              ${CMAKE_BINARY_DIR}/bin/firmware/
+      DEPENDEES build
+      ALWAYS 1
+    )
+  else()
+    ExternalProject_Add_Step(3dmppc_firmware copy_firmware
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin/firmware
+      COMMAND ${CMAKE_COMMAND} -E copy
+              ${CMAKE_BINARY_DIR}/firmware-build/bin/3dmppc
+              ${RV_FIRMWARE_ELF}
+      DEPENDEES build
+      ALWAYS 1
+    )
+  endif()
+
+  # mppcburner, in <build>/bin, checks disc.so with the copy in <build>/tools/ (see cmake/rv_steamrt4_runtime.cmake).
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_compat_check.cmake
+                 ${CMAKE_BINARY_DIR}/tools/linux-compat-check.cmake COPYONLY)
+
+  # The delivery contract for the shipped Linux binaries (see cmake/rv_linux_compat_check.cmake): each one
+  # must need only what the Steam Runtime 4 Platform of the delivery defines. It checks the last built files,
+  # so it does not rebuild them; it reads the runtime in RV_STEAMRT4_DIR, which the host half fetched.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT EMSCRIPTEN)
+    set(RV_COMPAT_PRODUCTS
+        ${CMAKE_BINARY_DIR}/bin/3dmppc
+        ${CMAKE_BINARY_DIR}/bin/3dmppc-editor
+        ${CMAKE_BINARY_DIR}/bin/mppcburner
+        ${CMAKE_BINARY_DIR}/bin/mppctexbaker
+        ${CMAKE_BINARY_DIR}/bin/mppcmusbaker
+        ${CMAKE_BINARY_DIR}/bin/mppcmodbaker
+        ${RV_FIRMWARE_ELF})
+    add_custom_target(check-linux-compat
+      COMMAND ${CMAKE_COMMAND}
+              "-DRV_COMPAT_FILES=${RV_COMPAT_PRODUCTS}"
+              "-DRV_COMPAT_RUNTIME=${RV_STEAMRT4_DIR}"
+              -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_compat_check.cmake"
+      COMMENT "Checking Linux compatibility of the shipped binaries against Steam Runtime 4"
+      VERBATIM
+    )
+  endif()
 
   # The web kit, built with a pinned emsdk; see cmake/rv_emsdk.cmake.
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_emsdk.cmake)
@@ -419,4 +521,7 @@ endif()
 if(3DMPPC_WEB_KIT)
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_webkit.cmake)
 endif()
+
+# --- the player delivery ------------------------------------------------------
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_player_tree.cmake)
 

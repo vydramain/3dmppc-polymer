@@ -4,7 +4,7 @@
 // One line looks like this, and the two bracketed fields are fixed width so a
 // stream of them reads as columns:
 //
-//   [tool][DBG] zipwrite: entry deflated 1200 -> 430 (rv_zipwrite.cpp:212)
+//   [tool][DBG] zipwrite: entry deflated 1200 -> 430
 //   [mppc][ERR] pcloader: refusing to boot 'example-cpp-pdkkit'
 //   [disc][INF] gameloop: level 2 reached
 //
@@ -117,16 +117,10 @@ inline std::string rv_log_escape(const char *text, std::size_t max_length = 64)
     return out;
 }
 
-// Called through RV_LOG_*, which has already tested the level. The source
-// position rides along only on DBG: on the other levels it is noise for
-// whoever is reading the output rather than debugging the program.
-inline void
-rv_log_emit(rv_log_level level, const char *origin, const char *tag, const char *file, int line, const std::string &message)
+// Called through RV_LOG_*, which has already tested the level. No source position
+// is passed, so build paths and file names stay out of the binary.
+inline void rv_log_emit(rv_log_level level, const char *origin, const char *tag, const std::string &message)
 {
-    if (RV_LOG_LEVEL_DBG == level) {
-        rv_fprintf(stderr, "[%s][%s] %s: %s (%s:%d)\n", origin, rv_log_level_name(level), tag, message.c_str(), file, line);
-        return;
-    }
     rv_fprintf(stderr, "[%s][%s] %s: %s\n", origin, rv_log_level_name(level), tag, message.c_str());
 }
 
@@ -140,11 +134,11 @@ rv_log_emit(rv_log_level level, const char *origin, const char *tag, const char 
 // The level is tested BEFORE std::format runs. Formatting a message the
 // threshold will drop costs an allocation for nothing, which is exactly what a
 // silenced RV_LOG_DBG must not do.
-#define RV_LOG(level, tag, ...)                                                                                    \
-    do {                                                                                                           \
-        if (::rv_pdklib::rv_log_enabled(level)) {                                                                  \
-            ::rv_pdklib::rv_log_emit((level), RV_LOG_ORIGIN, (tag), __FILE__, __LINE__, std::format(__VA_ARGS__)); \
-        }                                                                                                          \
+#define RV_LOG(level, tag, ...)                                                                \
+    do {                                                                                       \
+        if (::rv_pdklib::rv_log_enabled(level)) {                                              \
+            ::rv_pdklib::rv_log_emit((level), RV_LOG_ORIGIN, (tag), std::format(__VA_ARGS__)); \
+        }                                                                                      \
     } while (0)
 
 #define RV_LOG_EMERG(tag, ...) RV_LOG(::rv_pdklib::RV_LOG_LEVEL_EMERG, (tag), __VA_ARGS__)

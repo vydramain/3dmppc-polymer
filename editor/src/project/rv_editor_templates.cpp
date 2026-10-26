@@ -13,6 +13,7 @@
 
 #include "layout/rv_editor_tile.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
+#include "platform/rv_editor_resources.hpp"
 #include "text/rv_editor_text.hpp"
 
 namespace rv_editor
@@ -34,6 +35,9 @@ constexpr std::string_view recent_file_name = "recent";
 
 // Temporary-file suffix for atomic replacement.
 constexpr std::string_view temp_file_suffix = ".tmp";
+
+// The starting discs, beside the executable (editor/templates/<id>).
+constexpr std::string_view templates_dir_name = "templates";
 
 // Files a new project's template text is rewritten in.
 constexpr std::array<std::string_view, 8>
@@ -89,16 +93,21 @@ bool rv_editor_is_text(const std::filesystem::path &p)
 
 std::vector<rv_editor_template> rv_editor_templates()
 {
-    const std::filesystem::path root = RV_EDITOR_TEMPLATE_DIR;
+    const std::filesystem::path root = rv_editor_resource_path(templates_dir_name);
+    // An empty root (executable directory unknown) must not become cwd-relative: the dir stays empty,
+    // and rv_editor_new_project_problem reports the template missing, as it does for any absent one.
+    const auto dir = [&root](std::string_view name) {
+        return root.empty() ? std::filesystem::path() : root / name;
+    };
     return {
         { "example-cpp-pdkkit",
             rv_editor_text("templates.minimal_cpp_name"),
             rv_editor_text("templates.minimal_cpp_desc"),
-            root / "example-cpp-pdkkit" },
+            dir("example-cpp-pdkkit") },
         { "example-lua-bare",
             rv_editor_text("templates.minimal_lua_name"),
             rv_editor_text("templates.minimal_lua_desc"),
-            root / "example-lua-bare" },
+            dir("example-lua-bare") },
     };
 }
 
@@ -150,7 +159,8 @@ std::string rv_editor_new_project_problem(const rv_editor_new_project &p,
         return rv_editor_text("templates.problem_template");
     }
     if (!std::filesystem::is_directory(templates[p.template_index].dir, ec)) {
-        const std::string dir = templates[p.template_index].dir.string();
+        const rv_editor_template &t = templates[p.template_index];
+        const std::string dir = t.dir.empty() ? "editor/templates/" + t.id + " beside the executable" : t.dir.string();
         return rv_editor_text_format("templates.problem_template_missing", std::make_format_args(dir));
     }
     at = rv_editor_new_project_field::root;

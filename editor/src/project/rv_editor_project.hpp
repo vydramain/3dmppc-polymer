@@ -36,7 +36,7 @@ struct rv_editor_tool {
 };
 
 // The console and the authoring tools. Each is looked for next to the editor's
-// own executable (a development build puts all of them in pconsole/) unless
+// own executable (a development build puts all of them in bin/) unless
 // settings.toml names it:
 //
 //   [tools]

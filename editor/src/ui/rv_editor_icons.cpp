@@ -8,6 +8,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -17,6 +18,7 @@
 #include "stb_image.h"
 
 #include "pdk/rv_err.h"
+#include "platform/rv_editor_resources.hpp"
 
 namespace rv_editor
 {
@@ -26,6 +28,9 @@ namespace
 
 // Icons load as 8-bit RGBA: four bytes per pixel.
 constexpr int rgba_channels = 4;
+
+// The icons directory beside the executable, under the editor's resource directory.
+constexpr std::string_view rv_editor_icon_dir = "icons";
 
 constexpr int rv_editor_icon_count = static_cast<int>(rv_editor_icon_name::count);
 
@@ -136,8 +141,13 @@ rv_editor_icon rv_editor_image_load_png(SDL_Renderer *renderer, std::span<const 
 
 void rv_editor_icons_load(SDL_Renderer *renderer)
 {
+    const std::filesystem::path dir = rv_editor_resource_path(rv_editor_icon_dir);
+    // No directory: the failure was reported when it was looked up, so no icon is loaded from the cwd.
+    if (dir.empty()) {
+        return;
+    }
     for (int i = 0; i < rv_editor_icon_count; ++i) {
-        rv_editor_icons[i] = rv_editor_image_load(renderer, std::string(RV_EDITOR_ICON_DIR) + "/" + rv_editor_icon_files[i]);
+        rv_editor_icons[i] = rv_editor_image_load(renderer, (dir / rv_editor_icon_files[i]).string());
     }
 }
 

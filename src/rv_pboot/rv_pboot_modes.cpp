@@ -266,7 +266,7 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree,
     return static_cast<int>(pendings.size());
 }
 
-// Merges modes.toml from the executable's directory (build/pconsole/) into `table`.
+// Merges modes.toml from the executable's directory (bin/) into `table`.
 // Absent file: returns RV_OK. Present but unreadable: RV_ERR_IO with diagnostic.
 // Parse error: RV_ERR_INVAL with diagnostic. `table` is left untouched on failure.
 int load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code)

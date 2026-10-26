@@ -444,7 +444,7 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
 
 int rv_pconsole::run_dump_frame()
 {
-    // Devkit: hand the last frame the machine produced to disk. The pause overlay
+    // Hand the last frame the machine produced to disk. The pause overlay
     // is never what lands here - it was composed into a copy, so this is what the
     // DISC drew.
     std::string dump_error;

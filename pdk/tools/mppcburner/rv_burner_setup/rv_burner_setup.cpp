@@ -50,6 +50,11 @@ constexpr const char *k_embuilder_target = "MINIMAL";
 // Steps printed as [n/N]: check, download, verify, unpack, install, embuilder, mark.
 constexpr int k_setup_steps = 7;
 
+// Detail prefix of the finished install, used by the check and the mark step.
+constexpr const char *k_installed_at = "installed at ";
+// Ends the detail of a step whose child output is captured and shown only on failure.
+constexpr const char *k_silent_note = ". Nothing is printed until the step ends";
+
 // Runs one child step. On failure the child's own words go out first, then the reason.
 int run_child(const std::string &command, const char *what, std::string &output)
 {
@@ -167,10 +172,12 @@ int install_web()
         return RV_ERR_IO;
     }
     if (installed) {
-        rv_burner_print_step(1, "check", "already installed at " + dir.string(), k_setup_steps);
+        const std::string detail = std::string("already ") + k_installed_at + dir.string() + ", nothing is downloaded";
+        rv_burner_print_step(1, "check", detail, k_setup_steps);
         return RV_OK;
     }
-    rv_burner_print_step(1, "check", "not installed; installing into " + dir.string(), k_setup_steps);
+    const std::string check_detail = "not installed yet; installing once per user into " + dir.string();
+    rv_burner_print_step(1, "check", check_detail, k_setup_steps);
 
     std::filesystem::create_directories(dir.parent_path(), ec);
     if (ec) {
@@ -182,35 +189,47 @@ int install_web()
     const download_guard download{ dir.string() + k_download_suffix };
 
     // --- [2/7] download ---
-    rv_burner_print_step(2, "download", url, k_setup_steps);
+    const std::string download_detail = url + ", the installer of the Emscripten compiler" + k_silent_note;
+    rv_burner_print_step(2, "download", download_detail, k_setup_steps);
     int rc = download_archive(url, download.path);
     if (RV_OK != rc) {
         return rc;
     }
 
     // --- [3/7] verify ---
-    rv_burner_print_step(3, "verify", "sha256 " + std::string(k_emsdk_sha256), k_setup_steps);
+    const std::string verify_detail =
+        "sha256 " + std::string(k_emsdk_sha256) + ", a changed or replaced archive is rejected before it is unpacked or run";
+    rv_burner_print_step(3, "verify", verify_detail, k_setup_steps);
     rc = verify_archive(download.path);
     if (RV_OK != rc) {
         return rc;
     }
 
     // --- [4/7] unpack ---
-    rv_burner_print_step(4, "unpack", dir.string(), k_setup_steps);
+    const std::string unpack_detail = "emsdk scripts into " + dir.string();
+    rv_burner_print_step(4, "unpack", unpack_detail, k_setup_steps);
     rc = unpack_archive(download.path, dir);
     if (RV_OK != rc) {
         return rc;
     }
 
     // --- [5/7] install ---
-    rv_burner_print_step(5, "install", "emsdk " + std::string(k_emsdk_version) + " install and activate", k_setup_steps);
+    const std::string install_detail = "emsdk " + std::string(k_emsdk_version) +
+        " downloads the Emscripten compiler (clang for wasm, Binaryen, Emscripten, Node.js) and makes it current;"
+        " the install itself takes a long time" +
+        k_silent_note;
+    rv_burner_print_step(5, "install", install_detail, k_setup_steps);
     rc = install_emsdk(dir);
     if (RV_OK != rc) {
         return rc;
     }
 
     // --- [6/7] embuilder ---
-    rv_burner_print_step(6, "embuilder", std::string("prebuild ") + k_embuilder_target + " libraries", k_setup_steps);
+    const std::string embuilder_detail = std::string("prebuild ") + k_embuilder_target +
+        " libraries: embuilder compiles libc and libc++ for wasm ahead of time, so the first web burn does not wait"
+        " for them; the prebuild itself takes a long time" +
+        k_silent_note;
+    rv_burner_print_step(6, "embuilder", embuilder_detail, k_setup_steps);
     rc = prebuild_libraries(dir);
     if (RV_OK != rc) {
         return rc;
@@ -221,7 +240,9 @@ int install_web()
     if (RV_OK != rc) {
         return rc;
     }
-    rv_burner_print_step(7, "mark", "installed at " + dir.string(), k_setup_steps);
+    const std::string mark_detail = std::string(k_installed_at) + dir.string() +
+        ", written last so an interrupted install is never taken as complete; the next run skips the install";
+    rv_burner_print_step(7, "mark", mark_detail, k_setup_steps);
     return RV_OK;
 }
 
