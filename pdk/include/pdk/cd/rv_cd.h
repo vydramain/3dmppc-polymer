@@ -102,7 +102,8 @@ typedef struct rv_cd_stream_conf rv_cd_stream_conf;
 // Plays the entry from frame 0; replaces the current stream (the old one stops, the ring is cleared).
 // A refusal changes nothing; RV_OK on success. Ring: fixed-size buffer from the drive reader to the mixer (the consumer).
 // RV_ERR_INVAL: null cd/resname/conf; name: plain, no path separators; size 0 or odd; loop not 0 or 1; loop bounds (see conf).
-// RV_ERR_NOENT: no entry. RV_ERR_IO: entry unreadable. resname and conf are read only during the call.
+// RV_ERR_NOENT: no entry. RV_ERR_IO: the entry cannot be measured; play does not read it, so a later read
+// failure shows as state ERROR, error RV_ERR_IO. resname and conf are read only during the call.
 int64_t rv_cd_stream_play(rv_cd *cd, const char *resname, const rv_cd_stream_conf *conf);
 
 // Stops the stream and clears the ring; state IDLE, error 0, from any state (ERROR too). Idempotent. RV_OK.
