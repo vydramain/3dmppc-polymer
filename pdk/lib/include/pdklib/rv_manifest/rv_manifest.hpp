@@ -138,6 +138,9 @@ struct rv_manifest {
     // [assets] - globs copied into the archive verbatim
     std::vector<std::string> assets_files;
 
+    // [assets.stream] - globs of the audio files a disc plays as streamed music
+    std::vector<std::string> assets_stream_files;
+
     // [assets.texture] - texel format the burner bakes the PNG files of [assets] and the model pictures into;
     // idx8 is the reference machine's.
     rv_texfmt assets_texture_format = rv_texfmt::RV_TEXFMT_IDX8;
