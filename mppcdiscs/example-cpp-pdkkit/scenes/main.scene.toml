@@ -5,7 +5,7 @@
 # degrees; the view direction is R * (0, 0, 1), R = Ry * Rx * Rz.
 
 [scene]
-version = "1.0"
+version = "2.0"
 
 [[object]]
 id = "5ce00001"
