@@ -28,7 +28,8 @@ public:
     rv_pccd_stream();
 
     // Every check runs before anything changes: a refusal leaves the current stream running.
-    int64_t play(const rv_pcmedium &medium, rv_pcca &ca, const char *resname, const rv_cd_stream_conf *conf);
+    // A null ca (no audio attached) is refused with RV_ERR_IO, after the argument, entry and loop checks.
+    int64_t play(const rv_pcmedium &medium, rv_pcca *ca, const char *resname, const rv_cd_stream_conf *conf);
 
     // Idempotent, from any state.
     int64_t stop(rv_pcca &ca);

@@ -1,6 +1,8 @@
 #include "rv_pconsole/cd/rv_pccd.hpp"
 
 #include "pdk/cd/rv_cd.h"
+#include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
 
 // --- C contract (pdk/cd/rv_cd.h) ---------------------------------------------
 // An rv_cd* handle and the address of an rv_pccd are the same address: which
@@ -45,4 +47,27 @@ extern "C" int64_t rv_cd_resource_width(rv_cd *cd, rv_cd_resource_kind kind, con
 extern "C" int64_t rv_cd_resource_height(rv_cd *cd, rv_cd_resource_kind kind, const char *resname)
 {
     return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->resource_height(kind, resname);
+}
+
+extern "C" int64_t rv_cd_stream_play(rv_cd *cd, const char *resname, const rv_cd_stream_conf *conf)
+{
+    if (cd == nullptr) {
+        RV_LOG_WARN("pccd", "stream play with a null cd");
+        return RV_ERR_INVAL;
+    }
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->stream_play(resname, conf);
+}
+
+extern "C" int64_t rv_cd_stream_stop(rv_cd *cd)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->stream_stop();
+}
+
+extern "C" int64_t rv_cd_stream_status(rv_cd *cd, rv_cd_stream_info *out)
+{
+    if (cd == nullptr) {
+        RV_LOG_WARN("pccd", "stream status with a null cd");
+        return RV_ERR_INVAL;
+    }
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->stream_status(out);
 }

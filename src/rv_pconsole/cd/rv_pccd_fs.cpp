@@ -48,7 +48,8 @@ namespace rv_3dmppc
 
 int rv_pccd_fs::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/, int64_t &bytes, std::string & /*error*/)
 {
-    bytes = 0;
+    // The rv_pccd_stream staging buffer is allocated once, in the constructor.
+    bytes = static_cast<int64_t>(RV_PCCD_STREAM_PORTION_FRAMES * sizeof(int16_t));
     return RV_OK;
 }
 
@@ -60,6 +61,10 @@ rv_pccd_fs::rv_pccd_fs(const rv_pccd_conf &conf)
 
 rv_pccd_fs::~rv_pccd_fs()
 {
+    // Stream first, while ca_ is alive: pump is not called once the drive is destroyed, so clear its input here.
+    if (ca_ != nullptr) {
+        static_cast<void>(stream_.stop(*ca_));
+    }
     // A disc never releases a texture, a sound or a model; this is where the
     // drive frees every one it made resident, all at once, when the disc that
     // named them goes away. Models go first: their parts point at the textures

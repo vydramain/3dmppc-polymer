@@ -44,7 +44,7 @@ rv_pccd_stream::rv_pccd_stream()
 {
 }
 
-int64_t rv_pccd_stream::play(const rv_pcmedium &medium, rv_pcca &ca, const char *resname, const rv_cd_stream_conf *conf)
+int64_t rv_pccd_stream::play(const rv_pcmedium &medium, rv_pcca *ca, const char *resname, const rv_cd_stream_conf *conf)
 {
     if (resname == nullptr || conf == nullptr) {
         RV_LOG_WARN("pccd", "stream play with a null name or conf");
@@ -83,6 +83,10 @@ int64_t rv_pccd_stream::play(const rv_pcmedium &medium, rv_pcca &ca, const char 
             frames);
         return RV_ERR_INVAL;
     }
+    if (ca == nullptr) {
+        RV_LOG_WARN("pccd", "stream play '{}': no audio attached", rv_pdklib::rv_log_escape(resname));
+        return RV_ERR_IO;
+    }
 
     name_ = resname;
     frames_ = frames;
@@ -96,8 +100,8 @@ int64_t rv_pccd_stream::play(const rv_pcmedium &medium, rv_pcca &ca, const char 
     last_starved_ = 0;
     starving_ = false;
     pushed_ = false;
-    ca.stream_clear();
-    ca.stream_start();
+    ca->stream_clear();
+    ca->stream_start();
     return RV_OK;
 }
 
