@@ -92,7 +92,7 @@ int64_t rv_cd_resource_height(rv_cd *cd, rv_cd_resource_kind kind, const char *r
 // Loop 0 plays the entry once. For any loop, play answers RV_ERR_INVAL if loop_start or the effective
 // loop_end (0 = entry end) lies outside the entry, or if loop_start >= loop_end.
 struct rv_cd_stream_conf {
-    int64_t loop;       // 0: play once, 1: repeat the loop
+    int64_t loop;       // 0: play once, 1: repeat the loop; any other value is RV_ERR_INVAL
     int64_t loop_start; // first frame of the loop
     int64_t loop_end;   // frame after the loop's last frame; 0: end of the entry
 };
@@ -101,7 +101,7 @@ typedef struct rv_cd_stream_conf rv_cd_stream_conf;
 
 // Plays the entry from frame 0; replaces the current stream (the old one stops, the ring is cleared).
 // A refusal changes nothing; RV_OK on success. Ring: fixed-size buffer from the drive reader to the mixer (the consumer).
-// RV_ERR_INVAL: null cd/resname/conf; name: plain, no path separators; size 0 or odd; loop bounds (rv_cd_stream_conf).
+// RV_ERR_INVAL: null cd/resname/conf; name: plain, no path separators; size 0 or odd; loop not 0 or 1; loop bounds (see conf).
 // RV_ERR_NOENT: no entry. RV_ERR_IO: entry unreadable. resname and conf are read only during the call.
 int64_t rv_cd_stream_play(rv_cd *cd, const char *resname, const rv_cd_stream_conf *conf);
 
