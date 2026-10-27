@@ -17,7 +17,8 @@
 #define RV_ISOURCE_MENU_BTTN_MENU UINT64_C(0x0000000000000040) // bit 6
 #define RV_ISOURCE_MENU_BTTN_VIEW UINT64_C(0x0000000000000080) // bit 7
 
-// Left trackpad
+// Left trackpad. TOUCH - finger on the pad; CLICK - pad pressed; DPAD_* - quarter under the finger while it touches
+// (threshold: implementation-defined); SWIPE - finger moves faster than an implementation-defined threshold.
 #define RV_ISOURCE_LEFT_TRACKPAD_TOUCH      UINT64_C(0x0000000000000100) // bit 8
 #define RV_ISOURCE_LEFT_TRACKPAD_SWIPE      UINT64_C(0x0000000000000200) // bit 9
 #define RV_ISOURCE_LEFT_TRACKPAD_CLICK      UINT64_C(0x0000000000000400) // bit 10
@@ -26,7 +27,8 @@
 #define RV_ISOURCE_LEFT_TRACKPAD_DPAD_WEST  UINT64_C(0x0000000000002000) // bit 13
 #define RV_ISOURCE_LEFT_TRACKPAD_DPAD_EAST  UINT64_C(0x0000000000004000) // bit 14
 
-// Right trackpad
+// Right trackpad. TOUCH - finger on the pad; CLICK - pad pressed; DPAD_* - quarter under the finger while it touches
+// (threshold: implementation-defined); SWIPE - finger moves faster than an implementation-defined threshold.
 #define RV_ISOURCE_RIGHT_TRACKPAD_TOUCH      UINT64_C(0x0000000000008000) // bit 15
 #define RV_ISOURCE_RIGHT_TRACKPAD_SWIPE      UINT64_C(0x0000000000010000) // bit 16
 #define RV_ISOURCE_RIGHT_TRACKPAD_CLICK      UINT64_C(0x0000000000020000) // bit 17
@@ -43,7 +45,7 @@
 #define RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL UINT64_C(0x0000000001000000) // bit 24
 #define RV_ISOURCE_RIGHT_TRIGGER_FULL_PULL UINT64_C(0x0000000002000000) // bit 25
 
-// Left stick
+// Left stick. STICK_TOUCH - finger rests on the stick cap.
 #define RV_ISOURCE_LEFT_STICK_MOVE       UINT64_C(0x0000000004000000) // bit 26
 #define RV_ISOURCE_LEFT_STICK_CLICK      UINT64_C(0x0000000008000000) // bit 27
 #define RV_ISOURCE_LEFT_STICK_DPAD_NORTH UINT64_C(0x0000000010000000) // bit 28
@@ -52,7 +54,7 @@
 #define RV_ISOURCE_LEFT_STICK_DPAD_EAST  UINT64_C(0x0000000080000000) // bit 31
 #define RV_ISOURCE_LEFT_STICK_TOUCH      UINT64_C(0x0000000100000000) // bit 32
 
-// Right stick
+// Right stick. STICK_TOUCH - finger rests on the stick cap.
 #define RV_ISOURCE_RIGHT_STICK_MOVE       UINT64_C(0x0000000200000000) // bit 33
 #define RV_ISOURCE_RIGHT_STICK_CLICK      UINT64_C(0x0000000400000000) // bit 34
 #define RV_ISOURCE_RIGHT_STICK_DPAD_NORTH UINT64_C(0x0000000800000000) // bit 35
@@ -61,7 +63,8 @@
 #define RV_ISOURCE_RIGHT_STICK_DPAD_EAST  UINT64_C(0x0000004000000000) // bit 38
 #define RV_ISOURCE_RIGHT_STICK_TOUCH      UINT64_C(0x0000008000000000) // bit 39
 
-// Rear buttons
+// Rear buttons. UPPER - upper pair under the fingers (L4/R4);
+// LOWER - lower pair (L5/R5).
 #define RV_ISOURCE_REAR_BTTN_LEFT_UPPER  UINT64_C(0x0000010000000000) // bit 40
 #define RV_ISOURCE_REAR_BTTN_RIGHT_UPPER UINT64_C(0x0000020000000000) // bit 41
 #define RV_ISOURCE_REAR_BTTN_LEFT_LOWER  UINT64_C(0x0000040000000000) // bit 42
@@ -74,7 +77,8 @@
 #define RV_ISOURCE_DPAD_WEST  UINT64_C(0x0000800000000000) // bit 47
 #define RV_ISOURCE_DPAD_EAST  UINT64_C(0x0001000000000000) // bit 48
 
-// Gyroscope
+// Gyroscope. Abilities: the pad has a gyroscope and accelerometer.
+// Buttons: angular velocity above an implementation-defined threshold; PITCH = x, YAW = y, ROLL = z; MOVE = any.
 #define RV_ISOURCE_GYRO_MOVE  UINT64_C(0x0002000000000000) // bit 49
 #define RV_ISOURCE_GYRO_PITCH UINT64_C(0x0004000000000000) // bit 50
 #define RV_ISOURCE_GYRO_YAW   UINT64_C(0x0008000000000000) // bit 51
@@ -93,18 +97,20 @@ struct rv_iaxes {
 };
 
 struct rv_imotion {
-    // Orientation (unit quaternion)
+    // Unit quaternion, pad frame to console world. Pitch/roll follow gravity; yaw drifts from connect time, no absolute
+    // heading. (0, 0, 0, 1) = pad axes match world axes; a pad without sensors gives this, not zeros.
     float quat_x;
     float quat_y;
     float quat_z;
     float quat_w;
 
-    // Linear acceleration
+    // Linear acceleration in m/s^2, gravity included: a pad lying flat reads about 9.8 on +y.
+    // Axes: +x right, +y up, +z forward from the player (left-handed, as everywhere in pdklib).
     float accel_x;
     float accel_y;
     float accel_z;
 
-    // Angular velocity
+    // Angular velocity in rad/s, same axes; positive turns as rv_mat4_rotate_x/y/z (left-handed): +y turns +z towards +x.
     float angular_velocity_x;
     float angular_velocity_y;
     float angular_velocity_z;
@@ -119,7 +125,7 @@ struct rv_istate {
     struct rv_iaxes left_stick;
     struct rv_iaxes right_stick;
 
-    // Trackpads
+    // Trackpads: finger position in [-1, 1], +y up as for sticks; 0 when not touched.
     struct rv_iaxes left_trackpad;
     struct rv_iaxes right_trackpad;
 

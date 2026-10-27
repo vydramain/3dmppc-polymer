@@ -80,6 +80,19 @@ blocks, with the components described by `PDKKIT_COMPONENT`
 by `rv_scene_migrate` on every read by the ECS loader and by the editor; the
 file on disk is rewritten only when the editor saves it.
 
+The input contract (`cio/rv_isource.h`) is defined as follows; this description
+changes neither the ABI nor any POD. `rv_imotion` carries acceleration in m/s^2
+with gravity included, angular velocity in rad/s on the console axes, and a
+unit quaternion (a rotation as four numbers) from pad to world: pitch and roll
+follow gravity, yaw drifts from connect time, and a pad without sensors gives
+the identity. Trackpad positions are in [-1, 1] with +y up and 0 while
+untouched; their TOUCH, CLICK, DPAD_* (the quarter under the finger) and SWIPE
+bits are in the buttons mask. STICK_TOUCH is a finger resting on a stick cap;
+the REAR_BTTN bits cover the upper (L4/R4) and lower (L5/R5) rear pairs. The
+console fills each of these only on a pad that has it (SDL3: motion, trackpads,
+rear buttons; stick touch on Steam Deck and Steam Controller), and declares in
+`iport_abilities` only what the pad has.
+
 ---
 
 ## Purpose — why this directory exists

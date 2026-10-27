@@ -43,6 +43,9 @@ void rv_pcplatform_sdl3::pump()
         case SDL_EVENT_GAMEPAD_REMOVED:
             gamepads_.remove(event.gdevice.which);
             break;
+        case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:
+            gamepads_.sensor(event.gsensor);
+            break;
         case SDL_EVENT_MOUSE_MOTION:
             window_.add_mouse(event.motion.xrel, event.motion.yrel);
             break;
