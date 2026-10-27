@@ -165,7 +165,7 @@ asks the organizer for one.
 | `rv_cv`    | `cv/rv_cv.h`       | **C**ontroller **V**ideo (GPU)      | low-level: `video_asset_malloc`/`video_asset_write`/`video_asset_free` (textures + palettes), `frame_configure`/`frame_put`/`frame_flush` (primitives, sorted by the hardware ordering table) |
 | `rv_cg`    | `cg/rv_cg.h`       | **C**ontroller **G**eometry (GTE)   | model memory (`rv_cg_model_memory_size()`, `rv_cg_triangle_capacity()`, budget `[budget.pccg]`), `rv_cg_frame_camera()`, `rv_cg_model_put()` (a model made resident by the drive: transformed, cut at the near plane, culled per put, keyed into the ordering-table range the disc gives, put into the frame of `rv_cv`), `rv_cg_point()` (world point → screen position and a key in the window the caller gives, so it sorts with the puts of that window) |
 | `rv_cio`   | `cio/rv_cio.h`     | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`) |
-| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `resource_addr`/`_size`/`_palette_addr`/`_width`/`_height` (kind + name → the address the resource now lives at; `rv_cd_resource_kind` says which kind is meant, `RV_CD_RESOURCE_TEXTURE` for video RAM or `RV_CD_RESOURCE_AUDIO` for sound RAM, `RV_CD_RESOURCE_MODEL` for cg's model memory, and a query that means nothing for the named kind answers `RV_ERR_INVAL` rather than a zero; the drive makes it resident on first ask and frees it itself when the disc unloads), streamed music: `rv_cd_stream_play` (name + loop conf -> the entry from frame 0, replaces the current stream), `rv_cd_stream_stop` (IDLE from any state), `rv_cd_stream_status` (state `RV_CD_STREAM_*`, error, position, loops, starved frames) |
+| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `resource_addr`/`_size`/`_palette_addr`/`_width`/`_height` (kind + name → the address the resource now lives at; `rv_cd_resource_kind` says which kind is meant, `RV_CD_RESOURCE_TEXTURE` for video RAM or `RV_CD_RESOURCE_AUDIO` for sound RAM, `RV_CD_RESOURCE_MODEL` for cg's model memory, and a query that means nothing for the named kind answers `RV_ERR_INVAL` rather than a zero; the drive makes it resident on first ask and frees it itself when the disc unloads), streamed music: `rv_cd_stream_play` (name + loop conf -> the entry from frame 0, replaces the current stream), `rv_cd_stream_queue` (the entry that plays next, from the boundary of the current one with no gap; one pending), `rv_cd_stream_switch` (the playing entry changes to the new one at the same music position), `rv_cd_stream_stop` (IDLE from any state), `rv_cd_stream_status` (state `RV_CD_STREAM_*`, error, position, loops, starved frames), `rv_cd_stream_queue_status` (pending, switches) |
 | `rv_cm`    | `cm/rv_cm.h`       | **C**ontroller **M**emory card      | persistent save slots: `card_slots` (count from console config) / `card_size` / `card_read` / `card_write` (atomic) / `card_erase` |
 | `rv_cl`    | `cl/rv_cl.h`       | **C**ontroller **L**ua (script machine) | chunk lifecycle: `script_load`/`script_free`/`script_entry`; a shared value stack: `stack_push_*`/`stack_drop`/`stack_count`/`value_*`; one call primitive, `script_call` |
 
@@ -448,8 +448,12 @@ console quantizes them is its own business.
 Streamed music has two fixed device buffers, counted by the software audio and fs
 drive `evaluate`: the audio stream ring, 32768 frames of mono S16 = 64 KiB
 (`RV_PCSTREAM_RING_FRAMES`), and the drive's staging buffer, 8192 frames = 16 KiB,
-one portion read per pass (`RV_PCCD_STREAM_PORTION_FRAMES`). Neither takes sound
-RAM, and neither limits the length of an entry.
+one portion read per pass (`RV_PCCD_STREAM_PORTION_FRAMES`). The drive also keeps
+a stitch journal (a stitch is the point in the ring where the frames of one entry
+give way to those of the next) of the sounding entry and up to three more in the ring (depth 4,
+`RV_PCCD_STREAM_JOURNAL_DEPTH`); when it is full, the reader waits at the boundary
+until the consumer passes a stitch. None of these takes sound RAM, and none limits
+the length of an entry.
 
 **Dropped on purpose** (PSX features that do not cross into this contract):
 drawing area / drawing offset registers (a frame is always the whole 320×240),
@@ -837,8 +841,10 @@ Tracked here so they are chosen deliberately rather than by drift:
   path separators, resolved into a handle. The medium is read-only (persistent
   save is the memory card, i.e. `rv_cm`), and no host path ever crosses: the
   game cannot tell a directory from a packed image.
-  Streamed music (`rv_cd_stream_play`/`_stop`/`_status`) plays one entry at a time
-  through a ring the audio mixes; its input level is `rv_ca_stream_volume`.
+  Streamed music (`rv_cd_stream_play`/`_queue`/`_switch`/`_stop`/`_status`/`_queue_status`)
+  sounds a single entry through a ring the audio mixes; the next one may wait in the queue
+  to follow with no gap, and switch moves the sound to another entry at the same music
+  position. Its input level is `rv_ca_stream_volume`.
   Deferred: enumeration (the disc builder bakes any listing at build time), ranged
   reads and the mapping model (console places the resource in its own
   RAM and lends an address) — the last only pays off once the console owns a real
