@@ -139,9 +139,13 @@ path (`scene/rv_scene.hpp`).
 ## Sound
 
 `sound/rv_pdkkit_sound.hpp` gives a disc named samples made resident by the
-drive, with voice setup, play and stop calls. The drive owns the sample RAM.
-The samples sit in a fixed table of 8 (`sound_state`); a name is up to 63 bytes.
-A longer name, or a ninth sample, is refused with a log.
+drive, with voice setup, play and stop calls. Samples are bounded by the sound
+RAM of `[budget.pcca]` and by the drive's resource table (4096 names, shared
+with textures and models; full is RV_ERR_NOMEM). `sound_asset_resident` asks
+the drive on every call and gets the same address for a kept name. A refusal
+is returned as its code, for example RV_ERR_NOENT, RV_ERR_INVAL or RV_ERR_IO;
+the drive logs a refused name once; a failed size measure, table growth or
+medium read logs on every attempt.
 
 ## Headers
 
