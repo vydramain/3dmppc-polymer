@@ -255,6 +255,7 @@ private:
 
     // The same for AUDIO: a resident name answers from audios_, a new one goes to
     // audio_resolve_().
+    // Defined in rv_pccd_fs_audio.cpp.
     int64_t resident_audio_(const char *resname, audio_record *&audio_out);
 
     // The same for MODEL: a resident name answers from models_, a new one goes to
@@ -271,6 +272,7 @@ private:
     // format - and upload them into sound RAM through the borrowed ca_, then
     // remember it in `audios_`. Same success/failure contract as
     // resource_resolve_() itself.
+    // Defined in rv_pccd_fs_audio.cpp.
     int64_t audio_resolve_(const char *resname, audio_record *&record_out);
 
     // Cache miss half of resource_resolve_() for MODEL: parse `resname`'s
