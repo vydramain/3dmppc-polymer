@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -80,6 +81,13 @@ private:
     };
     std::vector<audio_record> audios_;
     std::unordered_map<std::string, int64_t> audio_by_name_;
+    // Names whose resident_audio_() refusal is already in the log: one line per name
+    // for the drive's life, since the disc asks again on every play. The code is
+    // returned on every attempt. Below it, asset_open logs a failed size measure and a
+    // failed table growth, and asset_read logs a medium read that fails with RV_ERR_IO,
+    // each on every attempt. Silent: NOENT, a full table, a read buffer out of memory,
+    // and every other read code.
+    std::unordered_set<std::string> audio_refused_logged_;
 
     // MODEL's counterpart of texture_record: one model uploaded to the geometry
     // controller, which owns its memory and hands back `addr`. Same growth rules

@@ -1,34 +1,60 @@
 // rv_pccd_fs AUDIO residency: a sound read from the disc, uploaded to sound RAM
 // through the sound controller and remembered. Kept out of rv_pccd_fs.cpp so it
-// stays under its 512-line limit.
+// stays under its 512-line limit. A refused resident_audio_() is logged once per name.
+// Below it, asset_open logs a failed size measure and a failed table growth, and asset_read
+// logs a medium read that fails with RV_ERR_IO, each on every attempt. Silent: NOENT, a full
+// table, a read buffer out of memory, and every other read code.
 #include <cstddef>
 #include <cstdint>
 #include <new>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "pdk/ca/rv_sample.h"
 #include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 
 namespace rv_3dmppc
 {
 
+namespace
+{
+
+// Returns `rc` unchanged; logs the refusal only the first time `key` is refused.
+// If remembering the name runs out of memory, it is logged again rather than lost.
+int64_t refuse_audio(std::unordered_set<std::string> &logged, const std::string &key, int64_t rc)
+{
+    bool first = true;
+    try {
+        first = logged.insert(key).second;
+    } catch (const std::bad_alloc &) {
+    }
+    if (first) {
+        RV_LOG_ERR("pccd", "resident audio '{}' refused (rv_err {})", rv_pdklib::rv_log_escape(key.c_str()), rc);
+    }
+    return rc;
+}
+
+} // namespace
+
 int64_t rv_pccd_fs::resident_audio_(const char *resname, audio_record *&audio_out)
 {
+    const std::string key(resname);
     // No sound controller (ca_) attached: nowhere to make the sound resident.
     if (ca_ == nullptr) {
-        return RV_ERR_INVAL;
+        return refuse_audio(audio_refused_logged_, key, RV_ERR_INVAL);
     }
 
-    const std::string key(resname);
     const auto it = audio_by_name_.find(key);
     if (it != audio_by_name_.end()) {
         audio_out = &audios_[static_cast<size_t>(it->second)];
         return RV_OK;
     }
-    return audio_resolve_(resname, audio_out);
+    const int64_t rc = audio_resolve_(resname, audio_out);
+    return rc < 0 ? refuse_audio(audio_refused_logged_, key, rc) : rc;
 }
 
 // Cache-miss half of resource_resolve_() for AUDIO: a disc's "first ask" for
