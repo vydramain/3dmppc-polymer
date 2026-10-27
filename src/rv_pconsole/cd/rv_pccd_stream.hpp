@@ -31,6 +31,11 @@ public:
     // A null ca (no audio attached) is refused with RV_ERR_IO, after the argument, entry and loop checks.
     int64_t play(const rv_pcmedium &medium, rv_pcca *ca, const char *resname, const rv_cd_stream_conf *conf);
 
+    // Queues the entry for the boundary of the current one; checks and codes as play, a refusal changes nothing.
+    // Not PLAYING: starts it as play. A queue before the reader takes it replaces it.
+    // The reader already closed the input: the input reopens and the entry starts from frame 0 at once.
+    int64_t queue(const rv_pcmedium &medium, rv_pcca *ca, const char *resname, const rv_cd_stream_conf *conf);
+
     // Idempotent, from any state.
     int64_t stop(rv_pcca &ca);
 
@@ -42,13 +47,34 @@ public:
     int64_t pump(const rv_pcmedium &medium, rv_pcca &ca);
 
 private:
+    // One entry as measured by play or queue; loop_end is the effective end.
+    struct rv_stream_entry {
+        std::string name;
+        int64_t frames = 0;
+        int64_t loop = 0;
+        int64_t loop_start = 0;
+        int64_t loop_end = 0;
+    };
+
+    // Checks shared by play and queue, in play's order; `op` names the call in the log.
+    static int64_t measure_entry(const rv_pcmedium &medium,
+        const char *op,
+        const char *resname,
+        const rv_cd_stream_conf *conf,
+        const rv_pcca *ca,
+        rv_stream_entry &out);
     // Enters ERROR with `error`, clears the ring and stops the reader. Logs once. Returns `error`.
     int64_t fail_(rv_pcca &ca, int64_t error);
+    // Makes `entry` the current one, read from frame 0.
+    void load_(const rv_stream_entry &entry);
+    // Starts `entry` as play does: counters reset, queue dropped, ring cleared and started.
+    void start_(rv_pcca &ca, const rv_stream_entry &entry);
     // Logs a warning once per starvation episode, and only after the first push.
     void warn_starved_(const rv_pcstream_report &report);
     // Reads n frames at read_pos_ and pushes them; RV_OK, or the code fail_ returned.
     int64_t read_and_push_(const rv_pcmedium &medium, rv_pcca &ca, int64_t n);
-    // After a portion: loop 1 wraps to loop_start_; without a loop the reader ends and the ring input closes.
+    // After a portion: a queued entry takes over; else loop 1 wraps to loop_start_, and without a loop
+    // the reader ends and the ring input closes.
     void wrap_or_end_(rv_pcca &ca);
     // ENDED once the reader is done and the ring has drained.
     void settle_(const rv_pcstream_report &report);
@@ -66,6 +92,8 @@ private:
     int64_t last_starved_ = 0; // starved frames seen by the previous pump
     bool starving_ = false;    // the previous pump saw growth: its warning is out
     bool pushed_ = false;      // a portion has reached the ring since play
+    rv_stream_entry pending_;  // queued entry, taken by the reader at the boundary
+    bool has_pending_ = false;
     std::vector<int16_t> staging_;
 };
 
