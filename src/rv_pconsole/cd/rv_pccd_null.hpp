@@ -44,6 +44,12 @@ public:
 
     int64_t stream_status(rv_cd_stream_info *out) override;
 
+    int64_t stream_queue(const char *resname, const rv_cd_stream_conf *conf) override;
+
+    int64_t stream_switch(const char *resname, const rv_cd_stream_conf *conf) override;
+
+    int64_t stream_queue_status(rv_cd_stream_queue_info *out) override;
+
     int64_t stream_pump() override;
 
     // No drive to put it in: the medium is dropped.

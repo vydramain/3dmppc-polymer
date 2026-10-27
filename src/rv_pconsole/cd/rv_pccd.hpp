@@ -94,6 +94,12 @@ public:
 
     virtual int64_t stream_status(rv_cd_stream_info *out) = 0;
 
+    virtual int64_t stream_queue(const char *resname, const rv_cd_stream_conf *conf) = 0;
+
+    virtual int64_t stream_switch(const char *resname, const rv_cd_stream_conf *conf) = 0;
+
+    virtual int64_t stream_queue_status(rv_cd_stream_queue_info *out) = 0;
+
     // Console-side only - not reached through the extern "C" block. Meant for the console loop:
     // once per pass, before the sound; the only place the stream reads the entry's content.
     // Returns an rv_err the loop ignores.

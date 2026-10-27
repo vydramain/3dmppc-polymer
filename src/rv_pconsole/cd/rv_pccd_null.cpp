@@ -90,6 +90,39 @@ int64_t rv_pccd_null::stream_status(rv_cd_stream_info *out)
     return RV_OK;
 }
 
+int64_t rv_pccd_null::stream_queue(const char *resname, const rv_cd_stream_conf *conf)
+{
+    if (resname == nullptr || conf == nullptr) {
+        RV_LOG_WARN("pccd", "stream queue with a null resname or conf");
+        return RV_ERR_INVAL;
+    }
+    // Nothing plays here, so nothing can be queued: no such entry, not a device failure.
+    RV_LOG_WARN("pccd", "stream queue refused: the drive is empty");
+    return RV_ERR_NOENT;
+}
+
+int64_t rv_pccd_null::stream_switch(const char *resname, const rv_cd_stream_conf *conf)
+{
+    if (resname == nullptr || conf == nullptr) {
+        RV_LOG_WARN("pccd", "stream switch with a null resname or conf");
+        return RV_ERR_INVAL;
+    }
+    // Nothing plays here, so nothing can be switched: no such entry, not a device failure.
+    RV_LOG_WARN("pccd", "stream switch refused: the drive is empty");
+    return RV_ERR_NOENT;
+}
+
+int64_t rv_pccd_null::stream_queue_status(rv_cd_stream_queue_info *out)
+{
+    if (out == nullptr) {
+        RV_LOG_WARN("pccd", "stream queue status with a null out");
+        return RV_ERR_INVAL;
+    }
+    out->pending = 0;
+    out->switches = 0;
+    return RV_OK;
+}
+
 int64_t rv_pccd_null::stream_pump()
 {
     // No stream, so no medium read and no portion to put into the ring.
