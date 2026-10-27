@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstring>
 
+#include "pdk/rv_err.h"
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/ca/rv_pcvoice.hpp"
 
@@ -55,6 +56,20 @@ void rv_pcstream::end_input()
 
     accepting_ = false;
     ended_ = true;
+}
+
+int64_t rv_pcstream::reopen_input()
+{
+    if (accepting_) {
+        return RV_ERR_ALREADY;
+    }
+    if (!ended_ || fill_ == 0) {
+        return RV_ERR_INVAL;
+    }
+
+    accepting_ = true;
+    ended_ = false;
+    return RV_OK;
 }
 
 void rv_pcstream::clear()
