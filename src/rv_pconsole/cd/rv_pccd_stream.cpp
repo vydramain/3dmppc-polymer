@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <utility>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -125,7 +126,10 @@ int64_t rv_pccd_stream::queue(const rv_pcmedium &medium, rv_pcca *ca, const char
         start_(*ca, entry);
         return RV_OK;
     }
-    if (reader_active_) {
+    // Passed stitches free their slots before the full check below.
+    drop_passed_(ca->stream_report());
+    // A full journal keeps the entry queued: pump takes it once a slot frees up.
+    if (reader_active_ || journal_full_()) {
         pending_ = entry;
         has_pending_ = true;
         return RV_OK;
@@ -145,7 +149,9 @@ int64_t rv_pccd_stream::queue(const rv_pcmedium &medium, rv_pcca *ca, const char
             opened);
         return opened;
     }
+    journal_add_(entry, pushed_frames_, 0);
     load_(entry);
+    has_pending_ = false;
     return RV_OK;
 }
 
@@ -169,6 +175,10 @@ void rv_pccd_stream::start_(rv_pcca &ca, const rv_stream_entry &entry)
     starving_ = false;
     pushed_ = false;
     has_pending_ = false;
+    pushed_frames_ = 0;
+    switches_ = 0;
+    journal_size_ = 0;
+    journal_add_(entry, 0, 0);
     ca.stream_clear();
     ca.stream_start();
 }
@@ -180,6 +190,8 @@ int64_t rv_pccd_stream::stop(rv_pcca &ca)
     error_ = 0;
     reader_active_ = false;
     has_pending_ = false;
+    // Emptied so queue_status cannot count passed stitches of a stopped stream; switches_ stays.
+    journal_size_ = 0;
     return RV_OK;
 }
 
@@ -192,8 +204,15 @@ int64_t rv_pccd_stream::status(rv_pcca &ca, rv_cd_stream_info *out)
 
     const rv_pcstream_report report = ca.stream_report();
     const bool idle = state_ == RV_CD_STREAM_IDLE;
-    const rv_loop_position at =
-        idle ? rv_loop_position{ 0, 0 } : loop_position(loop_, loop_start_, loop_end_, frames_, report.consumed);
+    rv_loop_position at{ 0, 0 };
+    // The journal is read only while a stream runs; IDLE has no sounding entry.
+    if (!idle) {
+        drop_passed_(report);
+        // Frames of the sounding entry played so far: its start position plus the consumer frames since its start.
+        const rv_stream_entry &sound = journal_[0].entry;
+        const int64_t played = journal_[0].start_pos + report.consumed - journal_[0].start_count;
+        at = loop_position(sound.loop, sound.loop_start, sound.loop_end, sound.frames, played);
+    }
 
     out->state = state_;
     out->error = error_;
@@ -203,16 +222,43 @@ int64_t rv_pccd_stream::status(rv_pcca &ca, rv_cd_stream_info *out)
     return RV_OK;
 }
 
+int64_t rv_pccd_stream::queue_status(rv_pcca &ca, rv_cd_stream_queue_info *out)
+{
+    if (out == nullptr) {
+        RV_LOG_WARN("pccd", "stream queue status with a null out");
+        return RV_ERR_INVAL;
+    }
+
+    drop_passed_(ca.stream_report());
+    out->pending = has_pending_ ? 1 : 0;
+    out->switches = switches_;
+    return RV_OK;
+}
+
 int64_t rv_pccd_stream::pump(const rv_pcmedium &medium, rv_pcca &ca)
 {
     if (state_ != RV_CD_STREAM_PLAYING) {
         return RV_OK;
     }
 
-    const rv_pcstream_report report = ca.stream_report();
+    rv_pcstream_report report = ca.stream_report();
     warn_starved_(report);
-    // Nothing to read: the reader is done or the ring is full. Still settle, so ENDED can appear.
-    if (!reader_active_ || report.free == 0) {
+    drop_passed_(report);
+    // A queued entry waits for the closed input; the journal may have room now.
+    if (!reader_active_ && has_pending_ && !journal_full_()) {
+        const int64_t err = open_pending_(ca);
+        if (err != RV_OK) {
+            return err;
+        }
+        // start_ may have cleared the ring: the read and settle below need the report after it.
+        report = ca.stream_report();
+    }
+    // A reader held at a boundary by a full journal takes the queued entry once a slot frees up.
+    if (reader_active_) {
+        wrap_or_end_(ca);
+    }
+    // Nothing to read: the reader is done, the ring is full, or it waits at a boundary. Still settle, so ENDED can appear.
+    if (!reader_active_ || report.free == 0 || read_pos_ == read_bound_()) {
         settle_(report);
         return RV_OK;
     }
@@ -261,6 +307,7 @@ int64_t rv_pccd_stream::read_and_push_(const rv_pcmedium &medium, rv_pcca &ca, i
         return fail_(ca, RV_ERR_IO);
     }
     pushed_ = true;
+    pushed_frames_ += n;
     return RV_OK;
 }
 
@@ -271,8 +318,11 @@ void rv_pccd_stream::wrap_or_end_(rv_pcca &ca)
     }
     // The queued entry replaces both the loop wrap and the end; the ring input stays open.
     if (has_pending_) {
-        load_(pending_);
-        has_pending_ = false;
+        // A full journal holds the reader here: no wrap, no end, until drop_passed_ frees a slot.
+        if (journal_full_()) {
+            return;
+        }
+        take_pending_();
         return;
     }
     if (loop_ == 1) {
@@ -286,7 +336,7 @@ void rv_pccd_stream::wrap_or_end_(rv_pcca &ca)
 void rv_pccd_stream::settle_(const rv_pcstream_report &report)
 {
     // The ring may still hold frames here; ENDED waits for a pump that sees it drained.
-    if (!reader_active_ && report.drained) {
+    if (!reader_active_ && !has_pending_ && report.drained) {
         state_ = RV_CD_STREAM_ENDED;
     }
 }
@@ -295,6 +345,50 @@ void rv_pccd_stream::settle_(const rv_pcstream_report &report)
 int64_t rv_pccd_stream::read_bound_() const
 {
     return loop_ == 1 ? loop_end_ : frames_;
+}
+
+void rv_pccd_stream::journal_add_(const rv_stream_entry &entry, int64_t start_count, int64_t start_pos)
+{
+    journal_[journal_size_] = { entry, start_count, start_pos };
+    ++journal_size_;
+}
+
+bool rv_pccd_stream::journal_full_() const
+{
+    return journal_size_ == RV_PCCD_STREAM_JOURNAL_DEPTH;
+}
+
+// Keeps the last entry whose start the consumer reached: index 0 is the sounding one.
+void rv_pccd_stream::drop_passed_(const rv_pcstream_report &report)
+{
+    while (journal_size_ > 1 && report.consumed >= journal_[1].start_count) {
+        for (std::size_t i = 1; i < journal_size_; ++i) {
+            journal_[i - 1] = std::move(journal_[i]);
+        }
+        --journal_size_;
+        ++switches_;
+    }
+}
+
+void rv_pccd_stream::take_pending_()
+{
+    journal_add_(pending_, pushed_frames_, 0);
+    load_(pending_);
+    has_pending_ = false;
+}
+
+int64_t rv_pccd_stream::open_pending_(rv_pcca &ca)
+{
+    const int64_t opened = ca.stream_reopen_input();
+    if (opened == RV_ERR_INVAL) {
+        start_(ca, pending_);
+        return RV_OK;
+    }
+    if (opened != RV_OK) {
+        return fail_(ca, opened);
+    }
+    take_pending_();
+    return RV_OK;
 }
 
 int64_t rv_pccd_stream::fail_(rv_pcca &ca, int64_t error)
