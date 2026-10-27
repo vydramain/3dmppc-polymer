@@ -18,26 +18,6 @@ namespace
 // Entry sizes are bytes; one frame is one mono S16 sample.
 constexpr int64_t RV_PCCD_STREAM_BYTES_PER_FRAME = 2;
 
-struct rv_loop_position {
-    int64_t position;
-    int64_t loops;
-};
-
-// Read position after `consumed` frames have been taken, for a stream that was played
-// with these bounds. Loop 0 stops at the entry end; loop 1 wraps back to loop_start.
-rv_loop_position loop_position(int64_t loop, int64_t loop_start, int64_t end, int64_t frames, int64_t consumed)
-{
-    if (loop == 0) {
-        return { std::min(consumed, frames), 0 };
-    }
-    if (consumed < end) {
-        return { consumed, 0 };
-    }
-    const int64_t period = end - loop_start;
-    const int64_t past_end = consumed - end;
-    return { loop_start + past_end % period, 1 + past_end / period };
-}
-
 } // namespace
 
 rv_pccd_stream::rv_pccd_stream()
@@ -166,9 +146,10 @@ void rv_pccd_stream::load_(const rv_stream_entry &entry)
     reader_active_ = true;
 }
 
-void rv_pccd_stream::start_(rv_pcca &ca, const rv_stream_entry &entry)
+void rv_pccd_stream::begin_entry_(const rv_stream_entry &entry, int64_t pos)
 {
     load_(entry);
+    read_pos_ = pos;
     state_ = RV_CD_STREAM_PLAYING;
     error_ = 0;
     last_starved_ = 0;
@@ -176,9 +157,15 @@ void rv_pccd_stream::start_(rv_pcca &ca, const rv_stream_entry &entry)
     pushed_ = false;
     has_pending_ = false;
     pushed_frames_ = 0;
-    switches_ = 0;
     journal_size_ = 0;
-    journal_add_(entry, 0, 0);
+    journal_add_(entry, 0, pos);
+}
+
+void rv_pccd_stream::start_(rv_pcca &ca, const rv_stream_entry &entry)
+{
+    begin_entry_(entry, 0);
+    starved_base_ = 0;
+    switches_ = 0;
     ca.stream_clear();
     ca.stream_start();
 }
@@ -208,18 +195,74 @@ int64_t rv_pccd_stream::status(rv_pcca &ca, rv_cd_stream_info *out)
     // The journal is read only while a stream runs; IDLE has no sounding entry.
     if (!idle) {
         drop_passed_(report);
-        // Frames of the sounding entry played so far: its start position plus the consumer frames since its start.
-        const rv_stream_entry &sound = journal_[0].entry;
-        const int64_t played = journal_[0].start_pos + report.consumed - journal_[0].start_count;
-        at = loop_position(sound.loop, sound.loop_start, sound.loop_end, sound.frames, played);
+        at = sound_position_(report);
     }
 
     out->state = state_;
     out->error = error_;
     out->position = at.position;
     out->loops = at.loops;
-    out->starved_frames = idle ? 0 : report.starved;
+    out->starved_frames = idle ? 0 : starved_base_ + report.starved;
     return RV_OK;
+}
+
+int64_t rv_pccd_stream::switch_to(const rv_pcmedium &medium, rv_pcca *ca, const char *resname, const rv_cd_stream_conf *conf)
+{
+    rv_stream_entry entry;
+    const int64_t err = measure_entry(medium, "switch", resname, conf, ca, entry);
+    if (err != RV_OK) {
+        return err;
+    }
+    const rv_pcstream_report report = ca->stream_report();
+    drop_passed_(report);
+    // A stream that just played out is ENDED now (settle_), so there is no position to keep: start as play.
+    settle_(report);
+    if (state_ != RV_CD_STREAM_PLAYING) {
+        start_(*ca, entry);
+        return RV_OK;
+    }
+    const rv_loop_position at = sound_position_(report);
+    // Same bound as read_bound_() gives the new entry, read from its own start.
+    const int64_t bound = entry.loop == 1 ? entry.loop_end : entry.frames;
+    if (at.position >= bound) {
+        RV_LOG_WARN("pccd",
+            "stream switch to '{}' at position {}: not below the readable end {}",
+            rv_pdklib::rv_log_escape(entry.name.c_str()),
+            at.position,
+            bound);
+        return RV_ERR_INVAL;
+    }
+
+    // The restarted ring counts from zero: the old ring's starved frames move into the base.
+    starved_base_ += report.starved;
+    ca->stream_start();
+    begin_entry_(entry, at.position);
+    ++switches_;
+    return RV_OK;
+}
+
+// Read position after `consumed` frames have been taken, for a stream that was played
+// with these bounds. Loop 0 stops at the entry end; loop 1 wraps back to loop_start.
+rv_pccd_stream::rv_loop_position
+rv_pccd_stream::loop_position(int64_t loop, int64_t loop_start, int64_t end, int64_t frames, int64_t consumed)
+{
+    if (loop == 0) {
+        return { std::min(consumed, frames), 0 };
+    }
+    if (consumed < end) {
+        return { consumed, 0 };
+    }
+    const int64_t period = end - loop_start;
+    const int64_t past_end = consumed - end;
+    return { loop_start + past_end % period, 1 + past_end / period };
+}
+
+rv_pccd_stream::rv_loop_position rv_pccd_stream::sound_position_(const rv_pcstream_report &report) const
+{
+    // Frames of the sounding entry played so far: its start position plus the consumer frames since its start.
+    const rv_stream_entry &sound = journal_[0].entry;
+    const int64_t played = journal_[0].start_pos + report.consumed - journal_[0].start_count;
+    return loop_position(sound.loop, sound.loop_start, sound.loop_end, sound.frames, played);
 }
 
 int64_t rv_pccd_stream::queue_status(rv_pcca &ca, rv_cd_stream_queue_info *out)

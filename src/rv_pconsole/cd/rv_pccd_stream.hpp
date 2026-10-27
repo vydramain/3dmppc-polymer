@@ -43,6 +43,10 @@ public:
     // unless the journal is full: then pump takes it later.
     int64_t queue(const rv_pcmedium &medium, rv_pcca *ca, const char *resname, const rv_cd_stream_conf *conf);
 
+    // Switches the sounding entry to resname at its current position, the ring restarts; checks and codes as
+    // play, a refusal changes nothing. Not PLAYING (or just ended): starts it as play.
+    int64_t switch_to(const rv_pcmedium &medium, rv_pcca *ca, const char *resname, const rv_cd_stream_conf *conf);
+
     // Idempotent, from any state.
     int64_t stop(rv_pcca &ca);
 
@@ -67,6 +71,12 @@ private:
         int64_t loop_end = 0;
     };
 
+    // Position in the sounding entry and the loops it has passed since its journal start.
+    struct rv_loop_position {
+        int64_t position;
+        int64_t loops;
+    };
+
     // A stitch: the entry whose first frame sounds when the consumer count reaches start_count.
     struct rv_junction {
         rv_stream_entry entry;
@@ -74,6 +84,8 @@ private:
         int64_t start_pos = 0;   // position in the entry of its first frame
     };
 
+    // Read position after `consumed` frames have been taken, for a stream played with these bounds.
+    static rv_loop_position loop_position(int64_t loop, int64_t loop_start, int64_t end, int64_t frames, int64_t consumed);
     // Checks shared by play and queue, in play's order; `op` names the call in the log.
     static int64_t measure_entry(const rv_pcmedium &medium,
         const char *op,
@@ -87,6 +99,8 @@ private:
     void load_(const rv_stream_entry &entry);
     // Starts `entry` as play does: counters reset, queue dropped, ring cleared and started.
     void start_(rv_pcca &ca, const rv_stream_entry &entry);
+    // Makes `entry` the sounding one from frame `pos`; counters, queue and journal restart, the ring is the caller's.
+    void begin_entry_(const rv_stream_entry &entry, int64_t pos);
     // Logs a warning once per starvation episode, and only after the first push.
     void warn_starved_(const rv_pcstream_report &report);
     // Reads n frames at read_pos_ and pushes them; RV_OK, or the code fail_ returned.
@@ -101,6 +115,8 @@ private:
     bool journal_full_() const;
     // Drops the entries the consumer has passed; each one is a switch.
     void drop_passed_(const rv_pcstream_report &report);
+    // Position and loops of the sounding entry; the journal must be dropped first.
+    rv_loop_position sound_position_(const rv_pcstream_report &report) const;
     // Takes the queued entry into the journal and the reader, from frame 0.
     void take_pending_();
     // Reopens the ring input for the queued entry, then takes it; INVAL means the ring has played out: play it.
@@ -125,6 +141,7 @@ private:
     std::array<rv_junction, RV_PCCD_STREAM_JOURNAL_DEPTH> journal_;
     std::size_t journal_size_ = 0;
     int64_t pushed_frames_ = 0; // frames pushed to the ring since start_
+    int64_t starved_base_ = 0;  // starved frames of the rings before the last switch
     int64_t switches_ = 0;      // sounding-entry changes since play
     std::vector<int16_t> staging_;
 };
