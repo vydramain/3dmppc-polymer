@@ -397,6 +397,11 @@ void rv_pcca_sw::stream_end_input()
     mixer_.stream_end_input();
 }
 
+int64_t rv_pcca_sw::stream_reopen_input()
+{
+    return mixer_.stream_reopen_input();
+}
+
 void rv_pcca_sw::stream_clear()
 {
     mixer_.stream_clear();
