@@ -1,4 +1,5 @@
-# The authoring tools: mppcburner and the bakers, run on a developer's machine to bake a game's assets and burn it onto a disc.
+# The authoring tools: mppcburner, the bakers and mppcinspector, run on a developer's machine to bake a game's assets,
+# burn it onto a disc and inspect a disc directory.
 # It is a separate product from the console and builds with its own command:
 #
 #   cmake -S pdk/tools -B pdk/tools/build && cmake --build pdk/tools/build
@@ -10,6 +11,8 @@
 #
 # What the tools share with the console is only the contract: pdk/ (and pdklib/,
 # which discs are written against). Nothing here links a single line of src/.
+# mppcinspector is the one exception among the tools: it also links pdkkit, because it runs the
+# kit's scene checks, which pdklib must not include. Only its CMakeLists includes pdkkit.
 
 cmake_minimum_required(VERSION 3.24)
 
@@ -38,3 +41,4 @@ add_subdirectory(mppctexbaker)
 add_subdirectory(mppcmusbaker)
 add_subdirectory(mppcmodbaker)
 add_subdirectory(mppcburner)
+add_subdirectory(mppcinspector)
