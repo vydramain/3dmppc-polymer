@@ -25,6 +25,9 @@ add_executable(mppcburner
   # the setup subcommand: pinned tools installed once per user, not shipped in the package
   rv_burner_setup/rv_burner_setup.cpp
 
+  # the sources check, run before [1/4]: mppcinspector on the disc's sources
+  rv_burner_sources/rv_burner_sources_check.cpp
+
   # shared by every phase
   rv_burner_common/rv_burner_archive.cpp
   rv_burner_common/rv_burner_process.cpp
