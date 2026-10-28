@@ -44,6 +44,27 @@ constexpr const char *k_repair_hint_format = "fix available: run mppcrepairer \"
 // Bracket labels of a finding line: "... [<rule>, key <key>, fix <fix>]".
 constexpr std::string_view k_key_label = ", key ";
 constexpr std::string_view k_fix_label = ", fix ";
+// The usage text, printed for --help and for a usage error.
+constexpr const char *k_usage_text =
+    "mppcinspector - check a disc directory's sources and print the findings\n"
+    "\n"
+    "Usage:\n"
+    "  mppcinspector <disc-directory> [--report PATH]\n"
+    "\n"
+    "Options:\n"
+    "  -r, --report PATH  a successful run writes PATH, replacing an old regular file;\n"
+    "                     a failed run leaves no report, unless a report file it had to\n"
+    "                     remove (the old one, or a partial one) could not be removed: then\n"
+    "                     the run fails and names it. A PATH that exists and is not a regular\n"
+    "                     file (link, directory, FIFO) is refused, and so is an empty PATH\n"
+    "  -h, --help         print this text\n"
+    "\n"
+    "Exit status: 0 no error findings, 1 error findings, 2 usage error or failed run.\n";
+// A failed run's error line: the program's name, then the error.
+constexpr const char *k_error_format = "mppcinspector: %s\n";
+// Reasons for a usage error that main finds before any run.
+constexpr std::string_view k_operand_error_text = "expects one operand, the disc directory; got ";
+constexpr std::string_view k_empty_report_error_text = "--report needs a non-empty PATH";
 
 // The rule tables in run order: the disc.toml rules, then the kit's.
 constexpr std::span<const rv_pdklib::rv_inspect_rule> k_rule_tables[] = {
@@ -113,7 +134,8 @@ int report_error(const std::filesystem::path &report, int code, std::string &err
     return RV_ERR_IO;
 }
 
-// A failed write or close leaves no partial report: the file is removed, and a failure to remove it is added to `error`.
+// A failed write or close leaves no partial report, unless its removal fails; then that failure is added to `error` and the
+// partial report stays.
 int fail_partial(const std::filesystem::path &report, int code, std::string &error)
 {
     const int rc = report_error(report, code, error);
@@ -125,8 +147,9 @@ int fail_partial(const std::filesystem::path &report, int code, std::string &err
     return rc;
 }
 
-// The report exists only after a successful run, so an old one goes before the rules run. The path must be
-// absent or a regular file: a link, a directory or a FIFO is refused before anything is changed.
+// An old one goes before the rules run, so a failed run leaves no report, unless a report file it had to remove
+// (the old one, or a partial one) could not be removed: then the run fails and names it. The path must be absent
+// or a regular file: a link, a directory or a FIFO is refused before anything is changed.
 int remove_old_report(const std::filesystem::path &report, std::string &error)
 {
     std::error_code ec;
@@ -216,6 +239,28 @@ int rv_inspector_run(const rv_inspector_options &options, bool &has_error, std::
 
     has_error = rv_pdklib::rv_inspect_has_error(findings);
     return RV_OK;
+}
+
+void rv_inspector_print_usage(std::FILE *stream)
+{
+    rv_pdklib::rv_fprintf(stream, "%s", k_usage_text);
+}
+
+void rv_inspector_print_error(const std::string &error)
+{
+    rv_pdklib::rv_fprintf(stderr, k_error_format, error.c_str());
+}
+
+void rv_inspector_print_operand_error(int got)
+{
+    rv_inspector_print_error(std::string(k_operand_error_text) + std::to_string(got));
+    rv_inspector_print_usage(stderr);
+}
+
+void rv_inspector_print_empty_report_error()
+{
+    rv_inspector_print_error(std::string(k_empty_report_error_text));
+    rv_inspector_print_usage(stderr);
 }
 
 } // namespace rv_pdktools
