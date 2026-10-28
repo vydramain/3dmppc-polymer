@@ -9,7 +9,6 @@
 
 #include "pdklib/rv_manifest/detail/rv_manifest_tree.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
-#include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_pdkkit
 {
@@ -64,23 +63,16 @@ struct rv_editor_scene_object {
 
 struct rv_editor_scene {
     std::filesystem::path path;
-    // The PDK version the file was written for (rv_pdklib::rv_version_str for a fresh one);
-    // an integer `format` header reads as 0.0, same as pdkkit's scene reader.
-    uint32_t version_major = static_cast<uint32_t>(RV_MPPC_VER_MAJOR);
-    uint32_t version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
     std::string preamble; // the comment lines before the first section, kept
     std::vector<rv_editor_scene_object> objects;
     std::vector<rv_pdklib::rv_manifest_tree_entry> scene_extra;      // unknown [scene] keys
     std::vector<rv_pdklib::rv_manifest_tree_section> other_sections; // unknown sections
-    // Non-empty: save refuses to write and the panes show why. Load sets it for a version that is not
-    // rv_version_compatible (the scene opens for reading); an integer `format` with no version reads as 0.0, so read-only.
+    // Non-empty: save refuses to write and the panes show why.
     std::string read_only;
 };
 
-// RV_OK on success; RV_ERR_INVAL if the file is unreadable, malformed, has neither a [scene] version nor an integer
-// `format`, or a number or text of a data component does not read (reason in error). A version that is not
-// rv_version_compatible loads read-only; so does an integer `format` with no version, read as 0.0.
-// A form-1 file is migrated to form 2 on the way in.
+// RV_OK on success; RV_ERR_INVAL if the file is unreadable, malformed, or a number or text of a data component does
+// not read (reason in error). A form-1 file is migrated to form 2 on the way in.
 int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error);
 
 // RV_OK on success; RV_ERR_INVAL if read-only, if a data component does not read or tess is not above zero (reason in error);
