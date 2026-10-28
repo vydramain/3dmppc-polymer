@@ -1,9 +1,9 @@
-# Updates the 3dmppc devtools delivery tree <tree> (<build>/pconsole/ in the build): bin/ (copied from the dev build's
-# <build>/bin: console, editor, mppcburner, bakers, firmware), the launch copies beside bin/, tools/ (clangd with clang's
-# resource dir: built-in headers and compiler-rt runtimes; Neovim, lua-language-server, the compat check and toolchain),
-# LICENSES/ and VERSIONS.txt. SteamLinuxRuntime_4/ at the root is a relative link to bin/firmware/SteamLinuxRuntime_4, the
-# one runtime copy. steamrt4-sdk/ at the root is unpacked by the outer build and only read: the launchers run the programs
-# with it, so it is not copied (see the SDK check below).
+# Updates the 3dmppc devtools delivery tree <tree> (<build>/pconsole/ in the build): bin/ (copied from the dev
+# build's <build>/bin: console, editor, mppcburner, bakers, mppcinspector, mppcrepairer, firmware), the launch copies
+# beside bin/, tools/ (clangd with clang's resource dir: built-in headers and compiler-rt runtimes; Neovim,
+# lua-language-server, the compat check and toolchain), LICENSES/ and VERSIONS.txt. SteamLinuxRuntime_4/ at the root
+# is a relative link to bin/firmware/SteamLinuxRuntime_4, the one runtime copy. steamrt4-sdk/ at the root is unpacked
+# by the outer build and only read: the launchers run the programs with it, so it is not copied (see the SDK check below).
 # devtools-tree runs this in ALL, so each build updates the tree in place. bin/ is never cleared: the player's memcard and
 # modes.toml live there. A file the build dropped stays until deleted by hand. A real SteamLinuxRuntime_4/ directory left
 # by an older build (with var/) is replaced by the link. Every input runs before the first write. The compat check covers
@@ -41,7 +41,7 @@ rv_log_header("Devtools delivery tree ${RV_DEVTOOLS_SHOWN}")
 set(RV_DEVTOOLS_EXEC_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
 # The launch file runs bin/<its own name>, so each console and tool name gets its own launch copy beside bin/.
-set(RV_DEVTOOLS_LAUNCH_NAMES 3dmppc 3dmppc-editor mppcburner mppctexbaker mppcmusbaker mppcmodbaker)
+set(RV_DEVTOOLS_LAUNCH_NAMES 3dmppc 3dmppc-editor mppcburner mppctexbaker mppcmusbaker mppcmodbaker mppcinspector mppcrepairer)
 
 # Every input is checked before anything is written: a bad input must not cost the tree the player runs from.
 foreach(var RV_DEVTOOLS_BIN RV_DEVTOOLS_LLVM RV_DEVTOOLS_NVIM RV_DEVTOOLS_LUALS RV_DEVTOOLS_STEAMRT4_SDK RV_DEVTOOLS_RUNTIME)
@@ -190,7 +190,8 @@ file(MAKE_DIRECTORY "${RV_DEVTOOLS_TREE}/bin" "${RV_DEVTOOLS_TREE}/LICENSES" "${
 
 # file(COPY) keeps the symlinks and modes of the dev build's bin/, firmware/SteamLinuxRuntime_4 included.
 # Its var/ is left out: pressure-vessel writes state there, with absolute symlinks into the builder's home.
-rv_log_step("Copying bin/ (console, editor, mppcburner, bakers, firmware) to ${RV_DEVTOOLS_SHOWN}/bin")
+set(RV_DEVTOOLS_BIN_CONTENTS "console, editor, mppcburner, bakers, mppcinspector, mppcrepairer, firmware")
+rv_log_step("Copying bin/ (${RV_DEVTOOLS_BIN_CONTENTS}) to ${RV_DEVTOOLS_SHOWN}/bin")
 file(COPY "${RV_DEVTOOLS_BIN}/" DESTINATION "${RV_DEVTOOLS_TREE}/bin" REGEX "/SteamLinuxRuntime_4/var$" EXCLUDE)
 rv_log_step("Adding the launch scripts beside bin/")
 foreach(name IN LISTS RV_DEVTOOLS_LAUNCH_NAMES)
