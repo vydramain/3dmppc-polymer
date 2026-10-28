@@ -91,6 +91,15 @@ inline int rv_repair_write_bytes(const std::filesystem::path &file, std::string_
     return RV_OK;
 }
 
+// Non-empty, relative, and without a '..' part: a path that stays inside its base directory.
+inline bool rv_repair_rel_inside(const std::filesystem::path &rel)
+{
+    const bool escapes = std::ranges::any_of(rel, [](const std::filesystem::path &part) {
+        return part == "..";
+    });
+    return !rel.empty() && !rel.is_absolute() && !escapes;
+}
+
 } // namespace detail
 
 // "YYYYmmdd-HHMMSS" in local time into `stamp`; `stamp` is set only on RV_OK.
@@ -144,10 +153,7 @@ inline int rv_repair_backup(const std::filesystem::path &project,
         error = "backup: empty time stamp";
         return RV_ERR_INVAL;
     }
-    const bool escapes = std::ranges::any_of(rel, [](const std::filesystem::path &part) {
-        return part == "..";
-    });
-    if (rel.empty() || rel.is_absolute() || escapes) {
+    if (!detail::rv_repair_rel_inside(rel)) {
         error = "backup: " + rel.string() + " is not a path inside the project";
         return RV_ERR_INVAL;
     }
