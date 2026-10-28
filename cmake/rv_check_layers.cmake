@@ -1,9 +1,10 @@
 # The pdkkit layer boundary, enforced by the check-layers build target instead of at configure time.
 #
-# The stack is pdk <- pdklib <- pdkkit <- { a disc with [build] sdk = ["kit"], the editor }.
-# The console, the tools, pdklib and the discs without the kit must not see pdkkit: a disc
-# that did not ask for the kit fails at build time; this check names the offending #include line
-# without a build, so an upward include is caught where it is written.
+# The stack is pdk <- pdklib <- pdkkit <- { a disc with [build] sdk = ["kit"], the editor,
+# the mppcinspector and mppcrepairer tools }. The console, the other tools, pdklib and the discs
+# without the kit must not see pdkkit: a disc that did not ask for the kit fails at build time;
+# this check names the offending #include line without a build, so an upward include is caught
+# where it is written.
 #
 # Limits: the sdk key is read line by line from the [build] section, so an array split over
 # several lines is not seen (disc.toml keeps it on one line). A disc without disc.toml has no kit.
@@ -17,7 +18,12 @@ endif()
 # Group 1 is the delimiter (quote or angle), group 2 the include path.
 set(RV_LAYER_INCLUDE_RE "^[ \t]*#[ \t]*include[ \t]*([\"<])([^\">]*)[\">]")
 
-set(RV_LAYER_RULE_CORE "src, pdk/tools, pdk/lib and pdk/include must not include pdkkit: pdkkit sits above pdklib")
+# The two tools that link pdkkit by design; their directories are skipped whole.
+# The rest of pdk/tools stays under CORE.
+set(RV_LAYER_EXEMPT_RE "^pdk/tools/(mppcinspector|mppcrepairer)/")
+
+set(RV_LAYER_RULE_CORE
+    "src, pdk/tools (not mppcinspector, mppcrepairer), pdk/lib, pdk/include must not include pdkkit: pdkkit sits above pdklib")
 set(RV_LAYER_RULE_KIT "pdk/kit quoted includes must start with pdk/, pdklib/ or pdkkit/: the kit sees only the layers below it")
 set(RV_LAYER_RULE_DISC "a disc without [build] sdk = [\"kit\"] in disc.toml must not include pdkkit")
 
@@ -56,6 +62,10 @@ function(rv_check_layers)
         endif()
         file(RELATIVE_PATH rel ${RV_ROOT} ${candidate})
         if(rel MATCHES "(^|/)(third_party|build|_deps|\\.mppcburn)/")
+            continue()
+        endif()
+
+        if(rel MATCHES "${RV_LAYER_EXEMPT_RE}")
             continue()
         endif()
 
