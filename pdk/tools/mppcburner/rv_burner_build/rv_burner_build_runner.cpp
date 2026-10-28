@@ -22,6 +22,7 @@
 #include "rv_burner_compile/rv_burner_check.hpp"
 #include "rv_burner_compile/rv_burner_cmake.hpp"
 #include "rv_burner_compile/rv_burner_compile_sources.hpp"
+#include "rv_burner_sources/rv_burner_sources_check.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_burner_print.hpp"
 
@@ -311,6 +312,17 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     if (nullptr == target) {
         rv_burner_print_error(std::format("unknown target '{}'; expected one of: {}", options.target, target_names()));
         return RV_ERR_INVAL;
+    }
+
+    // --- the sources check ---
+    //
+    // Before [1/4] and before anything is created: sources with error findings never reach the build.
+    // This build passes no report path, so the check writes none; empty means none.
+    const std::string sources_report = "";
+    const int sources_err = rv_burner_sources_check(disc_dir, options.baker, sources_report, error);
+    if (sources_err != RV_OK) {
+        rv_burner_print_error(error);
+        return sources_err;
     }
 
     rv_pdklib::rv_manifest manifest;
