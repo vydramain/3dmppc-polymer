@@ -14,9 +14,8 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_inspect/rv_inspect.hpp"
-#include "pdklib/rv_manifest/rv_manifest_inspect.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
-#include "pdkkit/scene/rv_scene_inspect.hpp"
+#include "rv_inspector_disc.hpp"
 
 namespace rv_pdktools
 {
@@ -24,11 +23,6 @@ namespace rv_pdktools
 namespace
 {
 
-// Texts this program adds. A finding line adds its location, severity and labels around the rule's text, key,
-// rule and fix, which are copied as given.
-constexpr std::string_view k_no_disc_text = "no disc directory at ";
-constexpr std::string_view k_not_dir_text = "not a directory: ";
-constexpr std::string_view k_disc_stat_text = "cannot examine disc directory ";
 constexpr std::string_view k_report_text = "cannot write report ";
 constexpr std::string_view k_report_remove_text = "cannot remove old report ";
 constexpr std::string_view k_report_look_text = "cannot examine report ";
@@ -36,14 +30,9 @@ constexpr std::string_view k_report_not_regular_text = "not a regular file: ";
 constexpr std::string_view k_partial_remove_text = "; cannot remove the partial report: ";
 // errno MAY be 0 after a short fwrite: glibc sets it, the standard does not promise either way. strerror(0) is "Success".
 constexpr std::string_view k_short_write_text = "short write";
-// Summary line: the error and warning counts.
-constexpr const char *k_summary_format = "%zu error(s), %zu warning(s)\n";
 // Printed once when a finding has a repair rule; mppcrepairer reads the same disc directory. The path is
 // quoted so that one with spaces can be copied.
 constexpr const char *k_repair_hint_format = "fix available: run mppcrepairer \"%s\"\n";
-// Bracket labels of a finding line: "... [<rule>, key <key>, fix <fix>]".
-constexpr std::string_view k_key_label = ", key ";
-constexpr std::string_view k_fix_label = ", fix ";
 // The usage text, printed for --help and for a usage error.
 constexpr const char *k_usage_text =
     "mppcinspector - check a disc directory's sources and print the findings\n"
@@ -65,59 +54,6 @@ constexpr const char *k_error_format = "mppcinspector: %s\n";
 // Reasons for a usage error that main finds before any run.
 constexpr std::string_view k_operand_error_text = "expects one operand, the disc directory; got ";
 constexpr std::string_view k_empty_report_error_text = "--report needs a non-empty PATH";
-
-// The rule tables in run order: the disc.toml rules, then the kit's.
-constexpr std::span<const rv_pdklib::rv_inspect_rule> k_rule_tables[] = {
-    rv_pdklib::rv_manifest_inspect_rules,
-    rv_pdkkit::rv_scene_inspect_rules,
-};
-
-// Absent (or a non-directory component) is RV_ERR_NOENT; any other failure to look at the path is RV_ERR_IO.
-int check_disc_dir(const std::filesystem::path &disc, std::string &error)
-{
-    std::error_code ec;
-    const std::filesystem::file_status st = std::filesystem::status(disc, ec);
-    const bool missing = st.type() == std::filesystem::file_type::not_found || ec == std::errc::no_such_file_or_directory;
-    const bool absent = missing || ec == std::errc::not_a_directory;
-    if (ec && !absent) {
-        error = std::string(k_disc_stat_text) + disc.string() + ": " + ec.message();
-        return RV_ERR_IO;
-    }
-    if (absent) {
-        error = std::string(k_no_disc_text) + disc.string();
-        return RV_ERR_NOENT;
-    }
-    if (!std::filesystem::is_directory(st)) {
-        error = std::string(k_not_dir_text) + disc.string();
-        return RV_ERR_NOENT;
-    }
-    return RV_OK;
-}
-
-// "<file>[:<line>]: <severity>: <text> [<rule>[, key <key>][, fix <fix>]]"; line 0 is the whole file.
-std::string format_finding(const rv_pdklib::rv_inspect_finding &f)
-{
-    const std::string severity(rv_pdklib::detail::rv_inspect_severity_words[static_cast<size_t>(f.severity)]);
-    const std::string line_no = f.line == 0 ? std::string() : ":" + std::to_string(f.line);
-    const std::string key_part = f.key.empty() ? std::string() : std::string(k_key_label) + f.key;
-    const std::string fix_part = f.fix.empty() ? std::string() : std::string(k_fix_label) + f.fix;
-    return f.file + line_no + ": " + severity + ": " + f.text + " [" + f.rule + key_part + fix_part + "]";
-}
-
-void print_findings(std::span<const rv_pdklib::rv_inspect_finding> findings)
-{
-    for (const rv_pdklib::rv_inspect_finding &f : findings) {
-        rv_pdklib::rv_fprintf(stdout, "%s\n", format_finding(f).c_str());
-    }
-}
-
-size_t count_severity(std::span<const rv_pdklib::rv_inspect_finding> findings, rv_pdklib::rv_inspect_severity severity)
-{
-    return static_cast<size_t>(
-        std::count_if(findings.begin(), findings.end(), [severity](const rv_pdklib::rv_inspect_finding &f) {
-            return f.severity == severity;
-        }));
-}
 
 bool has_fix(std::span<const rv_pdklib::rv_inspect_finding> findings)
 {
@@ -209,23 +145,13 @@ int rv_inspector_run(const rv_inspector_options &options, bool &has_error, std::
         }
     }
 
-    const int dir_rc = check_disc_dir(options.disc, error);
-    if (dir_rc != RV_OK) {
-        return dir_rc;
-    }
-
     std::vector<rv_pdklib::rv_inspect_finding> findings;
-    for (const std::span<const rv_pdklib::rv_inspect_rule> table : k_rule_tables) {
-        const int rc = rv_pdklib::rv_inspect_run(table, options.disc, findings, error);
-        if (rc != RV_OK) {
-            return rc;
-        }
+    if (const int rc = rv_inspector_collect(options.disc, findings, error); rc != RV_OK) {
+        return rc;
     }
 
-    print_findings(findings);
-    const size_t errors = count_severity(findings, rv_pdklib::rv_inspect_severity::error);
-    const size_t warnings = count_severity(findings, rv_pdklib::rv_inspect_severity::warning);
-    rv_pdklib::rv_fprintf(stdout, k_summary_format, errors, warnings);
+    rv_inspector_print_findings(findings);
+    rv_inspector_print_summary(findings);
     if (has_fix(findings)) {
         rv_pdklib::rv_fprintf(stdout, k_repair_hint_format, options.disc.string().c_str());
     }
