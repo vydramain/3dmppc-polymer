@@ -79,6 +79,7 @@ public:
     virtual void stream_start() = 0;                                     // begin a stream
     virtual int64_t stream_push(const int16_t *src, int64_t frames) = 0; // mono frames in, returns frames taken
     virtual void stream_end_input() = 0;                                 // no more data will come
+    virtual int64_t stream_reopen_input() = 0;                           // undo stream_end_input(); codes in rv_pcstream.hpp
     virtual void stream_clear() = 0;                                     // stop and empty
     virtual rv_pcstream_report stream_report() = 0;                      // the whole stream state at once
 

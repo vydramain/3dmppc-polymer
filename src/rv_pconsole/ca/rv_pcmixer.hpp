@@ -95,6 +95,7 @@ public:
     void stream_start();
     int64_t stream_push(const int16_t *src, int64_t frames);
     void stream_end_input();
+    int64_t stream_reopen_input();
     void stream_clear();
     rv_pcstream_report stream_report() const;
 

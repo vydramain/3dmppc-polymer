@@ -113,6 +113,8 @@ public:
 
     void stream_end_input() override;
 
+    int64_t stream_reopen_input() override;
+
     void stream_clear() override;
 
     rv_pcstream_report stream_report() override;

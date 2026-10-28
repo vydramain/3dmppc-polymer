@@ -247,6 +247,12 @@ void rv_pcmixer::stream_end_input()
     stream_.end_input();
 }
 
+int64_t rv_pcmixer::stream_reopen_input()
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    return stream_.reopen_input();
+}
+
 void rv_pcmixer::stream_clear()
 {
     std::lock_guard<std::mutex> guard(lock_);

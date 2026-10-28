@@ -121,6 +121,12 @@ void rv_pcca_null::stream_end_input()
 {
 }
 
+int64_t rv_pcca_null::stream_reopen_input()
+{
+    // No mixer: no stream ever waits for data, so there is nothing to reopen.
+    return RV_ERR_INVAL;
+}
+
 void rv_pcca_null::stream_clear()
 {
 }

@@ -100,6 +100,7 @@ struct rv_cd_stream_conf {
 typedef struct rv_cd_stream_conf rv_cd_stream_conf;
 
 // Plays the entry from frame 0; replaces the current stream (the old one stops, the ring is cleared).
+// Also drops a pending queued entry and sets switches to 0.
 // A refusal changes nothing; RV_OK on success. Ring: fixed-size buffer from the drive reader to the mixer (the consumer).
 // RV_ERR_INVAL: null cd/resname/conf; name: plain, no path separators; size 0 or odd; loop not 0 or 1; loop bounds (see conf).
 // RV_ERR_NOENT: no entry. RV_ERR_IO: the entry cannot be measured; also, checked last, when the console has no sound output.
@@ -108,17 +109,39 @@ typedef struct rv_cd_stream_conf rv_cd_stream_conf;
 int64_t rv_cd_stream_play(rv_cd *cd, const char *resname, const rv_cd_stream_conf *conf);
 
 // Stops the stream and clears the ring; state IDLE, error 0, from any state (ERROR too). Idempotent. RV_OK.
+// Also drops a pending queued entry.
 int64_t rv_cd_stream_stop(rv_cd *cd);
+
+// Queues the entry that plays next, taken at the boundary of the current one: with loop 1 after loop_end
+// instead of loop_start, with loop 0 after its end. It plays from its frame 0 by its own conf; its frames
+// follow the current ones in the ring, no gap.
+// One pending entry: a queue before the reader takes it replaces it. Once taken, it is in the ring; only
+// play, stop and switch cancel it. If the reader already closed the ring input (entry without loop read to
+// its end) while the ring still holds frames, the input reopens, again with no gap. In IDLE, ENDED, ERROR: as play.
+// Checks and codes as play; a refusal changes nothing. resname and conf are read only during the call.
+int64_t rv_cd_stream_queue(rv_cd *cd, const char *resname, const rv_cd_stream_conf *conf);
+
+// Switches the playing stream to resname at the same music position: the next frame to sound is frame
+// position of the new entry, where position is what status returns at the call. The new entry then follows
+// its own conf: loop 0 to its end, loop 1 by its own loop. The ring and the queue are cleared (pending 0, a
+// queued entry the reader took is dropped), so the next entry is chosen anew.
+// RV_ERR_INVAL: position outside the new entry's readable range (at or past loop_end with loop 1, at or past
+// the length with loop 0); nothing changes. Other checks and codes as play. Not PLAYING: as play.
+// After switch, position goes on from that point, loops count from the switch, switches +1.
+// The join is hard: the last old frame meets frame position of the new entry and may click where the two
+// differ; no crossfade. What the mixer already handed to the device sounds first, the new entry after it.
+int64_t rv_cd_stream_switch(rv_cd *cd, const char *resname, const rv_cd_stream_conf *conf);
 
 // Stream state: IDLE before the first play. Without a loop the ring plays out, then ENDED and silence.
 // Empty ring: silence, position stays (no skip, no repeat), starved_frames grows.
 // Read error or changed entry: ERROR, ring cleared, silence.
-// Volume: rv_ca_stream_volume.
+// position and loops belong to the playing entry.
+// Volume: rv_ca_stream_volume. Without queue and switch, position and loops count as before.
 struct rv_cd_stream_info {
     int64_t state;          // RV_CD_STREAM_*
     int64_t error;          // rv_err that made the stream ERROR, else 0
-    int64_t position;       // next entry frame to sound, by the consumer's count
-    int64_t loops;          // times the stream passed the loop boundary
+    int64_t position;       // next frame to sound, by the consumer's count; after switch, an index into the new entry
+    int64_t loops;          // times the playing entry passed its loop boundary, from its start or the last switch
     int64_t starved_frames; // silent frames for an empty ring since the last play
 };
 
@@ -126,6 +149,18 @@ typedef struct rv_cd_stream_info rv_cd_stream_info;
 
 // Writes the stream status to out. RV_OK; RV_ERR_INVAL if cd or out is null.
 int64_t rv_cd_stream_status(rv_cd *cd, rv_cd_stream_info *out);
+
+// Queue state: pending is 1 until the reader takes the queued entry, 0 when the next one can be queued.
+// switches counts changes of the playing entry since the last play, at a queue boundary or by switch.
+struct rv_cd_stream_queue_info {
+    int64_t pending;  // 1: queued entry not yet taken by the reader
+    int64_t switches; // playing entry changes since the last play
+};
+
+typedef struct rv_cd_stream_queue_info rv_cd_stream_queue_info;
+
+// Writes the queue state to out. RV_OK; RV_ERR_INVAL if cd or out is null.
+int64_t rv_cd_stream_queue_status(rv_cd *cd, rv_cd_stream_queue_info *out);
 
 /* RV_CDEF_END */
 

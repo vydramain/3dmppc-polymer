@@ -71,3 +71,30 @@ extern "C" int64_t rv_cd_stream_status(rv_cd *cd, rv_cd_stream_info *out)
     }
     return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->stream_status(out);
 }
+
+extern "C" int64_t rv_cd_stream_queue(rv_cd *cd, const char *resname, const rv_cd_stream_conf *conf)
+{
+    if (cd == nullptr) {
+        RV_LOG_WARN("pccd", "stream queue with a null cd");
+        return RV_ERR_INVAL;
+    }
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->stream_queue(resname, conf);
+}
+
+extern "C" int64_t rv_cd_stream_switch(rv_cd *cd, const char *resname, const rv_cd_stream_conf *conf)
+{
+    if (cd == nullptr) {
+        RV_LOG_WARN("pccd", "stream switch with a null cd");
+        return RV_ERR_INVAL;
+    }
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->stream_switch(resname, conf);
+}
+
+extern "C" int64_t rv_cd_stream_queue_status(rv_cd *cd, rv_cd_stream_queue_info *out)
+{
+    if (cd == nullptr) {
+        RV_LOG_WARN("pccd", "stream queue status with a null cd");
+        return RV_ERR_INVAL;
+    }
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->stream_queue_status(out);
+}

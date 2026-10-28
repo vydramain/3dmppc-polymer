@@ -114,7 +114,7 @@ int64_t switch_loop(rv_pdko *pdk, rv_sound_state &state, const char *loop)
         return RV_OK;
     }
     int64_t addr = 0;
-    const int resident_code = rv_pdkkit::sound_asset_resident(rv_pdko_cd(pdk), state.sound, asset.c_str(), addr);
+    const int resident_code = rv_pdkkit::sound_asset_resident(rv_pdko_cd(pdk), asset.c_str(), addr);
     if (resident_code != RV_OK) {
         return fail(state, asset.c_str(), resident_code);
     }
@@ -255,7 +255,7 @@ int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
 {
     const char *clack = RV_SOUND_CLACKS[clack_take(state)];
     int64_t addr = 0;
-    const int resident_code = rv_pdkkit::sound_asset_resident(rv_pdko_cd(pdk), state.sound, clack, addr);
+    const int resident_code = rv_pdkkit::sound_asset_resident(rv_pdko_cd(pdk), clack, addr);
     if (resident_code != RV_OK) {
         return fail(state, clack, resident_code);
     }

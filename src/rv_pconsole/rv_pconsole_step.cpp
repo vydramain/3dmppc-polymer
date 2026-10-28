@@ -42,9 +42,9 @@ rv_pconsole::step_result rv_pconsole::frame_step(rv_de *disc, run_state &run)
         return step_result::idle;
     }
 
-    // Reads the streamed entry once per frame_step; run_pace pumps again before each pacing slice, and without a device
-    // run_frame pumps once more before its sound step.
-    // Its failure is already state ERROR in rv_cd_stream_status and logged once.
+    // Pumps the streamed entry before the frame, and again after it (below). Also run_pace before each pacing slice,
+    // and run_frame before its sound step when there is no device. A failure is already state ERROR in
+    // rv_cd_stream_status and logged once.
     static_cast<void>(cd_->stream_pump());
 
     // Only a pass that runs a frame pulls sound: a stopped machine must not advance pcca through the device.
@@ -53,6 +53,9 @@ rv_pconsole::step_result rv_pconsole::frame_step(rv_de *disc, run_state &run)
     run_audio_stall(run);
 
     run_frame(disc, run);
+    // A play or switch made in this frame gets its ring share before the browser's sound callback, which runs between
+    // rAF steps. On native run_pace also reads before each slice it waits.
+    static_cast<void>(cd_->stream_pump());
     cmd_after_frame();
 
     // Polled every frame, per the contract. Checked after the frame so the

@@ -383,7 +383,8 @@ void rv_pconsole::run_frame(rv_de *disc, run_state &run)
     if (run.sound != sound_out::frames) {
         return;
     }
-    // No device: the sound step reads the stream first, so a play in this frame sounds now. A failure is already state ERROR.
+    // No device: the sound is stepped here, after this pump, so a play in this frame sounds now.
+    // A failure is already state ERROR in rv_cd_stream_status.
     static_cast<void>(cd_->stream_pump());
     // Bresenham accumulator. N frames give exactly floor(N * rate / fps)
     // samples, with zero drift, because the remainder of every division is

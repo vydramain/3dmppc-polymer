@@ -38,6 +38,10 @@ public:
     // Does nothing unless a stream waits, so drained() cannot hold for a stream never started.
     void end_input();
 
+    // Undo end_input() while the ring still holds frames: the stream waits for data again.
+    // RV_ERR_ALREADY when it already waits, RV_ERR_INVAL when no stream runs or it has drained.
+    int64_t reopen_input();
+
     // Stop: empty the ring and stop waiting for data. The counters stay for the report.
     void clear();
 
@@ -88,7 +92,7 @@ private:
     int64_t starved_ = 0;
 
     bool accepting_ = false; // a stream waits for data: push takes it, an empty ring starves
-    bool ended_ = false;     // end_input() was called, and no start() or clear() since
+    bool ended_ = false;     // end_input() closed a waiting stream's input; no start(), clear() or reopen_input() since
 
     float gain_l_ = 1.0f;
     float gain_r_ = 1.0f;

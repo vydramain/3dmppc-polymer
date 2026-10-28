@@ -32,10 +32,12 @@ void set_name(char (&dst)[N], const char *src)
     std::snprintf(dst, N, "%s", src);
 }
 
-// Failures logged per asset the state can remember, in a fixed array. The count is what can fail on the disc: 3 music
-// streams (factory, home, street), 4 clacks, 1 loop, and 2 refusal names ("stream name", "stream volume"): 10.
+// Failures logged per asset the state can remember, in a fixed array. The names this disc can log: 3 music streams
+// (mus_factory.pcm, mus_home.pcm, mus_street.pcm), mus_.pcm when the stream status read fails before the first play
+// (empty song, null drive), 4 clacks,
+// the loop (sfx_loop_assembly.pcm), and 2 refusal names ("stream name", "stream volume"): 11.
 // Recount when the streams, clacks or loops change.
-constexpr int RV_SOUND_LOGGED_CAPACITY = 10;
+constexpr int RV_SOUND_LOGGED_CAPACITY = 11;
 
 // Music, clack and loop state: the working state of the listener.
 struct rv_sound_state {
@@ -48,8 +50,6 @@ struct rv_sound_state {
     char loop_name[rv_pdkkit::ecs_value_capacity]{};
     // The clack generator's xorshift32 state; play_clack advances it once per clack.
     uint32_t clack_rng = RV_SOUND_CLACK_SEED;
-    // The clack and loop samples, made resident by the sound service.
-    rv_pdkkit::sound_state sound;
     // The asset of the last failure, for the caller's log.
     char error_asset[rv_pdkkit::ecs_value_capacity]{};
     // The assets whose failure was logged: the first logged_count entries. The array keeps the state fixed-size and
@@ -76,8 +76,7 @@ struct ecs_component_zone_music {
 };
 
 // Marks the zone where the sign's clack is heard.
-struct ecs_component_zone_clack {
-};
+struct ecs_component_zone_clack {};
 
 // The listener, set on the eye. Its working state is not a scene field: the music system keeps the sound state and the
 // zone the listener is in, which it writes when the zone changes; the clack system reads that zone.

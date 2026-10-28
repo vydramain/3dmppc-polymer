@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -80,6 +81,13 @@ private:
     };
     std::vector<audio_record> audios_;
     std::unordered_map<std::string, int64_t> audio_by_name_;
+    // Names whose resident_audio_() refusal is already in the log: one line per name
+    // for the drive's life, since the disc asks again on every play. The code is
+    // returned on every attempt. Below it, asset_open logs a failed size measure and a
+    // failed table growth, and asset_read logs a medium read that fails with RV_ERR_IO,
+    // each on every attempt. Silent: NOENT, a full table, a read buffer out of memory,
+    // and every other read code.
+    std::unordered_set<std::string> audio_refused_logged_;
 
     // MODEL's counterpart of texture_record: one model uploaded to the geometry
     // controller, which owns its memory and hands back `addr`. Same growth rules
@@ -177,6 +185,12 @@ public:
 
     int64_t stream_status(rv_cd_stream_info *out) override;
 
+    int64_t stream_queue(const char *resname, const rv_cd_stream_conf *conf) override;
+
+    int64_t stream_switch(const char *resname, const rv_cd_stream_conf *conf) override;
+
+    int64_t stream_queue_status(rv_cd_stream_queue_info *out) override;
+
     int64_t stream_pump() override;
 
     // Swap the inserted medium after construction. The console learns
@@ -255,6 +269,7 @@ private:
 
     // The same for AUDIO: a resident name answers from audios_, a new one goes to
     // audio_resolve_().
+    // Defined in rv_pccd_fs_audio.cpp.
     int64_t resident_audio_(const char *resname, audio_record *&audio_out);
 
     // The same for MODEL: a resident name answers from models_, a new one goes to
@@ -271,6 +286,7 @@ private:
     // format - and upload them into sound RAM through the borrowed ca_, then
     // remember it in `audios_`. Same success/failure contract as
     // resource_resolve_() itself.
+    // Defined in rv_pccd_fs_audio.cpp.
     int64_t audio_resolve_(const char *resname, audio_record *&record_out);
 
     // Cache miss half of resource_resolve_() for MODEL: parse `resname`'s
