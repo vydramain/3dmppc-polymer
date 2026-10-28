@@ -22,6 +22,7 @@
 #include "pdklib/rv_manifest/rv_manifest_glob.hpp"
 #include "pdklib/rv_manifest/rv_manifest_inspect.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
+#include "pdkkit/scene/rv_scene_migrate.hpp"
 
 namespace rv_pdkkit
 {
@@ -39,12 +40,17 @@ inline constexpr std::string_view rv_scene_old_header_rule = "scene-old-header";
 inline constexpr std::string_view rv_scene_unknown_key_rule = "scene-unknown-key";
 inline constexpr std::string_view rv_scene_unknown_section_rule = "scene-unknown-section";
 inline constexpr std::string_view rv_scene_form1_rule = "scene-form1";
+// One per note the migration writes, and one for the comments its conversion loses.
+inline constexpr std::string_view rv_scene_form1_note_rule = "scene-form1-note";
+inline constexpr std::string_view rv_scene_form1_comments_rule = "scene-form1-comments";
 
-// Finding texts; the form-1 count follows its prefix.
+// Finding texts; the form-1 count follows its prefix. A refused conversion adds the refusal and the migration's reason.
 inline constexpr std::string_view rv_scene_unknown_key_text = "unknown key";
 inline constexpr std::string_view rv_scene_unknown_section_text = "unknown section";
 inline constexpr std::string_view rv_scene_old_header_text = "old header: a scene has no version or format";
 inline constexpr std::string_view rv_scene_form1_text = "objects in form 1: ";
+inline constexpr std::string_view rv_scene_form1_refused_text = ", conversion refused: ";
+inline constexpr std::string_view rv_scene_form1_comments_text = "comments lost by the conversion: ";
 
 // [scene] keys of the headers an old scene carried; a scene now has none.
 inline constexpr std::array<std::string_view, 2> rv_scene_old_header_keys = { "version", "format" };
@@ -119,6 +125,124 @@ inline void rv_scene_add_parse(std::vector<rv_pdklib::rv_inspect_finding> &out, 
     }
 }
 
+inline bool rv_scene_is_object_section(const rv_pdklib::rv_manifest_tree_section &s)
+{
+    return s.name == detail::object_section_name && s.array;
+}
+
+inline bool rv_scene_is_form1_object(const rv_pdklib::rv_manifest_tree_section &s)
+{
+    return rv_scene_is_object_section(s) && rv_scene_is_form1(s);
+}
+
+// Counts the comments from `from_line` on, and the first one's line: a '#' outside a string. A string is
+// double-quoted, on one line, with backslash escapes (rv_manifest_lexer); a comment runs to the line's end.
+inline void rv_scene_count_comments(const std::string &text, uint32_t from_line, uint32_t &count, uint32_t &first_line)
+{
+    uint32_t line = 1;
+    bool in_string = false;
+    bool in_comment = false;
+    bool escaped = false;
+    for (const char c : text) {
+        if (c == '\n') {
+            ++line;
+            in_string = false;
+            in_comment = false;
+            escaped = false;
+            continue;
+        }
+        if (in_comment) {
+            continue;
+        }
+        if (in_string) {
+            const bool closes = c == '"' && !escaped;
+            escaped = !escaped && c == '\\';
+            in_string = !closes;
+            continue;
+        }
+        in_string = c == '"';
+        in_comment = c == '#';
+        if (in_comment && line >= from_line) {
+            first_line = count == 0 ? line : first_line;
+            ++count;
+        }
+    }
+}
+
+// One warning per note the migration writes for a form-1 object, on the object's header line. The migration
+// writes its notes only when it succeeds, so the caller adds these only then.
+inline void rv_scene_add_notes(std::vector<rv_pdklib::rv_inspect_finding> &out,
+    const std::string &file,
+    const rv_pdklib::rv_manifest_tree &tree,
+    const rv_scene &scene)
+{
+    // rv_scene_parse makes one object per [[object]] section, in file order.
+    std::vector<uint32_t> lines;
+    for (const rv_pdklib::rv_manifest_tree_section &s : tree.sections) {
+        if (rv_scene_is_object_section(s)) {
+            lines.push_back(static_cast<uint32_t>(s.line));
+        }
+    }
+    for (size_t i = 0; i < scene.objects.size(); ++i) {
+        const rv_scene_object &o = scene.objects[i];
+        // The migration writes notes only for objects with a kind.
+        if (o.kind.empty()) {
+            continue;
+        }
+        std::string notes;
+        migrate_object_warnings(o, notes);
+        // Each note is one line, kept whole; a last line with no newline ends at the string's end.
+        size_t pos = 0;
+        while (pos < notes.size()) {
+            const size_t end = std::min(notes.find('\n', pos), notes.size());
+            rv_scene_add(out, file, lines[i], rv_scene_form1_note_rule, std::string_view(notes).substr(pos, end - pos))
+                .severity = rv_pdklib::rv_inspect_severity::warning;
+            pos = end + 1;
+        }
+    }
+}
+
+// The form-1 findings: the count on the first form-1 object, then the notes, then the comments the conversion
+// loses. The migration runs on a copy; a refused one has no fix and gives its reason in the text.
+inline void rv_scene_add_form1(std::vector<rv_pdklib::rv_inspect_finding> &out,
+    const std::string &file,
+    const std::string &text,
+    const rv_pdklib::rv_manifest_tree &tree,
+    const rv_scene &scene)
+{
+    const auto first = std::find_if(tree.sections.begin(), tree.sections.end(), rv_scene_is_form1_object);
+    const auto count = std::count_if(first, tree.sections.end(), rv_scene_is_form1_object);
+    rv_scene migrated = scene;
+    std::string why;
+    const bool refused = rv_scene_migrate(migrated, why) != RV_OK;
+    // A refusal writes one line: the object and the component it clashes with.
+    const std::string refusal =
+        refused ? std::string(rv_scene_form1_refused_text) + why.substr(0, why.find('\n')) : std::string();
+    rv_pdklib::rv_inspect_finding &f = rv_scene_add(out,
+        file,
+        static_cast<uint32_t>(first->line),
+        rv_scene_form1_rule,
+        std::string(rv_scene_form1_text) + std::to_string(count) + refusal);
+    f.fix = refused ? std::string() : std::string(rv_scene_fix_form2);
+    // A refused conversion writes nothing and loses nothing: no notes, no lost comments.
+    if (refused) {
+        return;
+    }
+    rv_scene_add_notes(out, file, tree, scene);
+    uint32_t lost = 0;
+    uint32_t lost_line = 0;
+    // rv_scene_render keeps only the lines above the first section.
+    rv_scene_count_comments(text, static_cast<uint32_t>(tree.sections.front().line), lost, lost_line);
+    if (lost > 0) {
+        rv_scene_add(out,
+            file,
+            lost_line,
+            rv_scene_form1_comments_rule,
+            std::string(rv_scene_form1_comments_text) + std::to_string(lost))
+            .severity = rv_pdklib::rv_inspect_severity::warning;
+    }
+}
+
 } // namespace detail
 
 // Checks one scene's text; `file` is its path relative to the disc. Problems are findings and
@@ -166,18 +290,8 @@ inline int rv_scene_inspect(const std::string &text,
         }
     }
     // Form 1 is one finding per file, on its first object; the count is in the text.
-    const auto is_form1 = [](const rv_pdklib::rv_manifest_tree_section &s) {
-        return s.name == "object" && s.array && detail::rv_scene_is_form1(s);
-    };
-    const auto first = std::find_if(tree.sections.begin(), tree.sections.end(), is_form1);
-    if (first != tree.sections.end()) {
-        const auto count = std::count_if(first, tree.sections.end(), is_form1);
-        detail::rv_scene_add(out,
-            file,
-            static_cast<uint32_t>(first->line),
-            detail::rv_scene_form1_rule,
-            std::string(detail::rv_scene_form1_text) + std::to_string(count))
-            .fix = std::string(rv_scene_fix_form2);
+    if (std::any_of(tree.sections.begin(), tree.sections.end(), detail::rv_scene_is_form1_object)) {
+        detail::rv_scene_add_form1(out, file, text, tree, scene);
     }
     return RV_OK;
 }
