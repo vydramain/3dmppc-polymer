@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -12,6 +11,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_inspect/rv_inspect.hpp"
+#include "pdklib/rv_inspect/rv_inspect_read.hpp"
 
 #include "rv_manifest.hpp"
 #include "detail/rv_manifest_binder.hpp"
@@ -31,9 +31,6 @@ namespace detail
 
 // The manifest's name in a disc directory.
 inline constexpr std::string_view rv_manifest_inspect_file = "disc.toml";
-
-// Read buffer of rv_manifest_inspect_read, kept on the stack; a typical disc.toml fits in one read at this size.
-inline constexpr std::size_t rv_manifest_inspect_chunk_size = 4096;
 
 inline constexpr std::string_view rv_manifest_inspect_file_rule = "disc-toml-file";
 inline constexpr std::string_view rv_manifest_inspect_syntax_rule = "disc-toml-syntax";
@@ -124,32 +121,6 @@ inline int rv_manifest_inspect_present(const std::filesystem::path &file, bool &
     return RV_OK;
 }
 
-// A short read is an I/O failure: a failing stream looks like the end of the data. The size compare
-// assumes the reported size is the byte count, which holds for a regular file on a normal filesystem.
-// A sysfs file reports 4096 and holds less, so it is refused here too.
-inline int rv_manifest_inspect_read(const std::filesystem::path &file, std::string &text, std::string &error)
-{
-    std::error_code ec;
-    const std::uintmax_t size = std::filesystem::file_size(file, ec);
-    std::ifstream in(file, std::ios::binary);
-    if (ec || !in) {
-        error = "cannot read '" + file.string() + "'";
-        return RV_ERR_IO;
-    }
-    std::string data;
-    char chunk[rv_manifest_inspect_chunk_size];
-    while (in) {
-        in.read(chunk, static_cast<std::streamsize>(rv_manifest_inspect_chunk_size));
-        data.append(chunk, static_cast<std::size_t>(in.gcount()));
-    }
-    if (in.bad() || data.size() != size) {
-        error = "cannot read '" + file.string() + "'";
-        return RV_ERR_IO;
-    }
-    text = std::move(data);
-    return RV_OK;
-}
-
 // A missing manifest is the file rule's finding, so the stage rules stay silent.
 inline int rv_manifest_inspect_judge_disc(const std::filesystem::path &disc,
     rv_manifest_inspect_stage stage,
@@ -165,7 +136,7 @@ inline int rv_manifest_inspect_judge_disc(const std::filesystem::path &disc,
         return RV_OK;
     }
     std::string text;
-    if (rv_manifest_inspect_read(file, text, error) != RV_OK) {
+    if (rv_inspect_read_text(file, text, error) != RV_OK) {
         return RV_ERR_IO;
     }
     rv_manifest_inspect_judge(text, stage, out);
