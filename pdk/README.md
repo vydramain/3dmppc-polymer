@@ -19,11 +19,12 @@ headers rather than the firmware source.
 PDK has one version number (`RV_MPPC_VER_MAJOR`/`MINOR` in `de/rv_dv.h`,
 derived into `rv_version_str`, `rv_version_packed16` and
 `rv_version_packed32` by `pdklib/rv_version/rv_version.hpp`). Every format
-this kit defines carries it, but not every reader requires the same match:
+this kit defines carries it, except a scene, which has none (see below), but
+not every reader requires the same match:
 
 | Rule | Formats |
 | --- | --- |
-| Compatible: major equal, minor at most the reader's (`rv_version_compatible`) | disc, `.mppccard` saves, `.mppctex` textures, `.mppcmod` models (version in the common header), scene files |
+| Compatible: major equal, minor at most the reader's (`rv_version_compatible`) | disc, `.mppccard` saves, `.mppctex` textures, `.mppcmod` models (version in the common header) |
 | Exact match | dev protocol, the shared frame header, the burner's build map, the editor's layout and view files |
 
 A version change is not free for a live install: a `.mppccard` of an older
@@ -37,9 +38,8 @@ contents) may change only with a major version, and whoever changes it
 adds the migration from the previous layout. `.mppctex` files are baked
 again by the next build regardless, since baking is cheap and keeps the
 output current. An editor layout or view file of another version is read
-as absent, so the standard layout and default view come back; a scene of
-an incompatible version opens read-only. A console and an editor of
-different versions refuse each other.
+as absent, so the standard layout and default view come back. A console and
+an editor of different versions refuse each other.
 
 At PDK 1.0, these pdklib functions changed from `bool` to `int` returning
 `rv_err` codes: `rv_version_parse`, `rv_manifest_validate`,
@@ -52,9 +52,9 @@ At PDK 1.0, these pdklib functions changed from `bool` to `int` returning
 (`RV_ERR_INVAL`). This is a major bump because old code of the form
 `if (f())` still compiles but now silently means "failed"; update it to
 `if (f() != RV_OK)`. A 0.x disc is rejected by the 1.0 console and must be
-rebuilt. A 0.x scene opens read-only in the editor; a 1.0 disc refuses it at
-runtime (`rv_scene_parse`). Raise its `[scene]` `version` to "1.0" with the
-rebuild. `.mppccard` saves migrate automatically.
+rebuilt. From 1.0 a 0.x scene opened read-only in the editor, and a 1.0 disc
+refused it at runtime (`rv_scene_parse`); its `[scene]` `version` had to be
+raised to "1.0" with the rebuild. `.mppccard` saves migrate automatically.
 
 PDK 1.0 also brings the geometry controller `rv_cg` (`cg/rv_cg.h`, accessor
 `rv_pdko_cg()`), with its `[budget.pccg]` manifest section
@@ -69,9 +69,14 @@ a scene file is an ordinary asset that a disc reads itself. The kit
 (`pdk/kit/include/pdkkit/scene/`, namespace `rv_pdkkit`) reads and writes the
 scene document, and its ECS loader `ecs_scene_load` builds a scene from the
 asset's bytes. A disc that used the `rv_cd_scene_*` queries adds
-`[build] sdk = ["kit"]` to `disc.toml` and moves to pdkkit. The scene's format
-still follows the version rule above: its `[scene]` version is written as the
-PDK version, and pdkkit checks it with `rv_version_compatible`.
+`[build] sdk = ["kit"]` to `disc.toml` and moves to pdkkit.
+
+A scene has no version, so its keys follow their own rules. The meaning of an
+existing key never changes. A new meaning gets a new key name. A removed or
+renamed key comes with a check rule and a repair rule in the same change. The
+kit keeps an unknown key when it reads a scene and writes it back with its name
+and value. The scene check (`rv_scene_inspect`) reports it as an error, since
+it is a file from a newer kit or a typo.
 
 A scene has two forms. Form 2 gives an object's data as `[[component]]`
 blocks, with the components described by `PDKKIT_COMPONENT`
