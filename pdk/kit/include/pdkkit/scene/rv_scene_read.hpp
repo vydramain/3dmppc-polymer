@@ -15,7 +15,6 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
-#include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_pdkkit
 {
@@ -153,52 +152,6 @@ inline rv_scene_fault rv_scene_tess(const rv_pdklib::rv_manifest_tree_entry &e, 
     return rv_scene_fault::none;
 }
 
-// The [scene] version, or the pre-version `format` header, into `out`; a version that is
-// missing or malformed is reported in `problems`, and one that is not compatible too unless `policy` keeps it.
-inline void rv_scene_read_version(const rv_pdklib::rv_manifest_tree &tree,
-    const std::string &origin,
-    rv_scene &out,
-    std::string &problems,
-    rv_scene_version_policy policy)
-{
-    bool has_version = false;
-    bool has_legacy_format = false;
-    std::string version_str;
-    for (const rv_pdklib::rv_manifest_tree_section &section : tree.sections) {
-        if (section.name != "scene" || section.array) {
-            continue;
-        }
-        for (const rv_pdklib::rv_manifest_tree_entry &e : section.entries) {
-            if (e.key == "version" && e.value.kind == rv_pdklib::rv_manifest_value_kind::string) {
-                version_str = e.value.str;
-                has_version = true;
-            } else if (e.key == "format" && e.value.kind == rv_pdklib::rv_manifest_value_kind::integer) {
-                has_legacy_format = true;
-            }
-        }
-    }
-    if (has_version) {
-        uint32_t major = 0, minor = 0;
-        if (rv_pdklib::rv_version_parse(version_str, major, minor) != RV_OK) {
-            problems += origin + ": malformed [scene] version '" + version_str + "'\n";
-        } else if (policy == rv_scene_version_policy::refuse && !rv_pdklib::rv_version_compatible(major, minor)) {
-            problems += origin + ": scene version " + std::to_string(major) + "." + std::to_string(minor) +
-                " is not compatible with this PDK's " + rv_pdklib::rv_version_str + "\n";
-        } else {
-            out.version_major = major;
-            out.version_minor = minor;
-        }
-    } else if (has_legacy_format) {
-        // The pre-version header: read as 0.0, compatible only while the PDK major is 0.
-        if (policy == rv_scene_version_policy::refuse && !rv_pdklib::rv_version_compatible(0, 0)) {
-            problems += origin + ": scene version 0.0 is not compatible with this PDK's " +
-                std::string(rv_pdklib::rv_version_str) + "\n";
-        }
-    } else {
-        problems += origin + ": no [scene] version\n";
-    }
-}
-
 // An [[object]] with any of these keys is form 1 and needs a kind; one with none is form 2.
 inline constexpr std::array<const char *, 10> rv_scene_form1_keys = { {
     "name",
@@ -260,11 +213,7 @@ inline int rv_scene_component_read(const std::string &origin,
 
 } // namespace detail
 
-inline int rv_scene_parse(const std::string &text,
-    const std::string &origin,
-    rv_scene &scene,
-    std::string &error,
-    rv_scene_version_policy policy)
+inline int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error)
 {
     rv_pdklib::rv_manifest_tree tree;
     if (rv_pdklib::rv_manifest_read_tree(text, origin, tree, error) != 0) {
@@ -278,13 +227,7 @@ inline int rv_scene_parse(const std::string &text,
     std::vector<detail::rv_scene_component_ref> components;
     for (const rv_pdklib::rv_manifest_tree_section &section : tree.sections) {
         if (section.name == "scene" && !section.array) {
-            for (const rv_pdklib::rv_manifest_tree_entry &e : section.entries) {
-                const bool version_key = (e.key == "version" && e.value.kind == rv_pdklib::rv_manifest_value_kind::string) ||
-                    (e.key == "format" && e.value.kind == rv_pdklib::rv_manifest_value_kind::integer);
-                if (!version_key) {
-                    out.scene_extra.push_back(e);
-                }
-            }
+            out.scene_extra.insert(out.scene_extra.end(), section.entries.begin(), section.entries.end());
             continue;
         }
         if (section.name == "component" && section.array) {
@@ -359,7 +302,6 @@ inline int rv_scene_parse(const std::string &text,
         parents.emplace_back(parent, section.line);
         out.objects.push_back(std::move(o));
     }
-    detail::rv_scene_read_version(tree, origin, out, problems, policy);
     for (size_t i = 0; i < out.objects.size(); ++i) {
         const std::string &parent = parents[i].first;
         if (parent.empty()) {

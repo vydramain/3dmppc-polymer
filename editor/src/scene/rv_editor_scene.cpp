@@ -91,14 +91,13 @@ void rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdkkit::rv_scene &p
 
 int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error)
 {
-    // An unreadable file gives an empty text, which would otherwise report a missing version.
+    // An unreadable file gives an empty text, which would otherwise parse as an empty scene.
     if (!std::ifstream(path, std::ios::binary)) {
         error = path.string() + ": cannot read";
         return RV_ERR_INVAL;
     }
     rv_pdkkit::rv_scene pdk;
-    const auto policy = rv_pdkkit::rv_scene_version_policy::keep;
-    if (rv_pdkkit::rv_scene_parse(rv_editor_file_text(path), path.string(), pdk, error, policy) != 0) {
+    if (rv_pdkkit::rv_scene_parse(rv_editor_file_text(path), path.string(), pdk, error) != 0) {
         return RV_ERR_INVAL;
     }
     std::string notes;

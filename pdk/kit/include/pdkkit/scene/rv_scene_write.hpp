@@ -15,7 +15,6 @@
 #include <system_error>
 #include <vector>
 
-#include "pdk/de/rv_dv.h"
 #include "pdkkit/scene/rv_scene.hpp"
 
 namespace rv_pdkkit
@@ -26,7 +25,6 @@ namespace detail
 
 // Section and key names, as rv_scene_parse reads them.
 inline constexpr const char *scene_section_name = "scene";
-inline constexpr const char *scene_version_key = "version";
 inline constexpr const char *object_section_name = "object";
 inline constexpr const char *object_id_key = "id";
 inline constexpr const char *object_name_key = "name";
@@ -334,14 +332,7 @@ inline std::string rv_scene_render(const rv_scene &scene)
     if (!t.empty() && t.back() != '\n') {
         t += detail::line_end;
     }
-    // A document without a version (0.0, the default) is written as the current PDK version.
-    const bool legacy = scene.version_major == 0 && scene.version_minor == 0;
-    const uint32_t major = legacy ? static_cast<uint32_t>(RV_MPPC_VER_MAJOR) : scene.version_major;
-    const uint32_t minor = legacy ? static_cast<uint32_t>(RV_MPPC_VER_MINOR) : scene.version_minor;
     detail::rv_scene_header(t, detail::scene_section_name, false);
-    detail::rv_scene_field(t,
-        detail::scene_version_key,
-        detail::rv_scene_quote(std::to_string(major) + "." + std::to_string(minor)));
     detail::rv_scene_entries(t, scene.scene_extra);
     for (size_t i = 0; i < scene.objects.size(); ++i) {
         detail::rv_scene_object_text(t, scene, scene.objects[i]);
