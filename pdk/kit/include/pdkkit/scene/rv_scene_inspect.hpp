@@ -1,12 +1,14 @@
 #pragma once
 
 // The source check of one scene file, as findings for rv_inspect. Rules are the scene's own:
-// the kit reads them, the tools only run them. Header-only: a disc gets it with no object code.
+// the kit reads them, the tools only run them. rv_scene_inspect is header-only; rv_scene_inspect_disc and
+// its rule table also need the pdklib rv_manifest .cpp sources (rv_manifest_check, _bind and _validate).
 
 #include <algorithm>
 #include <array>
 #include <charconv>
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -14,7 +16,11 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_inspect/rv_inspect.hpp"
+#include "pdklib/rv_inspect/rv_inspect_read.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
+#include "pdklib/rv_manifest/rv_manifest_glob.hpp"
+#include "pdklib/rv_manifest/rv_manifest_inspect.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
 
 namespace rv_pdkkit
@@ -27,6 +33,7 @@ inline constexpr std::string_view rv_scene_fix_form2 = "scene-form2";
 namespace detail
 {
 
+// Rule names of the findings this file reports; a finding's rule says which check made it.
 inline constexpr std::string_view rv_scene_parse_rule = "scene-parse";
 inline constexpr std::string_view rv_scene_old_header_rule = "scene-old-header";
 inline constexpr std::string_view rv_scene_unknown_key_rule = "scene-unknown-key";
@@ -174,5 +181,74 @@ inline int rv_scene_inspect(const std::string &text,
     }
     return RV_OK;
 }
+
+namespace detail
+{
+
+// The disc rule's name, prefixed to its error by rv_inspect_run.
+inline constexpr std::string_view rv_scene_disc_rule = "scene-disc";
+// The [build] sdk value that marks a disc built with the kit.
+inline constexpr std::string_view rv_scene_disc_kit_sdk = "kit";
+// The suffix that picks scene files out of the [assets] files patterns.
+inline constexpr std::string_view rv_scene_disc_suffix = ".scene.toml";
+
+// The scene files one [assets] pattern names. A refused or unmatched pattern adds nothing: the disc.toml rules report it.
+inline void
+rv_scene_disc_expand(const std::filesystem::path &disc, const std::string &pattern, std::vector<std::string> &scenes)
+{
+    std::vector<std::string> matched;
+    std::string why;
+    if (rv_pdklib::glob_expand(disc, { pattern }, matched, why) != RV_OK) {
+        return;
+    }
+    for (const std::string &file : matched) {
+        if (file.ends_with(rv_scene_disc_suffix)) {
+            scenes.push_back(file);
+        }
+    }
+}
+
+} // namespace detail
+
+// Checks every scene of a disc that builds with the kit. A disc whose disc.toml is missing or not clean, or
+// whose [build] sdk does not name the kit, has no finding here: the disc.toml rules report the first.
+inline int
+rv_scene_inspect_disc(const std::filesystem::path &disc, std::vector<rv_pdklib::rv_inspect_finding> &out, std::string &error)
+{
+    rv_pdklib::rv_manifest manifest;
+    bool clean = false;
+    if (rv_pdklib::rv_manifest_inspect_disc(disc, manifest, clean, error) != RV_OK) {
+        return RV_ERR_IO;
+    }
+    if (!clean) {
+        return RV_OK;
+    }
+    const std::vector<std::string> &sdk = manifest.build_sdk;
+    if (std::find(sdk.begin(), sdk.end(), detail::rv_scene_disc_kit_sdk) == sdk.end()) {
+        return RV_OK;
+    }
+    std::vector<std::string> scenes;
+    for (const std::string &pattern : manifest.assets_files) {
+        detail::rv_scene_disc_expand(disc, pattern, scenes);
+    }
+    std::sort(scenes.begin(), scenes.end());
+    scenes.erase(std::unique(scenes.begin(), scenes.end()), scenes.end());
+    for (const std::string &file : scenes) {
+        std::string scene_text;
+        if (rv_pdklib::rv_inspect_read_text(disc / file, scene_text, error) != RV_OK) {
+            return RV_ERR_IO;
+        }
+        const int rc = rv_scene_inspect(scene_text, file, out, error);
+        if (rc != RV_OK) {
+            return rc;
+        }
+    }
+    return RV_OK;
+}
+
+// Rule table for rv_inspect_run; the kit's disc-level rule.
+inline constexpr rv_pdklib::rv_inspect_rule rv_scene_inspect_rules[] = {
+    { detail::rv_scene_disc_rule, &rv_scene_inspect_disc },
+};
 
 } // namespace rv_pdkkit
