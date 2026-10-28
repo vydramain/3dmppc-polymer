@@ -36,9 +36,8 @@ inline constexpr std::string_view component_two_sided = "two_sided";
 // Log tag of the scene's warnings, shared by the scene and object sources.
 inline constexpr const char *scene_log_tag = "scene";
 
-// A scene document as the editor edits it: pdkkit's rv_scene in form 2, where an object's data lives in its
-// components. Unknown keys and sections are written back; the legacy `format` key is not (the file is written
-// with `version`).
+// A scene document as the editor edits it: pdkkit's rv_scene in form 2, where an object's data lives in its components.
+// Unknown keys and sections are written back with their names and values, an old `version` or `format` in [scene] among them.
 
 using rv_editor_vec3 = std::array<double, 3>;
 using rv_editor_tint = std::array<int, 3>;
