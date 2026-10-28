@@ -85,8 +85,8 @@ inline std::vector<std::string> split_components(const std::string &pattern)
 namespace detail
 {
 
-// Walks pattern components against path components exactly as the burner's
-// glob_descend walks the filesystem, but over an already-known path instead of
+// Walks pattern components against path components exactly as glob_descend in
+// rv_manifest_glob.hpp walks the filesystem, but over an already-known path instead of
 // a directory tree.
 inline bool manifest_pattern_matches_from(const std::vector<std::string> &pattern_parts,
     std::size_t pi,
@@ -121,7 +121,7 @@ inline bool manifest_pattern_matches_from(const std::vector<std::string> &patter
 
 /// Does a manifest pattern cover a disc-relative path?
 ///
-/// Same semantics as the burner's glob_descend: `*`/`?` match within one
+/// Same semantics as glob_descend in rv_manifest_glob.hpp: `*`/`?` match within one
 /// component, `**` spans zero or more components.
 ///
 /// @param pattern        a manifest pattern such as `assets/**/*.png`

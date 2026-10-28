@@ -27,7 +27,6 @@ add_executable(mppcburner
 
   # shared by every phase
   rv_burner_common/rv_burner_archive.cpp
-  rv_burner_common/rv_burner_globs.cpp
   rv_burner_common/rv_burner_process.cpp
 
   # [2/4] compile
