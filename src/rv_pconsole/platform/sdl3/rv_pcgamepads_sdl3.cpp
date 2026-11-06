@@ -324,6 +324,11 @@ void rv_pcgamepads_sdl3::sensor(const SDL_GamepadSensorEvent &event)
     }
 }
 
+void rv_pcgamepads_sdl3::note_button_press()
+{
+    ++button_presses_;
+}
+
 void rv_pcgamepads_sdl3::poll_all()
 {
     for (auto &kv : pads_) {
@@ -444,6 +449,13 @@ void rv_pcgamepads_sdl3::poll_all()
 
         rv_pcgamepads_sdl3_poll_trackpads(pad, state, kv.second.trackpads);
     }
+}
+
+uint32_t rv_pcgamepads_sdl3::consume_button_presses()
+{
+    const uint32_t presses = button_presses_;
+    button_presses_ = 0;
+    return presses;
 }
 
 int64_t rv_pcgamepads_sdl3::rumble(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms)

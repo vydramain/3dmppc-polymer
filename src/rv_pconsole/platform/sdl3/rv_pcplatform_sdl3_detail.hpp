@@ -120,6 +120,7 @@ public:
     rv_istate state(uint32_t id) const override;
     int64_t rumble(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) override;
     int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) override;
+    uint32_t consume_button_presses() override;
 
     ~rv_pcgamepads_sdl3() override;
 
@@ -128,6 +129,8 @@ public:
     void remove(uint32_t joystick_id);
     // A gyro sample is integrated into the pad's fusion; an accel sample is only stored for the next gyro step.
     void sensor(const SDL_GamepadSensorEvent &event);
+    // Counts one button DOWN edge on any pad. SDL does not repeat pad buttons, so every call is a fresh press.
+    void note_button_press();
     void poll_all();
 
 private:
@@ -151,6 +154,7 @@ private:
     std::unordered_map<uint32_t, rv_pcpad_sdl3> pads_;
     std::vector<uint32_t> connected_;
     uint64_t generation_ = 0;
+    uint32_t button_presses_ = 0;
     rv_istate empty_state_{};
 };
 

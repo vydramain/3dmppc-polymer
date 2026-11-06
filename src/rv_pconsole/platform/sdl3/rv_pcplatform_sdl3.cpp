@@ -46,6 +46,9 @@ void rv_pcplatform_sdl3::pump()
         case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:
             gamepads_.sensor(event.gsensor);
             break;
+        case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+            gamepads_.note_button_press();
+            break;
         case SDL_EVENT_MOUSE_MOTION:
             window_.add_mouse(event.motion.xrel, event.motion.yrel);
             window_.note_cursor(event.motion.x, event.motion.y);
