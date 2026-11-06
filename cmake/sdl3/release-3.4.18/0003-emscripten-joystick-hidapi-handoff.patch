@@ -1,0 +1,18 @@
+diff --git a/src/joystick/emscripten/SDL_sysjoystick.c b/src/joystick/emscripten/SDL_sysjoystick.c
+index 6e51cb6..6991b19 100644
+--- a/src/joystick/emscripten/SDL_sysjoystick.c
++++ b/src/joystick/emscripten/SDL_sysjoystick.c
+@@ -256,6 +256,13 @@ static EM_BOOL Emscripten_JoyStickConnected(int eventType, const EmscriptenGamep
+         goto done;
+     }
+
++    // HIDAPI already has a device with this vendor and product, so a second pad is not shown.
++    if (SDL_JoystickHandledByAnotherDriver(&SDL_EMSCRIPTEN_JoystickDriver, vendor, product, 0, item->name)) {
++        SDL_free(item->name);
++        SDL_free(item);
++        goto done;
++    }
++
+     if (vendor && product) {
+         item->guid = SDL_CreateJoystickGUID(bus, vendor, product, 0, NULL, name, 0, subtype);
+     } else {
