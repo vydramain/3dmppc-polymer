@@ -1,0 +1,99 @@
+diff --git a/src/joystick/hidapi/SDL_hidapi_rumble.c b/src/joystick/hidapi/SDL_hidapi_rumble.c
+index ef3fede..cbb0719 100644
+--- a/src/joystick/hidapi/SDL_hidapi_rumble.c
++++ b/src/joystick/hidapi/SDL_hidapi_rumble.c
+@@ -55,6 +55,7 @@ static
+ SDL_Mutex *SDL_HIDAPI_rumble_lock;
+ static SDL_HIDAPI_RumbleContext rumble_context SDL_GUARDED_BY(SDL_HIDAPI_rumble_lock);
+
++#ifndef SDL_THREADS_DISABLED
+ static int SDLCALL SDL_HIDAPI_RumbleThread(void *data)
+ {
+     SDL_HIDAPI_RumbleContext *ctx = (SDL_HIDAPI_RumbleContext *)data;
+@@ -163,15 +164,25 @@ static bool SDL_HIDAPI_StartRumbleThread(SDL_HIDAPI_RumbleContext *ctx)
+     }
+     return true;
+ }
++#endif // !SDL_THREADS_DISABLED
+
+ bool SDL_HIDAPI_LockRumble(void)
+ {
+     SDL_HIDAPI_RumbleContext *ctx = &rumble_context;
+
+     if (SDL_CompareAndSwapAtomicInt(&ctx->initialized, false, true)) {
++#ifdef SDL_THREADS_DISABLED
++        // No rumble thread, so reports are written in the caller's thread and only the mutex is needed.
++        SDL_HIDAPI_rumble_lock = SDL_CreateMutex();
++        if (!SDL_HIDAPI_rumble_lock) {
++            SDL_SetAtomicInt(&ctx->initialized, false);
++            return false;
++        }
++#else
+         if (!SDL_HIDAPI_StartRumbleThread(ctx)) {
+             return false;
+         }
++#endif
+     }
+
+     SDL_LockMutex(SDL_HIDAPI_rumble_lock);
+@@ -205,7 +216,9 @@ int SDL_HIDAPI_SendRumbleAndUnlock(SDL_HIDAPI_Device *device, const Uint8 *data,
+
+ int SDL_HIDAPI_SendRumbleWithCallbackAndUnlock(SDL_HIDAPI_Device *device, const Uint8 *data, int size, SDL_HIDAPI_RumbleSentCallback callback, void *userdata)
+ {
++#ifndef SDL_THREADS_DISABLED
+     SDL_HIDAPI_RumbleContext *ctx = &rumble_context;
++#endif
+     SDL_HIDAPI_RumbleRequest *request;
+
+     if (size > sizeof(request->data)) {
+@@ -214,6 +227,24 @@ int SDL_HIDAPI_SendRumbleWithCallbackAndUnlock(SDL_HIDAPI_Device *device, const
+         return -1;
+     }
+
++#ifdef SDL_THREADS_DISABLED
++    // No rumble thread, so the report is written now, in the caller's thread.
++    SDL_AtomicIncRef(&device->rumble_pending);
++
++    // Rumble lock is released before the write, as the thread does, so the two mutexes never nest.
++    SDL_HIDAPI_UnlockRumble();
++
++    SDL_LockMutex(device->dev_lock);
++    if (device->dev) {
++        SDL_hid_write(device->dev, data, size);
++    }
++    SDL_UnlockMutex(device->dev_lock);
++    if (callback) {
++        callback(userdata);
++    }
++    (void)SDL_AtomicDecRef(&device->rumble_pending);
++    return size;
++#else
+     request = (SDL_HIDAPI_RumbleRequest *)SDL_calloc(1, sizeof(*request));
+     if (!request) {
+         SDL_HIDAPI_UnlockRumble();
+@@ -240,6 +271,7 @@ int SDL_HIDAPI_SendRumbleWithCallbackAndUnlock(SDL_HIDAPI_Device *device, const
+     SDL_SignalSemaphore(ctx->request_sem);
+
+     return size;
++#endif
+ }
+
+ void SDL_HIDAPI_UnlockRumble(void)
+@@ -277,9 +309,17 @@ void SDL_HIDAPI_QuitRumble(void)
+ {
+     SDL_HIDAPI_RumbleContext *ctx = &rumble_context;
+
++#ifdef SDL_THREADS_DISABLED
++    if (SDL_GetAtomicInt(&ctx->initialized)) {
++        SDL_DestroyMutex(SDL_HIDAPI_rumble_lock);
++        SDL_HIDAPI_rumble_lock = NULL;
++        SDL_SetAtomicInt(&ctx->initialized, false);
++    }
++#else
+     if (SDL_GetAtomicInt(&ctx->running)) {
+         SDL_HIDAPI_StopRumbleThread(ctx);
+     }
++#endif
+ }
+
+ #endif // SDL_JOYSTICK_HIDAPI
