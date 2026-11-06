@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <new>
 #include <string>
 #include <string_view>
 
@@ -25,9 +26,10 @@ inline constexpr const char *RV_PCBOOT_LOG_TAG = "pcboot";
 // Text ids in rv_console_texts.toml.
 constexpr std::string_view RV_PCBOOT_TITLE_ID = "boot.title";
 constexpr std::string_view RV_PCBOOT_STARTING_ID = "boot.starting";
-constexpr std::string_view RV_PCBOOT_BUTTON_ID = "boot.stop_button";
+constexpr std::string_view RV_PCBOOT_BUTTON_ID = "boot.maintenance";
 constexpr std::string_view RV_PCBOOT_LEVEL_OK_ID = "boot.level_ok";
 constexpr std::string_view RV_PCBOOT_LEVEL_WARNING_ID = "boot.level_warning";
+constexpr std::string_view RV_PCBOOT_SEPARATOR_ID = "boot.separator";
 
 // Colours, ARGB. Grey window and bevels in the workstation style; the dark desk
 // makes the window read as a window.
@@ -97,6 +99,7 @@ void fill_rect(const rv_pchost_text_target &target, const rv_pcboot_rect &rect, 
 // One-pixel raised edge: light on the top and left, shade on the bottom and right.
 void bevel(const rv_pchost_text_target &target, const rv_pcboot_rect &rect)
 {
+    // An empty rect would paint one pixel outside it.
     if (rect.w <= 0 || rect.h <= 0) {
         return;
     }
@@ -106,21 +109,17 @@ void bevel(const rv_pchost_text_target &target, const rv_pcboot_rect &rect)
     fill_rect(target, { rect.x + rect.w - 1, rect.y, 1, rect.h }, RV_PCBOOT_SHADE);
 }
 
-// Draws `text` with its cell's top left at (x, y) only if the whole line lies inside
-// `area`. Returns false, and draws nothing, when it does not.
-bool draw_fitting(const rv_pchost_text_target &target,
-    const rv_pcboot_rect &area,
-    int64_t x,
-    int64_t y,
-    std::string_view text,
-    uint32_t argb)
+// Whether the cell at (x, y) and the whole of `text` lie inside `area`.
+bool text_fits(const rv_pcboot_rect &area, int64_t x, int64_t y, std::string_view text)
 {
     const int64_t ink = rv_pchost_text_ink_width(text, RV_PCBOOT_TEXT_SCALE);
-    if (x < area.x || x + ink > area.x + area.w || y < area.y || y + RV_PCBOOT_CELL > area.y + area.h) {
-        return false;
-    }
+    return x >= area.x && x + ink <= area.x + area.w && y >= area.y && y + RV_PCBOOT_CELL <= area.y + area.h;
+}
+
+// `text` with its cell's top left at (x, y); the caller has checked text_fits.
+void draw_text(const rv_pchost_text_target &target, int64_t x, int64_t y, std::string_view text, uint32_t argb)
+{
     rv_pchost_text_draw(target, x, y, text, RV_PCBOOT_TEXT_SCALE, argb);
-    return true;
 }
 
 void draw_hourglass(const rv_pchost_text_target &target, int64_t x, int64_t y)
@@ -158,7 +157,7 @@ rv_pcboot_rect rv_pcboot_button_rect(int64_t width, int64_t height)
 {
     const rv_pcboot_rect window = window_of(width, height);
     const int64_t label = rv_pchost_text_ink_width(rv_pctext(RV_PCBOOT_BUTTON_ID), RV_PCBOOT_TEXT_SCALE);
-    // Narrower than the label on a small frame: the label is then not drawn.
+    // The label is dropped when the button is narrower than the label plus its padding on both sides.
     const int64_t natural = label + 2 * RV_PCBOOT_BUTTON_PAD_X;
     const int64_t room = std::max<int64_t>(0, window.w - 2 * RV_PCBOOT_BORDER);
     const int64_t w = std::min(natural, room);
@@ -177,7 +176,14 @@ int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t he
         RV_LOG_ERR(RV_PCBOOT_LOG_TAG, "boot screen frame {}x{} is empty or too large for the pixel buffer", width, height);
         return RV_ERR_INVAL;
     }
-    out.assign(static_cast<std::size_t>(width * height), RV_PCBOOT_DESK);
+    const auto count = static_cast<std::size_t>(width * height);
+    try {
+        out.assign(count, RV_PCBOOT_DESK);
+    } catch (const std::bad_alloc &) {
+        out.clear();
+        RV_LOG_ERR(RV_PCBOOT_LOG_TAG, "boot screen frame {}x{} ({} pixels) does not fit in memory", width, height, count);
+        return RV_ERR_NOMEM;
+    }
     const rv_pchost_text_target target{ out.data(), width, height };
 
     // Window: black outline, grey body, raised edge.
@@ -192,12 +198,12 @@ int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t he
         window.w - 2 * RV_PCBOOT_BORDER,
         RV_PCBOOT_TITLE_HEIGHT };
     fill_rect(target, title, RV_PCBOOT_TITLE_BAR);
-    draw_fitting(target,
-        title,
-        title.x + RV_PCBOOT_TITLE_TEXT_X,
-        title.y + RV_PCBOOT_TITLE_TEXT_Y,
-        rv_pctext(RV_PCBOOT_TITLE_ID),
-        RV_PCBOOT_WHITE);
+    const int64_t title_x = title.x + RV_PCBOOT_TITLE_TEXT_X;
+    const int64_t title_y = title.y + RV_PCBOOT_TITLE_TEXT_Y;
+    const std::string_view title_text = rv_pctext(RV_PCBOOT_TITLE_ID);
+    if (text_fits(title, title_x, title_y, title_text)) {
+        draw_text(target, title_x, title_y, title_text, RV_PCBOOT_WHITE);
+    }
 
     // Hourglass, then the starting line beside it.
     const int64_t body_top = title.y + title.h + RV_PCBOOT_BODY_GAP;
@@ -209,7 +215,10 @@ int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t he
         window.w - 2 * RV_PCBOOT_BORDER,
         window.y + window.h - RV_PCBOOT_BORDER - body_top };
     const int64_t starting_y = body_top + (RV_PCBOOT_GLASS_HEIGHT - RV_PCBOOT_CELL) / 2;
-    draw_fitting(target, window_body, text_x, starting_y, rv_pctext(RV_PCBOOT_STARTING_ID), RV_PCBOOT_BLACK);
+    const std::string_view starting = rv_pctext(RV_PCBOOT_STARTING_ID);
+    if (text_fits(window_body, text_x, starting_y, starting)) {
+        draw_text(target, text_x, starting_y, starting, RV_PCBOOT_BLACK);
+    }
 
     // Journal lines in entry order; the journal stops at the first line that does not fit.
     const rv_pcboot_rect button = rv_pcboot_button_rect(width, height);
@@ -220,10 +229,11 @@ int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t he
         button.y - RV_PCBOOT_LINES_TO_BUTTON - lines_top };
     int64_t line_y = lines_top;
     for (const rv_pcboot_entry &entry : journal.entries()) {
-        const std::string line = entry.name + ": " + rv_pctext(level_id(entry.level));
-        if (!draw_fitting(target, lines_area, text_x, line_y, line, RV_PCBOOT_BLACK)) {
+        const std::string line = entry.name + rv_pctext(RV_PCBOOT_SEPARATOR_ID) + rv_pctext(level_id(entry.level));
+        if (!text_fits(lines_area, text_x, line_y, line)) {
             break;
         }
+        draw_text(target, text_x, line_y, line, RV_PCBOOT_BLACK);
         line_y += RV_PCBOOT_LINE_PITCH;
     }
 
@@ -237,7 +247,10 @@ int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t he
         button.h };
     const std::string_view label = rv_pctext(RV_PCBOOT_BUTTON_ID);
     const int64_t label_x = button.x + (button.w - rv_pchost_text_ink_width(label, RV_PCBOOT_TEXT_SCALE)) / 2;
-    draw_fitting(target, label_area, label_x, button.y + (button.h - RV_PCBOOT_CELL) / 2, label, RV_PCBOOT_BLACK);
+    const int64_t label_y = button.y + (button.h - RV_PCBOOT_CELL) / 2;
+    if (text_fits(label_area, label_x, label_y, label)) {
+        draw_text(target, label_x, label_y, label, RV_PCBOOT_BLACK);
+    }
     return RV_OK;
 }
 

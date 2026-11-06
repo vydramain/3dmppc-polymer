@@ -5,7 +5,7 @@
 title = "3dmppc"
 starting = "Starting up the system..."
 maintenance = "Stop for Maintenance"
-stop_button = "Stop for Maintenance"
+separator = ": "
 continue = "Press any button to continue"
 all_ok = "All components started without problems."
 level_ok = "ok"
