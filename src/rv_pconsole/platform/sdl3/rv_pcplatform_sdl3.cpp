@@ -53,13 +53,16 @@ void rv_pcplatform_sdl3::pump()
             window_.add_mouse(event.motion.xrel, event.motion.yrel);
             window_.note_cursor(event.motion.x, event.motion.y);
             break;
+        case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+            window_.note_cursor_left();
+            break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             window_.note_mouse_press(event.button.button, event.button.x, event.button.y);
             break;
         case SDL_EVENT_KEY_DOWN:
-            // event.key.repeat is SDL's own key-repeat flag (auto-repeat
-            // while held) - trusting it means the console never has to
-            // hand-roll a debounce timer here, and holding Pause still
+            // event.key.repeat is SDL's own auto-repeat flag. Holding any key
+            // counts once: the repeats are skipped here, so the console never
+            // has to hand-roll a debounce timer, and holding Pause still
             // counts as exactly one request.
             if (event.key.repeat) {
                 break;
@@ -81,6 +84,7 @@ void rv_pcplatform_sdl3::pump()
     gamepads_.poll_all();
     if (video_up_) {
         window_.snapshot_keyboard();
+        window_.snapshot_cursor();
     }
 }
 

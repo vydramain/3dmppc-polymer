@@ -219,11 +219,24 @@ void rv_pcwindow_sdl3::note_mouse_press(uint8_t button, float x, float y)
 
 void rv_pcwindow_sdl3::note_cursor(float x, float y)
 {
-    cursor_ = to_frame(x, y);
+    cursor_x_ = x;
+    cursor_y_ = y;
+    cursor_on_window_ = true;
 }
 
-rv_pcpointer rv_pcwindow_sdl3::to_frame(float x, float y) const
+void rv_pcwindow_sdl3::note_cursor_left()
 {
+    cursor_on_window_ = false;
+}
+
+void rv_pcwindow_sdl3::snapshot_cursor()
+{
+    cursor_ = cursor_on_window_ ? to_frame(cursor_x_, cursor_y_) : rv_pcpointer{};
+}
+
+rv_pcpointer rv_pcwindow_sdl3::to_frame(float x, float y)
+{
+    // No renderer means no frame to be inside: the answer is not inside. open() has already logged why.
     rv_pcpointer point{};
     if (!renderer_) {
         return point;
@@ -232,6 +245,10 @@ rv_pcpointer rv_pcwindow_sdl3::to_frame(float x, float y) const
     float frame_x = 0.0f;
     float frame_y = 0.0f;
     if (!SDL_RenderCoordinatesFromWindow(renderer_, x, y, &frame_x, &frame_y)) {
+        if (!coordinates_warned_) {
+            coordinates_warned_ = true;
+            RV_LOG_WARN("pcplatform", "SDL_RenderCoordinatesFromWindow failed: {}", SDL_GetError());
+        }
         return point;
     }
 

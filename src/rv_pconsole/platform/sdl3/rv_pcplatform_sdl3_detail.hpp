@@ -17,6 +17,7 @@
 namespace rv_3dmppc
 {
 
+// pump() and the consume_* reads run on the console's frame thread, the one that runs disc_run.
 class rv_pcwindow_sdl3 final : public rv_pcwindow
 {
 public:
@@ -55,12 +56,17 @@ public:
     // SDL's key-repeat events before calling this, so every call here is a
     // fresh press, never a hold.
     void note_pause_request();
-    // Counts one key DOWN edge without auto-repeat; escape also counts the Esc key.
+    // Counts one key DOWN edge without auto-repeat. escape means the key is Esc, which also counts as a key.
     void note_key_press(bool escape);
     // Counts one button DOWN edge; a primary press also records its frame point.
     void note_mouse_press(uint8_t button, float x, float y);
-    // Records the cursor's frame point from a motion event (window coordinates).
+    // Records the window point of a motion event; snapshot_cursor() maps it into frame pixels.
     void note_cursor(float x, float y);
+    // The pointer left the window: cursor() reports not inside until the next motion.
+    void note_cursor_left();
+    // Maps the last window point through the current presentation into cursor_. Called once per
+    // pump() after its events, so a still pointer follows a resize or letterbox change.
+    void snapshot_cursor();
     // Re-derive keyboard_state_ from SDL_GetKeyboardState(). No-op without a
     // window: keys only ever reach a window.
     void snapshot_keyboard();
@@ -80,9 +86,13 @@ private:
     uint32_t pause_requests_ = 0;
     rv_pcpresses presses_{};
     rv_pcpointer cursor_{};
+    float cursor_x_ = 0.0f;
+    float cursor_y_ = 0.0f;
+    bool cursor_on_window_ = false;
+    bool coordinates_warned_ = false;
 
     // A window point mapped through the logical presentation into frame pixels.
-    rv_pcpointer to_frame(float x, float y) const;
+    rv_pcpointer to_frame(float x, float y);
 };
 
 // Trackpads read per pad. Checked against SDL 3.4's source: Steam Controller 28de:1304 has two
@@ -129,7 +139,7 @@ public:
     void remove(uint32_t joystick_id);
     // A gyro sample is integrated into the pad's fusion; an accel sample is only stored for the next gyro step.
     void sensor(const SDL_GamepadSensorEvent &event);
-    // Counts one button DOWN edge on any pad. SDL does not repeat pad buttons, so every call is a fresh press.
+    // Counts one button DOWN edge on any pad: one call per SDL gamepad button DOWN event.
     void note_button_press();
     void poll_all();
 
