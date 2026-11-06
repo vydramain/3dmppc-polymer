@@ -4,10 +4,12 @@
 #include <unistd.h>
 
 #include <array>
+#include <cerrno>
 #include <cstddef>
 #include <cstdio>
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace fs = std::filesystem;
 
@@ -44,7 +46,7 @@ std::string rv_pdktools::shell_quote(const std::string &text)
     return out;
 }
 
-int rv_pdktools::run_capture(const std::string &command, std::string &output)
+int rv_pdktools::run_capture_each(const std::string &command, std::string &output, const child_output_sink &on_output)
 {
     output.clear();
 
@@ -60,15 +62,27 @@ int rv_pdktools::run_capture(const std::string &command, std::string &output)
 
     // --- drain the pipe ---
     //
-    // fread returns short only at end of pipe or on error, and both mean the
-    // child has nothing more to say, so a zero-length read ends the loop.
+    // read(2) returns what the child has written so far, so each piece reaches
+    // on_output while the child still runs. Nothing reads through the FILE, so
+    // its buffer never holds back data. A zero read is end of pipe. A read error
+    // other than EINTR also ends the capture, as if the child had closed the pipe,
+    // and is not reported: the caller learns the child's end only from the status.
+    const int fd = ::fileno(pipe);
     std::array<char, k_capture_chunk_bytes> buffer{};
     while (true) {
-        const std::size_t got = std::fread(buffer.data(), 1, buffer.size(), pipe);
-        if (got == 0) {
+        const ssize_t got = ::read(fd, buffer.data(), buffer.size());
+        if (got < 0 && errno == EINTR) {
+            continue;
+        }
+        if (got <= 0) {
             break;
         }
-        output.append(buffer.data(), got);
+
+        const std::string_view piece(buffer.data(), static_cast<std::size_t>(got));
+        output.append(piece);
+        if (on_output) {
+            on_output(piece);
+        }
     }
 
     // --- collect the status ---
@@ -85,6 +99,11 @@ int rv_pdktools::run_capture(const std::string &command, std::string &output)
     }
 
     return k_status_killed_by_signal;
+}
+
+int rv_pdktools::run_capture(const std::string &command, std::string &output)
+{
+    return run_capture_each(command, output, {});
 }
 
 void rv_pdktools::dump_child_output(const std::string &output)
