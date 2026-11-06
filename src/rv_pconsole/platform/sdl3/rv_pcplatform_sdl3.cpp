@@ -48,13 +48,21 @@ void rv_pcplatform_sdl3::pump()
             break;
         case SDL_EVENT_MOUSE_MOTION:
             window_.add_mouse(event.motion.xrel, event.motion.yrel);
+            window_.note_cursor(event.motion.x, event.motion.y);
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            window_.note_mouse_press(event.button.button, event.button.x, event.button.y);
             break;
         case SDL_EVENT_KEY_DOWN:
             // event.key.repeat is SDL's own key-repeat flag (auto-repeat
             // while held) - trusting it means the console never has to
             // hand-roll a debounce timer here, and holding Pause still
             // counts as exactly one request.
-            if (event.key.scancode == SDL_SCANCODE_PAUSE && !event.key.repeat) {
+            if (event.key.repeat) {
+                break;
+            }
+            window_.note_key_press(event.key.scancode == SDL_SCANCODE_ESCAPE);
+            if (event.key.scancode == SDL_SCANCODE_PAUSE) {
                 window_.note_pause_request();
             }
             break;

@@ -28,6 +28,8 @@ public:
     rv_istate keyboard_state() const override;
     rv_imouse consume_mouse() override;
     uint32_t consume_pause_requests() override;
+    rv_pcpresses consume_presses() override;
+    rv_pcpointer cursor() const override;
 
     // Whether SDL_INIT_VIDEO came up; open() refuses when it did not. Set by
     // rv_pcplatform_sdl3::make() before open() is ever called.
@@ -53,6 +55,12 @@ public:
     // SDL's key-repeat events before calling this, so every call here is a
     // fresh press, never a hold.
     void note_pause_request();
+    // Counts one key DOWN edge without auto-repeat; escape also counts the Esc key.
+    void note_key_press(bool escape);
+    // Counts one button DOWN edge; a primary press also records its frame point.
+    void note_mouse_press(uint8_t button, float x, float y);
+    // Records the cursor's frame point from a motion event (window coordinates).
+    void note_cursor(float x, float y);
     // Re-derive keyboard_state_ from SDL_GetKeyboardState(). No-op without a
     // window: keys only ever reach a window.
     void snapshot_keyboard();
@@ -70,6 +78,11 @@ private:
     float mouse_dx_ = 0.0f;
     float mouse_dy_ = 0.0f;
     uint32_t pause_requests_ = 0;
+    rv_pcpresses presses_{};
+    rv_pcpointer cursor_{};
+
+    // A window point mapped through the logical presentation into frame pixels.
+    rv_pcpointer to_frame(float x, float y) const;
 };
 
 // Trackpads read per pad. Checked against SDL 3.4's source: Steam Controller 28de:1304 has two

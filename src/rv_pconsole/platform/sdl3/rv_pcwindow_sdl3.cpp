@@ -171,6 +171,18 @@ uint32_t rv_pcwindow_sdl3::consume_pause_requests()
     return requests;
 }
 
+rv_pcpresses rv_pcwindow_sdl3::consume_presses()
+{
+    const rv_pcpresses presses = presses_;
+    presses_ = {};
+    return presses;
+}
+
+rv_pcpointer rv_pcwindow_sdl3::cursor() const
+{
+    return cursor_;
+}
+
 void rv_pcwindow_sdl3::note_close()
 {
     close_requested_ = true;
@@ -187,6 +199,46 @@ void rv_pcwindow_sdl3::add_mouse(float dx, float dy)
     // the deltas accumulate here and are drained on read.
     mouse_dx_ += dx;
     mouse_dy_ += dy;
+}
+
+void rv_pcwindow_sdl3::note_key_press(bool escape)
+{
+    ++presses_.keys;
+    if (escape) {
+        ++presses_.escape;
+    }
+}
+
+void rv_pcwindow_sdl3::note_mouse_press(uint8_t button, float x, float y)
+{
+    ++presses_.mouse_buttons;
+    if (button == SDL_BUTTON_LEFT) {
+        presses_.last_click = to_frame(x, y);
+    }
+}
+
+void rv_pcwindow_sdl3::note_cursor(float x, float y)
+{
+    cursor_ = to_frame(x, y);
+}
+
+rv_pcpointer rv_pcwindow_sdl3::to_frame(float x, float y) const
+{
+    rv_pcpointer point{};
+    if (!renderer_) {
+        return point;
+    }
+
+    float frame_x = 0.0f;
+    float frame_y = 0.0f;
+    if (!SDL_RenderCoordinatesFromWindow(renderer_, x, y, &frame_x, &frame_y)) {
+        return point;
+    }
+
+    point.x = static_cast<int64_t>(std::floor(frame_x));
+    point.y = static_cast<int64_t>(std::floor(frame_y));
+    point.inside = point.x >= 0 && point.x < screen_width_ && point.y >= 0 && point.y < screen_height_;
+    return point;
 }
 
 void rv_pcwindow_sdl3::snapshot_keyboard()
