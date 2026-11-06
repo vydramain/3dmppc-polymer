@@ -1,3 +1,9 @@
+// Boot-journal facts, read by C from Module. Keep this block above any WebAssembly stand-in (W4a):
+// rvWebhidUsable is the browser's own answer, so it must be read before a stand-in makes JSPI look present.
+// rvSaveLoadFailed is set by the IndexedDB load below; main() waits for that load.
+Module.rvWebhidUsable = !!navigator.hid && typeof WebAssembly.Suspending === 'function';
+Module.rvSaveLoadFailed = false;
+
 // Emscripten --pre-js: mounts /save on IndexedDB and loads it before main() runs,
 // so the memory card saved by an earlier page session is already there.
 // The run dependency holds main() back until the load finishes.
@@ -18,6 +24,7 @@ Module.preRun.push(function() {
     FS.syncfs(true, function(err) {
         // An empty card beats a game that never starts, so a failed load still runs, but never flushes.
         if (err) {
+            Module.rvSaveLoadFailed = true;
             console.error('save: IndexedDB load failed, card is not saved this session: ' + err);
         } else {
             loaded = true;
