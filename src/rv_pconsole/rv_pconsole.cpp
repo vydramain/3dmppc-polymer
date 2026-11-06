@@ -16,18 +16,39 @@ static_assert(rv_3dmppc::RV_PCCA_PCM_RATE == rv_3dmppc::RV_PCPLATFORM_PCM_RATE,
 static_assert(rv_3dmppc::RV_PCCA_PCM_CHANNELS == rv_3dmppc::RV_PCPLATFORM_PCM_CHANNELS,
     "the mixer's channel count and the platform's PCM sink must agree");
 
+namespace
+{
+
+// Slot names: the boot journal and check_ready() both print them, so they are written once.
+inline constexpr const char *rv_pcslot_ca = "ca";
+inline constexpr const char *rv_pcslot_cio = "cio";
+inline constexpr const char *rv_pcslot_cm = "cm";
+inline constexpr const char *rv_pcslot_cv = "cv";
+inline constexpr const char *rv_pcslot_cg = "cg";
+inline constexpr const char *rv_pcslot_cd = "cd";
+inline constexpr const char *rv_pcslot_cl = "cl";
+
+// Console text ids of a controller that did not start: the found and the recommended line.
+inline constexpr const char *rv_pcboot_text_not_started = "boot.not_started";
+inline constexpr const char *rv_pcboot_text_see_log = "boot.see_log";
+
+// Journals a controller right after it is made. Its own constructor has already logged why it refused.
+void rv_pcboot_journal_slot(rv_3dmppc::rv_pcboot_journal &journal, const char *name, bool valid)
+{
+    if (valid) {
+        journal.add_ok(name);
+        return;
+    }
+    journal.add_warning(name, rv_pcboot_text_not_started, rv_pcboot_text_see_log);
+}
+
+} // namespace
+
 rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     rv_3dmppc::rv_pcplatform &platform,
     rv_3dmppc::rv_pcloader *loader)
     : params_(conf.params)
     , platform_(platform)
-    , ca_(rv_pcca_make(conf.slots.ca, conf.ca))
-    , cio_(rv_pccio_make(conf.slots.cio, conf.cio, platform_))
-    , cm_(rv_pccm_make(conf.slots.cm, conf.cm))
-    , cv_(rv_pccv_make(conf.slots.cv, conf.cv))
-    , cg_(rv_pccg_make(conf.slots.cg, conf.cg, *cv_))
-    , cd_(rv_pccd_make(conf.slots.cd, conf.cd))
-    , cl_(rv_pccl_make(conf.slots.cl, conf.cl, *cd_))
     , loader_(loader)
     , pcm_(static_cast<size_t>(
           (RV_PCCA_PCM_RATE / static_cast<int64_t>(params_.target_fps ? params_.target_fps : RV_PCONSOLE_DEFAULT_TARGET_FPS) +
@@ -35,11 +56,26 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
           RV_PCCA_PCM_CHANNELS))
     , script_entry_(conf.cl.script_entry)
 {
-    // Here and not in the initialiser list: video_attach() is not itself part
-    // of building cd_, and keeping it out of the list means the invariant it
-    // establishes (rv_pccd.hpp: cv_ outlives cd_) is not tangled with the
-    // ORDER the list happens to be written in. audio_attach() is the same
-    // seam for ca_ - see rv_pccd.hpp's own comment on audio_attach().
+    // Built one at a time, each journaled as it is made, in dependency order:
+    // cg_ needs cv_, cl_ needs cd_.
+    ca_ = rv_pcca_make(conf.slots.ca, conf.ca);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_ca, ca_->valid());
+    cio_ = rv_pccio_make(conf.slots.cio, conf.cio, platform_);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cio, cio_->valid());
+    cm_ = rv_pccm_make(conf.slots.cm, conf.cm);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cm, cm_->valid());
+    cv_ = rv_pccv_make(conf.slots.cv, conf.cv);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cv, cv_->valid());
+    cg_ = rv_pccg_make(conf.slots.cg, conf.cg, *cv_);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cg, cg_->valid());
+    cd_ = rv_pccd_make(conf.slots.cd, conf.cd);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cd, cd_->valid());
+    cl_ = rv_pccl_make(conf.slots.cl, conf.cl, *cd_);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cl, cl_->valid());
+
+    // The attach calls run once all seven controllers exist: cd_ attaches cv_, ca_
+    // and cg_. cv_ must outlive cd_ (rv_pccd.hpp: ~rv_pccd_fs frees textures
+    // through it). audio_attach() is the same seam for ca_ - see rv_pccd.hpp.
     cd_->video_attach(*cv_);
     cd_->audio_attach(*ca_);
     cd_->geometry_attach(*cg_);
@@ -92,13 +128,13 @@ int rv_3dmppc::rv_pconsole::check_ready() const
         int code;
     };
     const slot_check slots[] = {
-        { "ca", ca_->valid(), RV_ERR_NOMEM },
-        { "cd", cd_->valid(), RV_ERR_NOMEM },
-        { "cio", cio_->valid(), RV_ERR_NOMEM },
-        { "cm", cm_->valid(), RV_ERR_IO },
-        { "cv", cv_->valid(), RV_ERR_NOMEM },
-        { "cg", cg_->valid(), RV_ERR_NOMEM },
-        { "cl", cl_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_ca, ca_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cd, cd_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cio, cio_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cm, cm_->valid(), RV_ERR_IO },
+        { rv_pcslot_cv, cv_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cg, cg_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cl, cl_->valid(), RV_ERR_NOMEM },
     };
     for (const auto &slot : slots) {
         if (!slot.valid) {
@@ -107,6 +143,11 @@ int rv_3dmppc::rv_pconsole::check_ready() const
         }
     }
     return RV_OK;
+}
+
+const rv_3dmppc::rv_pcboot_journal &rv_3dmppc::rv_pconsole::boot_journal() const
+{
+    return boot_journal_;
 }
 
 // --- C contract (pdk/rv_pdko.h) ----------------------------------------------

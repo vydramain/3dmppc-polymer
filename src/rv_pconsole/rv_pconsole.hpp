@@ -18,6 +18,7 @@
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/platform/rv_pccmdchan.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
+#include "rv_pconsole/rv_pcboot_journal.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
@@ -80,6 +81,10 @@ private:
     // die FIRST: its teardown runs disc_shutdown(), a hook allowed to touch every
     // controller above. Null when the built-in disc is running.
     rv_pcloader *loader_ = nullptr;
+
+    // What each controller reported as it was made, in the order the constructor made them.
+    // Written only by the constructor; read through boot_journal().
+    rv_pcboot_journal boot_journal_;
 
     // The per-frame PCM scratch buffer, sized once at construction to the
     // largest a single frame can ever need: (RV_PCCA_PCM_RATE /
@@ -317,6 +322,9 @@ public:
     // card image is a file that is unreadable or has refused geometry. The machine did
     // not provide what the disc declared and the run must not start.
     int check_ready() const;
+
+    // Each controller in the order it was made: ok, or a warning with the texts that say why.
+    const rv_pcboot_journal &boot_journal() const;
 };
 
 } // namespace rv_3dmppc
