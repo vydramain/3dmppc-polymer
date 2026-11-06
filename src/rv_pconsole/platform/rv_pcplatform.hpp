@@ -41,6 +41,26 @@ struct rv_pcplatform_wants {
     bool audio = false;
 };
 
+// A point in frame pixels: the screen_width x screen_height given to open().
+// inside is false when the point is outside the frame or there is no window.
+struct rv_pcpointer {
+    bool inside = false;
+    int64_t x = 0;
+    int64_t y = 0;
+};
+
+// Operator presses since the previous consume_presses(). escape counts the Esc
+// key; keys counts every key press, Esc and Pause included, without auto-repeat;
+// mouse_buttons counts presses of any mouse button; last_click is where the last
+// primary-button press was, inside is false when no primary press came since the
+// previous consume_presses().
+struct rv_pcpresses {
+    uint32_t escape = 0;
+    uint32_t keys = 0;
+    uint32_t mouse_buttons = 0;
+    rv_pcpointer last_click;
+};
+
 // A window a finished frame is shown in, and the keyboard and mouse that only
 // exist while such a window does.
 class rv_pcwindow
@@ -105,6 +125,25 @@ public:
     // press every time the operator paused.
     virtual uint32_t consume_pause_requests() = 0;
 
+    // Operator presses for the console's own screens, counted as edges like
+    // consume_pause_requests(): two presses in one frame must not collapse.
+    // Cleared by the call and never part of cio's port snapshot. A caller that
+    // starts a screen calls this once first to drop older presses. The default
+    // reports nothing; a platform with a window overrides it, otherwise the
+    // console's own screens get no input.
+    virtual rv_pcpresses consume_presses()
+    {
+        return {};
+    }
+
+    // Where the cursor was at the last pump(); inside is false while it is
+    // outside the frame or no window exists. The default reports nothing; a
+    // platform with a window overrides it.
+    virtual rv_pcpointer cursor() const
+    {
+        return {};
+    }
+
 protected:
     rv_pcwindow() = default;
 };
@@ -138,6 +177,15 @@ public:
     // the device refused.
     virtual int64_t rumble(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) = 0;
     virtual int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) = 0;
+
+    // Presses of any button on any pad since the previous call; cleared by the
+    // call. Not part of state(id) or cio's port snapshot. The default reports
+    // nothing; a platform with pads overrides it, otherwise the console's own
+    // screens get no pad input.
+    virtual uint32_t consume_button_presses()
+    {
+        return 0;
+    }
 
 protected:
     rv_pcgamepads() = default;
