@@ -341,8 +341,9 @@ public:
     const rv_pcboot_journal &boot_journal() const;
 
     // The start screen, driven by the caller's loop. Begin opens the window and shows the first
-    // view; false means no screen to wait on (embedded, no window wanted, or it did not come up).
-    // Step is one pass; quit means the operator stopped the machine.
+    // view; false means no screen to wait on (embedded, no window wanted, the window did not come
+    // up, or the first view could not be drawn). Step is one pass, only after a begin that returned
+    // true; quit means the operator stopped the machine.
     enum class boot_screen_result {
         running,
         done,
@@ -350,9 +351,9 @@ public:
     };
     bool boot_screen_begin();
     boot_screen_result boot_screen_step();
-    // Runs the start screen to its end, then returns rest()'s result. Quit returns RV_OK without
-    // calling rest. No screen to wait on: rest runs at once.
-    int64_t boot_screen_run(const std::function<int64_t()> &rest);
+    // Runs the start screen to its end, then returns rest()'s result; quit returns RV_OK without
+    // calling rest. Without a screen, and in the web build, rest runs at once.
+    int64_t boot_screen_run(std::function<int64_t()> rest);
 };
 
 } // namespace rv_3dmppc
