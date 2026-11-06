@@ -56,11 +56,41 @@ else()
   set(SDL_STATIC ON CACHE BOOL "" FORCE)
   set(SDL_SHARED OFF CACHE BOOL "" FORCE)
   set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+  # The patch step lays the SDL patch set on the source. The hash of the set and of its script is in the command, so a
+  # change of the set runs the step again. Adding or removing a set file reconfigures at the next build (CONFIGURE_DEPENDS).
+  set(RV_SDL3_PATCH_DIR ${CMAKE_CURRENT_LIST_DIR}/sdl3/${RV_SDL3_TAG})
+  set(RV_SDL3_PATCH_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/rv_sdl3_patch.cmake)
+  # The same names the script skips: dot files and backups are not part of the set.
+  file(GLOB_RECURSE rv_sdl3_set_files LIST_DIRECTORIES FALSE CONFIGURE_DEPENDS
+       RELATIVE "${RV_SDL3_PATCH_DIR}" "${RV_SDL3_PATCH_DIR}/*")
+  list(FILTER rv_sdl3_set_files EXCLUDE REGEX "(^|/)\\.|~(/|$)")
+  list(SORT rv_sdl3_set_files)
+  set(rv_sdl3_set_paths ${RV_SDL3_PATCH_SCRIPT})
+  set(rv_sdl3_set_listing "")
+  foreach(rel IN LISTS rv_sdl3_set_files)
+    file(SHA256 "${RV_SDL3_PATCH_DIR}/${rel}" rv_sdl3_file_hash)
+    string(APPEND rv_sdl3_set_listing "${rv_sdl3_file_hash} ${rel}\n")
+    list(APPEND rv_sdl3_set_paths "${RV_SDL3_PATCH_DIR}/${rel}")
+  endforeach()
+  file(SHA256 "${RV_SDL3_PATCH_SCRIPT}" rv_sdl3_script_hash)
+  string(SHA256 RV_SDL3_PATCH_HASH "${rv_sdl3_script_hash}\n${rv_sdl3_set_listing}")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${rv_sdl3_set_paths})
   FetchContent_Declare(
     SDL3
     URL ${RV_SDL3_URL}
     URL_HASH SHA256=${RV_SDL3_SHA256}
     DOWNLOAD_EXTRACT_TIMESTAMP ON
+    # The archive is the download step's file, named by its URL; a nested build given FETCHCONTENT_SOURCE_DIR_SDL3 never
+    # runs this step. <DOWNLOADED_FILE> is empty here, so the name comes from <DOWNLOAD_DIR>.
+    PATCH_COMMAND ${CMAKE_COMMAND}
+                  -DRV_SDL3_SRC=<SOURCE_DIR>
+                  -DRV_SDL3_PATCH_DIR=${RV_SDL3_PATCH_DIR}
+                  -DRV_SDL3_VERSION=${RV_SDL3_VERSION}
+                  -DRV_SDL3_TAG=${RV_SDL3_TAG}
+                  -DRV_SDL3_ARCHIVE=<DOWNLOAD_DIR>/SDL3-${RV_SDL3_VERSION}.tar.gz
+                  -DRV_SDL3_SHA256=${RV_SDL3_SHA256}
+                  -DRV_SDL3_PATCH_HASH=${RV_SDL3_PATCH_HASH}
+                  -P ${RV_SDL3_PATCH_SCRIPT}
   )
   FetchContent_MakeAvailable(SDL3)
 endif()
