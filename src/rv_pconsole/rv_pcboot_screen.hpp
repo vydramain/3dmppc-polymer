@@ -1,6 +1,7 @@
-// The boot screen picture: a grey window with the title, an hourglass, the starting
-// line, the journal and a raised button. Composed into a host buffer, like the
-// pause overlay; no rv_cv.
+// The boot screen pictures: a grey window with the title, then either the starting
+// view (hourglass, starting line, journal, button) or the report view (result, journal
+// with its texts, continue prompt). Composed into a host buffer, like the pause
+// overlay; no rv_cv.
 #pragma once
 
 #include <cstdint>
@@ -31,5 +32,14 @@ rv_pcboot_rect rv_pcboot_button_rect(int64_t width, int64_t height);
 // side <= 0 or a size that does not fit `out`; RV_ERR_NOMEM with `out` cleared and
 // the size logged, when the allocation fails.
 int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t height, const rv_pcboot_journal &journal);
+
+// Compose the report picture into `out`, resized to width * height and fully written.
+// The all-ok line when the journal has no warning, then the journal in entry order;
+// each warning is followed by its Found and Recommended texts, indented. The entry line
+// is never wrapped. The all-ok line and the Found and Recommended texts are word-wrapped
+// to the window; a text with a word wider than a line is not drawn at all. Lines stop at
+// the first one that does not fit. The continue prompt is centred at the bottom and not
+// drawn when it does not fit. Return codes as rv_pcboot_screen_build.
+int rv_pcboot_report_build(std::vector<uint32_t> &out, int64_t width, int64_t height, const rv_pcboot_journal &journal);
 
 } // namespace rv_3dmppc

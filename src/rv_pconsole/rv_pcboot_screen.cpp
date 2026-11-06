@@ -1,4 +1,4 @@
-// The boot screen picture. Glyphs come from rv_pchost_text.hpp; every shape is
+// The boot screen pictures. Glyphs come from rv_pchost_text.hpp; every shape is
 // clipped to the frame, and text is drawn only where it fits its area.
 #include "rv_pconsole/rv_pcboot_screen.hpp"
 
@@ -8,6 +8,7 @@
 #include <new>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_font/rv_font_data.hpp"
@@ -30,6 +31,10 @@ constexpr std::string_view RV_PCBOOT_BUTTON_ID = "boot.maintenance";
 constexpr std::string_view RV_PCBOOT_LEVEL_OK_ID = "boot.level_ok";
 constexpr std::string_view RV_PCBOOT_LEVEL_WARNING_ID = "boot.level_warning";
 constexpr std::string_view RV_PCBOOT_SEPARATOR_ID = "boot.separator";
+constexpr std::string_view RV_PCBOOT_ALL_OK_ID = "boot.all_ok";
+constexpr std::string_view RV_PCBOOT_FOUND_ID = "boot.found";
+constexpr std::string_view RV_PCBOOT_RECOMMEND_ID = "boot.recommend";
+constexpr std::string_view RV_PCBOOT_CONTINUE_ID = "boot.continue";
 
 // Colours, ARGB. Grey window and bevels in the workstation style; the dark desk
 // makes the window read as a window.
@@ -72,7 +77,14 @@ constexpr int64_t RV_PCBOOT_LINES_GAP = 12; // Hourglass bottom to the first lin
 constexpr int64_t RV_PCBOOT_LINE_PITCH = RV_PCBOOT_CELL;
 constexpr int64_t RV_PCBOOT_LINES_TO_BUTTON = 8; // Last line to the button
 
-// Button: a raised face at the bottom of the window, centred.
+// Report: text starts inside the window edge; Found and Recommended are indented
+// from that, and the last line keeps a gap above the prompt.
+constexpr int64_t RV_PCBOOT_REPORT_X = 12;      // Window edge to the report text
+constexpr int64_t RV_PCBOOT_REPORT_INDENT = 16; // Report text to the Found and Recommended lines
+constexpr int64_t RV_PCBOOT_REPORT_GAP = 8;     // Last report line to the prompt
+
+// Button: a raised face at the bottom of the window, centred. The report's prompt
+// is centred in the same band.
 constexpr int64_t RV_PCBOOT_BUTTON_PAD_X = 8;   // Label to the button's edge
 constexpr int64_t RV_PCBOOT_BUTTON_HEIGHT = 16; // Cell plus padding above and below
 constexpr int64_t RV_PCBOOT_BUTTON_BOTTOM = 12; // Button bottom to the window bottom
@@ -145,10 +157,134 @@ rv_pcboot_rect window_of(int64_t width, int64_t height)
         std::max<int64_t>(0, height - 2 * RV_PCBOOT_MARGIN_Y) };
 }
 
+// The title bar: the top band of the window, inside its border.
+rv_pcboot_rect title_of(const rv_pcboot_rect &window)
+{
+    return { window.x + RV_PCBOOT_BORDER,
+        window.y + RV_PCBOOT_BORDER,
+        window.w - 2 * RV_PCBOOT_BORDER,
+        RV_PCBOOT_TITLE_HEIGHT };
+}
+
+// The window below the title bar: where both views put their text.
+rv_pcboot_rect body_of(const rv_pcboot_rect &window)
+{
+    const int64_t top = title_of(window).y + RV_PCBOOT_TITLE_HEIGHT + RV_PCBOOT_BODY_GAP;
+    return { window.x + RV_PCBOOT_BORDER, top, window.w - 2 * RV_PCBOOT_BORDER, window.y + window.h - RV_PCBOOT_BORDER - top };
+}
+
 // The journal's level word, from the console texts.
 std::string_view level_id(rv_pcboot_level level)
 {
     return level == rv_pcboot_level::ok ? RV_PCBOOT_LEVEL_OK_ID : RV_PCBOOT_LEVEL_WARNING_ID;
+}
+
+// "<label><separator><text>", both ids looked up in the console texts.
+std::string labelled(std::string_view label_id, std::string_view text_id)
+{
+    return std::string(rv_pctext(label_id)) + rv_pctext(RV_PCBOOT_SEPARATOR_ID) + rv_pctext(text_id);
+}
+
+// The grey window with its title bar, shared by both views.
+void draw_window(const rv_pchost_text_target &target, const rv_pcboot_rect &window)
+{
+    // Black outline, grey body, raised edge.
+    fill_rect(target, window, RV_PCBOOT_BLACK);
+    fill_rect(target, inset(window, 1), RV_PCBOOT_GREY);
+    bevel(target, inset(window, 1));
+
+    // Title bar with the product name at its left.
+    const rv_pcboot_rect title = title_of(window);
+    fill_rect(target, title, RV_PCBOOT_TITLE_BAR);
+    const int64_t title_x = title.x + RV_PCBOOT_TITLE_TEXT_X;
+    const int64_t title_y = title.y + RV_PCBOOT_TITLE_TEXT_Y;
+    const std::string_view title_text = rv_pctext(RV_PCBOOT_TITLE_ID);
+    if (text_fits(title, title_x, title_y, title_text)) {
+        draw_text(target, title_x, title_y, title_text, RV_PCBOOT_WHITE);
+    }
+}
+
+// Sizes `out` to width * height and fills it with the desk colour, both views' first step.
+int begin_frame(std::vector<uint32_t> &out, int64_t width, int64_t height)
+{
+    // Checked by division: width * height must fit `out` without wrapping.
+    const uint64_t max_pixels = out.max_size();
+    if (width <= 0 || height <= 0 || static_cast<uint64_t>(width) > max_pixels / static_cast<uint64_t>(height)) {
+        out.clear();
+        RV_LOG_ERR(RV_PCBOOT_LOG_TAG, "boot screen frame {}x{} is empty or too large for the pixel buffer", width, height);
+        return RV_ERR_INVAL;
+    }
+    const auto count = static_cast<std::size_t>(width * height);
+    try {
+        out.assign(count, RV_PCBOOT_DESK);
+    } catch (const std::bad_alloc &) {
+        out.clear();
+        RV_LOG_ERR(RV_PCBOOT_LOG_TAG, "boot screen frame {}x{} ({} pixels) does not fit in memory", width, height, count);
+        return RV_ERR_NOMEM;
+    }
+    return RV_OK;
+}
+
+// One line of a report text, drawn `indent` pixels from the report's text left.
+struct report_line {
+    int64_t indent;
+    std::string text;
+};
+
+// Word-wraps `text` to `width` pixels onto `lines`, every line at `indent`. A text with
+// a word wider than `width` is not drawn at all: nothing is added.
+void wrap_into(std::vector<report_line> &lines, std::string_view text, int64_t width, int64_t indent)
+{
+    const std::size_t start = lines.size();
+    std::string current;
+    std::size_t pos = 0;
+    while (pos <= text.size()) {
+        const std::size_t end = std::min(text.find(' ', pos), text.size());
+        const std::string_view word = text.substr(pos, end - pos);
+        pos = end + 1;
+        if (word.empty()) {
+            continue;
+        }
+        if (rv_pchost_text_ink_width(word, RV_PCBOOT_TEXT_SCALE) > width) {
+            lines.resize(start);
+            return;
+        }
+        std::string candidate = current;
+        if (!current.empty()) {
+            candidate += ' ';
+        }
+        candidate += word;
+        if (rv_pchost_text_ink_width(candidate, RV_PCBOOT_TEXT_SCALE) <= width) {
+            current = std::move(candidate);
+            continue;
+        }
+        lines.push_back({ indent, std::move(current) });
+        current = std::string(word);
+    }
+    if (!current.empty()) {
+        lines.push_back({ indent, std::move(current) });
+    }
+}
+
+// The report's lines in order: the all-ok line when nothing failed, then each entry,
+// and under each warning its Found and Recommended texts. `width` is the text area.
+std::vector<report_line> report_lines(const rv_pcboot_journal &journal, int64_t width)
+{
+    std::vector<report_line> lines;
+    if (!journal.has_warning()) {
+        wrap_into(lines, rv_pctext(RV_PCBOOT_ALL_OK_ID), width, 0);
+    }
+    const int64_t indented = width - RV_PCBOOT_REPORT_INDENT;
+    for (const rv_pcboot_entry &entry : journal.entries()) {
+        // The header is one line, not wrapped: the journal stops at it when it does not fit.
+        lines.push_back({ 0, entry.name + rv_pctext(RV_PCBOOT_SEPARATOR_ID) + rv_pctext(level_id(entry.level)) });
+        if (entry.level != rv_pcboot_level::warning) {
+            continue;
+        }
+        wrap_into(lines, labelled(RV_PCBOOT_FOUND_ID, entry.found_id), indented, RV_PCBOOT_REPORT_INDENT);
+        wrap_into(lines, labelled(RV_PCBOOT_RECOMMEND_ID, entry.recommend_id), indented, RV_PCBOOT_REPORT_INDENT);
+    }
+    return lines;
 }
 
 } // namespace
@@ -169,60 +305,28 @@ rv_pcboot_rect rv_pcboot_button_rect(int64_t width, int64_t height)
 
 int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t height, const rv_pcboot_journal &journal)
 {
-    // Checked by division: width * height must fit `out` without wrapping.
-    const uint64_t max_pixels = out.max_size();
-    if (width <= 0 || height <= 0 || static_cast<uint64_t>(width) > max_pixels / static_cast<uint64_t>(height)) {
-        out.clear();
-        RV_LOG_ERR(RV_PCBOOT_LOG_TAG, "boot screen frame {}x{} is empty or too large for the pixel buffer", width, height);
-        return RV_ERR_INVAL;
-    }
-    const auto count = static_cast<std::size_t>(width * height);
-    try {
-        out.assign(count, RV_PCBOOT_DESK);
-    } catch (const std::bad_alloc &) {
-        out.clear();
-        RV_LOG_ERR(RV_PCBOOT_LOG_TAG, "boot screen frame {}x{} ({} pixels) does not fit in memory", width, height, count);
-        return RV_ERR_NOMEM;
+    const int rv = begin_frame(out, width, height);
+    if (rv != RV_OK) {
+        return rv;
     }
     const rv_pchost_text_target target{ out.data(), width, height };
-
-    // Window: black outline, grey body, raised edge.
     const rv_pcboot_rect window = window_of(width, height);
-    fill_rect(target, window, RV_PCBOOT_BLACK);
-    fill_rect(target, inset(window, 1), RV_PCBOOT_GREY);
-    bevel(target, inset(window, 1));
-
-    // Title bar with the product name at its left.
-    const rv_pcboot_rect title = { window.x + RV_PCBOOT_BORDER,
-        window.y + RV_PCBOOT_BORDER,
-        window.w - 2 * RV_PCBOOT_BORDER,
-        RV_PCBOOT_TITLE_HEIGHT };
-    fill_rect(target, title, RV_PCBOOT_TITLE_BAR);
-    const int64_t title_x = title.x + RV_PCBOOT_TITLE_TEXT_X;
-    const int64_t title_y = title.y + RV_PCBOOT_TITLE_TEXT_Y;
-    const std::string_view title_text = rv_pctext(RV_PCBOOT_TITLE_ID);
-    if (text_fits(title, title_x, title_y, title_text)) {
-        draw_text(target, title_x, title_y, title_text, RV_PCBOOT_WHITE);
-    }
+    draw_window(target, window);
 
     // Hourglass, then the starting line beside it.
-    const int64_t body_top = title.y + title.h + RV_PCBOOT_BODY_GAP;
+    const rv_pcboot_rect body = body_of(window);
     const int64_t glass_x = window.x + RV_PCBOOT_GLASS_X;
-    draw_hourglass(target, glass_x, body_top);
+    draw_hourglass(target, glass_x, body.y);
     const int64_t text_x = glass_x + RV_PCBOOT_GLASS_COLUMNS * RV_PCBOOT_GLASS_SCALE + RV_PCBOOT_GLASS_GAP;
-    const rv_pcboot_rect window_body = { window.x + RV_PCBOOT_BORDER,
-        body_top,
-        window.w - 2 * RV_PCBOOT_BORDER,
-        window.y + window.h - RV_PCBOOT_BORDER - body_top };
-    const int64_t starting_y = body_top + (RV_PCBOOT_GLASS_HEIGHT - RV_PCBOOT_CELL) / 2;
+    const int64_t starting_y = body.y + (RV_PCBOOT_GLASS_HEIGHT - RV_PCBOOT_CELL) / 2;
     const std::string_view starting = rv_pctext(RV_PCBOOT_STARTING_ID);
-    if (text_fits(window_body, text_x, starting_y, starting)) {
+    if (text_fits(body, text_x, starting_y, starting)) {
         draw_text(target, text_x, starting_y, starting, RV_PCBOOT_BLACK);
     }
 
     // Journal lines in entry order; the journal stops at the first line that does not fit.
     const rv_pcboot_rect button = rv_pcboot_button_rect(width, height);
-    const int64_t lines_top = body_top + RV_PCBOOT_GLASS_HEIGHT + RV_PCBOOT_LINES_GAP;
+    const int64_t lines_top = body.y + RV_PCBOOT_GLASS_HEIGHT + RV_PCBOOT_LINES_GAP;
     const rv_pcboot_rect lines_area = { text_x,
         lines_top,
         window.x + window.w - RV_PCBOOT_BORDER - text_x,
@@ -250,6 +354,41 @@ int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t he
     const int64_t label_y = button.y + (button.h - RV_PCBOOT_CELL) / 2;
     if (text_fits(label_area, label_x, label_y, label)) {
         draw_text(target, label_x, label_y, label, RV_PCBOOT_BLACK);
+    }
+    return RV_OK;
+}
+
+int rv_pcboot_report_build(std::vector<uint32_t> &out, int64_t width, int64_t height, const rv_pcboot_journal &journal)
+{
+    const int rv = begin_frame(out, width, height);
+    if (rv != RV_OK) {
+        return rv;
+    }
+    const rv_pchost_text_target target{ out.data(), width, height };
+    const rv_pcboot_rect window = window_of(width, height);
+    draw_window(target, window);
+
+    // Report lines from the body's top; the first line that does not fit ends the list.
+    const rv_pcboot_rect body = body_of(window);
+    const rv_pcboot_rect button = rv_pcboot_button_rect(width, height);
+    const int64_t text_x = window.x + RV_PCBOOT_REPORT_X;
+    const int64_t prompt_y = button.y + (button.h - RV_PCBOOT_CELL) / 2;
+    const rv_pcboot_rect lines_area = { text_x, body.y, body.x + body.w - text_x, prompt_y - RV_PCBOOT_REPORT_GAP - body.y };
+    int64_t line_y = body.y;
+    for (const report_line &line : report_lines(journal, lines_area.w)) {
+        const int64_t x = text_x + line.indent;
+        if (!text_fits(lines_area, x, line_y, line.text)) {
+            break;
+        }
+        draw_text(target, x, line_y, line.text, RV_PCBOOT_BLACK);
+        line_y += RV_PCBOOT_LINE_PITCH;
+    }
+
+    // Continue prompt centred on the window, in the button's band.
+    const std::string_view prompt = rv_pctext(RV_PCBOOT_CONTINUE_ID);
+    const int64_t prompt_x = window.x + (window.w - rv_pchost_text_ink_width(prompt, RV_PCBOOT_TEXT_SCALE)) / 2;
+    if (text_fits(body, prompt_x, prompt_y, prompt)) {
+        draw_text(target, prompt_x, prompt_y, prompt, RV_PCBOOT_BLACK);
     }
     return RV_OK;
 }
