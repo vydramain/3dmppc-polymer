@@ -251,6 +251,7 @@ public:
     rv_pcwindow &window() override;
     rv_pcgamepads &gamepads() override;
     rv_pcaudio_sink &audio() override;
+    uint32_t refused() const override;
 
     // Declared first: destroyed last, after window_/gamepads_/audio_ below
     // have already torn down every SDL handle they own.
@@ -266,6 +267,8 @@ public:
     bool video_up_ = false;
     bool gamepad_up_ = false;
     bool audio_up_ = false;
+    // rv_pcplatform_refusal bits; set once by make(), read by refused().
+    uint32_t refused_ = 0;
 };
 
 } // namespace rv_3dmppc

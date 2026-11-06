@@ -103,6 +103,11 @@ rv_pcaudio_sink &rv_pcplatform_sdl3::audio()
     return audio_;
 }
 
+uint32_t rv_pcplatform_sdl3::refused() const
+{
+    return refused_;
+}
+
 namespace
 {
 // Diagnostic only - nothing downstream reads the numbers, and a display that
@@ -171,6 +176,17 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
         } else if (!device_ok) {
             RV_LOG_WARN("pcplatform", "audio device failed to open: {}", SDL_GetError());
         }
+    }
+
+    // Wanted and not up: the same condition as "off" in the summary below.
+    if (wants.window && !platform->video_up_) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_VIDEO;
+    }
+    if (wants.gamepads && !platform->gamepad_up_) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_GAMEPADS;
+    }
+    if (wants.audio && !platform->audio_up_) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_AUDIO;
     }
 
     RV_LOG_INFO("pcplatform",

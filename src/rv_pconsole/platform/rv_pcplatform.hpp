@@ -244,6 +244,14 @@ protected:
     rv_pcaudio_sink() = default;
 };
 
+// Bits of rv_pcplatform::refused(): one per platform service (video, gamepads,
+// audio), set when that service was wanted and refused to come up.
+enum rv_pcplatform_refusal : uint32_t {
+    RV_PCPLATFORM_REFUSED_VIDEO = 0x1,
+    RV_PCPLATFORM_REFUSED_GAMEPADS = 0x2,
+    RV_PCPLATFORM_REFUSED_AUDIO = 0x4,
+};
+
 class rv_pcplatform
 {
 public:
@@ -269,6 +277,14 @@ public:
     bool quit_requested()
     {
         return rv_pcsignals_quit_requested() || window().close_requested();
+    }
+
+    // The services the run wanted that refused to come up, as rv_pcplatform_refusal
+    // bits. For the boot journal only: nothing branches its behaviour on it. A
+    // service not wanted is never refused.
+    virtual uint32_t refused() const
+    {
+        return 0;
     }
 
 protected:
