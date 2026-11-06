@@ -25,6 +25,7 @@
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 #include "rv_pconsole/rv_pcslots.hpp"
+#include "rv_pconsole/rv_pctexts.hpp"
 
 // The built-in disc never goes through dlopen, so it has no entry points - but
 // it needs the same rv_de table of hooks as any other. The macro expands the
@@ -176,6 +177,12 @@ int rv_pboot_run(int argc, char **argv)
     int exit_code = 0;
     if (rv_pboot_preflight(argc, argv, args, slots, machine, exit_code) != RV_OK) {
         return exit_code;
+    }
+
+    // Every screen text comes from this table, so it loads before anything is drawn.
+    if (rv_pctexts_load() != RV_OK) {
+        rv_console_print_error("refusing to boot: the UI texts did not load");
+        return 1;
     }
 
     // The loader's teardown runs disc_shutdown(), a hook allowed to touch
