@@ -15,6 +15,7 @@
 
 #include "imgui.h"
 
+#include "build/rv_editor_setup_progress.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -36,6 +37,11 @@ constexpr const char *file_uri_prefix = "file://";
 constexpr const char *uri_hex_digits = "0123456789ABCDEF";
 constexpr unsigned hex_digit_bits = 4;
 constexpr unsigned hex_digit_mask = 0x0F;
+
+// The full bar in permille: the ProgressBar fraction is permille / permille_scale.
+constexpr float permille_scale = 1000.0f;
+// Negative width: the bar fills the row up to the right edge, minus one pixel.
+constexpr float bar_width = -1.0f;
 
 // Text keys of the kinds, in rv_editor_export_kind order.
 constexpr std::array kind_keys = { "pane_export.kind_disc", "pane_export.kind_player", "pane_export.kind_web" };
@@ -101,6 +107,41 @@ std::string rv_editor_export_state_line(const rv_editor_export &exporter, rv_edi
     default:
         return rv_editor_text("pane_export.state_idle");
     }
+}
+
+// The text on the bar: "<file>: <pct>%" or "<file>: size unknown"; the bare text when the line named no file.
+std::string rv_editor_export_setup_overlay(const rv_editor_setup_progress &progress)
+{
+    const bool named = !progress.file.empty();
+    switch (progress.part) {
+    case rv_editor_setup_part::share:
+        return named ?
+            rv_editor_text_format("pane_export.setup_share_file", std::make_format_args(progress.file, progress.percent)) :
+            rv_editor_text_format("pane_export.setup_share", std::make_format_args(progress.percent));
+    case rv_editor_setup_part::size_unknown:
+        return named ? rv_editor_text_format("pane_export.setup_size_unknown_file", std::make_format_args(progress.file)) :
+                       std::string(rv_editor_text("pane_export.setup_size_unknown"));
+    default:
+        return {};
+    }
+}
+
+// The step line, then the bar filled by the overall share; an unknown size adds no fill and no percent.
+void rv_editor_export_setup_progress_draw(const rv_editor_setup_progress &progress, const rv_editor_theme &theme)
+{
+    const std::string step =
+        rv_editor_text_format("pane_export.setup_step", std::make_format_args(progress.step, progress.total, progress.label));
+    rv_editor_label(step.c_str(), rv_editor_label_kind::normal, theme);
+    const float fraction = static_cast<float>(rv_editor_setup_permille(progress)) / permille_scale;
+    const std::string overlay = rv_editor_export_setup_overlay(progress);
+    // An empty overlay draws no text; nullptr would make ImGui print the fraction as a percent.
+    ImGui::ProgressBar(fraction, ImVec2(bar_width, 0.0f), overlay.c_str());
+}
+
+// The bar is drawn only while the setup runs; after it ends the state line and the lamp show the result.
+bool rv_editor_export_setup_bar_due(const rv_editor_export &exporter, const rv_editor_export_form &form)
+{
+    return exporter.busy() && form.op == rv_editor_export_op::setup && exporter.setup_progress().total > 0;
 }
 
 // The failure reason under a failed state line: the burner's last stderr line, or the exit text when it printed none.
@@ -298,6 +339,9 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
     }
     if (!form.error.empty()) {
         rv_editor_label(form.error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
+    }
+    if (rv_editor_export_setup_bar_due(exporter, form)) {
+        rv_editor_export_setup_progress_draw(exporter.setup_progress(), theme);
     }
     const std::string line = rv_editor_export_state_line(exporter, form.op);
     rv_editor_status(line.c_str(), rv_editor_export_lamp(exporter.state()), theme);

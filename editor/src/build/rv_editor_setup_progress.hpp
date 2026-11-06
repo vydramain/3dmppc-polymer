@@ -19,6 +19,7 @@ struct rv_editor_setup_progress {
     std::string label; // the step's label as printed, e.g. "install"
     rv_editor_setup_part part = rv_editor_setup_part::none;
     int percent = 0; // 0-100, valid for part == share
+    std::string file; // the file the share or size_unknown line named; empty when it named none
 };
 
 // True when the line is a ladder line, which updates `progress`. Any other line (log text, a malformed

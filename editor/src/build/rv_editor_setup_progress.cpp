@@ -99,10 +99,12 @@ bool split_ladder(std::string_view line, ladder_line &out)
 // Reads the in-step part from the detail's tail. A tail counts only by its full shape: ": size unknown",
 // ": <pct>%" or ": <pct>% of <size>" at the end. Any other detail is plain text: part stays none.
 // A detail with the ": <token>%" shape whose token is not a number 0-100 is rejected (false).
-bool read_part(std::string_view detail, rv_editor_setup_part &part, int &percent)
+// `file` gets the name before the tail; it stays empty when the tail has no name.
+bool read_part(std::string_view detail, rv_editor_setup_part &part, int &percent, std::string_view &file)
 {
     if (detail.ends_with(size_unknown_tail)) {
         part = rv_editor_setup_part::size_unknown;
+        file = detail.substr(0, detail.size() - size_unknown_tail.size());
         return true;
     }
     const std::size_t mark = detail.rfind(percent_sign);
@@ -127,6 +129,7 @@ bool read_part(std::string_view detail, rv_editor_setup_part &part, int &percent
         return false;
     }
     part = rv_editor_setup_part::share;
+    file = head.substr(0, name_at);
     return true;
 }
 
@@ -143,7 +146,8 @@ bool rv_editor_setup_feed(const std::string &line, rv_editor_setup_progress &pro
     }
     rv_editor_setup_part part = rv_editor_setup_part::none;
     int percent = 0;
-    if (!read_part(parsed.detail, part, percent)) {
+    std::string_view file;
+    if (!read_part(parsed.detail, part, percent, file)) {
         return false;
     }
     progress.step = parsed.step;
@@ -151,6 +155,7 @@ bool rv_editor_setup_feed(const std::string &line, rv_editor_setup_progress &pro
     progress.label = std::string(parsed.label);
     progress.part = part;
     progress.percent = percent;
+    progress.file = std::string(file);
     return true;
 }
 
