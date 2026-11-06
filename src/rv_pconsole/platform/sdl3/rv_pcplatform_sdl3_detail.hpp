@@ -133,6 +133,9 @@ public:
     int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) override;
     uint32_t consume_button_presses() override;
 
+    // Since the platform was made, some pad refused its motion sensors.
+    bool motion_refused() const;
+
     ~rv_pcgamepads_sdl3() override;
 
     // --- what pump() drives ---
@@ -166,6 +169,7 @@ private:
     std::vector<uint32_t> connected_;
     uint64_t generation_ = 0;
     uint32_t button_presses_ = 0;
+    bool motion_refused_ = false;
     rv_istate empty_state_{};
 };
 

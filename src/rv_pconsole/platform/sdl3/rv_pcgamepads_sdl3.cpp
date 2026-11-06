@@ -240,7 +240,11 @@ void rv_pcgamepads_sdl3::add(uint32_t joystick_id)
     }
     pad_abilities |= rv_pcgamepads_sdl3_trackpad_abilities(pad);
 
-    const bool motion = has_motion_sensors(pad) && enable_motion_sensors(pad) == RV_OK;
+    const bool has_sensors = has_motion_sensors(pad);
+    const bool motion = has_sensors && enable_motion_sensors(pad) == RV_OK;
+    if (has_sensors && !motion) {
+        motion_refused_ = true;
+    }
     if (motion) {
         pad_abilities |= RV_ISOURCE_GYRO_MOVE | RV_ISOURCE_GYRO_PITCH | RV_ISOURCE_GYRO_YAW | RV_ISOURCE_GYRO_ROLL;
     }
@@ -456,6 +460,11 @@ uint32_t rv_pcgamepads_sdl3::consume_button_presses()
     const uint32_t presses = button_presses_;
     button_presses_ = 0;
     return presses;
+}
+
+bool rv_pcgamepads_sdl3::motion_refused() const
+{
+    return motion_refused_;
 }
 
 int64_t rv_pcgamepads_sdl3::rumble(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms)
