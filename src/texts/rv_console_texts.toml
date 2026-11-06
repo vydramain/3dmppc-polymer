@@ -1,0 +1,13 @@
+# Console UI texts embedded at build time. Text IDs in code are "section.key".
+# A translation is an edit of this file and a rebuild.
+
+[boot]
+title = "3dmppc"
+starting = "Starting up the system..."
+maintenance = "Stop for Maintenance"
+continue = "Press any button to continue"
+all_ok = "All components started without problems."
+level_ok = "ok"
+level_warning = "warning"
+found = "Found"
+recommend = "Recommended"

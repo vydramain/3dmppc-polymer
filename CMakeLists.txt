@@ -300,6 +300,7 @@ else()
     ${3DMPPC_PDK_CDEF_SOURCES}
   )
 endif()
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_console_texts.cmake)
 
 # A disc looks the contract's functions up in the executable through dlsym, and
 # the LuaJIT FFI will look for them in the same place. Without ENABLE_EXPORTS
