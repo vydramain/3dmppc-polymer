@@ -26,7 +26,29 @@ endif()
 find_package(SDL3 QUIET)
 if(SDL3_FOUND)
   message(STATUS "SDL3 ${SDL3_VERSION} found in ${SDL3_DIR} and used")
+  # The version check reads the found SDL3's SDL_version.h from its headers target.
+  if(NOT TARGET SDL3::Headers)
+    message(WARNING "check-sdl3-version is not available: the found SDL3 has no SDL3::Headers target")
+  else()
+    get_target_property(RV_SDL3_INCLUDE_DIRS SDL3::Headers INTERFACE_INCLUDE_DIRECTORIES)
+    if(NOT RV_SDL3_INCLUDE_DIRS)
+      message(WARNING "check-sdl3-version is not available: SDL3::Headers has no INTERFACE_INCLUDE_DIRECTORIES")
+    else()
+      list(GET RV_SDL3_INCLUDE_DIRS 0 RV_SDL3_INCLUDE_DIR)
+      # Run it with: cmake --build <build-dir> --target check-sdl3-version
+      # See cmake/rv_sdl3_check.cmake for the rule.
+      add_custom_target(check-sdl3-version
+        COMMAND ${CMAKE_COMMAND}
+                "-DRV_SDL3_VERSION=${RV_SDL3_VERSION}"
+                "-DRV_SDL3_HEADER=${RV_SDL3_INCLUDE_DIR}/SDL3/SDL_version.h"
+                -P "${CMAKE_CURRENT_LIST_DIR}/rv_sdl3_check.cmake"
+        COMMENT "Checking the SDL3 version against RV_SDL3_VERSION"
+        VERBATIM
+      )
+    endif()
+  endif()
 else()
+  # The fetched source is pinned by the archive hash, so there is no version check target.
   message(STATUS "SDL3 is not installed for this build: building it statically with the project, source ${RV_SDL3_SOURCE_NOTE}")
   set(SDL_STATIC ON CACHE BOOL "" FORCE)
   set(SDL_SHARED OFF CACHE BOOL "" FORCE)
