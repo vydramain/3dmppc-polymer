@@ -56,6 +56,10 @@ else()
   set(SDL_STATIC ON CACHE BOOL "" FORCE)
   set(SDL_SHARED OFF CACHE BOOL "" FORCE)
   set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+  # Emscripten has no libusb: a host libusb must not be found and linked into the browser build.
+  if(EMSCRIPTEN)
+    set(SDL_HIDAPI_LIBUSB OFF CACHE BOOL "" FORCE)
+  endif()
   # The patch step lays the SDL patch set on the source. The hash of the set and of its script is in the command, so a
   # change of the set runs the step again. Adding or removing a set file reconfigures at the next build (CONFIGURE_DEPENDS).
   set(RV_SDL3_PATCH_DIR ${CMAKE_CURRENT_LIST_DIR}/sdl3/${RV_SDL3_TAG})
