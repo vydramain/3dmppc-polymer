@@ -53,6 +53,7 @@ constexpr std::string_view kKeyLibs = "libs";
 constexpr std::string_view kKeyLinkGroup = "link_group";
 constexpr std::string_view kKeyLinkFlags = "link_flags";
 constexpr std::string_view kKeyPreJs = "pre_js";
+constexpr std::string_view kKeyJsLibrary = "js_library";
 constexpr std::string_view kKeyShell = "shell";
 constexpr std::string_view kKeyLicenses = "licenses";
 
@@ -207,6 +208,11 @@ int apply_pre_js(rv_pdktools::rv_burner_kit &kit, const std::string &value, std:
     return resolve_kit_file(kit.dir, value, kKeyPreJs, kit.pre_js, error);
 }
 
+int apply_js_library(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
+{
+    return resolve_kit_file(kit.dir, value, kKeyJsLibrary, kit.js_library, error);
+}
+
 int apply_shell(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
 {
     return resolve_kit_file(kit.dir, value, kKeyShell, kit.shell, error);
@@ -225,6 +231,7 @@ constexpr std::array kKitFields{
     kit_field{ kKeyLinkGroup, apply_link_group },
     kit_field{ kKeyLinkFlags, apply_link_flags },
     kit_field{ kKeyPreJs, apply_pre_js },
+    kit_field{ kKeyJsLibrary, apply_js_library },
     kit_field{ kKeyShell, apply_shell },
     kit_field{ kKeyLicenses, apply_licenses },
 };

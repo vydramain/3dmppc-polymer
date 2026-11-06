@@ -13,6 +13,9 @@ set(RV_SDL3_URL https://github.com/libsdl-org/SDL/releases/download/${RV_SDL3_TA
 # SHA256 of that archive's content: the fetch fails if the release changes.
 set(RV_SDL3_SHA256 9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3)
 
+# The WebHID bridge of SDL's hidapi for the browser: an Emscripten --js-library.
+set(RV_WEB_JS_LIBRARY ${CMAKE_CURRENT_LIST_DIR}/sdl3/rv_webhid.js)
+
 # A nested build gets the parent's SDL3 source if the parent has one (sdl3_SOURCE_DIR).
 if(FETCHCONTENT_SOURCE_DIR_SDL3)
   set(RV_SDL3_SOURCE_NOTE "given by FETCHCONTENT_SOURCE_DIR_SDL3 at ${FETCHCONTENT_SOURCE_DIR_SDL3}, not downloaded")

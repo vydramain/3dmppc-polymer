@@ -30,6 +30,8 @@ struct rv_burner_kit {
     std::vector<std::string> link_flags;
     /// The --pre-js file.
     std::filesystem::path pre_js;
+    /// The --js-library file.
+    std::filesystem::path js_library;
     /// The HTML page shell of the disc's index.html.
     std::filesystem::path shell;
     /// License files of the third-party parts the kit ships.

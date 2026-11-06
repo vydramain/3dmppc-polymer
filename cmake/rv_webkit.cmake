@@ -29,6 +29,8 @@ install(TARGETS 3dmppc rv_dmain 3dmppc_platform_sdl3 3dmppc_pdklib ARCHIVE DESTI
 install(FILES $<TARGET_FILE:SDL3::SDL3> DESTINATION lib)
 install(FILES ${RV_WEB_PRE_JS} DESTINATION .)
 get_filename_component(RV_KIT_PRE_JS_NAME ${RV_WEB_PRE_JS} NAME)
+install(FILES ${RV_WEB_JS_LIBRARY} DESTINATION .)
+get_filename_component(RV_KIT_JS_LIBRARY_NAME ${RV_WEB_JS_LIBRARY} NAME)
 set(RV_WEB_SHELL ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_shell.html)
 install(FILES ${RV_WEB_SHELL} DESTINATION .)
 get_filename_component(RV_KIT_SHELL_NAME ${RV_WEB_SHELL} NAME)
@@ -52,6 +54,7 @@ file(GENERATE
 #   disc must come after the console and before pdklib.
 # link_flags: emcc flags of the console's link line, separated by spaces.
 # pre_js: the --pre-js file of the console's link line.
+# js_library: the --js-library file of the console's link line.
 # shell: the HTML page shell of the disc's index.html.
 # licenses: license files of the third-party parts the kit ships, separated by spaces.
 pdk_version = ${RV_MPPC_VER_MAJOR}.${RV_MPPC_VER_MINOR}
@@ -60,6 +63,7 @@ libs = lib/$<TARGET_FILE_NAME:3dmppc> lib/$<TARGET_FILE_NAME:rv_dmain> lib/$<TAR
 link_group = yes
 link_flags = ${RV_KIT_LINK_FLAGS}
 pre_js = ${RV_KIT_PRE_JS_NAME}
+js_library = ${RV_KIT_JS_LIBRARY_NAME}
 shell = ${RV_KIT_SHELL_NAME}
 licenses = ${RV_KIT_LICENSES_DIR}/${RV_KIT_SDL3_LICENSE_NAME}
 "

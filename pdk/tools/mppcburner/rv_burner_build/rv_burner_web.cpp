@@ -31,6 +31,7 @@ static constexpr const char *k_opt_level = "-O3";                 // speed: the 
 static constexpr const char *k_group_begin = "-Wl,--start-group"; // libs and archive resolve each other in any order
 static constexpr const char *k_group_end = "-Wl,--end-group";
 static constexpr const char *k_pre_js_flag = "--pre-js";
+static constexpr const char *k_js_library_flag = "--js-library";
 static constexpr const char *k_shell_flag = "--shell-file";     // the page shell the kit names
 static constexpr const char *k_single_file = "-sSINGLE_FILE=1"; // one html carries the code and the disc
 static constexpr const char *k_embed_flag = "--embed-file";
@@ -230,6 +231,8 @@ link_web_page(const rv_burner_finish_input &input, const rv_burner_kit &kit, con
     }
     words.push_back(k_pre_js_flag);
     words.push_back(shell_quote(kit.pre_js.string()));
+    words.push_back(k_js_library_flag);
+    words.push_back(shell_quote(kit.js_library.string()));
     words.push_back(k_shell_flag);
     words.push_back(shell_quote(kit.shell.string()));
     words.push_back(k_single_file);
