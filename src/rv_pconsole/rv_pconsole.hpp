@@ -256,6 +256,19 @@ private:
     // Holds no loop and no pacing: the caller decides when the next iteration runs and what waits between.
     step_result frame_step(rv_de *disc, run_state &run);
 
+    // The start screen's phase and clock between begin and the last step. Members, not
+    // locals: the caller's loop calls the step once per pass.
+    enum class boot_screen_phase {
+        starting,
+        report
+    };
+    boot_screen_phase boot_phase_ = boot_screen_phase::starting;
+    std::chrono::steady_clock::time_point boot_started_{};
+    std::vector<uint32_t> boot_picture_;
+
+    // Composes the current phase's view into boot_picture_ and presents it. RV_OK, or the build's rc.
+    int boot_screen_show();
+
     // Every one of these is a SLOT: rv_pconsole_cmd_devtools.cpp in a development build,
     // rv_pconsole_cmd_standard.cpp in a player build, chosen in CMakeLists.txt.
     // The frame loop calls them unconditionally so there is one loop and not
@@ -325,6 +338,17 @@ public:
 
     // Each controller in the order it was made: ok, or a warning with the texts that say why.
     const rv_pcboot_journal &boot_journal() const;
+
+    // The start screen, driven by the caller's loop. Begin opens the window and shows the first
+    // view; false means no screen to wait on (embedded, no window wanted, or it did not come up).
+    // Step is one pass; quit means the operator stopped the machine.
+    enum class boot_screen_result {
+        running,
+        done,
+        quit
+    };
+    bool boot_screen_begin();
+    boot_screen_result boot_screen_step();
 };
 
 } // namespace rv_3dmppc
