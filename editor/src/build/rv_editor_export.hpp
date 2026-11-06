@@ -6,6 +6,7 @@
 
 #include "build/rv_editor_build.hpp"
 #include "build/rv_editor_job.hpp"
+#include "build/rv_editor_setup_progress.hpp"
 #include "log/rv_editor_log.hpp"
 #include "project/rv_editor_project.hpp"
 
@@ -63,6 +64,11 @@ public:
     {
         return failure_reason_;
     }
+    // The web setup's ladder position from its last stderr line; step 0 (default) for an export or before any ladder line.
+    const rv_editor_setup_progress &setup_progress() const
+    {
+        return setup_progress_;
+    }
 
 private:
     rv_editor_job job_;
@@ -71,6 +77,9 @@ private:
     std::string failure_reason_;
     // The started operation's name in the log: "export" or "web setup".
     std::string label_;
+    // True while the started job is the web setup; only its stderr is read as the ladder.
+    bool setup_job_ = false;
+    rv_editor_setup_progress setup_progress_;
     uint32_t runs_ = 0;
 };
 
