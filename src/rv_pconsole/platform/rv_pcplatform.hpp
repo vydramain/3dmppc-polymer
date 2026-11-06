@@ -244,15 +244,18 @@ protected:
     rv_pcaudio_sink() = default;
 };
 
-// Bits of rv_pcplatform::refused(): one per platform service (video, gamepads,
-// audio), set when that service was wanted and refused to come up. PAD_MOTION
-// is not a service: a pad present when the platform was made refused its motion
-// sensors, and the gamepads service itself came up.
+// Bits of rv_pcplatform::refused(). VIDEO, GAMEPADS and AUDIO are services: set
+// when wanted and refused to come up. PAD_MOTION, WEBHID and SAVE_LOAD are not
+// services. PAD_MOTION: a pad present at make() refused its motion sensors.
+// WEBHID and SAVE_LOAD are browser facts, set only by the web build: no WebHID or
+// JSPI (pads use the Gamepad API only), or the browser store did not load (card not saved).
 enum rv_pcplatform_refusal : uint32_t {
     RV_PCPLATFORM_REFUSED_VIDEO = 0x1,
     RV_PCPLATFORM_REFUSED_GAMEPADS = 0x2,
     RV_PCPLATFORM_REFUSED_AUDIO = 0x4,
     RV_PCPLATFORM_REFUSED_PAD_MOTION = 0x8,
+    RV_PCPLATFORM_REFUSED_WEBHID = 0x10,
+    RV_PCPLATFORM_REFUSED_SAVE_LOAD = 0x20,
 };
 
 class rv_pcplatform

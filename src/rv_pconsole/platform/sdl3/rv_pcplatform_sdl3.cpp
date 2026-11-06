@@ -10,6 +10,10 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 namespace rv_3dmppc
 {
 
@@ -125,6 +129,19 @@ void log_display_bounds()
     }
     RV_LOG_WARN("pcplatform", "SDL_GetDisplayBounds failed: {}", SDL_GetError());
 }
+
+#ifdef __EMSCRIPTEN__
+// Page facts set on Module before main() by src/web/rv_web_pre.js; undefined reads as false.
+bool page_webhid_usable()
+{
+    return EM_ASM_INT({ return Module.rvWebhidUsable ? 1 : 0; });
+}
+
+bool page_save_load_failed()
+{
+    return EM_ASM_INT({ return Module.rvSaveLoadFailed ? 1 : 0; });
+}
+#endif
 } // namespace
 
 std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants &wants)
@@ -193,6 +210,20 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
     if (pad_motion_refused) {
         platform->refused_ |= RV_PCPLATFORM_REFUSED_PAD_MOTION;
     }
+
+#ifdef __EMSCRIPTEN__
+    // Browser facts: a missing WebHID or JSPI matters only when pads were wanted.
+    const bool webhid_refused = wants.gamepads && !page_webhid_usable();
+    const bool save_load_refused = page_save_load_failed();
+    if (webhid_refused) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_WEBHID;
+        RV_LOG_WARN("pcplatform", "browser has no WebHID or JSPI: pads read through the Gamepad API only");
+    }
+    if (save_load_refused) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_SAVE_LOAD;
+        RV_LOG_WARN("pcplatform", "browser save store did not load: the memory card is not saved this session");
+    }
+#endif
 
     RV_LOG_INFO("pcplatform",
         "sdl3: window={} gamepads={} audio={}",
