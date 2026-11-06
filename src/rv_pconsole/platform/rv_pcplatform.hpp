@@ -245,11 +245,14 @@ protected:
 };
 
 // Bits of rv_pcplatform::refused(): one per platform service (video, gamepads,
-// audio), set when that service was wanted and refused to come up.
+// audio), set when that service was wanted and refused to come up. PAD_MOTION
+// is not a service: a pad present when the platform was made refused its motion
+// sensors, and the gamepads service itself came up.
 enum rv_pcplatform_refusal : uint32_t {
     RV_PCPLATFORM_REFUSED_VIDEO = 0x1,
     RV_PCPLATFORM_REFUSED_GAMEPADS = 0x2,
     RV_PCPLATFORM_REFUSED_AUDIO = 0x4,
+    RV_PCPLATFORM_REFUSED_PAD_MOTION = 0x8,
 };
 
 class rv_pcplatform

@@ -188,6 +188,11 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
     if (wants.audio && !platform->audio_up_) {
         platform->refused_ |= RV_PCPLATFORM_REFUSED_AUDIO;
     }
+    // Pads present at make() only: the enumeration above is done, later arrivals do not count.
+    const bool pad_motion_refused = wants.gamepads && platform->gamepads_.motion_refused();
+    if (pad_motion_refused) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_PAD_MOTION;
+    }
 
     RV_LOG_INFO("pcplatform",
         "sdl3: window={} gamepads={} audio={}",
