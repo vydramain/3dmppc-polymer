@@ -1,0 +1,8 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 90b368d..665e1c5 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1710,2 +1710,3 @@ elseif(EMSCRIPTEN)
+     set(HAVE_SDL_JOYSTICK TRUE)
++    CheckHIDAPI()
+   endif()
