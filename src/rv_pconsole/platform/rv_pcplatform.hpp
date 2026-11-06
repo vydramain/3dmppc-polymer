@@ -73,7 +73,9 @@ public:
 
     // Create the window for a screen_width x screen_height frame magnified by
     // `scale`. RV_OK when a window now exists or none was wanted; RV_ERR_IO
-    // when one was wanted and could not be made.
+    // when one was wanted and could not be made. A second call keeps the
+    // window: same geometry only sets the title, another geometry is
+    // RV_ERR_INVAL and changes nothing.
     virtual int64_t open(const char *title, int64_t screen_width, int64_t screen_height, uint64_t scale) = 0;
 
     // True while present() reaches a surface.

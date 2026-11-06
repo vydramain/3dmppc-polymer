@@ -79,6 +79,7 @@ private:
     SDL_Texture *texture_ = nullptr;
     int64_t screen_width_ = 0;
     int64_t screen_height_ = 0;
+    uint64_t scale_ = 0;
     bool close_requested_ = false;
     rv_istate keyboard_state_{};
     float mouse_dx_ = 0.0f;
