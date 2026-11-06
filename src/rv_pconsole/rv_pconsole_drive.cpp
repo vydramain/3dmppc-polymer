@@ -18,6 +18,10 @@ namespace
 // that a paused console is not a core running flat out.
 constexpr auto RV_PCONSOLE_PAUSE_SLICE = std::chrono::milliseconds(2);
 
+// One frame at 60 Hz: a key or button is answered within a frame, and a screen redrawn
+// every pass does not keep a core busy.
+constexpr auto RV_PCONSOLE_BOOT_SCREEN_SLICE = std::chrono::milliseconds(16);
+
 } // namespace
 
 int64_t rv_pconsole::disc_run(rv_de *disc)
@@ -62,6 +66,25 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
         return RV_ERR_IO;
     }
     return RV_OK;
+}
+
+int64_t rv_pconsole::boot_screen_run(const std::function<int64_t()> &rest)
+{
+    if (!boot_screen_begin()) {
+        return rest();
+    }
+
+    for (;;) {
+        switch (boot_screen_step()) {
+        case boot_screen_result::running:
+            std::this_thread::sleep_for(RV_PCONSOLE_BOOT_SCREEN_SLICE);
+            break;
+        case boot_screen_result::quit:
+            return RV_OK;
+        case boot_screen_result::done:
+            return rest();
+        }
+    }
 }
 
 } // namespace rv_3dmppc

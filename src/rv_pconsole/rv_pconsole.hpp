@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -349,6 +350,9 @@ public:
     };
     bool boot_screen_begin();
     boot_screen_result boot_screen_step();
+    // Runs the start screen to its end, then returns rest()'s result. Quit returns RV_OK without
+    // calling rest. No screen to wait on: rest runs at once.
+    int64_t boot_screen_run(const std::function<int64_t()> &rest);
 };
 
 } // namespace rv_3dmppc

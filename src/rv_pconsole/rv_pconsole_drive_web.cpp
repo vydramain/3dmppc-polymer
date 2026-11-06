@@ -89,4 +89,10 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
     return RV_OK;
 }
 
+// The web stage arrives with B6b on its own loop; until then the rest runs at once.
+int64_t rv_pconsole::boot_screen_run(const std::function<int64_t()> &rest)
+{
+    return rest();
+}
+
 } // namespace rv_3dmppc
