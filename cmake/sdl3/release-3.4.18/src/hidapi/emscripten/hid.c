@@ -1,7 +1,17 @@
-/* HIDAPI backend for the browser build: no devices, every open fails.
-   Until WebHID replaces this file, SDL in the browser sees no HID devices through it. */
+/* HIDAPI backend for the browser build: the devices are the open WebHID devices of rv_webhid.js.
+   Opening is not implemented yet, so every open fails. */
 
 #include "../hidapi/hidapi.h"
+
+// "webhid:" + up to 10 digits of id + NUL
+#define WEBHID_PATH_BYTES 32
+// rv_webhid_product_name writes at most len-1 bytes of UTF-8 and a NUL
+#define WEBHID_NAME_BYTES 256
+
+int rv_webhid_count(void);
+int rv_webhid_id(int index);
+int rv_webhid_info(int id, int *vendor, int *product, int *usage_page, int *usage);
+int rv_webhid_product_name(int id, char *buf, int len);
 
 int hid_init(void)
 {
@@ -13,18 +23,97 @@ int hid_exit(void)
     return 0;
 }
 
+/* UTF-8 product name as wchar_t, the form SDL converts back; NULL if it cannot be read or converted. */
+static wchar_t *webhid_product_string(int id)
+{
+    char utf8[WEBHID_NAME_BYTES];
+    int len = rv_webhid_product_name(id, utf8, sizeof(utf8));
+    wchar_t *name;
+
+    if (len < 0) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_INPUT, "WebHID: no product name for device %d", id);
+        return NULL;
+    }
+    name = (wchar_t *)SDL_iconv_string("WCHAR_T", "UTF-8", utf8, (size_t)len);
+    if (!name) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_INPUT, "WebHID: product name of device %d cannot be converted", id);
+    }
+    return name;
+}
+
+/* Path is "webhid:<id>", the id from rv_webhid_id; opening by that id is not implemented yet. */
+static struct hid_device_info *webhid_make_info(int id, int vendor, int product, int usage_page, int usage)
+{
+    char path[WEBHID_PATH_BYTES];
+    struct hid_device_info *info = (struct hid_device_info *)SDL_calloc(1, sizeof(*info));
+
+    if (!info) {
+        return NULL;
+    }
+    SDL_snprintf(path, sizeof(path), "webhid:%d", id);
+    info->path = SDL_strdup(path);
+    info->vendor_id = (unsigned short)vendor;
+    info->product_id = (unsigned short)product;
+    info->product_string = webhid_product_string(id);
+    info->usage_page = (unsigned short)usage_page;
+    info->usage = (unsigned short)usage;
+    // WebHID gives no serial, manufacturer, release number, USB interface or bus.
+    info->interface_number = -1;
+    info->bus_type = HID_API_BUS_UNKNOWN;
+    if (!info->path) {
+        hid_free_enumeration(info);
+        return NULL;
+    }
+    return info;
+}
+
 struct hid_device_info *hid_enumerate(unsigned short vendor_id, unsigned short product_id)
 {
-    (void)vendor_id;
-    (void)product_id;
-    return NULL;
+    struct hid_device_info *head = NULL;
+    struct hid_device_info **tail = &head;
+    int count = rv_webhid_count();
+
+    for (int i = 0; i < count; i++) {
+        int id = rv_webhid_id(i);
+        int vendor = 0;
+        int product = 0;
+        int usage_page = 0;
+        int usage = 0;
+        struct hid_device_info *info;
+
+        if (id < 0 || rv_webhid_info(id, &vendor, &product, &usage_page, &usage) < 0) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_INPUT, "WebHID: cannot read device at index %d", i);
+            continue;
+        }
+        if ((vendor_id && vendor != vendor_id) || (product_id && product != product_id)) {
+            continue;
+        }
+        info = webhid_make_info(id, vendor, product, usage_page, usage);
+        if (!info) {
+            SDL_LogError(SDL_LOG_CATEGORY_INPUT, "WebHID: out of memory for device %d, skipped", id);
+            continue;
+        }
+        *tail = info;
+        tail = &info->next;
+    }
+    return head;
 }
 
 void hid_free_enumeration(struct hid_device_info *devs)
 {
-    (void)devs;
+    while (devs) {
+        struct hid_device_info *next = devs->next;
+
+        SDL_free(devs->path);
+        SDL_free(devs->serial_number);
+        SDL_free(devs->manufacturer_string);
+        SDL_free(devs->product_string);
+        SDL_free(devs);
+        devs = next;
+    }
 }
 
+// Opening is not implemented yet.
 hid_device *hid_open(unsigned short vendor_id, unsigned short product_id, const wchar_t *serial_number)
 {
     (void)vendor_id;
@@ -33,6 +122,7 @@ hid_device *hid_open(unsigned short vendor_id, unsigned short product_id, const 
     return NULL;
 }
 
+// Opening is not implemented yet.
 hid_device *hid_open_path(const char *path)
 {
     (void)path;
@@ -150,7 +240,7 @@ int hid_get_report_descriptor(hid_device *dev, unsigned char *buf, size_t buf_si
 const wchar_t *hid_error(hid_device *dev)
 {
     (void)dev;
-    return L"no HID backend in this browser build";
+    return L"opening HID devices is not implemented in the browser build yet";
 }
 
 const struct hid_api_version *hid_version(void)
