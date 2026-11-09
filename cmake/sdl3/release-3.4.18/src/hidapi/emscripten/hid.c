@@ -1,6 +1,6 @@
-/* HIDAPI backend for the browser build: the devices are the open WebHID devices of rv_webhid.js.
-   Open, close, product string, device info, reads, writes, feature reports work; waiting reads and feature calls use JSPI.
-   Manufacturer, serial and indexed strings, report descriptor and input report requests fail. */
+/* HIDAPI backend for the browser build over the open WebHID devices of rv_webhid.js; waiting reads and feature calls use JSPI.
+   Open, close, product string, device info, reads, writes and feature reports work; the rest fail with a reason.
+   WebHID gives no bus: a known pad of rv_webhid.js in its Bluetooth mode is Bluetooth, every other device is unknown. */
 
 #include "../hidapi/hidapi.h"
 
@@ -17,7 +17,8 @@
 
 int rv_webhid_count(void);
 int rv_webhid_id(int index);
-int rv_webhid_info(int id, int *vendor, int *product, int *usage_page, int *usage);
+// bluetooth is 1 for a known pad in its Bluetooth mode, else 0.
+int rv_webhid_info(int id, int *vendor, int *product, int *usage_page, int *usage, int *bluetooth);
 int rv_webhid_product_name(int id, char *buf, int len);
 // The _timeout, get and send calls are async: they suspend wasm through JSPI.
 int rv_webhid_read(int id, unsigned char *buf, int len);
@@ -64,7 +65,7 @@ static wchar_t *webhid_product_string(int id)
 }
 
 /* Path is "webhid:<id>"; webhid_path_id reads the id back. */
-static struct hid_device_info *webhid_make_info(int id, int vendor, int product, int usage_page, int usage)
+static struct hid_device_info *webhid_make_info(int id, int vendor, int product, int usage_page, int usage, int bluetooth)
 {
     char path[WEBHID_PATH_BYTES];
     struct hid_device_info *info = (struct hid_device_info *)SDL_calloc(1, sizeof(*info));
@@ -79,9 +80,9 @@ static struct hid_device_info *webhid_make_info(int id, int vendor, int product,
     info->product_string = webhid_product_string(id);
     info->usage_page = (unsigned short)usage_page;
     info->usage = (unsigned short)usage;
-    // WebHID gives no serial, manufacturer, release number, USB interface or bus.
+    // WebHID gives no serial, manufacturer, release number or USB interface; the bus is known only for Bluetooth pads.
     info->interface_number = -1;
-    info->bus_type = HID_API_BUS_UNKNOWN;
+    info->bus_type = bluetooth ? HID_API_BUS_BLUETOOTH : HID_API_BUS_UNKNOWN;
     if (!info->path) {
         hid_free_enumeration(info);
         return NULL;
@@ -121,14 +122,15 @@ static hid_device *webhid_open_id(int id)
     int product = 0;
     int usage_page = 0;
     int usage = 0;
+    int bluetooth = 0;
     struct hid_device_info *info;
     hid_device *dev;
 
-    if (rv_webhid_info(id, &vendor, &product, &usage_page, &usage) < 0) {
+    if (rv_webhid_info(id, &vendor, &product, &usage_page, &usage, &bluetooth) < 0) {
         SDL_LogWarn(SDL_LOG_CATEGORY_INPUT, "WebHID: device %d is not open, cannot open it", id);
         return NULL;
     }
-    info = webhid_make_info(id, vendor, product, usage_page, usage);
+    info = webhid_make_info(id, vendor, product, usage_page, usage, bluetooth);
     if (!info) {
         SDL_LogError(SDL_LOG_CATEGORY_INPUT, "WebHID: out of memory opening device %d", id);
         return NULL;
@@ -156,16 +158,17 @@ struct hid_device_info *hid_enumerate(unsigned short vendor_id, unsigned short p
         int product = 0;
         int usage_page = 0;
         int usage = 0;
+        int bluetooth = 0;
         struct hid_device_info *info;
 
-        if (id < 0 || rv_webhid_info(id, &vendor, &product, &usage_page, &usage) < 0) {
+        if (id < 0 || rv_webhid_info(id, &vendor, &product, &usage_page, &usage, &bluetooth) < 0) {
             SDL_LogWarn(SDL_LOG_CATEGORY_INPUT, "WebHID: cannot read device at index %d", i);
             continue;
         }
         if ((vendor_id && vendor != vendor_id) || (product_id && product != product_id)) {
             continue;
         }
-        info = webhid_make_info(id, vendor, product, usage_page, usage);
+        info = webhid_make_info(id, vendor, product, usage_page, usage, bluetooth);
         if (!info) {
             SDL_LogError(SDL_LOG_CATEGORY_INPUT, "WebHID: out of memory for device %d, skipped", id);
             continue;

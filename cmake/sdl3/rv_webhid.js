@@ -21,6 +21,34 @@ addToLibrary({
         nextId : 1,
         changes : 0,
         find : function(id) { return rvWebhid.devices.find(function(entry) { return entry.id === id; }); },
+        // WebHID gives no bus. A pad in the table is in Bluetooth mode when the report's presence equals btIfPresent;
+        // otherwise its bus is not determined (USB is not told apart). Devices outside the table: not determined.
+        busRules : [
+            // DualSense and DualSense Edge: Bluetooth report 0x31, USB 0x02 (Linux drivers/hid/hid-playstation.c,
+            // DS_OUTPUT_REPORT_BT and DS_OUTPUT_REPORT_USB). Checked in the USB and Bluetooth descriptors of
+            // github.com/nondebug/dualsense: output 0x31 is in the Bluetooth descriptor, output 0x02 in the USB one.
+            // Medium confidence: one source; hardware check in W9.
+            {vendor : 0x054C, products : [ 0x0CE6, 0x0DF2 ], report : 0x31, btIfPresent : true},
+            // DualShock 4: Bluetooth report 0x11, USB 0x05 (hid-playstation.c, DS4_OUTPUT_REPORT_BT and
+            // DS4_OUTPUT_REPORT_USB). Low confidence: kernel constants only, descriptors not read; hardware check in W9.
+            {vendor : 0x054C, products : [ 0x05C4, 0x09CC ], report : 0x11, btIfPresent : true},
+        ],
+        // 1 when the device is a known pad in its Bluetooth mode, else 0 (the bus is not determined).
+        bluetooth : function(device) {
+            var rule = rvWebhid.busRules.find(function(
+                entry) { return entry.vendor === device.vendorId && entry.products.indexOf(device.productId) >= 0; });
+            if (!rule) {
+                return 0;
+            }
+            return rvWebhid.hasReport(device.collections, rule.report) === rule.btIfPresent ? 1 : 0;
+        },
+        // Searches every collection and its children: a numbered output report can sit in a nested one.
+        hasReport : function(collections, reportId) {
+            return collections.some(function(collection) {
+                return collection.outputReports.some(function(report) { return report.reportId === reportId; }) ||
+                       rvWebhid.hasReport(collection.children, reportId);
+            });
+        },
         // Every early exit with -1 says which C function refused and why.
         fail : function(name, id, reason) { console.warn('webhid: ' + name + '(' + id + ') ' + reason); },
         // Opens a device once; a second call gets the same attempt. The entry is added only if this
@@ -193,7 +221,7 @@ addToLibrary({
     },
 
     rv_webhid_info__deps : [ '$rvWebhid' ],
-    rv_webhid_info : function(id, vendor, product, usagePage, usage) {
+    rv_webhid_info : function(id, vendor, product, usagePage, usage, bluetooth) {
         var entry = rvWebhid.find(id);
         if (!entry) {
             rvWebhid.fail('rv_webhid_info', id, 'unknown id');
@@ -204,6 +232,7 @@ addToLibrary({
         HEAP32[product >> 2] = entry.device.productId;
         HEAP32[usagePage >> 2] = first ? first.usagePage : 0;
         HEAP32[usage >> 2] = first ? first.usage : 0;
+        HEAP32[bluetooth >> 2] = rvWebhid.bluetooth(entry.device);
         return 0;
     },
 
