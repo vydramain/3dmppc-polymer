@@ -32,8 +32,11 @@ inline constexpr const char *rv_pcslot_cd = "cd";
 inline constexpr const char *rv_pcslot_cl = "cl";
 
 // Console text ids of a controller that did not start: the found and the recommended line.
+// The short ids are for the screen, the plain ids for the log.
 inline constexpr const char *rv_pcboot_text_not_started = "boot.not_started";
 inline constexpr const char *rv_pcboot_text_see_log = "boot.see_log";
+inline constexpr const char *rv_pcboot_text_not_started_short = "boot.not_started_short";
+inline constexpr const char *rv_pcboot_text_see_log_short = "boot.see_log_short";
 
 // Text ids of a refused platform service, per rv_pcboot_refusal_rows below.
 inline constexpr const char *rv_pcboot_text_audio_found = "boot.audio_found";
@@ -49,6 +52,20 @@ inline constexpr const char *rv_pcboot_text_video_recommend = "boot.video_recomm
 inline constexpr const char *rv_pcboot_text_save_load_found = "boot.save_load_found";
 inline constexpr const char *rv_pcboot_text_save_load_recommend = "boot.save_load_recommend";
 
+// Short screen ids of the same refusals.
+inline constexpr const char *rv_pcboot_text_audio_found_short = "boot.audio_found_short";
+inline constexpr const char *rv_pcboot_text_audio_recommend_short = "boot.audio_recommend_short";
+inline constexpr const char *rv_pcboot_text_gamepads_found_short = "boot.gamepads_found_short";
+inline constexpr const char *rv_pcboot_text_gamepads_recommend_short = "boot.gamepads_recommend_short";
+inline constexpr const char *rv_pcboot_text_webhid_found_short = "boot.webhid_found_short";
+inline constexpr const char *rv_pcboot_text_webhid_recommend_short = "boot.webhid_recommend_short";
+inline constexpr const char *rv_pcboot_text_motion_found_short = "boot.motion_found_short";
+inline constexpr const char *rv_pcboot_text_motion_recommend_short = "boot.motion_recommend_short";
+inline constexpr const char *rv_pcboot_text_video_found_short = "boot.video_found_short";
+inline constexpr const char *rv_pcboot_text_video_recommend_short = "boot.video_recommend_short";
+inline constexpr const char *rv_pcboot_text_save_load_found_short = "boot.save_load_found_short";
+inline constexpr const char *rv_pcboot_text_save_load_recommend_short = "boot.save_load_recommend_short";
+
 // A row warns its slot when its refused bit is set. Rows are in report order: the first
 // matching row for a slot gives its texts. The caller passes only the bits its slot reads.
 struct rv_pcboot_refusal_row {
@@ -56,36 +73,61 @@ struct rv_pcboot_refusal_row {
     uint32_t refused_bit;
     const char *found_id;
     const char *recommend_id;
+    const char *screen_found_id;
+    const char *screen_recommend_id;
 };
 
 inline constexpr rv_pcboot_refusal_row rv_pcboot_refusal_rows[] = {
-    { rv_pcslot_ca, rv_3dmppc::RV_PCPLATFORM_REFUSED_AUDIO, rv_pcboot_text_audio_found, rv_pcboot_text_audio_recommend },
+    { rv_pcslot_ca,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_AUDIO,
+        rv_pcboot_text_audio_found,
+        rv_pcboot_text_audio_recommend,
+        rv_pcboot_text_audio_found_short,
+        rv_pcboot_text_audio_recommend_short },
     { rv_pcslot_cio,
         rv_3dmppc::RV_PCPLATFORM_REFUSED_GAMEPADS,
         rv_pcboot_text_gamepads_found,
-        rv_pcboot_text_gamepads_recommend },
-    { rv_pcslot_cio, rv_3dmppc::RV_PCPLATFORM_REFUSED_WEBHID, rv_pcboot_text_webhid_found, rv_pcboot_text_webhid_recommend },
+        rv_pcboot_text_gamepads_recommend,
+        rv_pcboot_text_gamepads_found_short,
+        rv_pcboot_text_gamepads_recommend_short },
+    { rv_pcslot_cio,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_WEBHID,
+        rv_pcboot_text_webhid_found,
+        rv_pcboot_text_webhid_recommend,
+        rv_pcboot_text_webhid_found_short,
+        rv_pcboot_text_webhid_recommend_short },
     { rv_pcslot_cio,
         rv_3dmppc::RV_PCPLATFORM_REFUSED_PAD_MOTION,
         rv_pcboot_text_motion_found,
-        rv_pcboot_text_motion_recommend },
+        rv_pcboot_text_motion_recommend,
+        rv_pcboot_text_motion_found_short,
+        rv_pcboot_text_motion_recommend_short },
     { rv_pcslot_cm,
         rv_3dmppc::RV_PCPLATFORM_REFUSED_SAVE_LOAD,
         rv_pcboot_text_save_load_found,
-        rv_pcboot_text_save_load_recommend },
-    { rv_pcslot_cv, rv_3dmppc::RV_PCPLATFORM_REFUSED_VIDEO, rv_pcboot_text_video_found, rv_pcboot_text_video_recommend },
+        rv_pcboot_text_save_load_recommend,
+        rv_pcboot_text_save_load_found_short,
+        rv_pcboot_text_save_load_recommend_short },
+    { rv_pcslot_cv,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_VIDEO,
+        rv_pcboot_text_video_found,
+        rv_pcboot_text_video_recommend,
+        rv_pcboot_text_video_found_short,
+        rv_pcboot_text_video_recommend_short },
 };
 
 // Journals a controller right after it is made. Its own constructor has already logged why it refused.
 void rv_pcboot_journal_slot(rv_3dmppc::rv_pcboot_journal &journal, const char *name, bool valid, uint32_t refused)
 {
     if (!valid) {
-        journal.add_warning(name, rv_pcboot_text_not_started, rv_pcboot_text_see_log);
+        journal.add_warning(name,
+            { rv_pcboot_text_not_started, rv_pcboot_text_see_log },
+            { rv_pcboot_text_not_started_short, rv_pcboot_text_see_log_short });
         return;
     }
     for (const auto &row : rv_pcboot_refusal_rows) {
         if (std::string_view(row.slot) == name && (refused & row.refused_bit) != 0) {
-            journal.add_warning(name, row.found_id, row.recommend_id);
+            journal.add_warning(name, { row.found_id, row.recommend_id }, { row.screen_found_id, row.screen_recommend_id });
             return;
         }
     }

@@ -32,18 +32,23 @@ inline constexpr const char *rv_pcboot_text_recommend = "boot.recommend";
 
 void rv_pcboot_journal::add_ok(std::string_view name)
 {
-    entries_.push_back({ std::string(name), rv_pcboot_level::ok, {}, {} });
+    entries_.push_back({ std::string(name), rv_pcboot_level::ok, {}, {}, {}, {} });
     const std::string &stored = entries_.back().name;
     RV_LOG_INFO(rv_pcboot_log_tag, "{}: {}", rv_pdklib::rv_log_escape(stored.c_str()), rv_pctext(rv_pcboot_text_level_ok));
 }
 
-void rv_pcboot_journal::add_warning(std::string_view name, std::string_view found_id, std::string_view recommend_id)
+void rv_pcboot_journal::add_warning(std::string_view name, const rv_pcboot_texts &log, const rv_pcboot_texts &screen)
 {
-    entries_.push_back({ std::string(name), rv_pcboot_level::warning, std::string(found_id), std::string(recommend_id) });
+    entries_.push_back({ std::string(name),
+        rv_pcboot_level::warning,
+        std::string(log.found_id),
+        std::string(log.recommend_id),
+        std::string(screen.found_id),
+        std::string(screen.recommend_id) });
     const std::string &stored = entries_.back().name;
     RV_LOG_WARN(rv_pcboot_log_tag, "{}: {}", rv_pdklib::rv_log_escape(stored.c_str()), rv_pctext(rv_pcboot_text_level_warning));
-    RV_LOG_WARN(rv_pcboot_log_tag, "{}: {}", rv_pctext(rv_pcboot_text_found), rv_pctext(found_id));
-    RV_LOG_WARN(rv_pcboot_log_tag, "{}: {}", rv_pctext(rv_pcboot_text_recommend), rv_pctext(recommend_id));
+    RV_LOG_WARN(rv_pcboot_log_tag, "{}: {}", rv_pctext(rv_pcboot_text_found), rv_pctext(log.found_id));
+    RV_LOG_WARN(rv_pcboot_log_tag, "{}: {}", rv_pctext(rv_pcboot_text_recommend), rv_pctext(log.recommend_id));
 }
 
 const std::vector<rv_pcboot_entry> &rv_pcboot_journal::entries() const

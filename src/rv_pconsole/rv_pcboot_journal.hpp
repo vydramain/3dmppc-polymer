@@ -14,19 +14,28 @@ enum class rv_pcboot_level {
     warning,
 };
 
-// found_id and recommend_id are console text ids; empty for an ok entry.
+// A warning's two console text ids: the found line and the recommended line.
+struct rv_pcboot_texts {
+    std::string_view found_id;
+    std::string_view recommend_id;
+};
+
+// Console text ids, empty for an ok entry: found_id and recommend_id are the full texts
+// the log prints; screen_found_id and screen_recommend_id are the short texts for the screen.
 struct rv_pcboot_entry {
     std::string name;
     rv_pcboot_level level;
     std::string found_id;
     std::string recommend_id;
+    std::string screen_found_id;
+    std::string screen_recommend_id;
 };
 
 class rv_pcboot_journal
 {
 public:
     void add_ok(std::string_view name);
-    void add_warning(std::string_view name, std::string_view found_id, std::string_view recommend_id);
+    void add_warning(std::string_view name, const rv_pcboot_texts &log, const rv_pcboot_texts &screen);
 
     const std::vector<rv_pcboot_entry> &entries() const;
     bool has_warning() const;
