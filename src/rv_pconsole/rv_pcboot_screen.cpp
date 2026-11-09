@@ -228,16 +228,13 @@ void draw_window(const rv_pchost_text_target &target, const rv_pcboot_rect &wind
     draw_fitting(target, title, title_x, title_y, title_text, RV_PCBOOT_WHITE, unfit);
 }
 
-// Clears `out`, logs the reason of the failed build `rv` and returns `rv`.
-int refuse(std::vector<uint32_t> &out, int rv, int64_t width, int64_t height)
+// Clears `out`, logs the reason of the failed build `rv` when memory allows the log, and returns `rv`.
+int fail_frame(std::vector<uint32_t> &out, int rv, int64_t width, int64_t height)
 {
     out.clear();
     try {
-        if (rv == RV_ERR_NOMEM) {
-            RV_LOG_ERR(RV_PCBOOT_LOG_TAG, "boot screen frame {}x{} ran out of memory", width, height);
-        } else {
-            RV_LOG_ERR(RV_PCBOOT_LOG_TAG, "boot screen frame {}x{} is empty or too large for the pixel buffer", width, height);
-        }
+        const std::string_view reason = rv == RV_ERR_NOMEM ? "ran out of memory" : "is empty or too large for the pixel buffer";
+        RV_LOG_ERR(RV_PCBOOT_LOG_TAG, "boot screen frame {}x{} {}", width, height, reason);
     } catch (const std::bad_alloc &) {
         // The log needs memory too: the reason is lost here, and the returned code still carries it.
     }
@@ -254,13 +251,13 @@ int begin_frame(std::vector<uint32_t> &out, int64_t width, int64_t height, int64
     // Checked by division: width * height must fit `out` without wrapping.
     const uint64_t max_pixels = out.max_size();
     if (width <= 0 || height <= 0 || static_cast<uint64_t>(width) > max_pixels / static_cast<uint64_t>(height)) {
-        return refuse(out, RV_ERR_INVAL, width, height);
+        return fail_frame(out, RV_ERR_INVAL, width, height);
     }
     const auto count = static_cast<std::size_t>(width * height);
     try {
         out.assign(count, RV_PCBOOT_DESK);
     } catch (const std::bad_alloc &) {
-        return refuse(out, RV_ERR_NOMEM, width, height);
+        return fail_frame(out, RV_ERR_NOMEM, width, height);
     }
     return RV_OK;
 }
@@ -440,7 +437,7 @@ int rv_pcboot_screen_build(std::vector<uint32_t> &out,
     try {
         draw_starting(rv_pchost_text_target{ out.data(), width, height }, journal, unfit);
     } catch (const std::bad_alloc &) {
-        return refuse(out, RV_ERR_NOMEM, width, height);
+        return fail_frame(out, RV_ERR_NOMEM, width, height);
     }
     return RV_OK;
 }
@@ -459,7 +456,7 @@ int rv_pcboot_report_build(std::vector<uint32_t> &out,
     try {
         draw_report(rv_pchost_text_target{ out.data(), width, height }, journal, unfit);
     } catch (const std::bad_alloc &) {
-        return refuse(out, RV_ERR_NOMEM, width, height);
+        return fail_frame(out, RV_ERR_NOMEM, width, height);
     }
     return RV_OK;
 }

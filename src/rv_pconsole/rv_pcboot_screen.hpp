@@ -32,9 +32,9 @@ rv_pcboot_rect rv_pcboot_button_rect(int64_t width, int64_t height);
 // line and the button label one each, and each journal entry from the first one that
 // does not fit on, one each. It is meaningful only with RV_OK; other returns may
 // leave a partial count.
-// RV_OK; RV_ERR_INVAL with `out` cleared and the reason logged, for a frame with a
-// side <= 0 or a size that does not fit `out`; RV_ERR_NOMEM with `out` cleared and
-// the size logged, when the allocation fails.
+// RV_OK; RV_ERR_INVAL with `out` cleared, for a frame with a side <= 0 or a size that
+// does not fit `out`; RV_ERR_NOMEM with `out` cleared, when the allocation fails. The
+// reason (and the size) is logged when memory suffices for the log itself.
 int rv_pcboot_screen_build(std::vector<uint32_t> &out,
     int64_t width,
     int64_t height,
