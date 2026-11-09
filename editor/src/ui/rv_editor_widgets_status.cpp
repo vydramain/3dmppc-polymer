@@ -9,6 +9,7 @@
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_tile.hpp"
 
 namespace rv_editor
 {
@@ -26,6 +27,12 @@ constexpr float status_bar_field_pads = 4.0f;
 constexpr float status_bar_text_inset_pads = 2.0f;
 // Divisor for centering by halving.
 constexpr float half_divisor = 2.0f;
+// Tile sizes the transport bar tries, largest first: the first whose row fits the window wins.
+constexpr rv_editor_tile_size transport_sizes[] = {
+    rv_editor_tile_size::large,
+    rv_editor_tile_size::medium,
+    rv_editor_tile_size::small,
+};
 
 // Every state has a symbol as well as a colour, so none is told by colour alone.
 struct rv_editor_mark {
@@ -133,137 +140,94 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
 {
     rv_editor_transport_actions out = {};
     // Step and Stop differ in code and colour, not in the label alone; the
-    // square's label is short, its tooltip and the More menu say the whole name.
+    // square's label is short, its tooltip says the whole name.
     struct rv_editor_transport_button {
-        const char *label;
-        const char *code;
-        uint32_t color;
-        const char *name;
-        const char *shortcut;
+        rv_editor_tile tile;
         const char *disabled;
         bool *clicked;
     };
     // Reload's slot: Build and Restart when Reload cannot apply the pending change.
-    rv_editor_transport_button reload_slot = { rv_editor_text("widgets_status.button_reload"),
-        rv_editor_glyph::reload,
-        rv_editor_mocha_teal,
-        state.reload_name != nullptr ? state.reload_name : rv_editor_text("widgets_status.tooltip_reload"),
-        rv_editor_text("widgets_status.shortcut_reload"),
+    rv_editor_transport_button reload_slot = {
+        { rv_editor_text("widgets_status.button_reload"),
+            rv_editor_glyph::reload,
+            rv_editor_mocha_teal,
+            state.reload_name != nullptr ? state.reload_name : rv_editor_text("widgets_status.tooltip_reload"),
+            rv_editor_text("widgets_status.shortcut_reload") },
         state.reload,
-        &out.reload };
+        &out.reload
+    };
     if (state.build_restart) {
-        reload_slot = { rv_editor_text("widgets_status.button_restart"),
-            rv_editor_glyph::restart,
-            rv_editor_mocha_red,
-            rv_editor_text("widgets_status.tooltip_restart"),
-            nullptr,
+        reload_slot = { { rv_editor_text("widgets_status.button_restart"),
+                            rv_editor_glyph::restart,
+                            rv_editor_mocha_red,
+                            rv_editor_text("widgets_status.tooltip_restart") },
             state.build_restart_disabled,
             &out.build_restart };
     }
     const char *run_resume_label = rv_editor_text(state.resume ? "widgets_status.button_resume" : "widgets_status.button_run");
     const rv_editor_transport_button buttons[] = {
-        { rv_editor_text("widgets_status.button_build"),
-            rv_editor_glyph::build,
-            rv_editor_mocha_peach,
-            rv_editor_text("widgets_status.button_build"),
-            rv_editor_text("widgets_status.shortcut_build"),
+        { { rv_editor_text("widgets_status.button_build"),
+              rv_editor_glyph::build,
+              rv_editor_mocha_peach,
+              rv_editor_text("widgets_status.button_build"),
+              rv_editor_text("widgets_status.shortcut_build") },
             state.build,
             &out.build },
-        { run_resume_label,
-            rv_editor_glyph::run,
-            theme.code_green,
-            run_resume_label,
-            rv_editor_text("widgets_status.shortcut_run"),
+        { { run_resume_label,
+              rv_editor_glyph::run,
+              theme.code_green,
+              run_resume_label,
+              rv_editor_text("widgets_status.shortcut_run") },
             state.run,
             &out.run },
-        { rv_editor_text("widgets_status.button_pause"),
-            rv_editor_glyph::pause,
-            theme.code_yellow,
-            rv_editor_text("widgets_status.button_pause"),
-            rv_editor_text("widgets_status.shortcut_pause"),
+        { { rv_editor_text("widgets_status.button_pause"),
+              rv_editor_glyph::pause,
+              theme.code_yellow,
+              rv_editor_text("widgets_status.button_pause"),
+              rv_editor_text("widgets_status.shortcut_pause") },
             state.pause,
             &out.pause },
-        { rv_editor_text("widgets_status.button_step"),
-            rv_editor_glyph::step_frame,
-            theme.code_blue,
-            rv_editor_text("widgets_status.button_step_frame"),
-            rv_editor_text("widgets_status.shortcut_step"),
+        { { rv_editor_text("widgets_status.button_step"),
+              rv_editor_glyph::step_frame,
+              theme.code_blue,
+              rv_editor_text("widgets_status.button_step_frame"),
+              rv_editor_text("widgets_status.shortcut_step") },
             state.step,
             &out.step },
-        { rv_editor_text("widgets_status.button_stop"),
-            rv_editor_glyph::stop,
-            theme.code_red,
-            rv_editor_text("widgets_status.button_stop"),
-            rv_editor_text("widgets_status.shortcut_stop"),
+        { { rv_editor_text("widgets_status.button_stop"),
+              rv_editor_glyph::stop,
+              theme.code_red,
+              rv_editor_text("widgets_status.button_stop"),
+              rv_editor_text("widgets_status.shortcut_stop") },
             state.stop,
             &out.stop },
         reload_slot,
     };
-    const size_t shown = std::size(buttons); // Reload/Restart is always shown, disabled when it cannot act
-    // One row, never a second: what does not fit goes behind a labelled More,
-    // Reload first, then Step, then Build, which the menus also have; the rest keep their order.
+    // Reload/Restart is always shown, disabled when it cannot act. The bar never wraps
+    // to a second row and never hides a button: it takes the largest size whose row,
+    // with `reserve` after it, fits the window; if none fits, small is drawn and the
+    // window clips the row's end.
     const float gap = ImGui::GetStyle().ItemSpacing.x;
-    float width = 0.0f;
-    for (size_t i = 0; i < shown; ++i) {
-        width += (i == 0 ? 0.0f : gap) + rv_editor_tool_button_width(buttons[i].label);
-    }
     const float tail = reserve > 0.0f ? gap + reserve : 0.0f; // room what follows the bar needs
-    bool hidden[std::size(buttons)] = {};
-    bool any_hidden = false;
-    if (width + tail > ImGui::GetContentRegionAvail().x) {
-        width += gap + rv_editor_tool_button_width(rv_editor_text("widgets_status.button_more"));
-        constexpr size_t drop_order[] = { 5, 3, 0, 2, 4, 1 };
-        for (const size_t i : drop_order) {
-            if (i >= shown || width + tail <= ImGui::GetContentRegionAvail().x) {
-                continue;
-            }
-            hidden[i] = true;
-            any_hidden = true;
-            width -= gap + rv_editor_tool_button_width(buttons[i].label);
+    const float avail = ImGui::GetContentRegionAvail().x;
+    rv_editor_tile_size size = rv_editor_tile_size::small;
+    for (const rv_editor_tile_size candidate : transport_sizes) {
+        float row = 0.0f;
+        for (size_t i = 0; i < std::size(buttons); ++i) {
+            row += (i == 0 ? 0.0f : gap) + rv_editor_tile_width(buttons[i].tile, candidate);
+        }
+        if (row + tail <= avail) {
+            size = candidate;
+            break;
         }
     }
-    bool first = true;
-    for (size_t i = 0; i < shown; ++i) {
+    for (size_t i = 0; i < std::size(buttons); ++i) {
         const auto &b = buttons[i];
-        if (hidden[i]) {
-            continue;
-        }
-        if (!first) {
+        if (i > 0) {
             ImGui::SameLine();
         }
-        first = false;
-        *b.clicked =
-            rv_editor_tool_button(b.label, b.code, b.color, b.name, b.shortcut, theme, { rv_editor_look::live, b.disabled });
+        *b.clicked = rv_editor_tile_button(b.tile, size, theme, { rv_editor_look::live, b.disabled });
     }
-    if (!any_hidden) {
-        return out;
-    }
-    if (!first) {
-        ImGui::SameLine();
-    }
-    if (rv_editor_tool_button(rv_editor_text("widgets_status.button_more"),
-            rv_editor_glyph::more,
-            theme.text,
-            rv_editor_text("widgets_status.tooltip_more"),
-            nullptr,
-            theme)) {
-        ImGui::OpenPopup("##transport_more");
-    }
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopup("##transport_more")) {
-        for (size_t i = 0; i < shown; ++i) {
-            const auto &b = buttons[i];
-            if (!hidden[i]) {
-                continue;
-            }
-            *b.clicked = ImGui::MenuItem(b.name, b.shortcut, false, b.disabled == nullptr);
-            if (b.disabled != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                ImGui::SetTooltip("%s", b.disabled);
-            }
-        }
-        ImGui::EndPopup();
-    }
-    rv_editor_menu_style_pop();
     return out;
 }
 

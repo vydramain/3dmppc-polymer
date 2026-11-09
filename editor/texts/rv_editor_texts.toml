@@ -382,8 +382,6 @@ shortcut_pause = "F6"
 shortcut_step = "F7"
 shortcut_stop = "Shift+F5"
 shortcut_reload = "F8"
-button_more = "More"
-tooltip_more = "The buttons that do not fit"
 
 [catalog]
 section_1_pane_headers = "1. Pane headers, window buttons, splitters and focus"

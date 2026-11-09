@@ -237,8 +237,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         offer_build_restart,
         offer_build_restart ? rv_editor_app_why_not_build(app) : nullptr,
         reload_name.c_str() };
-    // The state name follows on the same row; the bar hides its own buttons first
-    // rather than let that status get clipped.
+    // The state name follows on the same row; the bar takes a smaller tile size
+    // to leave it room.
     const char *name = rv_editor_run_state_name(s.state());
     const rv_editor_status_kind name_kind = rv_editor_run_lamp(s);
     const float name_width = rv_editor_status_width(name, name_kind, theme);
@@ -270,7 +270,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         offer_build_restart ? why_not_reload + " " + rv_editor_text("panes.restart_loses_state") : std::string();
 
     // The runtime's confirmed state follows the transport bar on the same row;
-    // the bar hides its own buttons first rather than let that status get clipped.
+    // the bar takes a smaller tile size first to leave it room.
     rv_editor_flow(name_width);
     rv_editor_status(name, name_kind, theme);
 

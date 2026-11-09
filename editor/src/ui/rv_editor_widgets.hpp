@@ -488,7 +488,7 @@ struct rv_editor_transport_actions {
 };
 
 // `reserve`: width of what is drawn right after the bar on the same row (e.g. a status);
-// the bar hides more of its own buttons behind More rather than let that overflow.
+// the bar takes the largest tile size that leaves that room, so every button stays shown.
 rv_editor_transport_actions
 rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_theme &theme, float reserve = 0.0f);
 
