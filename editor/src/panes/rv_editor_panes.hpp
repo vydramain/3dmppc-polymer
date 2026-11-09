@@ -117,6 +117,8 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme);
+// The candidate's decision line, shown by Release Controls and the Candidate pane (rv_editor_pane_candidate.cpp).
+std::string rv_editor_decision_text(const rv_editor_candidate &c);
 
 // The layout's command palette (spec 7): Code, Debug and Burn each their few.
 void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
