@@ -19,7 +19,7 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
-/* The browser backend is in emscripten/hid.c; it has no devices. */
+/* The browser backend is in emscripten/hid.c; it lists the WebHID devices that rv_webhid.js has opened. */
 #undef HIDAPI_H__
 #include "emscripten/hid.c"
 #define HAVE_PLATFORM_BACKEND 1

@@ -30,7 +30,7 @@ Module.preRun.push(function() {
     if (!Module.rvWebhidUsable) {
         ENV.SDL_JOYSTICK_HIDAPI = '0';
     }
-    // Stand-ins cannot suspend: emscripten_sleep would hand wasm a Promise, so the hint is off only there.
+    // Stand-ins make Suspending an identity, so emscripten_sleep returns to wasm without waiting; the hint is off only there.
     // With real JSPI the hint stays on: SDL_Delay yields to the browser through JSPI; present does not (patch 0005).
     if (rvJspiStub) {
         ENV.SDL_EMSCRIPTEN_ASYNCIFY = '0';
