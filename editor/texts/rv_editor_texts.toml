@@ -240,6 +240,10 @@ log_refused = "cannot export: {}"
 log_cancel_refused = "cannot cancel export: {}"
 log_open_refused = "cannot open in browser: {}"
 log_setup_refused = "cannot install web support: {}"
+recent_header = "Recent exports"
+recent_empty = "No exports yet in this session"
+recent_time_format = "%H:%M"
+recent_time_unknown = "--:--"
 
 [pane_output]
 col_time = "Time"
