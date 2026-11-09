@@ -41,6 +41,8 @@ void rv_editor_row(const char *label, const std::string &value, const rv_editor_
     rv_editor_label(value.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
 }
 
+} // namespace
+
 rv_editor_status_kind rv_editor_check_lamp(const rv_editor_candidate &c, const rv_editor_check &check)
 {
     if (check.state != rv_editor_check_state::not_run && !rv_editor_check_valid(c, check)) {
@@ -60,6 +62,9 @@ rv_editor_status_kind rv_editor_check_lamp(const rv_editor_candidate &c, const r
         return rv_editor_status_kind::idle;
     }
 }
+
+namespace
+{
 
 // Why the operator cannot pass manual check `id` now; nullptr when they can.
 const char *rv_editor_why_not_pass(const rv_editor_app &app, const rv_editor_candidate &c, size_t id)
