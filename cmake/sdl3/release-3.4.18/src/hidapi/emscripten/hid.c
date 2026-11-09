@@ -1,6 +1,6 @@
 /* HIDAPI backend for the browser build: the devices are the open WebHID devices of rv_webhid.js.
-   Open, close, product string and device info work. Manufacturer, serial and indexed strings and the report descriptor fail,
-   reads, writes and feature reports fail. */
+   Open, close, product string, device info, reads, writes, feature reports work; waiting reads and feature calls use JSPI.
+   Manufacturer, serial and indexed strings, report descriptor and input report requests fail. */
 
 #include "../hidapi/hidapi.h"
 
@@ -12,11 +12,19 @@
 #define WEBHID_PATH_PREFIX "webhid:"
 // rv_webhid_product_name writes at most len-1 bytes of UTF-8 and a NUL
 #define WEBHID_NAME_BYTES 256
+// rv_webhid.js writes the reason of its -1 to the browser console.
+#define WEBHID_JS_FAILED L"the WebHID call failed; the browser console has the reason"
 
 int rv_webhid_count(void);
 int rv_webhid_id(int index);
 int rv_webhid_info(int id, int *vendor, int *product, int *usage_page, int *usage);
 int rv_webhid_product_name(int id, char *buf, int len);
+// The _timeout, get and send calls are async: they suspend wasm through JSPI.
+int rv_webhid_read(int id, unsigned char *buf, int len);
+int rv_webhid_read_timeout(int id, unsigned char *buf, int len, int ms);
+int rv_webhid_write(int id, const unsigned char *buf, int len);
+int rv_webhid_get_feature(int id, unsigned char *buf, int len);
+int rv_webhid_send_feature(int id, const unsigned char *buf, int len);
 
 struct hid_device_ {
     int id;
@@ -216,29 +224,51 @@ hid_device *hid_open_path(const char *path)
     return webhid_open_id(id);
 }
 
+// rv_webhid.js takes int lengths; a longer buffer fails here, with the reason in last_error.
+static int webhid_int_len(hid_device *dev, size_t length)
+{
+    if (length > (size_t)INT_MAX) {
+        dev->last_error = L"the buffer is longer than INT_MAX bytes";
+        return -1;
+    }
+    return (int)length;
+}
+
 int hid_write(hid_device *dev, const unsigned char *data, size_t length)
 {
-    (void)dev;
-    (void)data;
-    (void)length;
-    return -1;
+    int len = webhid_int_len(dev, length);
+    int written;
+
+    if (len < 0) {
+        return -1;
+    }
+    written = rv_webhid_write(dev->id, data, len);
+    if (written < 0) {
+        dev->last_error = WEBHID_JS_FAILED;
+    }
+    return written;
 }
 
+// A poll (0 ms) calls the sync read, so it does not suspend wasm; other ms values wait in JS.
 int hid_read_timeout(hid_device *dev, unsigned char *data, size_t length, int milliseconds)
 {
-    (void)dev;
-    (void)data;
-    (void)length;
-    (void)milliseconds;
-    return -1;
+    int len = webhid_int_len(dev, length);
+    int n;
+
+    if (len < 0) {
+        return -1;
+    }
+    n = milliseconds == 0 ? rv_webhid_read(dev->id, data, len) : rv_webhid_read_timeout(dev->id, data, len, milliseconds);
+    if (n < 0) {
+        dev->last_error = WEBHID_JS_FAILED;
+    }
+    return n;
 }
 
+// hidapi: a nonblocking read polls, a blocking read waits until a report or a removal.
 int hid_read(hid_device *dev, unsigned char *data, size_t length)
 {
-    (void)dev;
-    (void)data;
-    (void)length;
-    return -1;
+    return hid_read_timeout(dev, data, length, dev->nonblocking ? 0 : -1);
 }
 
 int hid_set_nonblocking(hid_device *dev, int nonblock)
@@ -247,27 +277,44 @@ int hid_set_nonblocking(hid_device *dev, int nonblock)
     return 0;
 }
 
+// As in hidapi, data[0] is the report id.
 int hid_send_feature_report(hid_device *dev, const unsigned char *data, size_t length)
 {
-    (void)dev;
-    (void)data;
-    (void)length;
-    return -1;
+    int len = webhid_int_len(dev, length);
+    int sent;
+
+    if (len < 0) {
+        return -1;
+    }
+    sent = rv_webhid_send_feature(dev->id, data, len);
+    if (sent < 0) {
+        dev->last_error = WEBHID_JS_FAILED;
+    }
+    return sent;
 }
 
+// As in hidapi, data[0] is the report id on input and the report id of the reply on output.
 int hid_get_feature_report(hid_device *dev, unsigned char *data, size_t length)
 {
-    (void)dev;
-    (void)data;
-    (void)length;
-    return -1;
+    int len = webhid_int_len(dev, length);
+    int got;
+
+    if (len < 0) {
+        return -1;
+    }
+    got = rv_webhid_get_feature(dev->id, data, len);
+    if (got < 0) {
+        dev->last_error = WEBHID_JS_FAILED;
+    }
+    return got;
 }
 
+// WebHID has no request for an input report; the reports come through hid_read.
 int hid_get_input_report(hid_device *dev, unsigned char *data, size_t length)
 {
-    (void)dev;
     (void)data;
     (void)length;
+    dev->last_error = L"WebHID has no request for an input report";
     return -1;
 }
 
