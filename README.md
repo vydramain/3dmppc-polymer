@@ -237,6 +237,29 @@ them. A script's own `print` is routed into the same logger, on stderr, not
 stdout — stdout is reserved for the development channel's protocol lines
 (see below) and carries nothing when `--dev` is off.
 
+### Start screen
+
+When the console starts it brings up its components in the order they load, and logs one
+line for each: `pcboot: <name>: ok`, or `pcboot: <name>: warning` with what was found and
+what to try. The components are `ca` (sound), `cio` (input), `cm` (memory card), `cv`
+(video), `cg` (geometry), `cd` (drive) and `cl` (script).
+
+With a window, the native console shows a grey "3dmppc" window from video on, with the same
+lines as they come in, an hourglass, "Starting up the system...", and a "Stop for
+Maintenance" button. If nothing is wrong, the window stays for one second and the boot goes
+on. If a component warns, the window shows what was found and what is recommended, and waits
+for "Press any button to continue": any key, mouse button or gamepad button. Esc, or a click
+on the button during that second, shows the report at once ("All components started without
+problems." when nothing warned), and then it waits the same way.
+
+The window comes before the disc is chosen, built-in or by path, and has nothing to do with the
+disc. With `--mode_cv=null` or `--frame-fd` there is no window, so no screen and no wait: the
+lines are only in the log. On the web the console does not wait at the start screen and goes on
+at once; its lines go to the browser console.
+
+The texts are in `src/texts/rv_console_texts.toml`, section `[boot]`. They are built into the
+console, so a translation is an edit of that file followed by a rebuild.
+
 ---
 
 ## The development runtime
