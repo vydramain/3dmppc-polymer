@@ -378,7 +378,7 @@ public:
     bool boot_screen_begin();
     boot_screen_result boot_screen_step();
     // Runs the start screen to its end, then returns rest()'s result; quit returns RV_OK without
-    // calling rest. Without a screen, rest runs at once. With a screen the web build does not return:
+    // calling rest. Rest must be set. Without a screen, rest runs at once. With a screen the web build does not return:
     // the screen runs on the browser frame loop and rest runs from its last frame.
     int64_t boot_screen_run(std::function<int64_t()> rest);
 };
