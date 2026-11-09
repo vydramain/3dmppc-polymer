@@ -92,9 +92,15 @@ void rv_pconsole::audio_fill(void *context, int16_t *interleaved, int64_t frames
     // The device's demand, not the frame's: the machine advances exactly what the
     // device asks for, so its sound stays in step with what the device plays.
     auto *console = static_cast<rv_pconsole *>(context);
-    console->ca_->advance(interleaved, frames);
-    console->audio_dump_write(interleaved, frames);
-    console->audio_device_frames_ += frames;
+    // A web frame suspended in JSPI holds the machine. The device gets silence, and its stall clock restarts: the
+    // console is busy, not gone, so the pause must not detach the device.
+    if (console->web_frame_running_) {
+        std::fill_n(interleaved, static_cast<size_t>(frames * RV_PCCA_PCM_CHANNELS), int16_t{ 0 });
+    } else {
+        console->ca_->advance(interleaved, frames);
+        console->audio_dump_write(interleaved, frames);
+        console->audio_device_frames_ += frames;
+    }
     console->audio_pull_ = rv_pcclock::now();
 }
 
@@ -423,7 +429,7 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
     // Before the last hook: no device pull may reach a disc that is already shut down.
     platform_.audio().attach_source(nullptr, nullptr);
     if (run.sound == sound_out::device || run.device_stalled) {
-        RV_LOG_INFO("pconsole", "audio output: {} frame(s) handed to the device", audio_device_frames_);
+        RV_LOG_INFO("pconsole", "audio output: {} frame(s) of machine sound handed to the device", audio_device_frames_);
     }
     if (!params_.dump_audio_path.empty()) {
         audio_dump_close();

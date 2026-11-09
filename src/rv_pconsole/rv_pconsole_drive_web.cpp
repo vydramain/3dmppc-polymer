@@ -50,12 +50,21 @@ namespace
 // this many frames per callback: no rate, but the page does not freeze.
 constexpr int RV_PCONSOLE_WEB_MAX_STEPS_PER_CALL = 4;
 
-// Starts the loop on body, then unwinds the caller's frame. body is held by value in its heap object, so it keeps no
-// reference into that frame. What it points to (console, disc, the caller's locals that rest reads) survives: the web
-// build compiles without exception flags, so no catch or destructor runs, and the stack pointer is not raised.
-[[noreturn]] void run_web_loop(std::function<bool()> *body)
+// Starts the loop on body, then unwinds the caller's frame. body lives in a heap object, so no reference points into that
+// frame. What it points to (console, disc, the caller's locals that rest reads) survives the unwind: the web build
+// compiles without exception flags, so no catch or destructor runs, and the stack pointer is not raised.
+// The wrapper sets running around each body call, JSPI suspension included; the flag is cleared before the unwind,
+// and a body that throws (exit, a JS import error) leaves it set, so the device stays silent to the end of the page.
+[[noreturn]] void run_web_loop(bool &running, std::function<bool()> *body)
 {
-    rv_pconsole_web_start_frames(body);
+    auto *frame = new std::function<bool()>([&running, body]() -> bool {
+        running = true;
+        const bool more = (*body)();
+        running = false;
+        return more;
+    });
+    rv_pconsole_web_start_frames(frame);
+    running = false;
     emscripten_unwind_to_js_event_loop();
 }
 
@@ -112,7 +121,7 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
         return true;
     });
 
-    run_web_loop(body);
+    run_web_loop(web_frame_running_, body);
     // Not reached on web: the unwind above never returns.
     return RV_OK;
 }
@@ -146,7 +155,7 @@ int64_t rv_pconsole::boot_screen_run(std::function<int64_t()> rest)
         return false;
     });
 
-    run_web_loop(body);
+    run_web_loop(web_frame_running_, body);
     // Not reached on web: the unwind above never returns.
     return RV_OK;
 }

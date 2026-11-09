@@ -99,12 +99,17 @@ private:
     // Host scratch of the console, sized by target_fps; outside every module budget.
     std::vector<int16_t> pcm_;
 
-    // Stereo frames the device has pulled from audio_fill this run; logged at the end.
+    // Stereo frames of machine sound handed to the device this run; logged at the end.
+    // Silence during a suspended web frame is not counted.
     int64_t audio_device_frames_ = 0;
 
     // Time of the device's last pull, or of the run's start, or of its last resume from pause.
     // The console is single-threaded, so the device's pulls reach it on this thread only.
     std::chrono::steady_clock::time_point audio_pull_{};
+
+    // True while a browser frame runs, JSPI suspension included; only run_web_loop sets it. The device gets silence
+    // then: the machine must not advance inside a frame that has not finished.
+    bool web_frame_running_ = false;
 
     // --dump-audio: raw S16LE stereo of every block the sound module produced, device or frames.
     // Open only during a run that asked for it; a write error closes it and ends the dump.
