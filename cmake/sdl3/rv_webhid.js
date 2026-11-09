@@ -42,11 +42,24 @@ addToLibrary({
                         }
                         return;
                     }
-                    var entry =
-                        {id : rvWebhid.nextId++, device : device, queue : [], sendChain : Promise.resolve(), unsettled : []};
+                    var entry = {
+                        id : rvWebhid.nextId++,
+                        device : device,
+                        queue : [],
+                        waiters : [],
+                        sendChain : Promise.resolve(),
+                        unsettled : []
+                    };
                     entry.onReport = function(ev) {
                         var bytes = new Uint8Array(ev.data.buffer, ev.data.byteOffset, ev.data.byteLength);
-                        entry.queue.push({reportId : ev.reportId, bytes : bytes});
+                        var report = {reportId : ev.reportId, bytes : bytes};
+                        // A waiting read takes the report first, in call order; otherwise it is queued.
+                        var waiter = entry.waiters.shift();
+                        if (waiter) {
+                            waiter(report);
+                            return;
+                        }
+                        entry.queue.push(report);
                         if (entry.queue.length > rvWebhid.MAX_QUEUED_REPORTS) {
                             entry.queue.shift();
                         }
@@ -69,9 +82,12 @@ addToLibrary({
             if (index < 0) {
                 return;
             }
-            device.removeEventListener('inputreport', rvWebhid.devices[index].onReport);
+            var entry = rvWebhid.devices[index];
+            device.removeEventListener('inputreport', entry.onReport);
             rvWebhid.devices.splice(index, 1);
             rvWebhid.changes++;
+            // The device is gone: every waiting read ends with null.
+            entry.waiters.slice().forEach(function(settle) { settle(null); });
         },
         // Prefixes the report id byte, as hidapi does for every feature report and numbered input report.
         withId : function(reportId, bytes) {
@@ -120,6 +136,26 @@ addToLibrary({
                 }, rvWebhid.STALL_MS);
             });
             return Promise.race([ promise, limit ]).finally(function() { clearTimeout(timer); });
+        },
+        // Settles with the next report of entry, null when the device is removed, or TIMED_OUT when ms > 0 passes.
+        // ms < 0 waits without a limit. Waiters are served in call order, one report each; a report that
+        // arrives with no waiter is queued.
+        wait : function(entry, ms) {
+            return new Promise(function(resolve) {
+                var timer;
+                var settle = function(value) {
+                    clearTimeout(timer);
+                    var index = entry.waiters.indexOf(settle);
+                    if (index >= 0) {
+                        entry.waiters.splice(index, 1);
+                    }
+                    resolve(value);
+                };
+                entry.waiters.push(settle);
+                if (ms > 0) {
+                    timer = setTimeout(function() { settle(rvWebhid.TIMED_OUT); }, ms);
+                }
+            });
         },
         start : function() {
             // Without JSPI or WebHID the page has no HIDAPI path, so start() does nothing.
@@ -207,6 +243,38 @@ addToLibrary({
             return 0;
         }
         var data = report.reportId !== 0 ? rvWebhid.withId(report.reportId, report.bytes) : report.bytes;
+        return rvWebhid.copyOut(buf, len, data);
+    },
+
+    rv_webhid_read_timeout__deps : [ '$rvWebhid' ],
+    rv_webhid_read_timeout__async : true,
+    // Like hid_read_timeout: ms 0 does not wait, ms > 0 waits at most ms, ms < 0 waits until a report or removal.
+    rv_webhid_read_timeout : async function(id, buf, len, ms) {
+        var entry = rvWebhid.find(id);
+        if (!entry) {
+            rvWebhid.fail('rv_webhid_read_timeout', id, 'unknown id');
+            return -1;
+        }
+        if (len < 1) {
+            rvWebhid.fail('rv_webhid_read_timeout', id, 'len < 1');
+            return -1;
+        }
+        var report = entry.queue.shift();
+        if (!report && ms === 0) {
+            return 0;
+        }
+        if (!report) {
+            report = await rvWebhid.wait(entry, ms);
+        }
+        if (report === rvWebhid.TIMED_OUT) {
+            return 0;
+        }
+        if (report === null) {
+            rvWebhid.fail('rv_webhid_read_timeout', id, 'device removed while waiting');
+            return -1;
+        }
+        var data = report.reportId !== 0 ? rvWebhid.withId(report.reportId, report.bytes) : report.bytes;
+        // copyOut reads HEAPU8 after the await: memory may have grown while suspended.
         return rvWebhid.copyOut(buf, len, data);
     },
 
