@@ -12,6 +12,8 @@
   #canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; image-rendering: pixelated; background: #000; outline: none; }
   /* Covers the canvas until the first click or key: browsers allow audio only after a user gesture. */
   #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); color: #ddd; font: 16px monospace; cursor: pointer; user-select: none; }
+  /* Outside #start, so its click does not start the console; shown only when WebHID and JSPI are present. */
+  #pads { position: fixed; right: 8px; bottom: 8px; z-index: 1; font: 12px monospace; color: #ddd; background: rgba(0, 0, 0, 0.6); border: 1px solid #555; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -19,6 +21,7 @@
 <canvas id="canvas" width="320" height="240" tabindex="0"></canvas>
 <div id="start">Loading...</div>
 </div>
+<button id="pads" type="button" hidden>Allow gamepads</button>
 <script>
   // Keeps the Module that pre-js extends (Module.preRun) if one already exists.
   var Module = typeof Module != 'undefined' ? Module : {};
@@ -29,6 +32,23 @@
   var start = document.getElementById('start');
   // callMain is valid only after the runtime is initialized (preRun and the save load are done).
   var ready = false;
+  var pads = document.getElementById('pads');
+
+  // Generic Desktop page: Gamepad and Joystick top-level collections. A device matches when one of its collections does.
+  var PAD_USAGE_PAGE = 0x01;
+  var PAD_USAGE_JOYSTICK = 0x04;
+  var PAD_USAGE_GAMEPAD = 0x05;
+  var PAD_FILTERS = [
+    { usagePage: PAD_USAGE_PAGE, usage: PAD_USAGE_GAMEPAD },
+    { usagePage: PAD_USAGE_PAGE, usage: PAD_USAGE_JOYSTICK },
+  ];
+
+  // Asks the user for pads; a granted device goes to the WebHID library, and an empty list (declined) is not an error.
+  function allowPads() {
+    navigator.hid.requestDevice({ filters: PAD_FILTERS }).then(function(devices) {
+      devices.forEach(function(device) { Module.rvWebhidOpen(device); });
+    }, function(err) { console.warn('webhid: requestDevice failed: ' + err); });
+  }
 
   // Starts from the gesture itself: callMain creates the AudioContext, and browsers allow audio only inside a user gesture.
   function startConsole() {
@@ -48,10 +68,23 @@
   Module.onRuntimeInitialized = function() {
     ready = true;
     start.textContent = 'Click to start';
+    // The library's start() sets rvWebhidOpen only when rvWebhidUsable is true; the button needs both.
+    pads.hidden = !(Module.rvWebhidUsable && typeof Module.rvWebhidOpen === 'function');
   };
 
   start.addEventListener('click', onGesture);
   window.addEventListener('keydown', onGesture);
+  pads.addEventListener('click', function() {
+    // Focus leaves the button so later Enter or Space reach the game.
+    pads.blur();
+    allowPads();
+  });
+  // Enter and Space pressed with the button focused (Tab) stop here: they neither reach the game nor start the console.
+  pads.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.stopPropagation();
+    }
+  });
 </script>
 {{{ SCRIPT }}}
 </body>

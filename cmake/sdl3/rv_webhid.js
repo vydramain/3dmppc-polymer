@@ -162,6 +162,8 @@ addToLibrary({
             if (!Module.rvWebhidUsable) {
                 return;
             }
+            // The page's permission button passes devices granted by requestDevice here; open() skips a known device.
+            Module.rvWebhidOpen = rvWebhid.open;
             addRunDependency(rvWebhid.RUN_DEPENDENCY);
             navigator.hid.addEventListener('connect', function(ev) { rvWebhid.open(ev.device); });
             navigator.hid.addEventListener('disconnect', function(ev) { rvWebhid.remove(ev.device); });
