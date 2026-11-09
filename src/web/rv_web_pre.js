@@ -4,11 +4,42 @@
 Module.rvWebhidUsable = !!navigator.hid && typeof WebAssembly.Suspending === 'function';
 Module.rvSaveLoadFailed = false;
 
+// Without JSPI the glue calls new WebAssembly.Suspending at load and the page throws there. Stand-ins let it load.
+// The stand-ins make JSPI look present to any later check, so rvWebhidUsable is read above them.
+// SDL_EMSCRIPTEN_ASYNCIFY=0 keeps async code from running.
+var rvJspiStub = typeof WebAssembly.Suspending !== 'function';
+if (rvJspiStub) {
+    WebAssembly.Suspending = function(fn) { return fn; };
+    WebAssembly.promising = function(fn) {
+        return function() {
+            try {
+                return Promise.resolve(fn.apply(this, arguments));
+            } catch (err) {
+                return Promise.reject(err);
+            }
+        };
+    };
+}
+
 // Emscripten --pre-js: mounts /save on IndexedDB and loads it before main() runs,
 // so the memory card saved by an earlier page session is already there.
 // The run dependency holds main() back until the load finishes.
 Module.preRun = Module.preRun || [];
 Module.preRun.push(function() {
+    // Without WebHID the HIDAPI joystick driver would wait for devices that cannot come; pads use the Gamepad API.
+    if (!Module.rvWebhidUsable) {
+        ENV.SDL_JOYSTICK_HIDAPI = '0';
+    }
+    // SDL suspends through emscripten_sleep on each present, in SDL_Delay and in its message-box loop. The hint
+    // applies only where SDL reads it; the frame runs outside WebAssembly.promising, so a suspension there throws
+    // SuspendError, and stand-ins would hand wasm a Promise.
+    ENV.SDL_EMSCRIPTEN_ASYNCIFY = '0';
+    if (Module.rvWebhidUsable) {
+        console.log('webhid: HIDAPI joysticks on, WebHID and JSPI present');
+    } else {
+        console.warn('webhid: HIDAPI off, pads come through the Gamepad API; WebHID ' +
+                     (navigator.hid ? 'present' : 'missing') + ', JSPI ' + (rvJspiStub ? 'missing' : 'present'));
+    }
     var loadDependency = 'rv_save_load';
     // A flush before a successful load would reconcile IndexedDB against an empty card and erase it.
     var loaded = false;

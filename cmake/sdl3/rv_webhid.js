@@ -122,7 +122,8 @@ addToLibrary({
             return Promise.race([ promise, limit ]).finally(function() { clearTimeout(timer); });
         },
         start : function() {
-            if (typeof navigator === 'undefined' || !navigator.hid) {
+            // Without JSPI or WebHID the page has no HIDAPI path, so start() does nothing.
+            if (!Module.rvWebhidUsable) {
                 return;
             }
             addRunDependency(rvWebhid.RUN_DEPENDENCY);
@@ -310,5 +311,22 @@ addToLibrary({
             return -1;
         }
         return ok ? len : -1;
+    },
+
+    // Replaces the system fd_sync from libwasi.js. With JSPI it becomes async and syncs the whole IDBFS mount.
+    // A disc's card_write reaches fsync, which may run in a frame outside promising, so fsync must stay sync.
+    // Errors return errno as system wasi calls do; the override replaces the system fd_sync whole.
+    fd_sync__deps : [ '$SYSCALLS' ],
+    fd_sync__async : false,
+    fd_sync : function(fd) {
+        try {
+            var stream = SYSCALLS.getStreamFromFD(fd);
+            return stream.stream_ops?.fsync?.(stream);
+        } catch (e) {
+            if (typeof FS == 'undefined' || e.name !== 'ErrnoError') {
+                throw e;
+            }
+            return e.errno;
+        }
     },
 });
