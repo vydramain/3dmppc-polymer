@@ -1,16 +1,4 @@
 # Lays the SDL patch set of one pinned tag onto the SDL source before it is built.
-# The identity is the tag, the version, the archive SHA256, this script's SHA256 and one "<sha256> <path>" line per patch
-# and copied file. The stamp (.rv-sdl3-patch-set in the source) holds the identity of the set laid onto it: an equal stamp
-# changes nothing. Any other set is laid onto a source restored from the pinned archive, so the result never depends on
-# what an earlier set or a hand edit left. The restore swaps RV_SDL3_SRC for the extracted tree and writes a provisional
-# stamp ("laying", never an identity) before any patch. A source with a stamp was laid by this script, so it is replaced
-# without the version guard; a source without one must be an SDL source of the pinned version. A checkout (.git) is
-# refused in either case.
-# A run that dies is repaired by the next run: an aside source is put back, leftover aside and staging dirs are removed,
-# and the stamp is written last.
-# Patches (*.patch directly in the set dir) are applied in name order, one git apply per patch. The other files are copied
-# to the same relative path when their content differs. Names starting with '.' or ending in '~' (any path part) are not
-# part of the set. Any change of the set restores the source, so a file removed from the set is gone after the next run.
 # Usage: cmake -DRV_SDL3_SRC=<sdl source dir> -DRV_SDL3_PATCH_DIR=<cmake/sdl3/<tag>> -DRV_SDL3_VERSION=<3.4.18>
 #              -DRV_SDL3_TAG=<release-3.4.18> -DRV_SDL3_ARCHIVE=<SDL3-3.4.18.tar.gz> -DRV_SDL3_SHA256=<hex>
 #              -P cmake/rv_sdl3_patch.cmake
@@ -88,9 +76,11 @@ get_filename_component(source_parent "${RV_SDL3_SRC}" DIRECTORY)
 set(ENV{GIT_CEILING_DIRECTORIES} "${source_parent}")
 
 file(GLOB_RECURSE entries LIST_DIRECTORIES FALSE RELATIVE "${RV_SDL3_PATCH_DIR}" "${RV_SDL3_PATCH_DIR}/*")
+# Names starting with '.' or ending in '~' (any path part) are not part of the set.
 list(FILTER entries EXCLUDE REGEX "(^|/)\\.|~(/|$)")
 set(patches "")
 set(files "")
+# *.patch files directly in the set dir are patches; the other files are copied.
 foreach(rel IN LISTS entries)
     if(NOT rel MATCHES "\\.patch$")
         list(APPEND files "${rel}")
@@ -126,6 +116,7 @@ endforeach()
 list(SORT lines)
 list(JOIN lines "\n" listing)
 file(SHA256 "${CMAKE_CURRENT_LIST_FILE}" script_hash)
+# Tag, version, archive SHA256, this script's SHA256, and one "<sha256> <path>" line per patch and copied file.
 set(identity "${RV_SDL3_TAG}\n${RV_SDL3_VERSION}\n${RV_SDL3_SHA256}\n${script_hash}\n${listing}\n")
 
 # Undo an interrupted run before the stamp is read: an aside source with no source is put back; with both present the
@@ -148,6 +139,7 @@ if(EXISTS "${stamp}")
     set(stamped TRUE)
     file(READ "${stamp}" recorded)
 endif()
+# An equal stamp: the set is already laid, nothing is rewritten.
 if("${recorded}" STREQUAL "${identity}")
     rv_log_step("SDL ${RV_SDL3_TAG} patch set is already applied in ${RV_SDL3_SRC}: nothing is rewritten")
     return()
@@ -158,7 +150,8 @@ if(EXISTS "${RV_SDL3_SRC}/.git")
     message(FATAL_ERROR "${RV_SDL3_SRC} holds .git: it is a checkout and is not replaced")
 endif()
 
-# A source without a stamp was not laid by this script: it must be an SDL source of the pinned version.
+# A source with a stamp was laid by this script and skips the version guard. A source without one was not:
+# it must be an SDL source of the pinned version.
 if(NOT stamped)
     if(NOT EXISTS "${RV_SDL3_SRC}/include/SDL3/SDL_version.h")
         message(FATAL_ERROR "${RV_SDL3_SRC} is not an SDL source (include/SDL3/SDL_version.h is missing): it is not replaced")
@@ -173,7 +166,8 @@ if(NOT stamped)
     endif()
 endif()
 
-# Restore the pristine source from the pinned archive. Nothing is removed before the archive is verified and extracted.
+# Any other set restores the pristine source from the pinned archive, so the result never depends on an earlier set
+# or a hand edit, and a file removed from the set is gone. Nothing is removed before the archive is verified and extracted.
 if(NOT EXISTS "${RV_SDL3_ARCHIVE}")
     message(FATAL_ERROR "the pinned SDL archive is missing: ${RV_SDL3_ARCHIVE}")
 endif()
@@ -208,6 +202,7 @@ if(NOT "${archive_version}" STREQUAL "${RV_SDL3_VERSION}")
                         "${RV_SDL3_VERSION}")
 endif()
 
+# Swap the extracted tree in; the old source goes aside and is removed after the swap.
 file(RENAME "${RV_SDL3_SRC}" "${aside}")
 file(RENAME "${staged}" "${RV_SDL3_SRC}")
 file(REMOVE_RECURSE "${aside}")
@@ -215,6 +210,7 @@ file(REMOVE_RECURSE "${staging}")
 # Provisional: never equal to an identity, so a run that dies while patching is restored by the next run.
 file(WRITE "${stamp}" "laying\n${RV_SDL3_SHA256}\n")
 
+# Patches apply in name order, one git apply per patch.
 set(applied 0)
 set(earlier "")
 foreach(patch IN LISTS patches)
@@ -246,6 +242,7 @@ foreach(patch IN LISTS patches)
     math(EXPR applied "${applied} + 1")
 endforeach()
 
+# Each other file is copied to the same relative path when its content differs.
 set(copied 0)
 foreach(rel IN LISTS files)
     set(from "${RV_SDL3_PATCH_DIR}/${rel}")
