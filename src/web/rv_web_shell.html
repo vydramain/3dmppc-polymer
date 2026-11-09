@@ -19,9 +19,9 @@
 <body>
 <div id="stage">
 <canvas id="canvas" width="320" height="240" tabindex="0"></canvas>
-<div id="start">Loading...</div>
+<div id="start" data-click-text="@rv_text_click_to_start@">@rv_text_loading@</div>
 </div>
-<button id="pads" type="button" hidden>Allow gamepads</button>
+<button id="pads" type="button" hidden>@rv_text_allow_gamepads@</button>
 <script>
   // Keeps the Module that pre-js extends (Module.preRun) if one already exists.
   var Module = typeof Module != 'undefined' ? Module : {};
@@ -67,7 +67,7 @@
 
   Module.onRuntimeInitialized = function() {
     ready = true;
-    start.textContent = 'Click to start';
+    start.textContent = start.dataset.clickText;
     // The library's start() sets rvWebhidOpen only when rvWebhidUsable is true; the button needs both.
     pads.hidden = !(Module.rvWebhidUsable && typeof Module.rvWebhidOpen === 'function');
   };
