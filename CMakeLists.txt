@@ -345,7 +345,8 @@ endif()
 # A browser build keeps /save on IndexedDB (IDBFS). The pre-js mounts it and loads it before main() runs.
 # The shell starts the console from a user gesture by calling Module.callMain, so it must be exported.
 # -sJSPI: wasm waits for browser promises (WebHID pad reports); without it rv_web_pre.js stubs JSPI to load.
-set(RV_WEB_LINK_FLAGS -lidbfs.js -sEXPORTED_RUNTIME_METHODS=callMain -sJSPI)
+# -sJSPI_EXPORTS: the frame export that the JS frame loop awaits (rv_pconsole_drive_web.cpp).
+set(RV_WEB_LINK_FLAGS -lidbfs.js -sEXPORTED_RUNTIME_METHODS=callMain -sJSPI -sJSPI_EXPORTS=rv_pconsole_web_frame)
 set(RV_WEB_PRE_JS ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_pre.js)
 if(EMSCRIPTEN AND NOT 3DMPPC_WEB_KIT)
   target_link_options(3dmppc PRIVATE ${RV_WEB_LINK_FLAGS} --pre-js ${RV_WEB_PRE_JS} --js-library ${RV_WEB_JS_LIBRARY})
