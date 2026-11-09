@@ -274,6 +274,8 @@ private:
         report
     };
     boot_screen_phase boot_phase_ = boot_screen_phase::starting;
+    // Bit per view (1u << boot_screen_phase): the views that already warned that their frame is too small.
+    uint32_t boot_unfit_warned_ = 0;
     std::chrono::steady_clock::time_point boot_started_{};
     std::vector<uint32_t> boot_picture_;
 
@@ -287,7 +289,10 @@ private:
     boot_window_state boot_window_ = boot_window_state::unopened;
 
     // Composes the current phase's view into boot_picture_ and presents it. RV_OK, or the build's rc.
+    // Warns once per view when the frame is too small to draw all of it.
     int boot_screen_show();
+    // Logs the too-small warning for the current view, once per view; unfit <= 0 logs nothing.
+    void boot_screen_warn_unfit(int64_t unfit);
     // Presents an opaque black frame the size of the console screen, so the page does not keep its last picture.
     // No-op without a presenting window or a usable size. A failure is logged when memory allows; the last picture stays.
     void boot_screen_present_black();

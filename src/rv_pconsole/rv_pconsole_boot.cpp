@@ -3,7 +3,9 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <new>
+#include <string_view>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -130,13 +132,14 @@ int rv_pconsole::boot_screen_show()
 {
     const int64_t width = cv_->screen_width();
     const int64_t height = cv_->screen_height();
+    int64_t unfit = 0;
     int built = RV_ERR_INVAL;
     switch (boot_phase_) {
     case boot_screen_phase::starting:
-        built = rv_pcboot_screen_build(boot_picture_, width, height, boot_journal_);
+        built = rv_pcboot_screen_build(boot_picture_, width, height, boot_journal_, &unfit);
         break;
     case boot_screen_phase::report:
-        built = rv_pcboot_report_build(boot_picture_, width, height, boot_journal_);
+        built = rv_pcboot_report_build(boot_picture_, width, height, boot_journal_, &unfit);
         break;
     }
     if (built != RV_OK) {
@@ -144,8 +147,31 @@ int rv_pconsole::boot_screen_show()
         return built;
     }
 
+    // The count is meaningful only with RV_OK, so the warning waits for it.
+    boot_screen_warn_unfit(unfit);
     platform_.window().present(boot_picture_.data());
     return RV_OK;
+}
+
+void rv_pconsole::boot_screen_warn_unfit(int64_t unfit)
+{
+    // Names by boot_screen_phase value. "at least": the starting view stays up while the journal still grows.
+    constexpr std::string_view VIEW_NAMES[] = { "starting view", "report view" };
+    static_assert(std::size(VIEW_NAMES) == static_cast<std::size_t>(boot_screen_phase::report) + 1,
+        "one view name per boot_screen_phase value");
+
+    const uint32_t bit = 1u << static_cast<uint32_t>(boot_phase_);
+    const bool warned = (boot_unfit_warned_ & bit) != 0;
+    if (unfit <= 0 || warned) {
+        return;
+    }
+    boot_unfit_warned_ |= bit;
+    RV_LOG_WARN("pconsole",
+        "the start screen at {}x{} is too small: at least {} items of the {} are not drawn",
+        cv_->screen_width(),
+        cv_->screen_height(),
+        unfit,
+        VIEW_NAMES[static_cast<std::size_t>(boot_phase_)]);
 }
 
 void rv_pconsole::boot_screen_present_black()
