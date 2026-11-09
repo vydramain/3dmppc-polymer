@@ -12,6 +12,7 @@
 #include "ui/rv_editor_widget_item.hpp"
 #include "ui/rv_editor_widgets_table.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
+#include "ui/rv_editor_widgets_tile.hpp"
 
 namespace rv_editor
 {
