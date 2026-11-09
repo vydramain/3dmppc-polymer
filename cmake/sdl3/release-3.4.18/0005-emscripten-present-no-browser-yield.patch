@@ -1,0 +1,31 @@
+diff --git a/src/video/emscripten/SDL_emscriptenframebuffer.c b/src/video/emscripten/SDL_emscriptenframebuffer.c
+index 87e00bb..14683c1 100644
+--- a/src/video/emscripten/SDL_emscriptenframebuffer.c
++++ b/src/video/emscripten/SDL_emscriptenframebuffer.c
+@@ -108,11 +108,6 @@ bool Emscripten_UpdateWindowFramebuffer(SDL_VideoDevice *_this, SDL_Window *wind
+         return SDL_SetError("Couldn't create context for canvas update");
+     }
+
+-    if (emscripten_has_asyncify() && SDL_GetHintBoolean(SDL_HINT_EMSCRIPTEN_ASYNCIFY, true)) {
+-        // give back control to browser for screen refresh
+-        emscripten_sleep(0);
+-    }
+-
+     return true;
+ }
+
+diff --git a/src/video/emscripten/SDL_emscriptenopengles.c b/src/video/emscripten/SDL_emscriptenopengles.c
+index 3ecb5cd..5515d78 100644
+--- a/src/video/emscripten/SDL_emscriptenopengles.c
++++ b/src/video/emscripten/SDL_emscriptenopengles.c
+@@ -146,10 +146,6 @@ bool Emscripten_GLES_DestroyContext(SDL_VideoDevice *_this, SDL_GLContext contex
+
+ bool Emscripten_GLES_SwapWindow(SDL_VideoDevice *_this, SDL_Window *window)
+ {
+-    if (emscripten_has_asyncify() && SDL_GetHintBoolean(SDL_HINT_EMSCRIPTEN_ASYNCIFY, true)) {
+-        // give back control to browser for screen refresh
+-        emscripten_sleep(0);
+-    }
+     return true;
+ }
+

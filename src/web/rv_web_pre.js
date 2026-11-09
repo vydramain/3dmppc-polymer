@@ -30,10 +30,11 @@ Module.preRun.push(function() {
     if (!Module.rvWebhidUsable) {
         ENV.SDL_JOYSTICK_HIDAPI = '0';
     }
-    // SDL suspends through emscripten_sleep on each present, in SDL_Delay and in its message-box loop. The hint
-    // applies only where SDL reads it; the frame runs outside WebAssembly.promising, so a suspension there throws
-    // SuspendError, and stand-ins would hand wasm a Promise.
-    ENV.SDL_EMSCRIPTEN_ASYNCIFY = '0';
+    // Stand-ins cannot suspend: emscripten_sleep would hand wasm a Promise, so the hint is off only there.
+    // With real JSPI the hint stays on: SDL_Delay yields to the browser through JSPI; present does not (patch 0005).
+    if (rvJspiStub) {
+        ENV.SDL_EMSCRIPTEN_ASYNCIFY = '0';
+    }
     if (Module.rvWebhidUsable) {
         console.log('webhid: HIDAPI joysticks on, WebHID and JSPI present');
     } else {
