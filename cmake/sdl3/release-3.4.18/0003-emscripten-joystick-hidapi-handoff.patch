@@ -1,18 +1,177 @@
 diff --git a/src/joystick/emscripten/SDL_sysjoystick.c b/src/joystick/emscripten/SDL_sysjoystick.c
-index 6e51cb6..6991b19 100644
+index 6e51cb6..70da0c4 100644
 --- a/src/joystick/emscripten/SDL_sysjoystick.c
 +++ b/src/joystick/emscripten/SDL_sysjoystick.c
-@@ -256,6 +256,13 @@ static EM_BOOL Emscripten_JoyStickConnected(int eventType, const EmscriptenGamep
+@@ -35,6 +35,43 @@ static SDL_joylist_item *SDL_joylist = NULL;
+ static SDL_joylist_item *SDL_joylist_tail = NULL;
+ static int numjoysticks = 0;
+ 
++// A pad from the browser callback that SDL does not show yet. Detect and Quit free it;
++// disconnect only sets removed, because the HIDAPI check in Detect may suspend.
++typedef struct SDL_pending_joystick
++{
++    SDL_joylist_item *item;
++    Uint16 vendor;
++    Uint16 product;
++    bool removed;
++    struct SDL_pending_joystick *next;
++} SDL_pending_joystick;
++
++// The browser callback runs outside WebAssembly.promising, so it only queues pads.
++static SDL_pending_joystick *SDL_pending_list = NULL;
++
++// Returns the queued pad with this HTML index, or NULL.
++static SDL_pending_joystick *PendingByIndex(int index)
++{
++    SDL_pending_joystick *pending = SDL_pending_list;
++
++    while (pending) {
++        if (!pending->removed && pending->item->index == index) {
++            break;
++        }
++        pending = pending->next;
++    }
++
++    return pending;
++}
++
++static void FreePendingJoystick(SDL_pending_joystick *pending)
++{
++    SDL_free(pending->item->mapping);
++    SDL_free(pending->item->name);
++    SDL_free(pending->item);
++    SDL_free(pending);
++}
++
+ static int SDL_GetEmscriptenJoystickVendor(int device_index)
+ {
+     return MAIN_THREAD_EM_ASM_INT({
+@@ -183,6 +220,8 @@ static Uint8 SDL_GetHatFromEmscriptenAxis(float hat_axis)
+ static EM_BOOL Emscripten_JoyStickConnected(int eventType, const EmscriptenGamepadEvent *gamepadEvent, void *userData)
+ {
+     SDL_joylist_item *item;
++    SDL_pending_joystick *pending;
++    SDL_pending_joystick **link;
+     int i;
+     Uint16 bus;
+     Uint16 vendor, product;
+@@ -192,7 +231,7 @@ static EM_BOOL Emscripten_JoyStickConnected(int eventType, const EmscriptenGamep
+ 
+     SDL_LockJoysticks();
+ 
+-    if (JoystickByIndex(gamepadEvent->index) != NULL) {
++    if (JoystickByIndex(gamepadEvent->index) != NULL || PendingByIndex(gamepadEvent->index) != NULL) {
          goto done;
      }
-
-+    // HIDAPI already has a device with this vendor and product, so a second pad is not shown.
-+    if (SDL_JoystickHandledByAnotherDriver(&SDL_EMSCRIPTEN_JoystickDriver, vendor, product, 0, item->name)) {
+ 
+@@ -347,23 +386,26 @@ static EM_BOOL Emscripten_JoyStickConnected(int eventType, const EmscriptenGamep
+         item->axis[9] = 0.0;
+     }
+ 
+-    if (!SDL_joylist_tail) {
+-        SDL_joylist = SDL_joylist_tail = item;
+-    } else {
+-        SDL_joylist_tail->next = item;
+-        SDL_joylist_tail = item;
++    pending = (SDL_pending_joystick *)SDL_malloc(sizeof(SDL_pending_joystick));
++    if (!pending) {
++        SDL_free(item->mapping);
 +        SDL_free(item->name);
 +        SDL_free(item);
 +        goto done;
+     }
+ 
+-    ++numjoysticks;
++    pending->item = item;
++    pending->vendor = vendor;
++    pending->product = product;
++    pending->removed = false;
++    pending->next = NULL;
+ 
+-    SDL_PrivateJoystickAdded(item->device_instance);
+-
+-#ifdef DEBUG_JOYSTICK
+-    SDL_Log("Number of joysticks is %d", numjoysticks);
+-#endif
+-#ifdef DEBUG_JOYSTICK
+-    SDL_Log("Added joystick with index %d", item->index);
+-#endif
++    // Appended, so SDL adds the pads in connection order.
++    link = &SDL_pending_list;
++    while (*link) {
++        link = &(*link)->next;
++    }
++    *link = pending;
+ 
+ done:
+     SDL_UnlockJoysticks();
+@@ -387,6 +429,11 @@ static EM_BOOL Emscripten_JoyStickDisconnected(int eventType, const EmscriptenGa
+     }
+ 
+     if (!item) {
++        // Not shown to SDL yet: Detect drops it without an event.
++        SDL_pending_joystick *pending = PendingByIndex(gamepadEvent->index);
++        if (pending) {
++            pending->removed = true;
++        }
+         goto done;
+     }
+ 
+@@ -437,6 +484,13 @@ static void EMSCRIPTEN_JoystickQuit(void)
+ 
+     SDL_joylist = SDL_joylist_tail = NULL;
+ 
++    while (SDL_pending_list) {
++        SDL_pending_joystick *pending = SDL_pending_list;
++
++        SDL_pending_list = pending->next;
++        FreePendingJoystick(pending);
 +    }
 +
-     if (vendor && product) {
-         item->guid = SDL_CreateJoystickGUID(bus, vendor, product, 0, NULL, name, 0, subtype);
-     } else {
+     numjoysticks = 0;
+ 
+     emscripten_set_gamepadconnected_callback(NULL, 0, NULL);
+@@ -529,8 +583,43 @@ static int EMSCRIPTEN_JoystickGetCount(void)
+     return numjoysticks;
+ }
+ 
++// Called inside the frame: the HIDAPI check may open a pad through WebHID, which needs promising.
+ static void EMSCRIPTEN_JoystickDetect(void)
+ {
++    SDL_pending_joystick *pending;
++
++    while ((pending = SDL_pending_list) != NULL) {
++        // The check may suspend, and the browser may disconnect the pad meanwhile.
++        const char *name = pending->item->name;
++        bool claimed = !pending->removed &&
++            SDL_JoystickHandledByAnotherDriver(&SDL_EMSCRIPTEN_JoystickDriver, pending->vendor, pending->product, 0, name);
++
++        SDL_pending_list = pending->next;
++        if (claimed || pending->removed) {
++            FreePendingJoystick(pending);
++            continue;
++        }
++
++        if (!SDL_joylist_tail) {
++            SDL_joylist = SDL_joylist_tail = pending->item;
++        } else {
++            SDL_joylist_tail->next = pending->item;
++            SDL_joylist_tail = pending->item;
++        }
++
++        ++numjoysticks;
++
++        SDL_PrivateJoystickAdded(pending->item->device_instance);
++
++#ifdef DEBUG_JOYSTICK
++        SDL_Log("Number of joysticks is %d", numjoysticks);
++#endif
++#ifdef DEBUG_JOYSTICK
++        SDL_Log("Added joystick with index %d", pending->item->index);
++#endif
++
++        SDL_free(pending);
++    }
+ }
+ 
+ static bool EMSCRIPTEN_JoystickIsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version, const char *name)
