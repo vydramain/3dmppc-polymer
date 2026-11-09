@@ -50,6 +50,11 @@ namespace
 // this many frames per callback: no rate, but the page does not freeze.
 constexpr int RV_PCONSOLE_WEB_MAX_STEPS_PER_CALL = 4;
 
+// Early slack for a boot screen step: a frame up to this early still steps, so rAF jitter does not cost a whole frame.
+// The gap to the next step is the first frame at or after the slice minus slack (14 ms): ~16.7 ms at 60 and 120 Hz,
+// 14 or ~21 ms at 144 Hz. At 144 Hz some gaps are 14 ms, but on average no more than 60 steps per second, the native rate.
+constexpr auto RV_PCONSOLE_WEB_BOOT_SCREEN_SLACK = std::chrono::milliseconds(2);
+
 // Starts the loop on body, then unwinds the caller's frame. body lives in a heap object, so no reference points into that
 // frame. What it points to (console, disc, the caller's locals that rest reads) survives the unwind: the web build
 // compiles without exception flags, so no catch or destructor runs, and the stack pointer is not raised.
@@ -132,11 +137,11 @@ int64_t rv_pconsole::boot_screen_run(std::function<int64_t()> rest)
         return rest();
     }
 
-    // Heap: as in disc_run, the body outlives the unwind and holds rest by value. due is the earliest next step:
-    // the first step runs at once, and each later one waits the native slice after the previous one.
+    // Heap: as in disc_run, the body outlives the unwind and holds rest by value. due is the next step time: the first
+    // step runs at once; a later one runs once due is within the slack, and due is set a slice after it (no catch-up).
     auto *body = new std::function<bool()>([this, rest, due = std::chrono::steady_clock::now()]() mutable -> bool {
         const auto now = std::chrono::steady_clock::now();
-        if (now < due) {
+        if (now + RV_PCONSOLE_WEB_BOOT_SCREEN_SLACK < due) {
             return true;
         }
         due = now + RV_PCONSOLE_BOOT_SCREEN_SLICE;
