@@ -278,12 +278,13 @@ burn, without rebuilding the console. A missing or unknown key makes the burn fa
 reason.
 
 In a browser with WebHID (the page's access to HID devices, such as gamepads) and JSPI
-(a way for WebAssembly to wait for the browser), the page shows an "Allow gamepads" button
-at the bottom right. The boot journal advises Chrome or Edge 137 or newer. The click asks
-for the gamepads the browser offers. A gamepad granted this way gets the driver SDL has
-for that model, which gives motion sensors and touchpads where that driver supports them;
-this is not checked on real hardware yet. Gamepads granted earlier open at page load,
-without a prompt. A declined request is not an error.
+(a way for WebAssembly to wait for the browser), the page shows a button at the
+bottom right, labelled with the value of `allow_gamepads` in `rv_web_texts.txt`
+("Allow gamepads" by default). The boot journal advises Chrome or Edge 137 or newer.
+The click asks for the gamepads the browser offers. A gamepad granted this way gets the
+driver SDL has for that model, which gives motion sensors and touchpads where that driver
+supports them; this is not checked on real hardware yet. Gamepads granted earlier open at
+page load, without a prompt. A declined request is not an error.
 
 Without WebHID or JSPI, gamepads use the browser's standard Gamepad API (the common browser
 interface for gamepads), with no motion sensors or touchpads. The boot check logs
@@ -298,7 +299,7 @@ stops at that report the same way, and the card is not saved in that session.
 
 If the disc does not start after the start screen, the page stays on a black frame. The reason
 is in the browser console: the line `the disc did not start` gives the code, and the cause is
-logged above it.
+logged above or on stderr.
 
 ---
 
