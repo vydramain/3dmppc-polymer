@@ -28,18 +28,6 @@ bool rv_editor_icon_button(const char *id,
     rv_editor_icon_name icon,
     const rv_editor_theme &theme,
     const rv_editor_state &state = {});
-// A square transport button as wide as rv_editor_tool_button_width says: a large
-// `code` (1-2 letters, rv_editor_glyph) in `color` over a short label. The tooltip
-// is `name` (nullptr: the label) and `shortcut` (nullptr: none); a disabled button
-// dims the code and says why.
-bool rv_editor_tool_button(const char *label,
-    const char *code,
-    uint32_t color,
-    const char *name,
-    const char *shortcut,
-    const rv_editor_theme &theme,
-    const rv_editor_state &state = {});
-float rv_editor_tool_button_width(const char *label);
 
 // A square button of frame height with one coloured code (rv_editor_glyph)
 // standing in for an icon; `tooltip` names what it does.

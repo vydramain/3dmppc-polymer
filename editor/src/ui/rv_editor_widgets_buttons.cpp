@@ -160,24 +160,6 @@ void rv_editor_letter_draw(const rv_editor_item &item,
     }
 }
 
-float rv_editor_tool_button_width(const char *label)
-{
-    const rv_editor_tile tile{ label };
-    return rv_editor_tile_width(tile, rv_editor_tile_size::large);
-}
-
-bool rv_editor_tool_button(const char *label,
-    const char *code,
-    uint32_t color,
-    const char *name,
-    const char *shortcut,
-    const rv_editor_theme &theme,
-    const rv_editor_state &state)
-{
-    const rv_editor_tile tile{ label, code, color, name, shortcut };
-    return rv_editor_tile_button(tile, rv_editor_tile_size::large, theme, state);
-}
-
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const ImVec2 text = ImGui::CalcTextSize(label, rv_editor_label_end(label));
