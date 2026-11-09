@@ -85,19 +85,20 @@ int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t 
     }
 
     // The window is made once. A second call with the same geometry only retitles it; another geometry is refused.
-    if (window_) {
-        const bool same_geometry = screen_width == screen_width_ && screen_height == screen_height_ && scale == scale_;
-        if (!same_geometry) {
-            RV_LOG_ERR("pcplatform",
-                "window is {}x{} at scale {}, refusing {}x{} at scale {}",
-                screen_width_,
-                screen_height_,
-                scale_,
-                screen_width,
-                screen_height,
-                scale);
-            return RV_ERR_INVAL;
-        }
+    const bool made = window_ != nullptr;
+    const bool same_geometry = screen_width == screen_width_ && screen_height == screen_height_ && scale == scale_;
+    if (made && !same_geometry) {
+        RV_LOG_ERR("pcplatform",
+            "window is {}x{} at scale {}, refusing {}x{} at scale {}",
+            screen_width_,
+            screen_height_,
+            scale_,
+            screen_width,
+            screen_height,
+            scale);
+        return RV_ERR_INVAL;
+    }
+    if (made) {
         if (!SDL_SetWindowTitle(window_, title)) {
             RV_LOG_WARN("pcplatform", "SDL_SetWindowTitle failed: {}", SDL_GetError());
         }
