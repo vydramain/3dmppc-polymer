@@ -30,6 +30,11 @@ namespace rv_3dmppc
 // rv_pconsole.cpp and rv_pconsole_run.cpp to compute the default timeline.
 constexpr uint64_t RV_PCONSOLE_DEFAULT_TARGET_FPS = 60;
 
+// Start screen step spacing, one frame at 60 Hz, in both drivers: a key or button is answered within a frame,
+// and a full redraw each pass does not keep a core busy. Native sleeps this long between steps (sdl3 sets no
+// vsync); web skips browser frames until it has passed.
+constexpr auto RV_PCONSOLE_BOOT_SCREEN_SLICE = std::chrono::milliseconds(16);
+
 // Bounded, best-effort wait at shutdown for the dev command channel: the last answer
 // reaches a client still listening, and a client that is gone cannot hold the shutdown open.
 constexpr auto RV_PCONSOLE_SHUTDOWN_DRAIN_TIMEOUT = std::chrono::milliseconds(50);
@@ -365,7 +370,8 @@ public:
     bool boot_screen_begin();
     boot_screen_result boot_screen_step();
     // Runs the start screen to its end, then returns rest()'s result; quit returns RV_OK without
-    // calling rest. Without a screen, and in the web build, rest runs at once.
+    // calling rest. Without a screen, rest runs at once. With a screen the web build does not return:
+    // the screen runs on the browser frame loop and rest runs from its last frame.
     int64_t boot_screen_run(std::function<int64_t()> rest);
 };
 

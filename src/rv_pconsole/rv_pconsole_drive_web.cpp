@@ -1,6 +1,6 @@
 // Browser driver of the frame loop: a JS loop on requestAnimationFrame calls the frame export, so nothing here sleeps.
-// Pacing by the console's clock: frames follow the console's rate, not the monitor's 120/144 Hz refresh.
-// The unwind in disc_run never returns, so the code after disc_run in rv_pboot.cpp is unreachable on web.
+// Disc frames follow the console's clock, not the monitor's 120/144 Hz refresh; the start screen steps at the native slice.
+// Once a loop starts, its unwind never returns (boot_screen_run returns rest()'s result only without a screen).
 #include "rv_pconsole/rv_pconsole.hpp"
 
 #include <chrono>
@@ -49,6 +49,15 @@ namespace
 // one long callback would freeze the page. A fixed-step run (-F) has no clock gate, so it gets
 // this many frames per callback: no rate, but the page does not freeze.
 constexpr int RV_PCONSOLE_WEB_MAX_STEPS_PER_CALL = 4;
+
+// Starts the loop on body, then unwinds the caller's frame. body is held by value in its heap object, so it keeps no
+// reference into that frame. What it points to (console, disc, the caller's locals that rest reads) survives: the web
+// build compiles without exception flags, so no catch or destructor runs, and the stack pointer is not raised.
+[[noreturn]] void run_web_loop(std::function<bool()> *body)
+{
+    rv_pconsole_web_start_frames(body);
+    emscripten_unwind_to_js_event_loop();
+}
 
 } // namespace
 
@@ -103,16 +112,43 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
         return true;
     });
 
-    rv_pconsole_web_start_frames(body);
-    emscripten_unwind_to_js_event_loop();
-    // Not reached on web: the unwind above never returns to disc_run.
+    run_web_loop(body);
+    // Not reached on web: the unwind above never returns.
     return RV_OK;
 }
 
-// The web build runs rest at once: a wait here would freeze the page, which cannot repaint until the call returns.
 int64_t rv_pconsole::boot_screen_run(std::function<int64_t()> rest)
 {
-    return rest();
+    if (!boot_screen_begin()) {
+        return rest();
+    }
+
+    // Heap: as in disc_run, the body outlives the unwind and holds rest by value. due is the earliest next step:
+    // the first step runs at once, and each later one waits the native slice after the previous one.
+    auto *body = new std::function<bool()>([this, rest, due = std::chrono::steady_clock::now()]() mutable -> bool {
+        const auto now = std::chrono::steady_clock::now();
+        if (now < due) {
+            return true;
+        }
+        due = now + RV_PCONSOLE_BOOT_SCREEN_SLICE;
+        switch (boot_screen_step()) {
+        case boot_screen_result::running:
+            return true;
+        case boot_screen_result::quit:
+            RV_LOG_INFO("pconsole", "the disc does not start: the start screen was stopped");
+            return false;
+        case boot_screen_result::done:
+            break;
+        }
+        // rest returns only when the disc did not start: a started disc unwinds out of this frame.
+        const int64_t rc = rest();
+        RV_LOG_ERR("pconsole", "the disc did not start (code {}); the cause is logged above or on stderr", rc);
+        return false;
+    });
+
+    run_web_loop(body);
+    // Not reached on web: the unwind above never returns.
+    return RV_OK;
 }
 
 } // namespace rv_3dmppc

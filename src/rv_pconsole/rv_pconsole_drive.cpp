@@ -18,10 +18,6 @@ namespace
 // that a paused console is not a core running flat out.
 constexpr auto RV_PCONSOLE_PAUSE_SLICE = std::chrono::milliseconds(2);
 
-// One frame at 60 Hz. sdl3 sets no vsync, so this sleep is the only pacing of the stage: a key
-// or button is answered within a frame, and the full redraw each pass does not keep a core busy.
-constexpr auto RV_PCONSOLE_BOOT_SCREEN_SLICE = std::chrono::milliseconds(16);
-
 } // namespace
 
 int64_t rv_pconsole::disc_run(rv_de *disc)
