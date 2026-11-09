@@ -136,6 +136,30 @@ void draw_text(const rv_pchost_text_target &target, int64_t x, int64_t y, std::s
     rv_pchost_text_draw(target, x, y, text, RV_PCBOOT_TEXT_SCALE, argb);
 }
 
+// Adds `n` to the unfit counter when the caller asked for one.
+void count_unfit(int64_t *unfit, int64_t n = 1)
+{
+    if (unfit != nullptr) {
+        *unfit += n;
+    }
+}
+
+// `text` at (x, y) when it fits `area`; otherwise it is not drawn and counted once in `unfit`.
+void draw_fitting(const rv_pchost_text_target &target,
+    const rv_pcboot_rect &area,
+    int64_t x,
+    int64_t y,
+    std::string_view text,
+    uint32_t argb,
+    int64_t *unfit)
+{
+    if (!text_fits(area, x, y, text)) {
+        count_unfit(unfit);
+        return;
+    }
+    draw_text(target, x, y, text, argb);
+}
+
 void draw_hourglass(const rv_pchost_text_target &target, int64_t x, int64_t y)
 {
     for (std::size_t row = 0; row < std::size(RV_PCBOOT_GLASS_ROWS); ++row) {
@@ -188,7 +212,7 @@ std::string labelled(std::string_view label_id, std::string_view text_id)
 }
 
 // The grey window with its title bar, shared by both views.
-void draw_window(const rv_pchost_text_target &target, const rv_pcboot_rect &window)
+void draw_window(const rv_pchost_text_target &target, const rv_pcboot_rect &window, int64_t *unfit)
 {
     // Black outline, grey body, raised edge.
     fill_rect(target, window, RV_PCBOOT_BLACK);
@@ -201,9 +225,7 @@ void draw_window(const rv_pchost_text_target &target, const rv_pcboot_rect &wind
     const int64_t title_x = title.x + RV_PCBOOT_TITLE_TEXT_X;
     const int64_t title_y = title.y + RV_PCBOOT_TITLE_TEXT_Y;
     const std::string_view title_text = rv_pctext(RV_PCBOOT_TITLE_ID);
-    if (text_fits(title, title_x, title_y, title_text)) {
-        draw_text(target, title_x, title_y, title_text, RV_PCBOOT_WHITE);
-    }
+    draw_fitting(target, title, title_x, title_y, title_text, RV_PCBOOT_WHITE, unfit);
 }
 
 // Clears `out`, logs the reason of the failed build `rv` and returns `rv`.
@@ -223,8 +245,12 @@ int refuse(std::vector<uint32_t> &out, int rv, int64_t width, int64_t height)
 }
 
 // Sizes `out` to width * height and fills it with the desk colour, both views' first step.
-int begin_frame(std::vector<uint32_t> &out, int64_t width, int64_t height)
+// Zeroes `unfit`, so it is 0 on every return that did not count anything.
+int begin_frame(std::vector<uint32_t> &out, int64_t width, int64_t height, int64_t *unfit)
 {
+    if (unfit != nullptr) {
+        *unfit = 0;
+    }
     // Checked by division: width * height must fit `out` without wrapping.
     const uint64_t max_pixels = out.max_size();
     if (width <= 0 || height <= 0 || static_cast<uint64_t>(width) > max_pixels / static_cast<uint64_t>(height)) {
@@ -246,8 +272,8 @@ struct report_line {
 };
 
 // Word-wraps `text` to `width` pixels onto `lines`, every line at `indent`. A text with
-// a word wider than `width` is not drawn at all: nothing is added.
-void wrap_into(std::vector<report_line> &lines, std::string_view text, int64_t width, int64_t indent)
+// a word wider than `width` is not drawn at all: nothing is added, and it counts once in `unfit`.
+void wrap_into(std::vector<report_line> &lines, std::string_view text, int64_t width, int64_t indent, int64_t *unfit)
 {
     const std::size_t start = lines.size();
     std::string current;
@@ -261,6 +287,7 @@ void wrap_into(std::vector<report_line> &lines, std::string_view text, int64_t w
         }
         if (rv_pchost_text_ink_width(word, RV_PCBOOT_TEXT_SCALE) > width) {
             lines.resize(start);
+            count_unfit(unfit);
             return;
         }
         std::string candidate = current;
@@ -282,12 +309,12 @@ void wrap_into(std::vector<report_line> &lines, std::string_view text, int64_t w
 
 // The report's lines in order: the all-ok line when nothing failed, then each entry,
 // and under each warning its short Found and Recommended texts (the journal writes the full ones to the log).
-// `width` is the text area.
-std::vector<report_line> report_lines(const rv_pcboot_journal &journal, int64_t width)
+// `width` is the text area; `unfit` counts the texts that wrap_into drops.
+std::vector<report_line> report_lines(const rv_pcboot_journal &journal, int64_t width, int64_t *unfit)
 {
     std::vector<report_line> lines;
     if (!journal.has_warning()) {
-        wrap_into(lines, rv_pctext(RV_PCBOOT_ALL_OK_ID), width, RV_PCBOOT_NO_INDENT);
+        wrap_into(lines, rv_pctext(RV_PCBOOT_ALL_OK_ID), width, RV_PCBOOT_NO_INDENT, unfit);
     }
     const int64_t indented = width - RV_PCBOOT_REPORT_INDENT;
     for (const rv_pcboot_entry &entry : journal.entries()) {
@@ -297,17 +324,17 @@ std::vector<report_line> report_lines(const rv_pcboot_journal &journal, int64_t 
         if (entry.level != rv_pcboot_level::warning) {
             continue;
         }
-        wrap_into(lines, labelled(RV_PCBOOT_FOUND_ID, entry.screen_found_id), indented, RV_PCBOOT_REPORT_INDENT);
-        wrap_into(lines, labelled(RV_PCBOOT_RECOMMEND_ID, entry.screen_recommend_id), indented, RV_PCBOOT_REPORT_INDENT);
+        wrap_into(lines, labelled(RV_PCBOOT_FOUND_ID, entry.screen_found_id), indented, RV_PCBOOT_REPORT_INDENT, unfit);
+        wrap_into(lines, labelled(RV_PCBOOT_RECOMMEND_ID, entry.screen_recommend_id), indented, RV_PCBOOT_REPORT_INDENT, unfit);
     }
     return lines;
 }
 
 // The starting view on `target`: the window, the hourglass, the starting line, the journal and the button.
-void draw_starting(const rv_pchost_text_target &target, const rv_pcboot_journal &journal)
+void draw_starting(const rv_pchost_text_target &target, const rv_pcboot_journal &journal, int64_t *unfit)
 {
     const rv_pcboot_rect window = window_of(target.width, target.height);
-    draw_window(target, window);
+    draw_window(target, window, unfit);
 
     // Hourglass, then the starting line beside it.
     const rv_pcboot_rect body = body_of(window);
@@ -315,22 +342,23 @@ void draw_starting(const rv_pchost_text_target &target, const rv_pcboot_journal 
     draw_hourglass(target, glass_x, body.y);
     const int64_t text_x = glass_x + RV_PCBOOT_GLASS_COLUMNS * RV_PCBOOT_GLASS_SCALE + RV_PCBOOT_GLASS_GAP;
     const int64_t starting_y = body.y + (RV_PCBOOT_GLASS_HEIGHT - RV_PCBOOT_CELL) / 2;
-    const std::string_view starting = rv_pctext(RV_PCBOOT_STARTING_ID);
-    if (text_fits(body, text_x, starting_y, starting)) {
-        draw_text(target, text_x, starting_y, starting, RV_PCBOOT_BLACK);
-    }
+    draw_fitting(target, body, text_x, starting_y, rv_pctext(RV_PCBOOT_STARTING_ID), RV_PCBOOT_BLACK, unfit);
 
-    // Journal lines in entry order; the journal stops at the first line that does not fit.
+    // Journal lines in entry order; the journal stops at the first line that does not fit,
+    // and every entry from there on counts as unfit.
     const rv_pcboot_rect button = rv_pcboot_button_rect(target.width, target.height);
     const int64_t lines_top = body.y + RV_PCBOOT_GLASS_HEIGHT + RV_PCBOOT_LINES_GAP;
     const rv_pcboot_rect lines_area = { text_x,
         lines_top,
         window.x + window.w - RV_PCBOOT_BORDER - text_x,
         button.y - RV_PCBOOT_LINES_TO_BUTTON - lines_top };
+    const std::vector<rv_pcboot_entry> &entries = journal.entries();
     int64_t line_y = lines_top;
-    for (const rv_pcboot_entry &entry : journal.entries()) {
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        const rv_pcboot_entry &entry = entries[i];
         const std::string line = entry.name + rv_pctext(RV_PCBOOT_SEPARATOR_ID) + rv_pctext(level_id(entry.level));
         if (!text_fits(lines_area, text_x, line_y, line)) {
+            count_unfit(unfit, static_cast<int64_t>(entries.size() - i));
             break;
         }
         draw_text(target, text_x, line_y, line, RV_PCBOOT_BLACK);
@@ -348,39 +376,38 @@ void draw_starting(const rv_pchost_text_target &target, const rv_pcboot_journal 
     const std::string_view label = rv_pctext(RV_PCBOOT_BUTTON_ID);
     const int64_t label_x = button.x + (button.w - rv_pchost_text_ink_width(label, RV_PCBOOT_TEXT_SCALE)) / 2;
     const int64_t label_y = button.y + (button.h - RV_PCBOOT_CELL) / 2;
-    if (text_fits(label_area, label_x, label_y, label)) {
-        draw_text(target, label_x, label_y, label, RV_PCBOOT_BLACK);
-    }
+    draw_fitting(target, label_area, label_x, label_y, label, RV_PCBOOT_BLACK, unfit);
 }
 
 // The report view on `target`: the lines, then the continue prompt.
-void draw_report(const rv_pchost_text_target &target, const rv_pcboot_journal &journal)
+void draw_report(const rv_pchost_text_target &target, const rv_pcboot_journal &journal, int64_t *unfit)
 {
     const rv_pcboot_rect window = window_of(target.width, target.height);
-    draw_window(target, window);
+    draw_window(target, window, unfit);
 
-    // Report lines from the body's top; the first line that does not fit ends the list.
+    // Report lines from the body's top; the first line that does not fit ends the list,
+    // and every line from there on counts as unfit.
     const rv_pcboot_rect body = body_of(window);
     const rv_pcboot_rect button = rv_pcboot_button_rect(target.width, target.height);
     const int64_t text_x = window.x + RV_PCBOOT_REPORT_X;
     const int64_t prompt_y = button.y + (button.h - RV_PCBOOT_CELL) / 2;
     const rv_pcboot_rect lines_area = { text_x, body.y, body.x + body.w - text_x, prompt_y - RV_PCBOOT_REPORT_GAP - body.y };
+    const std::vector<report_line> lines = report_lines(journal, lines_area.w, unfit);
     int64_t line_y = body.y;
-    for (const report_line &line : report_lines(journal, lines_area.w)) {
-        const int64_t x = text_x + line.indent;
-        if (!text_fits(lines_area, x, line_y, line.text)) {
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+        const int64_t x = text_x + lines[i].indent;
+        if (!text_fits(lines_area, x, line_y, lines[i].text)) {
+            count_unfit(unfit, static_cast<int64_t>(lines.size() - i));
             break;
         }
-        draw_text(target, x, line_y, line.text, RV_PCBOOT_BLACK);
+        draw_text(target, x, line_y, lines[i].text, RV_PCBOOT_BLACK);
         line_y += RV_PCBOOT_LINE_PITCH;
     }
 
     // Continue prompt centred on the window, in the button's band.
     const std::string_view prompt = rv_pctext(RV_PCBOOT_CONTINUE_ID);
     const int64_t prompt_x = window.x + (window.w - rv_pchost_text_ink_width(prompt, RV_PCBOOT_TEXT_SCALE)) / 2;
-    if (text_fits(body, prompt_x, prompt_y, prompt)) {
-        draw_text(target, prompt_x, prompt_y, prompt, RV_PCBOOT_BLACK);
-    }
+    draw_fitting(target, body, prompt_x, prompt_y, prompt, RV_PCBOOT_BLACK, unfit);
 }
 
 } // namespace
@@ -399,30 +426,38 @@ rv_pcboot_rect rv_pcboot_button_rect(int64_t width, int64_t height)
         RV_PCBOOT_BUTTON_HEIGHT };
 }
 
-int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t height, const rv_pcboot_journal &journal)
+int rv_pcboot_screen_build(std::vector<uint32_t> &out,
+    int64_t width,
+    int64_t height,
+    const rv_pcboot_journal &journal,
+    int64_t *unfit)
 {
-    const int rv = begin_frame(out, width, height);
+    const int rv = begin_frame(out, width, height, unfit);
     if (rv != RV_OK) {
         return rv;
     }
     // The line strings may throw bad_alloc after `out` is sized; that is RV_ERR_NOMEM too.
     try {
-        draw_starting(rv_pchost_text_target{ out.data(), width, height }, journal);
+        draw_starting(rv_pchost_text_target{ out.data(), width, height }, journal, unfit);
     } catch (const std::bad_alloc &) {
         return refuse(out, RV_ERR_NOMEM, width, height);
     }
     return RV_OK;
 }
 
-int rv_pcboot_report_build(std::vector<uint32_t> &out, int64_t width, int64_t height, const rv_pcboot_journal &journal)
+int rv_pcboot_report_build(std::vector<uint32_t> &out,
+    int64_t width,
+    int64_t height,
+    const rv_pcboot_journal &journal,
+    int64_t *unfit)
 {
-    const int rv = begin_frame(out, width, height);
+    const int rv = begin_frame(out, width, height, unfit);
     if (rv != RV_OK) {
         return rv;
     }
     // The line lists and strings may throw bad_alloc after `out` is sized; that is RV_ERR_NOMEM too.
     try {
-        draw_report(rv_pchost_text_target{ out.data(), width, height }, journal);
+        draw_report(rv_pchost_text_target{ out.data(), width, height }, journal, unfit);
     } catch (const std::bad_alloc &) {
         return refuse(out, RV_ERR_NOMEM, width, height);
     }

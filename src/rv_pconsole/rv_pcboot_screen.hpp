@@ -27,11 +27,19 @@ rv_pcboot_rect rv_pcboot_button_rect(int64_t width, int64_t height);
 // Compose the starting picture into `out`, resized to width * height and fully
 // written. Text that does not fit its area is not drawn, without a log: the title,
 // the starting line, the button label, and the journal, which stops at the first
-// line that does not fit. A small frame is normal, not an error.
+// line that does not fit. A small frame is normal, not an error. `unfit`, when not
+// null, counts the elements left undrawn for lack of room: the title, the starting
+// line and the button label one each, and each journal entry from the first one that
+// does not fit on, one each. It is meaningful only with RV_OK; other returns may
+// leave a partial count.
 // RV_OK; RV_ERR_INVAL with `out` cleared and the reason logged, for a frame with a
 // side <= 0 or a size that does not fit `out`; RV_ERR_NOMEM with `out` cleared and
 // the size logged, when the allocation fails.
-int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t height, const rv_pcboot_journal &journal);
+int rv_pcboot_screen_build(std::vector<uint32_t> &out,
+    int64_t width,
+    int64_t height,
+    const rv_pcboot_journal &journal,
+    int64_t *unfit = nullptr);
 
 // Compose the report picture into `out`, resized to width * height and fully written.
 // The all-ok line when the journal has no warning, then the journal in entry order;
@@ -39,7 +47,14 @@ int rv_pcboot_screen_build(std::vector<uint32_t> &out, int64_t width, int64_t he
 // is never wrapped. The all-ok line and the Found and Recommended texts are word-wrapped
 // to the window; a text with a word wider than a line is not drawn at all. Lines stop at
 // the first one that does not fit. The continue prompt is centred at the bottom and not
-// drawn when it does not fit. Return codes as rv_pcboot_screen_build.
-int rv_pcboot_report_build(std::vector<uint32_t> &out, int64_t width, int64_t height, const rv_pcboot_journal &journal);
+// drawn when it does not fit. `unfit` counts as in rv_pcboot_screen_build (see there):
+// a text dropped by wrapping counts once, each report line from the first one that does
+// not fit on counts one each, and the continue prompt counts one. Only meaningful with
+// RV_OK. Return codes as rv_pcboot_screen_build.
+int rv_pcboot_report_build(std::vector<uint32_t> &out,
+    int64_t width,
+    int64_t height,
+    const rv_pcboot_journal &journal,
+    int64_t *unfit = nullptr);
 
 } // namespace rv_3dmppc
