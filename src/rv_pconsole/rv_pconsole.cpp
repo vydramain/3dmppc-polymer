@@ -40,10 +40,14 @@ inline constexpr const char *rv_pcboot_text_audio_found = "boot.audio_found";
 inline constexpr const char *rv_pcboot_text_audio_recommend = "boot.audio_recommend";
 inline constexpr const char *rv_pcboot_text_gamepads_found = "boot.gamepads_found";
 inline constexpr const char *rv_pcboot_text_gamepads_recommend = "boot.gamepads_recommend";
+inline constexpr const char *rv_pcboot_text_webhid_found = "boot.webhid_found";
+inline constexpr const char *rv_pcboot_text_webhid_recommend = "boot.webhid_recommend";
 inline constexpr const char *rv_pcboot_text_motion_found = "boot.motion_found";
 inline constexpr const char *rv_pcboot_text_motion_recommend = "boot.motion_recommend";
 inline constexpr const char *rv_pcboot_text_video_found = "boot.video_found";
 inline constexpr const char *rv_pcboot_text_video_recommend = "boot.video_recommend";
+inline constexpr const char *rv_pcboot_text_save_load_found = "boot.save_load_found";
+inline constexpr const char *rv_pcboot_text_save_load_recommend = "boot.save_load_recommend";
 
 // A row warns its slot when its refused bit is set. Rows are in report order: the first
 // matching row for a slot gives its texts. The caller passes only the bits its slot reads.
@@ -60,10 +64,15 @@ inline constexpr rv_pcboot_refusal_row rv_pcboot_refusal_rows[] = {
         rv_3dmppc::RV_PCPLATFORM_REFUSED_GAMEPADS,
         rv_pcboot_text_gamepads_found,
         rv_pcboot_text_gamepads_recommend },
+    { rv_pcslot_cio, rv_3dmppc::RV_PCPLATFORM_REFUSED_WEBHID, rv_pcboot_text_webhid_found, rv_pcboot_text_webhid_recommend },
     { rv_pcslot_cio,
         rv_3dmppc::RV_PCPLATFORM_REFUSED_PAD_MOTION,
         rv_pcboot_text_motion_found,
         rv_pcboot_text_motion_recommend },
+    { rv_pcslot_cm,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_SAVE_LOAD,
+        rv_pcboot_text_save_load_found,
+        rv_pcboot_text_save_load_recommend },
     { rv_pcslot_cv, rv_3dmppc::RV_PCPLATFORM_REFUSED_VIDEO, rv_pcboot_text_video_found, rv_pcboot_text_video_recommend },
 };
 
