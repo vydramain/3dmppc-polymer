@@ -272,6 +272,11 @@ WebAssembly, the code format browsers run: `mppcburner setup web` installs it, o
 The page waits for a click on it or a key press, and only then starts the console. Sound
 starts with it, since browsers allow audio only after a user gesture.
 
+The page texts (the loading line, the gamepad button, the start prompt) are in the kit's
+`rv_web_texts.txt`, as `key = value` lines. A changed value translates the page at the next
+burn, without rebuilding the console. A missing or unknown key makes the burn fail with its
+reason.
+
 In a browser with WebHID (the page's access to HID devices, such as gamepads) and JSPI
 (a way for WebAssembly to wait for the browser), the page shows an "Allow gamepads" button
 at the bottom right. The boot journal advises Chrome or Edge 137 or newer. The click asks
@@ -290,6 +295,10 @@ the page's address. The console writes it back once a second and when the page i
 reload or a closed tab can lose up to one second of saves, plus a write still in progress.
 If the storage does not load, the boot check logs `pcboot: cm: warning`; the start screen
 stops at that report the same way, and the card is not saved in that session.
+
+If the disc does not start after the start screen, the page stays on a black frame. The reason
+is in the browser console: the line `the disc did not start` gives the code, and the cause is
+logged above it.
 
 ---
 
