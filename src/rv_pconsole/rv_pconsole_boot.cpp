@@ -28,10 +28,15 @@ bool boot_button_hit(const rv_pcpointer &point, const rv_pcboot_rect &button)
 
 } // namespace
 
-bool rv_pconsole::boot_screen_begin()
+bool rv_pconsole::boot_window_shows()
 {
+    if (boot_window_ != boot_window_state::unopened) {
+        return boot_window_ == boot_window_state::shown;
+    }
+
     // Checked before any open: the frame-fd window remaps its memory when it opens.
     if (platform_.window().embedded()) {
+        boot_window_ = boot_window_state::absent;
         return false;
     }
 
@@ -39,11 +44,29 @@ bool rv_pconsole::boot_screen_begin()
         platform_.window().open(rv_pctext("boot.title"), cv_->screen_width(), cv_->screen_height(), params_.scale);
     if (0 > opened) {
         RV_LOG_WARN("pconsole", "start screen did not come up (rc {}), continuing without it", opened);
+        boot_window_ = boot_window_state::absent;
         return false;
     }
 
     // open() succeeds without a window when none was wanted: there is nothing to show on.
-    if (!platform_.window().presenting()) {
+    boot_window_ = platform_.window().presenting() ? boot_window_state::shown : boot_window_state::absent;
+    return boot_window_ == boot_window_state::shown;
+}
+
+void rv_pconsole::boot_screen_during_boot()
+{
+    if (!boot_window_shows()) {
+        return;
+    }
+    // No pump and no input here: the stage owns both, and begin drops the presses from before it.
+    boot_phase_ = boot_screen_phase::starting;
+    // show() logs its own warn when a view cannot be drawn; the boot goes on either way.
+    static_cast<void>(boot_screen_show());
+}
+
+bool rv_pconsole::boot_screen_begin()
+{
+    if (!boot_window_shows()) {
         return false;
     }
 

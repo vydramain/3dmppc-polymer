@@ -112,12 +112,16 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cm, cm_->valid(), refused);
     cv_ = rv_pccv_make(conf.slots.cv, conf.cv);
     rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cv, cv_->valid(), refused);
+    boot_screen_during_boot();
     cg_ = rv_pccg_make(conf.slots.cg, conf.cg, *cv_);
     rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cg, cg_->valid(), refused);
+    boot_screen_during_boot();
     cd_ = rv_pccd_make(conf.slots.cd, conf.cd);
     rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cd, cd_->valid(), refused);
+    boot_screen_during_boot();
     cl_ = rv_pccl_make(conf.slots.cl, conf.cl, *cd_);
     rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cl, cl_->valid(), refused);
+    boot_screen_during_boot();
 
     // The attach calls run once all seven controllers exist: cd_ attaches cv_, ca_
     // and cg_. cv_ must outlive cd_ (rv_pccd.hpp: ~rv_pccd_fs frees textures

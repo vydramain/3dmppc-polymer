@@ -267,8 +267,21 @@ private:
     std::chrono::steady_clock::time_point boot_started_{};
     std::vector<uint32_t> boot_picture_;
 
+    // The start screen's window, opened at most once per console. Whether it shows is remembered.
+    // absent: no window to show on - embedded, open refused, or none wanted.
+    enum class boot_window_state {
+        unopened,
+        shown,
+        absent
+    };
+    boot_window_state boot_window_ = boot_window_state::unopened;
+
     // Composes the current phase's view into boot_picture_ and presents it. RV_OK, or the build's rc.
     int boot_screen_show();
+    // True when the start screen's window shows. The first call opens it; later calls answer from boot_window_.
+    bool boot_window_shows();
+    // Presents the starting view from the journal so far. Called while the constructor makes the controllers.
+    void boot_screen_during_boot();
 
     // Every one of these is a SLOT: rv_pconsole_cmd_devtools.cpp in a development build,
     // rv_pconsole_cmd_standard.cpp in a player build, chosen in CMakeLists.txt.
