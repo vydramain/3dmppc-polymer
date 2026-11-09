@@ -12,7 +12,7 @@ addToLibrary({
         // A UTF-8 continuation byte is 10xxxxxx; a name cut must not start on one.
         UTF8_CONT_MASK : 0xC0,
         UTF8_CONT_TAG : 0x80,
-        // Returned by timed() when the limit passes before the promise settles.
+        // Returned by timed() when the limit passes before the promise settles, and by wait() when ms > 0 passes.
         TIMED_OUT : {},
         RUN_DEPENDENCY : 'rv_webhid',
         // HIDDevice -> its open attempt { promise }; a device in the table keeps its attempt.
@@ -138,8 +138,8 @@ addToLibrary({
             return Promise.race([ promise, limit ]).finally(function() { clearTimeout(timer); });
         },
         // Settles with the next report of entry, null when the device is removed, or TIMED_OUT when ms > 0 passes.
-        // ms < 0 waits without a limit. Waiters are served in call order, one report each; a report that
-        // arrives with no waiter is queued.
+        // ms <= 0 waits without a limit; ms 0 is for the caller to return at once, as hidapi does.
+        // Waiters are served in call order, one report each; a report that arrives with no waiter is queued.
         wait : function(entry, ms) {
             return new Promise(function(resolve) {
                 var timer;
@@ -384,7 +384,8 @@ addToLibrary({
     },
 
     // Replaces the system fd_sync from libwasi.js. With JSPI it becomes async and syncs the whole IDBFS mount.
-    // A disc's card_write reaches fsync, which may run in a frame outside promising, so fsync must stay sync.
+    // Each fsync would then sync the whole IDBFS mount to IndexedDB, so this override keeps fsync sync;
+    // the memory card reaches IndexedDB through Module.rvSaveFlush.
     // Errors return errno as system wasi calls do; the override replaces the system fd_sync whole.
     fd_sync__deps : [ '$SYSCALLS' ],
     fd_sync__async : false,
