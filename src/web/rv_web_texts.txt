@@ -1,0 +1,5 @@
+# Page texts of the web kit: loading, gamepad button and start prompt. mppcburner reads them when it burns a disc.
+# Replace the values after '=' to translate the page; every key is required, and a key may not be renamed or added.
+loading = Loading...
+allow_gamepads = Allow gamepads
+click_to_start = Click to start

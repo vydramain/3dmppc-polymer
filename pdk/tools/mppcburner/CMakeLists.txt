@@ -20,6 +20,7 @@ add_executable(mppcburner
   rv_burner_build/rv_burner_bake_texture.cpp
   rv_burner_build/rv_burner_map.cpp
   rv_burner_build/rv_burner_kit.cpp
+  rv_burner_build/rv_burner_kit_texts.cpp
   rv_burner_inspect/rv_burner_inspect_runner.cpp
 
   # the setup subcommand: pinned tools installed once per user, not shipped in the package
