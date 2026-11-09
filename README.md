@@ -253,12 +253,43 @@ on the button during that second, shows the report at once ("All components star
 problems." when nothing warned), and then it waits the same way.
 
 The window comes before the disc is chosen, built-in or by path, and has nothing to do with the
-disc. With `--mode_cv=null` or `--frame-fd` there is no window, so no screen and no wait: the
-lines are only in the log. On the web the console does not wait at the start screen and goes on
-at once; its lines go to the browser console.
+disc. With `--mode_cv=null` or `--frame-fd` there is no window, so no screen and no
+wait: the lines are only in the log. In the browser the screen is the same, and its lines
+also go to the browser console.
 
 The texts are in `src/texts/rv_console_texts.toml`, section `[boot]`. They are built into the
 console, so a translation is an edit of that file followed by a rebuild.
+
+### In a browser
+
+`mppcburner build <dir> -t web -o <out>` writes the console as a web page:
+`<out>/index.html` with the disc inside, `<out>/licenses/`, and `<out>.zip` beside `<out>`
+with both. The page is built from the kit in `bin/firmware/web/`, which a player release
+does not carry. It needs Emscripten, the compiler that turns C and C++ into
+WebAssembly, the code format browsers run: `mppcburner setup web` installs it, or
+`-e PATH` names one. A disc with scripts is refused, since the web console has no Lua.
+
+The page waits for a click on it or a key press, and only then starts the console. Sound
+starts with it, since browsers allow audio only after a user gesture.
+
+In a browser with WebHID (the page's access to HID devices, such as gamepads) and JSPI
+(a way for WebAssembly to wait for the browser), the page shows an "Allow gamepads" button
+at the bottom right. The boot journal advises Chrome or Edge 137 or newer. The click asks
+for the gamepads the browser offers. A gamepad granted this way gets the driver SDL has
+for that model, which gives motion sensors and touchpads where that driver supports them;
+this is not checked on real hardware yet. Gamepads granted earlier open at page load,
+without a prompt. A declined request is not an error.
+
+Without WebHID or JSPI, gamepads use the browser's standard Gamepad API (the common browser
+interface for gamepads), with no motion sensors or touchpads. The boot check logs
+`pcboot: cio: warning` with its advice, and the start screen stops at that report until a
+key, a mouse button or a gamepad button is pressed (see "Start screen").
+
+The memory card is kept in the browser's storage (IndexedDB), in the browser profile and for
+the page's address. The console writes it back once a second and when the page is left. A
+reload or a closed tab can lose up to one second of saves, plus a write still in progress.
+If the storage does not load, the boot check logs `pcboot: cm: warning`; the start screen
+stops at that report the same way, and the card is not saved in that session.
 
 ---
 
