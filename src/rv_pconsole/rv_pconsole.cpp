@@ -155,8 +155,8 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     // cg_ needs cv_, cl_ needs cd_.
     ca_ = rv_pcca_make(conf.slots.ca, conf.ca);
     rv_pcboot_journal_slot(boot_journal_, rv_pcslot_ca, ca_->valid(), refused);
-    // Only the standard cio reads the platform's pads; the null cio never does.
-    const uint32_t cio_refused = conf.slots.cio == rv_pccio_impl::standard ? refused : 0;
+    // Only a cio that is not null reads the platform's pads; the null cio never does.
+    const uint32_t cio_refused = conf.slots.cio != rv_pccio_impl::null ? refused : 0;
     cio_ = rv_pccio_make(conf.slots.cio, conf.cio, platform_);
     rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cio, cio_->valid(), cio_refused);
     cm_ = rv_pccm_make(conf.slots.cm, conf.cm);
