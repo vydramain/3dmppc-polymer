@@ -20,8 +20,9 @@ int rv_webhid_id(int index);
 // bluetooth is 1 for a known pad in its Bluetooth mode, else 0.
 int rv_webhid_info(int id, int *vendor, int *product, int *usage_page, int *usage, int *bluetooth);
 int rv_webhid_product_name(int id, char *buf, int len);
-// The _timeout, get and send calls are async: they suspend wasm through JSPI.
+// rv_webhid_read and rv_webhid_write are synchronous: read returns a queued report or 0, write does not wait.
 int rv_webhid_read(int id, unsigned char *buf, int len);
+// rv_webhid_read_timeout, rv_webhid_get_feature and rv_webhid_send_feature are async: they suspend wasm through JSPI.
 int rv_webhid_read_timeout(int id, unsigned char *buf, int len, int ms);
 int rv_webhid_write(int id, const unsigned char *buf, int len);
 int rv_webhid_get_feature(int id, unsigned char *buf, int len);
