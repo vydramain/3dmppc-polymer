@@ -281,7 +281,8 @@ void wrap_into(std::vector<report_line> &lines, std::string_view text, int64_t w
 }
 
 // The report's lines in order: the all-ok line when nothing failed, then each entry,
-// and under each warning its Found and Recommended texts. `width` is the text area.
+// and under each warning its short Found and Recommended texts (the journal writes the full ones to the log).
+// `width` is the text area.
 std::vector<report_line> report_lines(const rv_pcboot_journal &journal, int64_t width)
 {
     std::vector<report_line> lines;
@@ -296,8 +297,8 @@ std::vector<report_line> report_lines(const rv_pcboot_journal &journal, int64_t 
         if (entry.level != rv_pcboot_level::warning) {
             continue;
         }
-        wrap_into(lines, labelled(RV_PCBOOT_FOUND_ID, entry.found_id), indented, RV_PCBOOT_REPORT_INDENT);
-        wrap_into(lines, labelled(RV_PCBOOT_RECOMMEND_ID, entry.recommend_id), indented, RV_PCBOOT_REPORT_INDENT);
+        wrap_into(lines, labelled(RV_PCBOOT_FOUND_ID, entry.screen_found_id), indented, RV_PCBOOT_REPORT_INDENT);
+        wrap_into(lines, labelled(RV_PCBOOT_RECOMMEND_ID, entry.screen_recommend_id), indented, RV_PCBOOT_REPORT_INDENT);
     }
     return lines;
 }
