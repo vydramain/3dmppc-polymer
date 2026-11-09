@@ -22,14 +22,15 @@ namespace rv_editor
 namespace
 {
 
-// Reserved lines for the message area: displays unanswered request, detail, build/restart note, or last run reason.
-constexpr int reserved_message_lines = 2;
-
 // Builds subdirectory in the project cache. Same value used in rv_editor_build.cpp, rv_editor_app_logs.cpp.
 constexpr std::string_view builds_dir_name = "builds";
 
 // Memory card file in the project's state directory. Same value used in rv_editor_app.cpp.
 constexpr std::string_view memcard_filename = "memcard.mppccard";
+
+// Share of the second row's room the facts may take at most. The message keeps the
+// rest: it can carry a request or a failure, so it must never shrink to nothing.
+constexpr float facts_room_share = 0.5f;
 
 // The tools the Toolchain list shows, in order: the member of rv_editor_toolchain and its name text.
 struct rv_editor_tool_row {
@@ -68,6 +69,80 @@ rv_editor_status_kind rv_editor_run_lamp(const rv_editor_session &session)
     }
 }
 
+// What the action slot after the state name offers; `none` when nothing does.
+enum class rv_editor_action_kind {
+    none,
+    force_stop,
+    cancel_build,
+    reload_badge,
+};
+
+// A hung or lost runtime needs Force Stop first, then a running build needs
+// Cancel, and only then the reload badge.
+rv_editor_action_kind rv_editor_action_for(const rv_editor_session &session, bool building, bool has_badge)
+{
+    if (session.hung() || session.state() == rv_editor_run_state::disconnected) {
+        return rv_editor_action_kind::force_stop;
+    }
+    if (building) {
+        return rv_editor_action_kind::cancel_build;
+    }
+    return has_badge ? rv_editor_action_kind::reload_badge : rv_editor_action_kind::none;
+}
+
+// Width the action takes on the row: the transport bar reserves it, the flow places it.
+float rv_editor_action_width(rv_editor_action_kind action,
+    const std::string &badge_label,
+    rv_editor_status_kind badge_kind,
+    const rv_editor_theme &theme)
+{
+    switch (action) {
+    case rv_editor_action_kind::force_stop:
+        return rv_editor_button_width(rv_editor_text("panes.force_stop_button"));
+    case rv_editor_action_kind::cancel_build:
+        return rv_editor_button_width(rv_editor_text("panes.cancel_build_button"));
+    case rv_editor_action_kind::reload_badge:
+        return rv_editor_status_width(badge_label.c_str(), badge_kind, theme);
+    case rv_editor_action_kind::none:
+        break;
+    }
+    return 0.0f;
+}
+
+// Draws the action slot's item: the button or the badge; `none` draws nothing.
+void rv_editor_action_draw(rv_editor_app &app,
+    rv_editor_action_kind action,
+    const std::string &badge_label,
+    rv_editor_status_kind badge_kind,
+    const rv_editor_theme &theme)
+{
+    switch (action) {
+    case rv_editor_action_kind::force_stop: {
+        const bool force_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::force_stop);
+        const char *force_why = force_pending ? rv_editor_text("app_why_not.stop_pending") : nullptr;
+        if (rv_editor_button(rv_editor_text("panes.force_stop_button"), theme, { rv_editor_look::live, force_why })) {
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::force_stop });
+        }
+        break;
+    }
+    case rv_editor_action_kind::cancel_build: {
+        const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
+        const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
+        const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : nullptr;
+        const char *cancel_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
+        if (rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, { rv_editor_look::live, cancel_why })) {
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
+        }
+        break;
+    }
+    case rv_editor_action_kind::reload_badge:
+        rv_editor_status(badge_label.c_str(), badge_kind, theme);
+        break;
+    case rv_editor_action_kind::none:
+        break;
+    }
+}
+
 // Reload's disabled reason, always computed: "no session" and "disc cannot
 // reload" first (the transport button stays visible either way), then the
 // finer reasons rv_editor_app_why_not_reload already gives a live session.
@@ -85,24 +160,6 @@ const char *rv_editor_why_not_reload_shown(const rv_editor_app &app)
 void rv_editor_wrapped(const std::string &text, const rv_editor_theme &theme)
 {
     rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-}
-
-// One reserved block of `lines` wrapped-text lines, whatever `text` is: a
-// strip's row must not change size with what it has to say. Text past the
-// reserved lines clips; hovering the block shows it in full.
-void rv_editor_reserved(const char *id, const std::string &text, int lines, const rv_editor_theme &theme)
-{
-    const float h = ImGui::GetTextLineHeightWithSpacing() * lines;
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::BeginChild(id, ImVec2(0.0f, h), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-    if (!text.empty()) {
-        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-    }
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-    if (!text.empty() && ImGui::IsItemHovered()) {
-        rv_editor_tooltip(text.c_str());
-    }
 }
 
 // One reserved single line, `width` wide (0 = what remains of the row): `text`
@@ -242,37 +299,6 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     const char *name = rv_editor_run_state_name(s.state());
     const rv_editor_status_kind name_kind = rv_editor_run_lamp(s);
     const float name_width = rv_editor_status_width(name, name_kind, theme);
-    const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme, name_width);
-    if (clicked.build) {
-        rv_editor_app_build(app);
-    }
-    if (clicked.run) {
-        rv_editor_app_run(app);
-    }
-    if (clicked.pause) {
-        rv_editor_app_pause(app);
-    }
-    if (clicked.step) {
-        rv_editor_app_step(app);
-    }
-    if (clicked.stop) {
-        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::stop });
-    }
-    if (clicked.reload) {
-        rv_editor_app_reload(app);
-    }
-    if (clicked.build_restart) {
-        rv_editor_app_build_restart(app);
-    }
-    // Build and Restart took Reload's slot: say why, plainly, not only in its tooltip.
-    // why_not_reload already ends in ".": add the state-loss warning as its own sentence.
-    const std::string build_restart_message =
-        offer_build_restart ? why_not_reload + " " + rv_editor_text("panes.restart_loses_state") : std::string();
-
-    // The runtime's confirmed state follows the transport bar on the same row;
-    // the bar takes a smaller tile size first to leave it room.
-    rv_editor_flow(name_width);
-    rv_editor_status(name, name_kind, theme);
 
     // The last reload by the transport, as the runtime answered it. A
     // texture bake's own state comes first: it is what Reload is waiting on, and
@@ -314,12 +340,57 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         last_run_message = rv_editor_text_format("panes.last_run", std::make_format_args(end_reason));
     }
 
-    // One message area, 2 lines: the strip has many things it might say but
-    // never more than one matters at once, by priority (an unanswered request
-    // outranks a stale reload detail, which outranks the reload/build-restart
-    // note, which outranks what the last run ended with).
+    // The action slot follows the state name on the bar's row. Its width goes into
+    // the reserve before the bar draws: the bar picks a smaller tile size so its
+    // buttons and this tail fit on the row when the window is wide enough; otherwise
+    // the smallest size is drawn and the row's end clips.
+    const rv_editor_action_kind action = rv_editor_action_for(s, app.build.busy(), !badge_label.empty());
+    const float action_gap = action == rv_editor_action_kind::none ? 0.0f : ImGui::GetStyle().ItemSpacing.x;
+    const float action_w = rv_editor_action_width(action, badge_label, badge_kind, theme);
+    const float reserve = name_width + action_gap + action_w;
+    const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme, reserve);
+    if (clicked.build) {
+        rv_editor_app_build(app);
+    }
+    if (clicked.run) {
+        rv_editor_app_run(app);
+    }
+    if (clicked.pause) {
+        rv_editor_app_pause(app);
+    }
+    if (clicked.step) {
+        rv_editor_app_step(app);
+    }
+    if (clicked.stop) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::stop });
+    }
+    if (clicked.reload) {
+        rv_editor_app_reload(app);
+    }
+    if (clicked.build_restart) {
+        rv_editor_app_build_restart(app);
+    }
+    // Build and Restart took Reload's slot: say why, plainly, not only in its tooltip.
+    // why_not_reload already ends in ".": add the state-loss warning as its own sentence.
+    const std::string build_restart_message =
+        offer_build_restart ? why_not_reload + " " + rv_editor_text("panes.restart_loses_state") : std::string();
+
+    // The state name and the action share the bar's row; the bar's reserve is what
+    // keeps them there. An item that does not fit wraps to the next row.
+    rv_editor_flow(name_width);
+    rv_editor_status(name, name_kind, theme);
+    if (action != rv_editor_action_kind::none) {
+        rv_editor_flow(action_w);
+        rv_editor_action_draw(app, action, badge_label, badge_kind, theme);
+    }
+
+    // One message line, by priority: Force Stop's explanation first, then an
+    // unanswered request outranks a stale reload detail, which outranks the
+    // reload/build-restart note, which outranks what the last run ended with.
     std::string message;
-    if (s.uncertain()) {
+    if (action == rv_editor_action_kind::force_stop) {
+        message = s.hung() ? rv_editor_text("panes.runtime_not_ended") : rv_editor_text("panes.channel_gone");
+    } else if (s.uncertain()) {
         message = rv_editor_text("panes.request_unanswered");
     } else if (!detail.empty()) {
         message = detail;
@@ -328,48 +399,32 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     } else {
         message = last_run_message;
     }
-    rv_editor_reserved("##message", message, reserved_message_lines, theme);
 
-    // Facts/target and the profile button share one row: facts clips rather
-    // than wraps, so this row can never split in two.
+    // Facts, message and the profile button share the second row. Facts and
+    // message clip rather than wrap, so the row never splits; facts take at most
+    // their share, the message takes what is left.
     const bool debug_preset = app.preset == rv_editor_layout_preset::debug;
     const std::string facts = rv_editor_facts_text(s, app, debug_preset);
+    const bool show_facts = !facts.empty();
     const std::string profile_name = app.run_config.profiles[app.run_config.active].name;
     const std::string profile = rv_editor_text_format("panes.profile", std::make_format_args(profile_name));
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
     const float profile_w = rv_editor_button_width(profile.c_str());
-    const float facts_w = std::max(1.0f, ImGui::GetContentRegionAvail().x - profile_w - ImGui::GetStyle().ItemSpacing.x);
-    rv_editor_reserved_line("##facts", facts, facts_w, theme);
+    const float room = ImGui::GetContentRegionAvail().x - profile_w - spacing;
+    const float facts_text_w = show_facts ? ImGui::CalcTextSize(facts.c_str()).x : 0.0f;
+    const float facts_w = std::max(1.0f, std::min(facts_text_w, facts_room_share * room));
+    const float facts_gap = show_facts ? facts_w + spacing : 0.0f;
+    const float message_w = std::max(1.0f, room - facts_gap);
+    if (show_facts) {
+        rv_editor_reserved_line("##facts", facts, facts_w, theme);
+        ImGui::SameLine();
+    }
+    rv_editor_reserved_line("##message", message, message_w, theme);
     ImGui::SameLine();
     if (rv_editor_button(profile.c_str(), theme)) {
         app.show_request = rv_editor_pane_kind::run_config;
     }
     rv_editor_item_tooltip(rv_editor_text("panes.run_config_tooltip"));
-
-    // One action row shared by the three things it can offer, by priority: a
-    // hung runtime needs Force Stop first, then a running build needs Cancel,
-    // and only then the reload badge, the least urgent of the three.
-    if (s.hung() || s.state() == rv_editor_run_state::disconnected) {
-        const bool force_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::force_stop);
-        const char *force_why = force_pending ? rv_editor_text("app_why_not.stop_pending") : nullptr;
-        if (rv_editor_button(rv_editor_text("panes.force_stop_button"), theme, { rv_editor_look::live, force_why })) {
-            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::force_stop });
-        }
-        ImGui::SameLine();
-        const char *msg = s.hung() ? rv_editor_text("panes.runtime_not_ended") : rv_editor_text("panes.channel_gone");
-        rv_editor_label(msg, rv_editor_label_kind::normal, theme);
-    } else if (app.build.busy()) {
-        const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
-        const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
-        const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : nullptr;
-        const char *cancel_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
-        if (rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, { rv_editor_look::live, cancel_why })) {
-            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
-        }
-    } else if (!badge_label.empty()) {
-        rv_editor_status(badge_label.c_str(), badge_kind, theme);
-    } else {
-        ImGui::Dummy(ImVec2(1.0f, ImGui::GetFrameHeight()));
-    }
     rv_editor_shelf_end();
 }
 
