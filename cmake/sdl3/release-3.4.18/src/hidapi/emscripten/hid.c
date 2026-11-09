@@ -1,6 +1,6 @@
 /* HIDAPI backend for the browser build over the open WebHID devices of rv_webhid.js; waiting reads and feature calls use JSPI.
    Open, close, product string, device info, reads, writes and feature reports work; the rest fail with a reason.
-   WebHID gives no bus: a known pad of rv_webhid.js in its Bluetooth mode is Bluetooth, every other device is unknown. */
+   WebHID gives no bus: a known pad in its Bluetooth mode or a Bluetooth Xbox pad is Bluetooth, the rest is unknown. */
 
 #include "../hidapi/hidapi.h"
 
@@ -69,6 +69,7 @@ static struct hid_device_info *webhid_make_info(int id, int vendor, int product,
 {
     char path[WEBHID_PATH_BYTES];
     struct hid_device_info *info = (struct hid_device_info *)SDL_calloc(1, sizeof(*info));
+    const bool bluetooth_bus = bluetooth || SDL_IsJoystickBluetoothXboxOne(vendor, product);
 
     if (!info) {
         return NULL;
@@ -80,9 +81,11 @@ static struct hid_device_info *webhid_make_info(int id, int vendor, int product,
     info->product_string = webhid_product_string(id);
     info->usage_page = (unsigned short)usage_page;
     info->usage = (unsigned short)usage;
-    // WebHID gives no serial, manufacturer, release number or USB interface; the bus is known only for Bluetooth pads.
+    // WebHID gives no serial, manufacturer, release number or USB interface; the bus is known only for Bluetooth pads:
+    // a known pad of rv_webhid.js in Bluetooth mode, and a Bluetooth Xbox pad from SDL's list, since GIP takes an Xbox
+    // pad of unknown bus and refuses only the Bluetooth ones.
     info->interface_number = -1;
-    info->bus_type = bluetooth ? HID_API_BUS_BLUETOOTH : HID_API_BUS_UNKNOWN;
+    info->bus_type = bluetooth_bus ? HID_API_BUS_BLUETOOTH : HID_API_BUS_UNKNOWN;
     if (!info->path) {
         hid_free_enumeration(info);
         return NULL;
