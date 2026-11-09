@@ -17,7 +17,8 @@
 namespace rv_3dmppc
 {
 
-// pump() and the consume_* reads run on the console's frame thread, the one that runs disc_run.
+// pump() and the consume_* reads run on the console's one thread: the start screen
+// calls them before disc_run, and disc_run calls pump() on every pass.
 class rv_pcwindow_sdl3 final : public rv_pcwindow
 {
 public:

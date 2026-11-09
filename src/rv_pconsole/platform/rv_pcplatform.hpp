@@ -10,10 +10,10 @@
 // console timeline (rv_pconsole::disc_run) is the only thing that moves the
 // machine.
 //
-// null object. A service the run did not ask for (rv_pcplatform_wants)
-// or that refused to come up behaves as absent: open() is a successful no-op,
-// abilities read 0, the sink is unavailable. Callers never branch on "is there
-// a platform".
+// null object. A service the run did not ask for (rv_pcplatform_wants) behaves
+// as absent: open() is a successful no-op there. A wanted service that refused
+// to come up also reads as absent (abilities 0, the sink is unavailable), but
+// the window's open() returns RV_ERR_IO. Callers never branch on "is there a platform".
 #pragma once
 
 #include <cstdint>
@@ -73,9 +73,9 @@ public:
 
     // Create the window for a screen_width x screen_height frame magnified by
     // `scale`. RV_OK when a window now exists or none was wanted; RV_ERR_IO
-    // when one was wanted and could not be made. A second call keeps the
-    // window: same geometry only sets the title, another geometry is
-    // RV_ERR_INVAL and changes nothing.
+    // when one was wanted and could not be made. sdl3: a second call keeps the
+    // window, same geometry only sets the title, another geometry is
+    // RV_ERR_INVAL and changes nothing. The null platform returns RV_OK every time.
     virtual int64_t open(const char *title, int64_t screen_width, int64_t screen_height, uint64_t scale) = 0;
 
     // True while present() reaches a surface.
@@ -245,10 +245,13 @@ protected:
 };
 
 // Bits of rv_pcplatform::refused(). VIDEO, GAMEPADS and AUDIO are services: set
-// when wanted and refused to come up. PAD_MOTION, WEBHID and SAVE_LOAD are not
-// services. PAD_MOTION: a pad present at make() refused its motion sensors.
-// WEBHID and SAVE_LOAD are browser facts, set only by the web build: no WebHID or
-// JSPI (pads use the Gamepad API only), or the browser store did not load (card not saved).
+// when wanted and refused to come up. VIDEO is set when the SDL video subsystem
+// did not come up; the window's open() then also returns RV_ERR_IO. A window
+// failure after video came up is RV_ERR_IO alone. PAD_MOTION, WEBHID and
+// SAVE_LOAD are not services. PAD_MOTION: a pad present at make() refused its
+// motion sensors. WEBHID and SAVE_LOAD are browser facts, set only by the web build:
+// WEBHID when pads were wanted and there is no WebHID or JSPI (pads use the
+// Gamepad API only); SAVE_LOAD when the browser store did not load (card not saved).
 enum rv_pcplatform_refusal : uint32_t {
     RV_PCPLATFORM_REFUSED_VIDEO = 0x1,
     RV_PCPLATFORM_REFUSED_GAMEPADS = 0x2,
@@ -285,9 +288,9 @@ public:
         return rv_pcsignals_quit_requested() || window().close_requested();
     }
 
-    // The services the run wanted that refused to come up, as rv_pcplatform_refusal
-    // bits. For the boot journal only: nothing branches its behaviour on it. A
-    // service not wanted is never refused.
+    // rv_pcplatform_refusal bits: the services the run wanted that refused to come
+    // up, plus the PAD_MOTION, WEBHID and SAVE_LOAD facts. For the boot journal
+    // only: nothing branches its behaviour on it. A service not wanted is never refused.
     virtual uint32_t refused() const
     {
         return 0;
