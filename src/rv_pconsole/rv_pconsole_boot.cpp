@@ -1,7 +1,9 @@
 // The start screen's stage: the window, the presses and the phase rule. The pictures are
 // rv_pcboot_screen.cpp's; the loops that call this are per driver. No sleeping here: the caller paces.
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
+#include <new>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -18,6 +20,9 @@ namespace
 // How long the starting view stays when nothing is wrong: long enough to read its lines,
 // short enough not to slow a clean boot. Counted from begin, not in frames: web frames are not evenly paced.
 constexpr auto RV_PCONSOLE_BOOT_SCREEN_HOLD = std::chrono::seconds(1);
+
+// Opaque black, 0xAARRGGBB: the frame the page shows once the start screen is gone and no disc runs.
+constexpr uint32_t RV_PCONSOLE_BOOT_BLACK = 0xFF000000u;
 
 // A primary-button press inside the button of the starting view.
 bool boot_button_hit(const rv_pcpointer &point, const rv_pcboot_rect &button)
@@ -141,6 +146,38 @@ int rv_pconsole::boot_screen_show()
 
     platform_.window().present(boot_picture_.data());
     return RV_OK;
+}
+
+void rv_pconsole::boot_screen_present_black()
+{
+    // Not presenting: the window shows nothing, so there is no frame to blacken.
+    if (!platform_.window().presenting()) {
+        return;
+    }
+    const int64_t width = cv_->screen_width();
+    const int64_t height = cv_->screen_height();
+    // No frame without a size; the guard also keeps the size_t cast below from wrapping.
+    if (width <= 0 || height <= 0) {
+        try {
+            RV_LOG_WARN("pconsole", "the black frame was not made: the screen {}x{} has no size", width, height);
+        } catch (const std::bad_alloc &) {
+            // The reason is lost; the page keeps its last picture either way.
+        }
+        return;
+    }
+
+    const auto count = static_cast<std::size_t>(width * height);
+    try {
+        boot_picture_.assign(count, RV_PCONSOLE_BOOT_BLACK);
+    } catch (const std::bad_alloc &) {
+        try {
+            RV_LOG_WARN("pconsole", "the black frame was not made (out of memory); the page keeps its last picture");
+        } catch (const std::bad_alloc &) {
+            // The reason is lost; the page keeps its last picture either way.
+        }
+        return;
+    }
+    platform_.window().present(boot_picture_.data());
 }
 
 } // namespace rv_3dmppc

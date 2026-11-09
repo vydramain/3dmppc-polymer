@@ -288,6 +288,9 @@ private:
 
     // Composes the current phase's view into boot_picture_ and presents it. RV_OK, or the build's rc.
     int boot_screen_show();
+    // Presents an opaque black frame the size of the console screen, so the page does not keep its last picture.
+    // No-op without a presenting window or a usable size. A failure is logged when memory allows; the last picture stays.
+    void boot_screen_present_black();
     // True when the start screen's window shows. The first call opens it; later calls answer from boot_window_.
     bool boot_window_shows();
     // Presents the starting view from the journal so far. Called while the constructor makes the controllers.

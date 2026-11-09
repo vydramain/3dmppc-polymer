@@ -145,6 +145,7 @@ int64_t rv_pconsole::boot_screen_run(std::function<int64_t()> rest)
             return true;
         case boot_screen_result::quit:
             RV_LOG_INFO("pconsole", "the disc does not start: the start screen was stopped");
+            boot_screen_present_black();
             return false;
         case boot_screen_result::done:
             break;
@@ -152,6 +153,7 @@ int64_t rv_pconsole::boot_screen_run(std::function<int64_t()> rest)
         // rest returns only when the disc did not start: a started disc unwinds out of this frame.
         const int64_t rc = rest();
         RV_LOG_ERR("pconsole", "the disc did not start (code {}); the cause is logged above or on stderr", rc);
+        boot_screen_present_black();
         return false;
     });
 
