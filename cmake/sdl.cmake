@@ -9,7 +9,8 @@ include(FetchContent)
 # to fetch and URL_HASH checks its content. RV_SDL3_VERSION must equal the Steam Runtime 4 SDK's SDL.
 set(RV_SDL3_VERSION 3.4.18)
 set(RV_SDL3_TAG release-${RV_SDL3_VERSION})
-set(RV_SDL3_URL https://github.com/libsdl-org/SDL/releases/download/${RV_SDL3_TAG}/SDL3-${RV_SDL3_VERSION}.tar.gz)
+set(RV_SDL3_ARCHIVE_NAME SDL3-${RV_SDL3_VERSION}.tar.gz)
+set(RV_SDL3_URL https://github.com/libsdl-org/SDL/releases/download/${RV_SDL3_TAG}/${RV_SDL3_ARCHIVE_NAME})
 # SHA256 of that archive's content: the fetch fails if the release changes.
 set(RV_SDL3_SHA256 9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3)
 
@@ -62,6 +63,8 @@ else()
   endif()
   # The patch step lays the SDL patch set on the source. The hash of the set and of its script is in the command, so a
   # change of the set runs the step again. Adding or removing a set file reconfigures at the next build (CONFIGURE_DEPENDS).
+  # An equal stamp rewrites nothing, so a hand edit of sdl3-src stays until the set, the script, or the SDL tag, version or
+  # archive SHA256 changes, or the build dir is removed; then the source is restored and the edit is gone.
   set(RV_SDL3_PATCH_DIR ${CMAKE_CURRENT_LIST_DIR}/sdl3/${RV_SDL3_TAG})
   set(RV_SDL3_PATCH_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/rv_sdl3_patch.cmake)
   # The same names the script skips: dot files and backups are not part of the set.
@@ -91,7 +94,7 @@ else()
                   -DRV_SDL3_PATCH_DIR=${RV_SDL3_PATCH_DIR}
                   -DRV_SDL3_VERSION=${RV_SDL3_VERSION}
                   -DRV_SDL3_TAG=${RV_SDL3_TAG}
-                  -DRV_SDL3_ARCHIVE=<DOWNLOAD_DIR>/SDL3-${RV_SDL3_VERSION}.tar.gz
+                  -DRV_SDL3_ARCHIVE=<DOWNLOAD_DIR>/${RV_SDL3_ARCHIVE_NAME}
                   -DRV_SDL3_SHA256=${RV_SDL3_SHA256}
                   -DRV_SDL3_PATCH_HASH=${RV_SDL3_PATCH_HASH}
                   -P ${RV_SDL3_PATCH_SCRIPT}
