@@ -1,5 +1,6 @@
-// Boot-journal facts, read by C from Module. Keep this block above any WebAssembly stand-in (W4a):
-// rvWebhidUsable is the browser's own answer, so it must be read before a stand-in makes JSPI look present.
+// Boot-journal facts, read by C from Module. Keep this block above any WebAssembly stand-in:
+// rvWebhidUsable checks only navigator.hid and WebAssembly.Suspending; WebHID closed by permissions policy is not seen here.
+// It must be read before a stand-in makes JSPI look present.
 // rvSaveLoadFailed is set by the IndexedDB load below; main() waits for that load.
 Module.rvWebhidUsable = !!navigator.hid && typeof WebAssembly.Suspending === 'function';
 Module.rvSaveLoadFailed = false;

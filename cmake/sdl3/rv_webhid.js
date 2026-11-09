@@ -27,10 +27,10 @@ addToLibrary({
             // DualSense and DualSense Edge: Bluetooth report 0x31, USB 0x02 (Linux drivers/hid/hid-playstation.c,
             // DS_OUTPUT_REPORT_BT and DS_OUTPUT_REPORT_USB). Checked in the USB and Bluetooth descriptors of
             // github.com/nondebug/dualsense: output 0x31 is in the Bluetooth descriptor, output 0x02 in the USB one.
-            // Medium confidence: one source; hardware check in W9.
+            // Medium confidence: one source; hardware check pending.
             {vendor : 0x054C, products : [ 0x0CE6, 0x0DF2 ], report : 0x31, btIfPresent : true},
             // DualShock 4: Bluetooth report 0x11, USB 0x05 (hid-playstation.c, DS4_OUTPUT_REPORT_BT and
-            // DS4_OUTPUT_REPORT_USB). Low confidence: kernel constants only, descriptors not read; hardware check in W9.
+            // DS4_OUTPUT_REPORT_USB). Low confidence: kernel constants only, descriptors not read; hardware check pending.
             {vendor : 0x054C, products : [ 0x05C4, 0x09CC ], report : 0x11, btIfPresent : true},
         ],
         // 1 when the device is a known pad in its Bluetooth mode, else 0 (the bus is not determined).
