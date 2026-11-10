@@ -66,7 +66,7 @@ void rv_pconsole::boot_screen_during_boot()
         return;
     }
     // No pump and no input here: the stage owns both, and begin drops the presses from before it.
-    boot_phase_ = boot_screen_phase::starting;
+    boot_state_ = rv_pcboot_state::starting;
     // show() logs its own warn when a view cannot be drawn; the boot goes on either way.
     static_cast<void>(boot_screen_show());
 }
@@ -83,7 +83,10 @@ bool rv_pconsole::boot_screen_begin()
     static_cast<void>(platform_.window().consume_pause_requests());
     static_cast<void>(platform_.window().consume_mouse());
 
-    boot_phase_ = boot_journal_.has_warning() ? boot_screen_phase::report : boot_screen_phase::starting;
+    const rv_pcboot_state first = boot_journal_.has_error() ? rv_pcboot_state::error :
+        boot_journal_.has_warning()                         ? rv_pcboot_state::warning :
+                                                              rv_pcboot_state::starting;
+    boot_state_ = first;
     boot_started_ = std::chrono::steady_clock::now();
     return boot_screen_show() == RV_OK;
 }
@@ -102,19 +105,23 @@ rv_pconsole::boot_screen_result rv_pconsole::boot_screen_step()
     static_cast<void>(platform_.window().consume_pause_requests());
     static_cast<void>(platform_.window().consume_mouse());
 
-    const rv_pcboot_rect button = rv_pcboot_button_rect(cv_->screen_width(), cv_->screen_height(), rv_pcboot_state::starting);
-    switch (boot_phase_) {
-    case boot_screen_phase::starting:
-        // The presses that switch the view are used up; they do not also continue.
+    switch (boot_state_) {
+    case rv_pcboot_state::starting: {
+        const rv_pcboot_rect button =
+            rv_pcboot_button_rect(cv_->screen_width(), cv_->screen_height(), rv_pcboot_state::starting);
+        // The press that stops is used up; it does not also continue.
         if (presses.escape > 0 || boot_button_hit(presses.last_click, button)) {
-            boot_phase_ = boot_screen_phase::report;
+            boot_state_ = rv_pcboot_state::stopped;
             break;
         }
         if (std::chrono::steady_clock::now() - boot_started_ >= RV_PCONSOLE_BOOT_SCREEN_HOLD) {
             return boot_screen_result::done;
         }
         break;
-    case boot_screen_phase::report:
+    }
+    case rv_pcboot_state::warning:
+    case rv_pcboot_state::stopped:
+    case rv_pcboot_state::error:
         if (presses.keys > 0 || presses.mouse_buttons > 0 || pad_presses > 0) {
             return boot_screen_result::done;
         }
@@ -133,20 +140,7 @@ int rv_pconsole::boot_screen_show()
     const int64_t width = cv_->screen_width();
     const int64_t height = cv_->screen_height();
     int64_t unfit = 0;
-    int built = RV_ERR_INVAL;
-    switch (boot_phase_) {
-    case boot_screen_phase::starting:
-        built = rv_pcboot_screen_build(boot_picture_, width, height, boot_journal_, rv_pcboot_state::starting, &unfit);
-        break;
-    case boot_screen_phase::report:
-        built = rv_pcboot_screen_build(boot_picture_,
-            width,
-            height,
-            boot_journal_,
-            boot_journal_.has_warning() ? rv_pcboot_state::warning : rv_pcboot_state::stopped,
-            &unfit);
-        break;
-    }
+    const int built = rv_pcboot_screen_build(boot_picture_, width, height, boot_journal_, boot_state_, &unfit);
     if (built != RV_OK) {
         RV_LOG_WARN("pconsole", "start screen not drawn (rc {}), the boot goes on without it", built);
         return built;
@@ -160,12 +154,12 @@ int rv_pconsole::boot_screen_show()
 
 void rv_pconsole::boot_screen_warn_unfit(int64_t unfit)
 {
-    // Names by boot_screen_phase value. "at least": the starting view stays up while the journal still grows.
-    constexpr std::string_view VIEW_NAMES[] = { "starting view", "report view" };
-    static_assert(std::size(VIEW_NAMES) == static_cast<std::size_t>(boot_screen_phase::report) + 1,
-        "one view name per boot_screen_phase value");
+    // Names by rv_pcboot_state value. "at least": the starting view stays up while the journal still grows.
+    constexpr std::string_view VIEW_NAMES[] = { "starting view", "warning view", "stopped view", "error view" };
+    static_assert(std::size(VIEW_NAMES) == static_cast<std::size_t>(rv_pcboot_state::error) + 1,
+        "one view name per rv_pcboot_state value");
 
-    const uint32_t bit = 1u << static_cast<uint32_t>(boot_phase_);
+    const uint32_t bit = 1u << static_cast<uint32_t>(boot_state_);
     const bool warned = (boot_unfit_warned_ & bit) != 0;
     if (unfit <= 0 || warned) {
         return;
@@ -176,7 +170,7 @@ void rv_pconsole::boot_screen_warn_unfit(int64_t unfit)
         cv_->screen_width(),
         cv_->screen_height(),
         unfit,
-        VIEW_NAMES[static_cast<std::size_t>(boot_phase_)]);
+        VIEW_NAMES[static_cast<std::size_t>(boot_state_)]);
 }
 
 void rv_pconsole::boot_screen_present_black()
