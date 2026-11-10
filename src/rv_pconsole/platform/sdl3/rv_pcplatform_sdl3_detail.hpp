@@ -266,6 +266,11 @@ struct rv_pcsdl3_quit_guard {
     }
 };
 
+// USB ids of the web on-screen gamepad. rv_pcgamepads_sdl3.cpp reads this pair as stick touch on MISC3 and MISC4,
+// so the pad is listed there. Chosen here, not registered with USB-IF: a real device with this pair would match too.
+constexpr uint16_t RV_PCTOUCH_PAD_VENDOR_ID = 0x3dd3;
+constexpr uint16_t RV_PCTOUCH_PAD_PRODUCT_ID = 0x0001;
+
 // The web on-screen gamepad's virtual joystick id, 0 when none. The destructor detaches it (rv_pctouchpad_sdl3.cpp).
 struct rv_pctouch_pad_sdl3 {
     SDL_JoystickID id = 0;

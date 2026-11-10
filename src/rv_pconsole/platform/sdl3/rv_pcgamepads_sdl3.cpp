@@ -108,10 +108,11 @@ int enable_motion_sensors(SDL_Gamepad *pad)
     return RV_OK;
 }
 
-// On these pads SDL maps the stick touch sensors to MISC3 (left) and MISC4 (right): the Steam Deck
-// and the Steam Controller of the Triton family (SDL 3.4 SDL_gamepad.c, controller_list.h). On other
-// pads MISC3 and MISC4 mean something else (a GameCube trigger click, for one), so they are read as
-// stick touch only for a vendor and product listed here.
+// Stick touch is MISC3 (left) and MISC4 (right). On the Valve pads listed here SDL maps them so: the Steam Deck
+// and the Steam Controller of the Triton family (SDL 3.4 SDL_gamepad.c, controller_list.h). On other pads MISC3
+// and MISC4 mean something else (a GameCube trigger click, for one), so they are read as stick touch only for a
+// vendor and product listed here. The web on-screen gamepad is listed too: its MISC3 and MISC4 are stick touch by
+// the sticks group mask of its own (rv_pctouchpad_sdl3.cpp), not by an SDL map.
 struct rv_pcstick_touch_pad {
     uint16_t vendor;
     uint16_t product;
@@ -122,6 +123,8 @@ constexpr rv_pcstick_touch_pad RV_PCGAMEPADS_SDL3_STICK_TOUCH_PADS[] = {
     { 0x28de, 0x1303 }, // Valve Steam Triton controller (BLE)
     { 0x28de, 0x1304 }, // Valve Steam Proteus dongle
     { 0x28de, 0x1305 }, // Valve Steam Nereid dongle
+    // The web on-screen gamepad: its MISC3 and MISC4 are stick touch by the sticks group mask (rv_pctouchpad_sdl3.cpp).
+    { RV_PCTOUCH_PAD_VENDOR_ID, RV_PCTOUCH_PAD_PRODUCT_ID },
 };
 
 // Yes or no: are this pad's MISC3 and MISC4 its stick touch sensors.

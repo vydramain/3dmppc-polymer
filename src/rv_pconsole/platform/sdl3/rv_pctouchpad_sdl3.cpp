@@ -35,8 +35,10 @@ constexpr uint32_t rv_pctouch_button(SDL_GamepadButton button)
 }
 
 constexpr rv_pctouch_group_row RV_PCTOUCH_GROUP_ROWS[] = {
+    // MISC3 and MISC4 are the stick touch sensors, as rv_pcgamepads_sdl3.cpp reads them.
     { rv_touch_group::sticks,
-        rv_pctouch_button(SDL_GAMEPAD_BUTTON_LEFT_STICK) | rv_pctouch_button(SDL_GAMEPAD_BUTTON_RIGHT_STICK) },
+        rv_pctouch_button(SDL_GAMEPAD_BUTTON_LEFT_STICK) | rv_pctouch_button(SDL_GAMEPAD_BUTTON_RIGHT_STICK) |
+            rv_pctouch_button(SDL_GAMEPAD_BUTTON_MISC3) | rv_pctouch_button(SDL_GAMEPAD_BUTTON_MISC4) },
     // TOUCHPAD is the left trackpad's click, MISC2 the right one's (rv_pcgamepads_sdl3_touch.cpp).
     { rv_touch_group::trackpads, rv_pctouch_button(SDL_GAMEPAD_BUTTON_TOUCHPAD) | rv_pctouch_button(SDL_GAMEPAD_BUTTON_MISC2) },
     { rv_touch_group::dpad,
@@ -69,7 +71,7 @@ uint32_t touch_buttons(uint32_t groups)
     return buttons;
 }
 
-// The page's name for its pad: SDL shows it in the log. A virtual device has no USB ids.
+// The page's name for its pad: SDL shows it in the log.
 constexpr const char *RV_PCTOUCH_PAD_NAME = "3dmppc on-screen gamepad";
 
 // One finger per trackpad: the page draws each as a single touch point.
@@ -206,6 +208,8 @@ int rv_pcplatform_sdl3::show_touch_pad(uint32_t groups)
     desc.nsensors = motion ? static_cast<uint16_t>(SDL_arraysize(RV_PCTOUCH_SENSORS)) : 0;
     desc.sensors = motion ? RV_PCTOUCH_SENSORS : nullptr;
     desc.Rumble = page_rumble;
+    desc.vendor_id = RV_PCTOUCH_PAD_VENDOR_ID;
+    desc.product_id = RV_PCTOUCH_PAD_PRODUCT_ID;
     desc.name = RV_PCTOUCH_PAD_NAME;
 
     const SDL_JoystickID id = SDL_AttachVirtualJoystick(&desc);
