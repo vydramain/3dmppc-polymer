@@ -6,9 +6,11 @@
 #include "pdklib/rv_color/rv_color.hpp"
 #include "pdklib/rv_math/rv_math.hpp"
 #include "pdklib/rv_font/rv_font.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_math/rv_xform.hpp"
 
 #include "rv_dmain_draw_shared.hpp"
+#include "rv_dmain_ui.hpp"
 
 namespace rv_service
 {
@@ -76,42 +78,46 @@ namespace
 
 constexpr int RV_DMAIN_GRID_COLS = 4;
 constexpr int RV_DMAIN_GRID_ROWS = 3;
-constexpr int RV_DMAIN_GRID_TOP = 28;
-constexpr int RV_DMAIN_CELL_W = 78;
-constexpr int RV_DMAIN_CELL_H = 60;
-constexpr int RV_DMAIN_CELL_ART_TOP = 11; // below the cell's label
-constexpr int RV_DMAIN_CELL_GRID_OFFSET_X = 4;
-constexpr int RV_DMAIN_CELL_ART_OFFSET_X = 3;
-constexpr int RV_DMAIN_CELL_LABEL_OFFSET_X = 2;
-constexpr int RV_DMAIN_CELL_PADDING_RIGHT = 8;
-constexpr int RV_DMAIN_CELL_PADDING_BOTTOM = 5;
+constexpr int RV_DMAIN_TILE_MARGIN_X = 2;                          // tile inset from the cell's left and right edges
+constexpr int RV_DMAIN_CAPTION_GAP = 2;                            // tile bottom to caption top
+constexpr int RV_DMAIN_CAPTION_H = rv_pdklib::rv_font_cell_height; // one text line at scale 1
+constexpr int RV_DMAIN_CAPTION_SPARE = 1;                          // below the caption
+constexpr int RV_DMAIN_TILE_BELOW = RV_DMAIN_CAPTION_GAP + RV_DMAIN_CAPTION_H + RV_DMAIN_CAPTION_SPARE; // cell bottom strip
 constexpr int RV_DMAIN_DEPTH_STEP_OFFSET = 40;
 constexpr int RV_DMAIN_DEPTH_LADDER_STEP_X = 12;
 constexpr int RV_DMAIN_DEPTH_LADDER_STEP_Y = 8;
 constexpr int RV_DMAIN_DEPTH_LADDER_SHRINK_WIDTH = 24;
 constexpr int RV_DMAIN_DEPTH_LADDER_SHRINK_HEIGHT = 16;
 
-constexpr const char *RV_DMAIN_CELL_LABEL[] = {
-    "LINE",
-    "TRI",
-    "QUAD",
-    "WIRE",
-    "SPRITE",
-    "DIRECT15",
-    "TILE",
-    "IDX4",
-    "CUTOUT",
-    "DEPTH",
-    "STRETCH",
-    "3D",
-};
+// The raised tile inside a grid cell; the caption goes in the strip below it.
+constexpr rv_dmain_detail::rv_ui_rect cell_tile(int cx, int cy, int cw, int ch)
+{
+    return rv_dmain_detail::rv_ui_rect{ cx + RV_DMAIN_TILE_MARGIN_X,
+        cy,
+        cw - 2 * RV_DMAIN_TILE_MARGIN_X,
+        ch - RV_DMAIN_TILE_BELOW };
+}
 
 } // namespace
 
 void rv_dmain::draw_test_grid()
 {
+    using namespace rv_dmain_detail;
+    const rv_ui_rect grid = ui_grid(ui_window(static_cast<int>(screen_width_), static_cast<int>(screen_height_)));
+    const int cw = grid.w / RV_DMAIN_GRID_COLS;
+    const int ch = grid.h / RV_DMAIN_GRID_ROWS;
+    const rv_ui_rect probe = cell_tile(grid.x, grid.y, cw, ch);
+    if (probe.w - 2 * UI_BEVEL < 1 || probe.h - 2 * UI_BEVEL < 1) {
+        if (!grid_warned_) {
+            grid_warned_ = true;
+            RV_LOG_WARN("grid", "screen {}x{} is too small, the test tiles are not drawn", screen_width_, screen_height_);
+        }
+        return;
+    }
+
     for (int i = 0; i < RV_DMAIN_GRID_COLS * RV_DMAIN_GRID_ROWS; ++i) {
-        draw_cell(i);
+        const rv_ui_rect cell{ grid.x + i % RV_DMAIN_GRID_COLS * cw, grid.y + i / RV_DMAIN_GRID_COLS * ch, cw, ch };
+        draw_cell(i, cell, cell_tile(cell.x, cell.y, cw, ch));
     }
 }
 
@@ -178,20 +184,21 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h)
     }
 }
 
-void rv_dmain::draw_cell(int index)
+void rv_dmain::draw_cell(int index, const rv_dmain_detail::rv_ui_rect &cell, const rv_dmain_detail::rv_ui_rect &tile)
 {
-    const int col = index % RV_DMAIN_GRID_COLS;
-    const int row = index / RV_DMAIN_GRID_COLS;
-    const int cx = RV_DMAIN_CELL_GRID_OFFSET_X + col * RV_DMAIN_CELL_W;
-    const int cy = RV_DMAIN_GRID_TOP + row * RV_DMAIN_CELL_H;
+    using namespace rv_dmain_detail;
+    rv_cv *cv = rv_pdko_cv(pdk_);
+    ui_plate_raised(rv_pdklib::rv_theme_dark, tile, UI_DEPTH_TILE, [cv](const rv_primitive &p) {
+        rv_cv_frame_put(cv, &p);
+    });
 
-    // The art area: the cell minus its label strip and a pixel of breathing room.
-    const int ax = cx + RV_DMAIN_CELL_ART_OFFSET_X;
-    const int ay = cy + RV_DMAIN_CELL_ART_TOP;
-    const int aw = RV_DMAIN_CELL_W - RV_DMAIN_CELL_PADDING_RIGHT;
-    const int ah = RV_DMAIN_CELL_H - RV_DMAIN_CELL_ART_TOP - RV_DMAIN_CELL_PADDING_BOTTOM;
+    // The art area: the tile inside its bevel.
+    const int ax = tile.x + UI_BEVEL;
+    const int ay = tile.y + UI_BEVEL;
+    const int aw = tile.w - 2 * UI_BEVEL;
+    const int ah = tile.h - 2 * UI_BEVEL;
 
-    draw_cell_label(index, cx, cy);
+    draw_cell_label(index, cell, tile);
 
     const rv_color hot = rv_pdklib::rv_hsv_to_rgb(hue_, 0.85f, 1.0f);
     const rv_color cold = rv_pdklib::rv_hsv_to_rgb(hue_ + 0.4f, 0.85f, 1.0f);
@@ -200,20 +207,26 @@ void rv_dmain::draw_cell(int index)
     draw_cell_art(index, ax, ay, aw, ah, hot, cold, mid);
 }
 
-void rv_dmain::draw_cell_label(int index, int cx, int cy)
+// The caption centred by ink width under the tile; the cell is its fit area. A caption that does not fit
+// the cell is dropped without a log (it would repeat every frame); the tile still shows the test.
+void rv_dmain::draw_cell_label(int index, const rv_dmain_detail::rv_ui_rect &cell, const rv_dmain_detail::rv_ui_rect &tile)
 {
-    if (addr_font_ != 0) {
-        rv_cv *cv = rv_pdko_cv(pdk_);
-        const rv_pdklib::rv_font_style ink =
-            rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_TEXT], RV_DMAIN_DEPTH_TEXT, 1);
-        rv_pdklib::rv_font_draw(ink,
-            cx + RV_DMAIN_CELL_LABEL_OFFSET_X,
-            cy + 1,
-            RV_DMAIN_CELL_LABEL[index],
-            [cv](const rv_primitive &p) {
-                rv_cv_frame_put(cv, &p);
-            });
+    if (addr_font_ == 0) {
+        return;
     }
+    using namespace rv_dmain_detail;
+    rv_cv *cv = rv_pdko_cv(pdk_);
+    const std::string_view caption = UI_TEST_CAPTIONS[index];
+    const rv_pdklib::rv_font_style ink =
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_TEXT], RV_DMAIN_DEPTH_TEXT, 1);
+    ui_text(ink,
+        cell,
+        tile.x + (tile.w - ui_ink_width(caption, 1)) / 2,
+        tile.y + tile.h + RV_DMAIN_CAPTION_GAP,
+        caption,
+        [cv](const rv_primitive &p) {
+            rv_cv_frame_put(cv, &p);
+        });
 }
 
 void rv_dmain::draw_cell_art(int index, int ax, int ay, int aw, int ah, rv_color hot, rv_color cold, rv_color mid)
@@ -225,8 +238,9 @@ void rv_dmain::draw_cell_art(int index, int ax, int ay, int aw, int ah, rv_color
         rv_primitive primitive{};
         primitive.type = RV_PRIMITIVE_LINE;
         primitive.depth = RV_DMAIN_DEPTH_ART_HI;
-        primitive.data.line.vertexes[0] = make_vertex(ax, ay + ah, hot);
-        primitive.data.line.vertexes[1] = make_vertex(ax + aw, ay, cold);
+        // A line includes both end pixels: the far end is the last pixel inside the art area.
+        primitive.data.line.vertexes[0] = make_vertex(ax, ay + ah - 1, hot);
+        primitive.data.line.vertexes[1] = make_vertex(ax + aw - 1, ay, cold);
         rv_cv_frame_put(cv, &primitive);
         break;
     }
@@ -277,9 +291,10 @@ void rv_dmain::draw_cell_art(int index, int ax, int ay, int aw, int ah, rv_color
         q.mapping = RV_TEXWRAP_CLAMP;
         q.vertex_count = RV_DMAIN_QUAD_VERTICES;
         q.vertexes[0] = make_vertex(ax, ay, hot);
-        q.vertexes[1] = make_vertex(ax + aw, ay, hot);
-        q.vertexes[2] = make_vertex(ax, ay + ah, cold);
-        q.vertexes[3] = make_vertex(ax + aw, ay + ah, cold);
+        // Edges include their end pixels: the far edges are the last pixels inside the art area.
+        q.vertexes[1] = make_vertex(ax + aw - 1, ay, hot);
+        q.vertexes[2] = make_vertex(ax, ay + ah - 1, cold);
+        q.vertexes[3] = make_vertex(ax + aw - 1, ay + ah - 1, cold);
         rv_cv_frame_put(cv, &primitive);
         break;
     }

@@ -92,6 +92,58 @@ void ui_plate_sunken(uint32_t face, const rv_ui_rect &r, int32_t depth, Sink &&s
     ui_plate(face, rv_pdklib::rv_theme_bevel_lo, rv_pdklib::rv_theme_bevel_hi, r, depth, sink);
 }
 
+// Window layout. Depths: larger = nearer. The test art (-400..400) and the text (900), both in
+// rv_dmain_draw.cpp, lie in front of all three layers.
+constexpr int32_t UI_DEPTH_WINDOW = -900;    // the window plate
+constexpr int32_t UI_DEPTH_ON_WINDOW = -850; // title bar, panel and buttons
+constexpr int32_t UI_DEPTH_TILE = -700;      // the test tiles
+
+constexpr int UI_PANEL_LINES = 4;      // text lines the info panel holds
+constexpr int UI_PANEL_PAD_Y = 4;      // panel padding above and below its lines
+constexpr int UI_PANEL_ABOVE_BAND = 4; // gap between the panel and the button band
+constexpr int UI_GRID_BELOW_TITLE = 6; // gap between the title bar and the test grid
+
+// The window: the frame minus the theme margins on every side (8,6,304,228 at 320x240).
+constexpr rv_ui_rect ui_window(int width, int height)
+{
+    return rv_ui_rect{ rv_pdklib::rv_theme_window_margin_x,
+        rv_pdklib::rv_theme_window_margin_y,
+        width - 2 * rv_pdklib::rv_theme_window_margin_x,
+        height - 2 * rv_pdklib::rv_theme_window_margin_y };
+}
+
+// The title bar, inside the window bevel (10,8,300,16).
+constexpr rv_ui_rect ui_title_bar(const rv_ui_rect &window)
+{
+    return rv_ui_rect{ window.x + UI_BEVEL, window.y + UI_BEVEL, window.w - 2 * UI_BEVEL, rv_pdklib::rv_theme_title_h };
+}
+
+// Top of the button band (208).
+constexpr int ui_band_top(const rv_ui_rect &window)
+{
+    return window.y + window.h - rv_pdklib::rv_theme_button_band_above_bottom;
+}
+
+// The info panel: content width, four text lines plus padding, just above the button band (16,164,288,40).
+constexpr rv_ui_rect ui_panel(const rv_ui_rect &window)
+{
+    const int h = UI_PANEL_LINES * rv_pdklib::rv_theme_line_pitch + 2 * UI_PANEL_PAD_Y;
+    return rv_ui_rect{ window.x + rv_pdklib::rv_theme_content_x,
+        ui_band_top(window) - UI_PANEL_ABOVE_BAND - h,
+        window.w - 2 * rv_pdklib::rv_theme_content_x,
+        h };
+}
+
+// The test grid: the panel's columns, from below the title bar to the panel (16,30,288,134).
+// It can come out empty or negative on small frames: the caller checks.
+constexpr rv_ui_rect ui_grid(const rv_ui_rect &window)
+{
+    const rv_ui_rect title = ui_title_bar(window);
+    const rv_ui_rect panel = ui_panel(window);
+    const int top = title.y + title.h + UI_GRID_BELOW_TITLE;
+    return rv_ui_rect{ panel.x, top, panel.w, panel.y - top };
+}
+
 // Width without the blank spacing columns after the last glyph: fitting and centring use the ink.
 // The texts are ASCII: the width counts characters.
 inline int ui_ink_width(std::string_view text, int scale)

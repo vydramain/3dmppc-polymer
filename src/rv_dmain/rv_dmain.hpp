@@ -23,6 +23,7 @@
 #include "pdk/cv/rv_primitives.h"
 #include "pdk/de/rv_de.h"
 #include "pdk/rv_pdko.h"
+#include "rv_dmain_ui.hpp"
 
 // NAMESPACE: `rv_service`, not `rv_3dmppc` — this is a DISC, not part of the
 // machine, and a game declared inside the console's namespace reads as part of
@@ -78,8 +79,8 @@ private:
 
     // One cell of the test card. `index` picks the cell; each draws exactly one
     // of the console's drawing capabilities, labelled with what it proves.
-    void draw_cell(int index);
-    void draw_cell_label(int index, int cx, int cy);
+    void draw_cell(int index, const rv_dmain_detail::rv_ui_rect &cell, const rv_dmain_detail::rv_ui_rect &tile);
+    void draw_cell_label(int index, const rv_dmain_detail::rv_ui_rect &cell, const rv_dmain_detail::rv_ui_rect &tile);
     void draw_cell_art(int index, int ax, int ay, int aw, int ah, rv_color hot, rv_color cold, rv_color mid);
     void draw_cube_cell(int x, int y, int w, int h);
 
@@ -128,6 +129,7 @@ private:
     // The codes each setup step returned. They mean something only once
     // setup_done_ is set; before that the step has not run.
     bool setup_done_ = false;
+    bool grid_warned_ = false; // the "screen too small" warning is logged once, not every frame
     int texture_result_ = RV_ERR_INVAL;
     int idx4_result_ = RV_ERR_INVAL;
     int font_result_ = RV_ERR_INVAL;
