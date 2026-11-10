@@ -48,9 +48,10 @@ constexpr rv_color ui_color(uint32_t rgb)
         ui_channel(static_cast<int>(rgb) & UI_BYTE_MASK) };
 }
 
-// One plate: face plus two bevel rings of four non-overlapping strips (at most 9 sprites). In a ring the top
-// row and left column are `a`, the bottom row and right column `b`; the top-right and bottom-left
-// corners are `b`. Nothing is filed for a plate narrower or lower than UI_PLATE_MIN.
+// One plate: face plus one bevel ring per bevel pixel (UI_RINGS) of four non-overlapping strips
+// (at most 1 + 4 * UI_RINGS sprites). In a ring the top row and left column are `a`, the bottom row and
+// right column `b`; the top-right and bottom-left corners are `b`. Nothing is filed for a plate narrower
+// or lower than UI_PLATE_MIN.
 template <typename Sink>
 void ui_plate(uint32_t face, uint32_t a, uint32_t b, const rv_ui_rect &r, int32_t depth, Sink &&sink)
 {
@@ -92,6 +93,7 @@ void ui_plate_sunken(uint32_t face, const rv_ui_rect &r, int32_t depth, Sink &&s
 }
 
 // Width without the blank spacing columns after the last glyph: fitting and centring use the ink.
+// The texts are ASCII: the width counts characters.
 inline int ui_ink_width(std::string_view text, int scale)
 {
     const int advance = rv_pdklib::rv_font_measure_width(text, scale);
@@ -102,6 +104,7 @@ inline int ui_ink_width(std::string_view text, int scale)
 }
 
 // Text at the style's scale, drawn only when its ink width and one scaled glyph cell lie inside `area`.
+// The text must be one line: only one cell height is checked, a '\n' would draw below the area.
 template <typename Sink>
 bool ui_text_fit(const rv_pdklib::rv_font_style &style,
     const rv_ui_rect &area,
