@@ -3,8 +3,8 @@
 #include "rv_pconsole/rv_pcboot_screen.hpp"
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
+#include <iterator>
 #include <new>
 #include <string>
 #include <string_view>
@@ -94,6 +94,7 @@ constexpr uint8_t RV_PCBOOT_ICON_BITS[][RV_PCBOOT_ICON_ROWS] = {
     { 0xFF, 0x81, 0xC3, 0xA5, 0x99, 0x99, 0xA5, 0xC3, 0x81, 0xFF }, // cross
 };
 // clang-format on
+static_assert(std::size(RV_PCBOOT_ICON_BITS) == static_cast<std::size_t>(icon::cross) + 1, "one row per icon value");
 
 // Journal panel: a sunken plate under the status row, down to just above the button band.
 constexpr int64_t RV_PCBOOT_PANEL_Y = 50;
@@ -119,19 +120,23 @@ struct state_look {
     std::string_view status_id;
     std::string_view button_id;
 };
-constexpr std::array<state_look, 4> RV_PCBOOT_LOOKS = { {
+constexpr state_look RV_PCBOOT_LOOKS[] = {
     { icon::hourglass, RV_PCBOOT_STARTING_ID, RV_PCBOOT_MAINTENANCE_ID },
     { icon::note, RV_PCBOOT_STARTED_WARNINGS_ID, RV_PCBOOT_NO_ID },
     { icon::note, RV_PCBOOT_STOPPED_ID, RV_PCBOOT_NO_ID },
     { icon::cross, RV_PCBOOT_CANNOT_START_ID, RV_PCBOOT_POWER_OFF_ID },
-} };
+};
+static_assert(std::size(RV_PCBOOT_LOOKS) == static_cast<std::size_t>(rv_pcboot_state::error) + 1,
+    "one row per rv_pcboot_state value");
 
 // Journal level words, indexed by rv_pcboot_level.
-constexpr std::array<std::string_view, 3> RV_PCBOOT_LEVEL_IDS = {
+constexpr std::string_view RV_PCBOOT_LEVEL_IDS[] = {
     RV_PCBOOT_LEVEL_OK_ID,
     RV_PCBOOT_LEVEL_WARNING_ID,
     RV_PCBOOT_LEVEL_ERROR_ID,
 };
+static_assert(std::size(RV_PCBOOT_LEVEL_IDS) == static_cast<std::size_t>(rv_pcboot_level::error) + 1,
+    "one row per rv_pcboot_level value");
 
 const state_look &look_of(rv_pcboot_state state)
 {
