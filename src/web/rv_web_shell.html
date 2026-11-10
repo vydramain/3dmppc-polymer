@@ -12,6 +12,8 @@
   #canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; background: #000; outline: none; }
   /* On-screen pad over the canvas; hidden until the page script shows it. No display here, so hidden works. Below #start. */
   #touchpad { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
+  /* A long press on the canvases is a button hold: no selection and no iOS callout. */
+  #canvas, #touchpad { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   /* Covers the canvas until the first click or key: browsers allow audio only after a user gesture. */
   #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); color: #ddd; font: 16px monospace; cursor: pointer; user-select: none; }
   /* Outside #start, so its click does not start the console; shown only when WebHID and JSPI are present. */

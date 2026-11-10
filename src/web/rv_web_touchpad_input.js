@@ -370,10 +370,20 @@ void (function() {
         }
     }
 
+    // A long press on the pad or the console canvas is a button hold; the browser's context menu would take it.
+    // A mouse right click on the console canvas is stopped too, on purpose: the game does not need the browser menu.
+    function onContextMenu(e) {
+        var cv = document.getElementById(CANVAS_ID);
+        if (e.target === cv || e.target === Module.canvas) {
+            e.preventDefault();
+        }
+    }
+
     // Listeners are attached once, on the document and the window; the canvas is looked up at each event.
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', function(e) { finish(e.pointerId, false); });
     document.addEventListener('pointercancel', function(e) { finish(e.pointerId, true); });
+    document.addEventListener('contextmenu', onContextMenu);
     window.addEventListener('devicemotion', onMotion);
 })();
