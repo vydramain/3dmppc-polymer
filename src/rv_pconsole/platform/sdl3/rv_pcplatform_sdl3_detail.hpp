@@ -92,8 +92,27 @@ private:
     float cursor_y_ = 0.0f;
     bool cursor_on_window_ = false;
     bool coordinates_warned_ = false;
+    // The frame's rectangle in buffer pixels, as last computed by update_frame_rect().
+    SDL_FRect frame_rect_{};
+    // The buffer size update_frame_rect() read last, in buffer pixels.
+    int buffer_w_ = 0;
+    int buffer_h_ = 0;
+#if defined(__EMSCRIPTEN__)
+    // Web only: what the page was last told, and whether it was told at all.
+    bool layout_sent_ = false;
+    SDL_FRect layout_rect_{};
+    int layout_out_w_ = 0;
+    int layout_out_h_ = 0;
+    int layout_frame_w_ = 0;
+#endif
 
-    // A window point mapped through the logical presentation into frame pixels.
+    // Reads the buffer size and recomputes frame_rect_. Needs renderer_; the callers check it.
+    int update_frame_rect();
+#if defined(__EMSCRIPTEN__)
+    // Web only: sends the layout to the page when it changed since the last delivery.
+    void report_frame_layout();
+#endif
+    // A window point mapped to buffer pixels, then through frame_rect_ (refreshed by the caller) into frame pixels.
     rv_pcpointer to_frame(float x, float y);
 };
 
@@ -247,6 +266,24 @@ struct rv_pcsdl3_quit_guard {
     }
 };
 
+// USB ids of the web on-screen gamepad. rv_pcgamepads_sdl3.cpp reads this pair as stick touch on MISC3 and MISC4,
+// so the pad is listed there. Chosen here, not registered with USB-IF: a real device with this pair would match too.
+constexpr uint16_t RV_PCTOUCH_PAD_VENDOR_ID = 0x3dd3;
+constexpr uint16_t RV_PCTOUCH_PAD_PRODUCT_ID = 0x0001;
+
+// The web on-screen gamepad's virtual joystick id, 0 when none. The destructor detaches it (rv_pctouchpad_sdl3.cpp).
+struct rv_pctouch_pad_sdl3 {
+    SDL_JoystickID id = 0;
+    // Open from show_touch_pad until the destructor closes it; the page's rv_pctouchpad_* calls drive it.
+    SDL_Joystick *joystick = nullptr;
+    // Bit N is SDL_GamepadButton N; the pad's button index is the count of set bits below it.
+    uint32_t button_mask = 0;
+    // True when the pad has the gyro and accel sensors (the disc's gyro group); rv_pctouchpad_motion() needs them.
+    bool motion = false;
+
+    ~rv_pctouch_pad_sdl3();
+};
+
 class rv_pcplatform_sdl3 final : public rv_pcplatform
 {
 public:
@@ -257,10 +294,17 @@ public:
     rv_pcgamepads &gamepads() override;
     rv_pcaudio_sink &audio() override;
     uint32_t refused() const override;
+#if defined(__EMSCRIPTEN__)
+    // Web only: attaches the page's on-screen gamepad for the groups. Native has no pad and keeps the base RV_OK.
+    int show_touch_pad(uint32_t groups) override;
+#endif
 
     // Declared first: destroyed last, after window_/gamepads_/audio_ below
     // have already torn down every SDL handle they own.
     rv_pcsdl3_quit_guard quit_guard_;
+
+    // Declared second: destroyed after the pads and window, before SDL_Quit(), so the detach runs with SDL up.
+    rv_pctouch_pad_sdl3 touch_pad_;
 
     rv_pcwindow_sdl3 window_;
     rv_pcgamepads_sdl3 gamepads_;

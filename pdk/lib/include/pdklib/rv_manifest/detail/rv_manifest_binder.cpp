@@ -1,7 +1,9 @@
 #include "rv_manifest_binder.hpp"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
 
@@ -10,6 +12,19 @@
 
 namespace rv_pdklib
 {
+// Names are checked in rv_manifest_parse before binding, so an unknown one cannot get here.
+static uint32_t touch_mask(const std::vector<std::string> &names)
+{
+    uint32_t mask = 0;
+    for (const std::string &name : names) {
+        const rv_manifest_touch_group_spec *group = rv_manifest_touch_group_get(name);
+        if (group != nullptr) {
+            mask |= 1u << static_cast<unsigned>(group->group);
+        }
+    }
+    return mask;
+}
+
 // One row per field of rv_manifest. Section and key come from the schema
 // constants, so a row cannot drift away from the spelling the parser accepts.
 struct bind_rule {
@@ -67,6 +82,11 @@ constexpr bind_rule RULES[] = {
         rv_manifest_key_assets_stream_files,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.assets_stream_files = v.arr;
+        } },
+    { rv_manifest_section_touch_pad, // [touch_pad] show = [...]
+        rv_manifest_key_touch_pad_show,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.touch_pad_show = touch_mask(v.arr);
         } },
     { rv_manifest_section_assets_texture, // [assets.texture] format = "…"
         rv_manifest_key_assets_texture_format,

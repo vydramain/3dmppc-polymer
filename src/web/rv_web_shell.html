@@ -7,9 +7,13 @@
 <style>
   html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
   body { display: flex; align-items: center; justify-content: center; }
-  /* Largest 4:3 box that fits the window; the console is 320x240. */
-  #stage { position: relative; width: min(100vw, calc(100vh * 4 / 3)); }
-  #canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; image-rendering: pixelated; background: #000; outline: none; }
+  /* Canvas fills the whole page; the console fits its 320x240 frame into it. */
+  #stage { position: relative; width: 100%; height: 100%; }
+  #canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; background: #000; outline: none; }
+  /* On-screen pad over the canvas; hidden until the page script shows it. No display here, so hidden works. Below #start. */
+  #touchpad { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
+  /* A long press on the canvases is a button hold: no selection and no iOS callout. */
+  #canvas, #touchpad { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   /* Covers the canvas until the first click or key: browsers allow audio only after a user gesture. */
   #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); color: #ddd; font: 16px monospace; cursor: pointer; user-select: none; }
   /* Outside #start, so its click does not start the console; shown only when WebHID and JSPI are present. */
@@ -19,6 +23,13 @@
 <body>
 <div id="stage">
 <canvas id="canvas" width="320" height="240" tabindex="0"></canvas>
+<canvas id="touchpad" hidden
+  data-label-a="@rv_text_pad_a@" data-label-b="@rv_text_pad_b@" data-label-x="@rv_text_pad_x@" data-label-y="@rv_text_pad_y@"
+  data-label-l1="@rv_text_pad_l1@" data-label-r1="@rv_text_pad_r1@" data-label-l2="@rv_text_pad_l2@" data-label-r2="@rv_text_pad_r2@"
+  data-label-l4="@rv_text_pad_l4@" data-label-l5="@rv_text_pad_l5@" data-label-r4="@rv_text_pad_r4@" data-label-r5="@rv_text_pad_r5@"
+  data-label-view="@rv_text_pad_view@" data-label-menu="@rv_text_pad_menu@"
+  data-label-ls="@rv_text_pad_ls@" data-label-rs="@rv_text_pad_rs@" data-label-lp="@rv_text_pad_lp@" data-label-rp="@rv_text_pad_rp@"
+  data-label-dn="@rv_text_pad_dn@" data-label-ds="@rv_text_pad_ds@" data-label-dw="@rv_text_pad_dw@" data-label-de="@rv_text_pad_de@"></canvas>
 <div id="start" data-click-text="@rv_text_click_to_start@">@rv_text_loading@</div>
 </div>
 <button id="pads" type="button" hidden>@rv_text_allow_gamepads@</button>
@@ -50,11 +61,43 @@
     }, function(err) { console.warn('webhid: requestDevice failed: ' + err); });
   }
 
+  // The value requestPermission answers with when motion is allowed; any other value keeps it off.
+  var MOTION_GRANTED = 'granted';
+  // iOS asks for motion sensors only inside a user gesture. The answer lands in Module.rvMotionAllowed.
+  // onMotion in rv_web_touchpad_input.js reads this flag. Without a request (Android, desktop)
+  // motion stays allowed; a page without the on-screen pad skips it.
+  function askMotion() {
+    Module.rvMotionAllowed = true;
+    var hasRequest = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
+    if (!Module.rvTouchpadWanted || !hasRequest) {
+      return;
+    }
+    Module.rvMotionAllowed = false;
+    var request;
+    // A synchronous throw must not stop the console from starting.
+    try {
+      request = Promise.resolve(DeviceMotionEvent.requestPermission());
+    } catch (err) {
+      console.warn('motion: permission request threw: ' + err);
+      return;
+    }
+    request.then(function(state) {
+      Module.rvMotionAllowed = state === MOTION_GRANTED;
+      if (!Module.rvMotionAllowed) {
+        console.warn('motion: permission ' + state + ', motion sensors stay off');
+      }
+    }, function(err) {
+      console.warn('motion: permission request failed: ' + err);
+    });
+  }
+
   // Starts from the gesture itself: callMain creates the AudioContext, and browsers allow audio only inside a user gesture.
+  // The motion request goes out here too, without waiting for its answer, so the console starts at the same point.
   function startConsole() {
     window.removeEventListener('keydown', onGesture);
     start.remove();
     Module.canvas.focus();
+    askMotion();
     Module.callMain();
   }
 

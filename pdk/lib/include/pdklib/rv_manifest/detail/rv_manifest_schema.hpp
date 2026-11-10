@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <string_view>
 
+#include "../rv_manifest.hpp"
 #include "rv_manifest_value.hpp"
 
 // --- the schema ---------------------------------------------------------------
@@ -25,6 +26,7 @@ constexpr std::string_view rv_manifest_section_scripts = "scripts";
 constexpr std::string_view rv_manifest_section_assets = "assets";
 constexpr std::string_view rv_manifest_section_assets_texture = "assets.texture";
 constexpr std::string_view rv_manifest_section_assets_stream = "assets.stream";
+constexpr std::string_view rv_manifest_section_touch_pad = "touch_pad";
 constexpr std::string_view rv_manifest_section_budget_pcca = "budget.pcca";
 constexpr std::string_view rv_manifest_section_budget_pccv = "budget.pccv";
 constexpr std::string_view rv_manifest_section_budget_pccg = "budget.pccg";
@@ -54,6 +56,9 @@ constexpr std::string_view rv_manifest_key_assets_texture_format = "format";
 
 // Section ['assets.stream']
 constexpr std::string_view rv_manifest_key_assets_stream_files = "files";
+
+// Section ['touch_pad']
+constexpr std::string_view rv_manifest_key_touch_pad_show = "show";
 
 // Section ['budget']
 
@@ -127,6 +132,10 @@ constexpr rv_manifest_key_spec rv_manifest_assets_stream_keys[] = {
     { rv_manifest_key_assets_stream_files, rv_manifest_value_kind::array },
 };
 
+constexpr rv_manifest_key_spec rv_manifest_touch_pad_keys[] = {
+    { rv_manifest_key_touch_pad_show, rv_manifest_value_kind::array },
+};
+
 constexpr rv_manifest_key_spec rv_manifest_budget_pcca_keys[] = { { rv_manifest_key_budget_pcca_voice_count,
                                                                       rv_manifest_value_kind::integer },
     { rv_manifest_key_budget_pcca_sound_memory_size, rv_manifest_value_kind::integer } };
@@ -165,6 +174,7 @@ constexpr rv_manifest_section_spec rv_manifest_sections[] = {
     { rv_manifest_section_assets, rv_manifest_assets_keys, std::size(rv_manifest_assets_keys) },
     { rv_manifest_section_assets_texture, rv_manifest_assets_texture_keys, std::size(rv_manifest_assets_texture_keys) },
     { rv_manifest_section_assets_stream, rv_manifest_assets_stream_keys, std::size(rv_manifest_assets_stream_keys) },
+    { rv_manifest_section_touch_pad, rv_manifest_touch_pad_keys, std::size(rv_manifest_touch_pad_keys) },
     { rv_manifest_section_budget_pcca, rv_manifest_budget_pcca_keys, std::size(rv_manifest_budget_pcca_keys) },
     { rv_manifest_section_budget_pccv, rv_manifest_budget_pccv_keys, std::size(rv_manifest_budget_pccv_keys) },
     { rv_manifest_section_budget_pccg, rv_manifest_budget_pccg_keys, std::size(rv_manifest_budget_pccg_keys) },
@@ -221,6 +231,36 @@ inline const rv_manifest_key_spec *rv_manifest_keys_get(const rv_manifest_sectio
     for (std::size_t i = 0; i < section.key_count; ++i) {
         if (section.keys[i].name == name) {
             return &section.keys[i];
+        }
+    }
+    return nullptr;
+}
+
+struct rv_manifest_touch_group_spec {
+    std::string_view name;
+    rv_touch_group group;
+};
+
+// Accepted group spellings, in bit order: the show list is checked against them and the disc copy is written from them.
+constexpr rv_manifest_touch_group_spec rv_manifest_touch_groups[] = {
+    { "sticks", rv_touch_group::sticks },
+    { "trackpads", rv_touch_group::trackpads },
+    { "dpad", rv_touch_group::dpad },
+    { "face", rv_touch_group::face },
+    { "bumpers", rv_touch_group::bumpers },
+    { "triggers", rv_touch_group::triggers },
+    { "rear", rv_touch_group::rear },
+    { "menu", rv_touch_group::menu },
+    { "gyro", rv_touch_group::gyro },
+};
+static_assert(std::size(rv_manifest_touch_groups) == static_cast<std::size_t>(rv_touch_group::gyro) + 1,
+    "every rv_touch_group needs a spelling row, and every row a group");
+
+inline const rv_manifest_touch_group_spec *rv_manifest_touch_group_get(std::string_view name)
+{
+    for (const rv_manifest_touch_group_spec &group : rv_manifest_touch_groups) {
+        if (group.name == name) {
+            return &group;
         }
     }
     return nullptr;

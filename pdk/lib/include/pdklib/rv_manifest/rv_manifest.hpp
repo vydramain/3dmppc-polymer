@@ -19,7 +19,8 @@ namespace rv_pdklib
 // rv_manifest_budget rather than a second list that can drift from this one.
 //
 // Rendering writes every budget section in full, default or not. The only things
-// it may leave out are the [build] sdk key and the [assets.stream] section, only when empty.
+// it may leave out are the [build] sdk key and the [assets.stream] section, only when empty,
+// and the [touch_pad] section, only when every group is shown.
 
 struct rv_manifest_budget_pcca {
     int64_t voice_count = 24;
@@ -118,6 +119,25 @@ struct rv_manifest_budget {
     rv_manifest_budget_pccl pccl;
 };
 
+// The on-screen gamepad groups, in bit order: bit N of rv_manifest::touch_pad_show
+// is the group with value N. The spellings a disc writes are in the schema.
+enum class rv_touch_group {
+    sticks,
+    trackpads,
+    dpad,
+    face,
+    bumpers,
+    triggers,
+    rear,
+    menu,
+    gyro,
+};
+
+// All nine groups shown: the default, so a disc that says nothing shows the whole pad.
+constexpr uint32_t RV_TOUCH_GROUP_ALL = 0x1FF;
+static_assert(RV_TOUCH_GROUP_ALL == (1u << (static_cast<unsigned>(rv_touch_group::gyro) + 1)) - 1,
+    "RV_TOUCH_GROUP_ALL must cover every rv_touch_group bit up to gyro");
+
 struct rv_manifest {
     // [disc]
     std::string disc_id;    // short machine name, e.g. "example-cpp-pdkkit"
@@ -142,6 +162,9 @@ struct rv_manifest {
     // [assets.texture] - texel format the burner bakes the PNG files of [assets] and the model pictures into;
     // idx8 is the reference machine's.
     rv_texfmt assets_texture_format = rv_texfmt::RV_TEXFMT_IDX8;
+
+    // [touch_pad] show = [...] - the gamepad groups the disc shows, as rv_touch_group bits
+    uint32_t touch_pad_show = RV_TOUCH_GROUP_ALL;
 
     // [budget]
     rv_manifest_budget budget;
