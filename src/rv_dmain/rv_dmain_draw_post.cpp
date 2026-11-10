@@ -46,6 +46,10 @@ constexpr std::size_t RV_DMAIN_POST_MEMORY_LABEL_BUFFER_SIZE = 24;
 constexpr std::size_t RV_DMAIN_POST_PADS_BUFFER_SIZE = 48;
 constexpr std::size_t RV_DMAIN_POST_LABEL_BUFFER_SIZE = 24; // gap + label + ": "
 
+static_assert(static_cast<int>(RV_DMAIN_POST_BUDGET_BUFFER_SIZE) - 1 == rv_service::UI_BUDGET_LINE_CHARS &&
+        static_cast<int>(RV_DMAIN_POST_PADS_BUFFER_SIZE) - 1 == rv_service::UI_PADS_LINE_CHARS,
+    "the frame capacity bound counts these lines: keep UI_*_LINE_CHARS equal to buffer size - 1");
+
 static_assert(std::size(rv_service::UI_PROBE_LABELS) == RV_DMAIN_POST_PROBE_COUNT, "one label per probe");
 
 constexpr std::size_t post_longest_label()
@@ -113,6 +117,7 @@ void rv_dmain::draw_post()
 
     // Hint buttons: the pair is centred in the window, on the button band.
     const std::string_view hint_labels[] = { UI_HINT_SOUND, UI_HINT_POWER };
+    static_assert(static_cast<int>(std::size(hint_labels)) == UI_HINT_BUTTONS, "the frame capacity bound counts hint buttons");
     int button_w[std::size(hint_labels)];
     int total_w = RV_DMAIN_POST_BUTTON_GAP * (static_cast<int>(std::size(hint_labels)) - 1);
     for (std::size_t i = 0; i < std::size(hint_labels); ++i) {
