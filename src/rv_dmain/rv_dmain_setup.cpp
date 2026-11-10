@@ -2,6 +2,7 @@
 #include "rv_dmain.hpp"
 
 #include <cmath>
+#include <iterator>
 #include <numbers>
 
 #include "pdk/ca/rv_ca.h"
@@ -115,44 +116,47 @@ int rv_dmain::build_font()
         const char *name; // for the log
         uint32_t rgb;     // 0xRRGGBB, rounded to RGB555 by ui_color
     };
-    constexpr ink_token INK_TOKENS[FONT_INK_COUNT] = {
+    constexpr ink_token INK_TOKENS[] = {
         { "text", rv_pdklib::rv_theme_text },
         { "bright", rv_pdklib::rv_theme_text_bright },
         { "disabled", rv_pdklib::rv_theme_text_disabled },
         { "error", rv_pdklib::rv_theme_error },
     };
+    static_assert(std::size(INK_TOKENS) == static_cast<std::size_t>(FONT_INK_COUNT), "one token per rv_font_ink value");
 
-    // Builds, allocates and writes one palette: its address, or a negative code with nothing left allocated.
+    // Builds, allocates and writes one palette into addr; RV_OK, or the failing step's code with nothing left allocated.
     std::vector<uint16_t> palette(rv_pdklib::rv_font_palette_entries, 0);
-    const auto make_palette = [&](uint32_t rgb) -> int64_t {
+    const auto make_palette = [&](uint32_t rgb, int64_t &addr) -> int {
         const int built = rv_pdklib::rv_font_build_palette(rv_dmain_detail::ui_color(rgb), palette.data(), palette.size());
         if (built != RV_OK) {
             return built;
         }
-        const int64_t addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
-        if (addr < 0) {
-            return addr;
+        const int64_t allocated = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
+        if (allocated < 0) {
+            return static_cast<int>(allocated);
         }
         const rv_texture texture = rv_pdklib::rv_font_palette_texture(palette.data());
-        const int64_t written = rv_cv_video_asset_write(cv, addr, &texture);
+        const int64_t written = rv_cv_video_asset_write(cv, allocated, &texture);
         if (written < 0) {
-            rv_cv_video_asset_free(cv, addr);
-            return written;
+            rv_cv_video_asset_free(cv, allocated);
+            return static_cast<int>(written);
         }
-        return addr;
+        addr = allocated;
+        return RV_OK;
     };
 
     static_assert(FONT_INK_TEXT == 0, "the text palette is built first: its failure has only the atlas to free");
     for (int ink = 0; ink < FONT_INK_COUNT; ++ink) {
-        const int64_t addr = make_palette(INK_TOKENS[ink].rgb);
-        if (addr >= 0) {
+        int64_t addr = 0;
+        const int code = make_palette(INK_TOKENS[ink].rgb, addr);
+        if (code == RV_OK) {
             addr_font_palette_[ink] = addr;
             continue;
         }
-        RV_LOG_WARN("font", "palette of the {} ink not made, code {}", INK_TOKENS[ink].name, addr);
+        RV_LOG_WARN("font", "palette of the {} ink not made, code {}", INK_TOKENS[ink].name, code);
         if (ink == FONT_INK_TEXT) {
             rv_cv_video_asset_free(cv, atlas_addr);
-            return static_cast<int>(addr);
+            return code;
         }
         // Not a refusal of the step: the text still draws, only this colour is lost.
         addr_font_palette_[ink] = addr_font_palette_[FONT_INK_TEXT];
