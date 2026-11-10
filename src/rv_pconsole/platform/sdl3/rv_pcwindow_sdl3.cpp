@@ -48,6 +48,47 @@ uint64_t stick_direction_bits(rv_iaxes axes, uint64_t north, uint64_t south, uin
     return bits;
 }
 
+// The largest frame-shaped rectangle inside a buffer, in buffer pixels. The scale is
+// fractional on purpose: the window fills whatever size it got. Centred across; down
+// the middle when the buffer is not taller than wide, pinned to the top otherwise.
+SDL_FRect frame_rect_for(int buffer_w, int buffer_h, int64_t frame_w, int64_t frame_h)
+{
+    const float fit_x = static_cast<float>(buffer_w) / static_cast<float>(frame_w);
+    const float fit_y = static_cast<float>(buffer_h) / static_cast<float>(frame_h);
+    const float fit = std::fmin(fit_x, fit_y);
+
+    const float w = static_cast<float>(frame_w) * fit;
+    const float h = static_cast<float>(frame_h) * fit;
+    const float x = (static_cast<float>(buffer_w) - w) / 2.0f;
+    const float y = buffer_h > buffer_w ? 0.0f : (static_cast<float>(buffer_h) - h) / 2.0f;
+    return SDL_FRect{ x, y, w, h };
+}
+
+// Web only. Without SDL_WINDOW_OPENGL and this GLES version SDL recreates the window: Emscripten has no reconfigure hook, so
+// SDL_ReconfigureWindow recreates it, and at devicePixelRatio != 1 the old window leaves the canvas CSS at 1x1; the
+// new window reads that as no external size and writes its own (960x720 at dpr 2). Keep equal to the renderer.
+#if defined(__EMSCRIPTEN__)
+constexpr int RV_PCWINDOW_SDL3_GLES_MAJOR = 3;
+constexpr int RV_PCWINDOW_SDL3_GLES_MINOR = 0;
+constexpr SDL_WindowFlags RV_PCWINDOW_SDL3_GL_FLAGS = SDL_WINDOW_OPENGL;
+#else
+constexpr SDL_WindowFlags RV_PCWINDOW_SDL3_GL_FLAGS = 0;
+#endif
+
+// Web only: sets the GLES context request before the window exists. Native keeps SDL's defaults.
+int request_gles_context()
+{
+#if defined(__EMSCRIPTEN__)
+    if (!SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES) ||
+        !SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, RV_PCWINDOW_SDL3_GLES_MAJOR) ||
+        !SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, RV_PCWINDOW_SDL3_GLES_MINOR)) {
+        RV_LOG_ERR("pcplatform", "SDL_GL_SetAttribute failed: {}", SDL_GetError());
+        return RV_ERR_IO;
+    }
+#endif
+    return RV_OK;
+}
+
 } // namespace
 
 rv_pcwindow_sdl3::~rv_pcwindow_sdl3()
@@ -107,7 +148,12 @@ int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t 
 
     const int window_w = static_cast<int>(screen_width * static_cast<int64_t>(scale));
     const int window_h = static_cast<int>(screen_height * static_cast<int64_t>(scale));
-    window_ = SDL_CreateWindow(title, window_w, window_h, SDL_WINDOW_RESIZABLE);
+    // High pixel density makes the buffer physical pixels, so the frame stays sharp on HiDPI screens.
+    const SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | RV_PCWINDOW_SDL3_GL_FLAGS;
+    if (request_gles_context() != RV_OK) {
+        return RV_ERR_IO;
+    }
+    window_ = SDL_CreateWindow(title, window_w, window_h, flags);
     if (!window_) {
         RV_LOG_ERR("pcplatform", "SDL_CreateWindow failed: {}", SDL_GetError());
         return RV_ERR_IO;
@@ -119,14 +165,8 @@ int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t 
         return RV_ERR_IO;
     }
 
-    // The frame is always the native console resolution; the window is just a
-    // magnifying glass over it. Integer scaling keeps the pixels square and
-    // crisp instead of smearing them across a non-multiple window size.
-    SDL_SetRenderLogicalPresentation(renderer_,
-        static_cast<int>(screen_width),
-        static_cast<int>(screen_height),
-        SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
-
+    // No logical presentation: present() fits the frame into the physical buffer at a fractional scale.
+    // PIXELART keeps each source pixel a solid block; only the block edges blend, into one screen row or column.
     texture_ = SDL_CreateTexture(renderer_,
         SDL_PIXELFORMAT_ARGB8888,
         SDL_TEXTUREACCESS_STREAMING,
@@ -136,7 +176,7 @@ int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t 
         RV_LOG_ERR("pcplatform", "SDL_CreateTexture failed: {}", SDL_GetError());
         return RV_ERR_IO;
     }
-    SDL_SetTextureScaleMode(texture_, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(texture_, SDL_SCALEMODE_PIXELART);
 
     screen_width_ = screen_width;
     screen_height_ = screen_height;
@@ -156,11 +196,35 @@ void rv_pcwindow_sdl3::present(const uint32_t *argb)
     if (!argb || !renderer_ || !texture_) {
         return;
     }
+    if (update_frame_rect() != RV_OK) {
+        return;
+    }
 
     SDL_UpdateTexture(texture_, nullptr, argb, static_cast<int>(screen_width_ * ARGB8888_BYTES_PER_PIXEL));
+    // The area outside the frame is the letterbox: clear it to opaque black.
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderClear(renderer_);
-    SDL_RenderTexture(renderer_, texture_, nullptr, nullptr);
+    SDL_RenderTexture(renderer_, texture_, nullptr, &frame_rect_);
     SDL_RenderPresent(renderer_);
+}
+
+int rv_pcwindow_sdl3::update_frame_rect()
+{
+    // frame_rect_for() divides by the frame size; a frame without size has no rectangle.
+    if (screen_width_ <= 0 || screen_height_ <= 0) {
+        RV_LOG_ERR("pcplatform", "frame is {}x{}, no rectangle to fit", screen_width_, screen_height_);
+        return RV_ERR_INVAL;
+    }
+
+    int buffer_w = 0;
+    int buffer_h = 0;
+    if (!SDL_GetCurrentRenderOutputSize(renderer_, &buffer_w, &buffer_h)) {
+        RV_LOG_ERR("pcplatform", "SDL_GetCurrentRenderOutputSize failed: {}", SDL_GetError());
+        return RV_ERR_IO;
+    }
+
+    frame_rect_ = frame_rect_for(buffer_w, buffer_h, screen_width_, screen_height_);
+    return RV_OK;
 }
 
 bool rv_pcwindow_sdl3::close_requested() const
@@ -234,7 +298,8 @@ void rv_pcwindow_sdl3::note_key_press(bool escape)
 void rv_pcwindow_sdl3::note_mouse_press(uint8_t button, float x, float y)
 {
     ++presses_.mouse_buttons;
-    if (button == SDL_BUTTON_LEFT) {
+    // A click with no presenting window, or with a failed rectangle update, stays outside the frame.
+    if (button == SDL_BUTTON_LEFT && presenting() && update_frame_rect() == RV_OK) {
         presses_.last_click = to_frame(x, y);
     }
 }
@@ -253,27 +318,40 @@ void rv_pcwindow_sdl3::note_cursor_left()
 
 void rv_pcwindow_sdl3::snapshot_cursor()
 {
-    cursor_ = cursor_on_window_ ? to_frame(cursor_x_, cursor_y_) : rv_pcpointer{};
+    // Refresh the frame rectangle first; if it cannot be read, the pointer is reported outside.
+    cursor_ = {};
+    if (cursor_on_window_ && presenting() && update_frame_rect() == RV_OK) {
+        cursor_ = to_frame(cursor_x_, cursor_y_);
+    }
 }
 
 rv_pcpointer rv_pcwindow_sdl3::to_frame(float x, float y)
 {
-    // No renderer means no frame to be inside: the answer is not inside. open() has already logged why.
+    // renderer_ is null when no window was wanted (open() is silent then) or when the window, the renderer
+    // or video could not be made (open() logged it); either way there is no frame to be inside.
     rv_pcpointer point{};
     if (!renderer_) {
         return point;
     }
 
-    float frame_x = 0.0f;
-    float frame_y = 0.0f;
-    if (!SDL_RenderCoordinatesFromWindow(renderer_, x, y, &frame_x, &frame_y)) {
+    // With logical presentation off this gives buffer pixels (window points times the pixel density).
+    float buffer_x = 0.0f;
+    float buffer_y = 0.0f;
+    if (!SDL_RenderCoordinatesFromWindow(renderer_, x, y, &buffer_x, &buffer_y)) {
         if (!coordinates_warned_) {
             coordinates_warned_ = true;
             RV_LOG_WARN("pcplatform", "SDL_RenderCoordinatesFromWindow failed: {}", SDL_GetError());
         }
         return point;
     }
+    // An empty buffer (a minimised window) has no frame to be inside; NaN fails this test too.
+    if (!(frame_rect_.w > 0.0f && frame_rect_.h > 0.0f)) {
+        return point;
+    }
 
+    // Outside the rectangle the frame coordinates fall outside 0..size and inside stays false.
+    const float frame_x = (buffer_x - frame_rect_.x) * static_cast<float>(screen_width_) / frame_rect_.w;
+    const float frame_y = (buffer_y - frame_rect_.y) * static_cast<float>(screen_height_) / frame_rect_.h;
     point.x = static_cast<int64_t>(std::floor(frame_x));
     point.y = static_cast<int64_t>(std::floor(frame_y));
     point.inside = point.x >= 0 && point.x < screen_width_ && point.y >= 0 && point.y < screen_height_;

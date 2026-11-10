@@ -92,8 +92,12 @@ private:
     float cursor_y_ = 0.0f;
     bool cursor_on_window_ = false;
     bool coordinates_warned_ = false;
+    // The frame's rectangle in buffer pixels, as last computed by update_frame_rect().
+    SDL_FRect frame_rect_{};
 
-    // A window point mapped through the logical presentation into frame pixels.
+    // Reads the buffer size and recomputes frame_rect_. Needs renderer_; the callers check it.
+    int update_frame_rect();
+    // A window point mapped to buffer pixels, then through frame_rect_ (refreshed by the caller) into frame pixels.
     rv_pcpointer to_frame(float x, float y);
 };
 
