@@ -10,6 +10,8 @@
   /* Canvas fills the whole page; the console fits its 320x240 frame into it. */
   #stage { position: relative; width: 100%; height: 100%; }
   #canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; background: #000; outline: none; }
+  /* On-screen pad over the canvas; hidden until the page script shows it. No display here, so hidden works. Below #start. */
+  #touchpad { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
   /* Covers the canvas until the first click or key: browsers allow audio only after a user gesture. */
   #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); color: #ddd; font: 16px monospace; cursor: pointer; user-select: none; }
   /* Outside #start, so its click does not start the console; shown only when WebHID and JSPI are present. */
@@ -19,6 +21,13 @@
 <body>
 <div id="stage">
 <canvas id="canvas" width="320" height="240" tabindex="0"></canvas>
+<canvas id="touchpad" hidden
+  data-label-a="@rv_text_pad_a@" data-label-b="@rv_text_pad_b@" data-label-x="@rv_text_pad_x@" data-label-y="@rv_text_pad_y@"
+  data-label-l1="@rv_text_pad_l1@" data-label-r1="@rv_text_pad_r1@" data-label-l2="@rv_text_pad_l2@" data-label-r2="@rv_text_pad_r2@"
+  data-label-l4="@rv_text_pad_l4@" data-label-l5="@rv_text_pad_l5@" data-label-r4="@rv_text_pad_r4@" data-label-r5="@rv_text_pad_r5@"
+  data-label-view="@rv_text_pad_view@" data-label-menu="@rv_text_pad_menu@"
+  data-label-ls="@rv_text_pad_ls@" data-label-rs="@rv_text_pad_rs@" data-label-lp="@rv_text_pad_lp@" data-label-rp="@rv_text_pad_rp@"
+  data-label-dn="@rv_text_pad_dn@" data-label-ds="@rv_text_pad_ds@" data-label-dw="@rv_text_pad_dw@" data-label-de="@rv_text_pad_de@"></canvas>
 <div id="start" data-click-text="@rv_text_click_to_start@">@rv_text_loading@</div>
 </div>
 <button id="pads" type="button" hidden>@rv_text_allow_gamepads@</button>

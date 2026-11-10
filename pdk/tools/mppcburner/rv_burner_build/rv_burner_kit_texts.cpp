@@ -20,7 +20,29 @@ namespace
 // Every text of the page texts file is required, as every key of kit.txt is.
 constexpr std::array kWebTextKeys{ rv_pdktools::kWebTextLoading,
     rv_pdktools::kWebTextAllowGamepads,
-    rv_pdktools::kWebTextClickToStart };
+    rv_pdktools::kWebTextClickToStart,
+    rv_pdktools::kWebTextPadA,
+    rv_pdktools::kWebTextPadB,
+    rv_pdktools::kWebTextPadX,
+    rv_pdktools::kWebTextPadY,
+    rv_pdktools::kWebTextPadL1,
+    rv_pdktools::kWebTextPadR1,
+    rv_pdktools::kWebTextPadL2,
+    rv_pdktools::kWebTextPadR2,
+    rv_pdktools::kWebTextPadL4,
+    rv_pdktools::kWebTextPadL5,
+    rv_pdktools::kWebTextPadR4,
+    rv_pdktools::kWebTextPadR5,
+    rv_pdktools::kWebTextPadView,
+    rv_pdktools::kWebTextPadMenu,
+    rv_pdktools::kWebTextPadLs,
+    rv_pdktools::kWebTextPadRs,
+    rv_pdktools::kWebTextPadLp,
+    rv_pdktools::kWebTextPadRp,
+    rv_pdktools::kWebTextPadDn,
+    rv_pdktools::kWebTextPadDs,
+    rv_pdktools::kWebTextPadDw,
+    rv_pdktools::kWebTextPadDe };
 
 } // namespace
 

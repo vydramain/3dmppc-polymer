@@ -20,6 +20,29 @@ namespace rv_pdktools
 inline constexpr std::string_view kWebTextLoading = "loading";
 inline constexpr std::string_view kWebTextAllowGamepads = "allow_gamepads";
 inline constexpr std::string_view kWebTextClickToStart = "click_to_start";
+// Labels of the on-screen gamepad plates: pad_ and the plate id in lower case.
+inline constexpr std::string_view kWebTextPadA = "pad_a";
+inline constexpr std::string_view kWebTextPadB = "pad_b";
+inline constexpr std::string_view kWebTextPadX = "pad_x";
+inline constexpr std::string_view kWebTextPadY = "pad_y";
+inline constexpr std::string_view kWebTextPadL1 = "pad_l1";
+inline constexpr std::string_view kWebTextPadR1 = "pad_r1";
+inline constexpr std::string_view kWebTextPadL2 = "pad_l2";
+inline constexpr std::string_view kWebTextPadR2 = "pad_r2";
+inline constexpr std::string_view kWebTextPadL4 = "pad_l4";
+inline constexpr std::string_view kWebTextPadL5 = "pad_l5";
+inline constexpr std::string_view kWebTextPadR4 = "pad_r4";
+inline constexpr std::string_view kWebTextPadR5 = "pad_r5";
+inline constexpr std::string_view kWebTextPadView = "pad_view";
+inline constexpr std::string_view kWebTextPadMenu = "pad_menu";
+inline constexpr std::string_view kWebTextPadLs = "pad_ls";
+inline constexpr std::string_view kWebTextPadRs = "pad_rs";
+inline constexpr std::string_view kWebTextPadLp = "pad_lp";
+inline constexpr std::string_view kWebTextPadRp = "pad_rp";
+inline constexpr std::string_view kWebTextPadDn = "pad_dn";
+inline constexpr std::string_view kWebTextPadDs = "pad_ds";
+inline constexpr std::string_view kWebTextPadDw = "pad_dw";
+inline constexpr std::string_view kWebTextPadDe = "pad_de";
 
 /// What kit.txt says, with every path already resolved against the kit directory.
 struct rv_burner_kit {

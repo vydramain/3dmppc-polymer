@@ -1,5 +1,28 @@
-# Page texts of the web kit: loading, gamepad button and start prompt. mppcburner reads them when it burns a disc.
-# Replace the values after '=' to translate the page; every key is required, and a key may not be renamed or added.
+# Page texts of the web kit: loading, gamepad button, start prompt and on-screen pad plate labels (pad_ + plate id).
+# mppcburner reads them when it burns a disc. Replace the values after '=' to translate the page; every key is required,
+# and a key may not be renamed or added. The cross plates show arrows: pad_dn north, pad_ds south, pad_dw west, pad_de east.
 loading = Loading...
 allow_gamepads = Allow gamepads
 click_to_start = Click to start
+pad_a = A
+pad_b = B
+pad_x = X
+pad_y = Y
+pad_l1 = L1
+pad_r1 = R1
+pad_l2 = L2
+pad_r2 = R2
+pad_l4 = L4
+pad_l5 = L5
+pad_r4 = R4
+pad_r5 = R5
+pad_view = VIEW
+pad_menu = MENU
+pad_ls = LS
+pad_rs = RS
+pad_lp = LP
+pad_rp = RP
+pad_dn = ^
+pad_ds = v
+pad_dw = <
+pad_de = >
