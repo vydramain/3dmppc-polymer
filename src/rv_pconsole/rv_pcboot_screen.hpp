@@ -1,60 +1,44 @@
-// The boot screen pictures: a grey window with the title, then either the starting
-// view (hourglass, starting line, journal, button) or the report view (result, journal
-// with its texts, continue prompt). Composed into a host buffer, like the pause
-// overlay; no rv_cv.
+// The boot screen picture: one olive window with a fixed layout for the whole boot (title, status
+// row with its icon, journal panel, button band). Composed into a host buffer; no rv_cv.
 #pragma once
 
 #include <cstdint>
 #include <vector>
 
 #include "rv_pconsole/rv_pcboot_journal.hpp"
+#include "rv_pconsole/rv_pchost_ui.hpp"
 
 namespace rv_3dmppc
 {
 
 // A rectangle in frame pixels.
-struct rv_pcboot_rect {
-    int64_t x;
-    int64_t y;
-    int64_t w;
-    int64_t h;
+using rv_pcboot_rect = rv_pchost_rect;
+
+// What the status row says and which button the band shows.
+enum class rv_pcboot_state {
+    starting, // Hourglass, button "Stop for Maintenance"
+    warning,  // Started with warnings, continue prompt
+    stopped,  // Stopped for maintenance, continue prompt
+    error,    // The system cannot start, button "Power off"
 };
 
-// The "Stop for Maintenance" button on a frame of width x height. The picture draws
-// it and the click test uses the same rectangle, so the two cannot disagree.
-rv_pcboot_rect rv_pcboot_button_rect(int64_t width, int64_t height);
+// The state's button on a frame of width x height; the picture draws it and the click test uses
+// the same rectangle. {0, 0, 0, 0} for a state without a button (warning, stopped).
+rv_pcboot_rect rv_pcboot_button_rect(int64_t width, int64_t height, rv_pcboot_state state);
 
-// Compose the starting picture into `out`, resized to width * height and fully
-// written. Text that does not fit its area is not drawn, without a log: the title,
-// the starting line, the button label, and the journal, which stops at the first
-// line that does not fit. A small frame is normal, not an error. `unfit`, when not
-// null, counts the elements left undrawn for lack of room: the title, the starting
-// line and the button label one each, and each journal entry from the first one that
-// does not fit on, one each. It is meaningful only with RV_OK; other returns may
-// leave a partial count.
-// RV_OK; RV_ERR_INVAL with `out` cleared, for a frame with a side <= 0 or a size that
-// does not fit `out`; RV_ERR_NOMEM with `out` cleared, when the allocation fails. The
-// reason (and the size) is logged when memory suffices for the log itself.
+// Compose the picture into `out`, resized to width * height and fully written. Text that does not
+// fit its area is not drawn, without a log; a small frame is normal, not an error. `unfit`, when not
+// null, counts the elements left undrawn for lack of room: the title, the status text and the
+// button label or prompt one each; the journal lines from the first one that does not fit on, one
+// each; a wrapped text with a word wider than its line once. Meaningful only with RV_OK.
+// RV_OK; RV_ERR_INVAL with `out` cleared, for a frame with a side <= 0 or a size that does not fit
+// `out`; RV_ERR_NOMEM with `out` cleared, when the allocation fails. The reason (and the size) is
+// logged when memory suffices for the log itself.
 int rv_pcboot_screen_build(std::vector<uint32_t> &out,
     int64_t width,
     int64_t height,
     const rv_pcboot_journal &journal,
-    int64_t *unfit = nullptr);
-
-// Compose the report picture into `out`, resized to width * height and fully written.
-// The all-ok line when the journal has no warning, then the journal in entry order;
-// each warning is followed by its Found and Recommended texts, indented. The entry line
-// is never wrapped. The all-ok line and the Found and Recommended texts are word-wrapped
-// to the window; a text with a word wider than a line is not drawn at all. Lines stop at
-// the first one that does not fit. The continue prompt is centred at the bottom and not
-// drawn when it does not fit. `unfit` counts as in rv_pcboot_screen_build (see there):
-// a text dropped by wrapping counts once, each report line from the first one that does
-// not fit on counts one each, and the continue prompt counts one. Only meaningful with
-// RV_OK. Return codes as rv_pcboot_screen_build.
-int rv_pcboot_report_build(std::vector<uint32_t> &out,
-    int64_t width,
-    int64_t height,
-    const rv_pcboot_journal &journal,
+    rv_pcboot_state state,
     int64_t *unfit = nullptr);
 
 } // namespace rv_3dmppc

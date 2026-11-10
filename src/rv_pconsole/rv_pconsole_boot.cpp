@@ -102,7 +102,7 @@ rv_pconsole::boot_screen_result rv_pconsole::boot_screen_step()
     static_cast<void>(platform_.window().consume_pause_requests());
     static_cast<void>(platform_.window().consume_mouse());
 
-    const rv_pcboot_rect button = rv_pcboot_button_rect(cv_->screen_width(), cv_->screen_height());
+    const rv_pcboot_rect button = rv_pcboot_button_rect(cv_->screen_width(), cv_->screen_height(), rv_pcboot_state::starting);
     switch (boot_phase_) {
     case boot_screen_phase::starting:
         // The presses that switch the view are used up; they do not also continue.
@@ -136,10 +136,15 @@ int rv_pconsole::boot_screen_show()
     int built = RV_ERR_INVAL;
     switch (boot_phase_) {
     case boot_screen_phase::starting:
-        built = rv_pcboot_screen_build(boot_picture_, width, height, boot_journal_, &unfit);
+        built = rv_pcboot_screen_build(boot_picture_, width, height, boot_journal_, rv_pcboot_state::starting, &unfit);
         break;
     case boot_screen_phase::report:
-        built = rv_pcboot_report_build(boot_picture_, width, height, boot_journal_, &unfit);
+        built = rv_pcboot_screen_build(boot_picture_,
+            width,
+            height,
+            boot_journal_,
+            boot_journal_.has_warning() ? rv_pcboot_state::warning : rv_pcboot_state::stopped,
+            &unfit);
         break;
     }
     if (built != RV_OK) {
