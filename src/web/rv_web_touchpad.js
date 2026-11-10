@@ -1,8 +1,6 @@
 // On-screen gamepad for the web shell: a pad canvas over the console, redrawn only on show, layout and press.
 // Plain script for --pre-js, after rv_web_pre.js, rv_web_touchpad_draw.js and rv_web_touchpad_layout.js.
 var rvTouchpad = (function() {
-    // Console frame width in its own pixels: the reference for the pad scale, not the frame width on screen.
-    var FRAME_W = 320;
     // Id of the pad canvas in rv_web_shell.html, placed over the console canvas.
     var CANVAS_ID = 'touchpad';
     // Phone or tablet: coarse main pointer without hover. Laptops with touch and desktops stay false.
@@ -40,14 +38,15 @@ var rvTouchpad = (function() {
         return '';
     }
 
-    // Pad pixels and scale. The pad surface is floor(buffer / s) pad pixels; its grid covers wp * s buffer pixels,
-    // and the remainder (under s) lies at the right and bottom edge. The canvas keeps the full buffer size: CSS
-    // stretches it over the console area, and it must match the frame.
+    // Pad pixels and scale. s is the frame width in buffer pixels divided by its own width in pixels (frame.fw),
+    // so it follows the disc's screen_width. The pad surface is floor(buffer / s) pad pixels; its grid covers
+    // wp * s buffer pixels, and the remainder (under s) lies at the right and bottom edge. The canvas keeps the full
+    // buffer size: CSS stretches it over the console area, and it must match the frame.
     function controls() {
         if (!frame) {
             return {scale : 1, elements : []};
         }
-        var s = Math.max(1, Math.round(frame.w / FRAME_W));
+        var s = Math.max(1, Math.round(frame.w / frame.fw));
         var wp = Math.floor(outW / s), hp = Math.floor(outH / s);
         var f = {
             x : Math.round(frame.x / s),
@@ -63,7 +62,7 @@ var rvTouchpad = (function() {
         if (!cv) {
             return;
         }
-        // Hidden until both show and layout have come: an empty canvas would catch the pointer.
+        // Hidden until both show and a valid layout have come: an empty canvas would catch the pointer.
         var ready = shown && frame !== null;
         cv.hidden = !ready;
         if (!ready) {
@@ -89,8 +88,14 @@ var rvTouchpad = (function() {
         redraw();
     };
 
-    Module.rvTouchpadLayout = function(x, y, w, h, ow, oh) {
-        frame = {x : x, y : y, w : w, h : h};
+    // frame_w: console frame width in its own pixels. A value that is not a positive number is a broken call: warn,
+    // and hide the pad until a valid call arrives.
+    Module.rvTouchpadLayout = function(x, y, w, h, ow, oh, frame_w) {
+        var ok = typeof frame_w === 'number' && isFinite(frame_w) && frame_w > 0;
+        if (!ok) {
+            console.warn('touchpad: rvTouchpadLayout frame_w must be a positive number, got ' + frame_w + '; the pad is off');
+        }
+        frame = ok ? {x : x, y : y, w : w, h : h, fw : frame_w} : null;
         outW = ow;
         outH = oh;
         var cv = canvas();
