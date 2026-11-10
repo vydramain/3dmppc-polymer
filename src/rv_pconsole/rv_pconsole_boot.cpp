@@ -1,4 +1,4 @@
-// The start screen's stage: the window, the presses and the phase rule. The pictures are
+// The start screen's stage: the window, the presses and the state rule. The pictures are
 // rv_pcboot_screen.cpp's; the loops that call this are per driver. No sleeping here: the caller paces.
 #include <chrono>
 #include <cstddef>
@@ -83,10 +83,9 @@ bool rv_pconsole::boot_screen_begin()
     static_cast<void>(platform_.window().consume_pause_requests());
     static_cast<void>(platform_.window().consume_mouse());
 
-    const rv_pcboot_state first = boot_journal_.has_error() ? rv_pcboot_state::error :
-        boot_journal_.has_warning()                         ? rv_pcboot_state::warning :
-                                                              rv_pcboot_state::starting;
-    boot_state_ = first;
+    boot_state_ = boot_journal_.has_error() ? rv_pcboot_state::error :
+        boot_journal_.has_warning()         ? rv_pcboot_state::warning :
+                                              rv_pcboot_state::starting;
     boot_started_ = std::chrono::steady_clock::now();
     return boot_screen_show() == RV_OK;
 }
