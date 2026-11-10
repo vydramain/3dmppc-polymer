@@ -1,5 +1,5 @@
 // Touch input for the on-screen gamepad: pointer events on the pad canvas become console calls.
-// Plain script for --pre-js, after rv_web_touchpad.js. Motion sensors and the iOS permission are not here.
+// Plain script for --pre-js, after rv_web_touchpad.js. Also sends device motion; the iOS permission is in rv_web_shell.html.
 void (function() {
     // Id of the pad canvas in rv_web_shell.html.
     var CANVAS_ID = 'touchpad';
@@ -25,7 +25,9 @@ void (function() {
         RIGHT_PADDLE2 : 18,
         LEFT_PADDLE2 : 19,
         TOUCHPAD : 20,
-        MISC2 : 21
+        MISC2 : 21,
+        MISC3 : 22,
+        MISC4 : 23
     };
     var AXIS = {LEFTX : 0, LEFTY : 1, RIGHTX : 2, RIGHTY : 3, LEFT_TRIGGER : 4, RIGHT_TRIGGER : 5};
     // Plate id -> SDL button, by layout group. L4 and R4 are the upper paddles, PADDLE1: RV_ISOURCE_REAR_BTTN_LEFT_UPPER
@@ -38,10 +40,12 @@ void (function() {
     var PLATE = Object.assign({}, FACE, DPAD, BUMPER, CENTER, REAR);
     // Triggers are axes: a touch pulls fully (1), a lift releases (0).
     var TRIGGER = {L2 : AXIS.LEFT_TRIGGER, R2 : AXIS.RIGHT_TRIGGER};
-    // Stick and trackpad ids: axes or pad index, and the button a short tap sends.
+    // Stick and trackpad ids: axes or pad index, the button a short tap sends, and the stick's touch, held while a
+    // finger is on the stick. Project convention (rv_pcgamepads_sdl3.cpp, stick touch rule): the console reads MISC3
+    // and MISC4 as the stick touch of the pads it lists; SDL_gamepad.h gives them only as extra buttons.
     var STICK = {
-        LS : {x : AXIS.LEFTX, y : AXIS.LEFTY, click : BUTTON.LEFT_STICK},
-        RS : {x : AXIS.RIGHTX, y : AXIS.RIGHTY, click : BUTTON.RIGHT_STICK}
+        LS : {x : AXIS.LEFTX, y : AXIS.LEFTY, click : BUTTON.LEFT_STICK, touch : BUTTON.MISC3},
+        RS : {x : AXIS.RIGHTX, y : AXIS.RIGHTY, click : BUTTON.RIGHT_STICK, touch : BUTTON.MISC4}
     };
     var PAD = {LP : {pad : 0, click : BUTTON.TOUCHPAD}, RP : {pad : 1, click : BUTTON.MISC2}};
     // A touch that moves less than TAP_SLOP pad pixels and lifts within TAP_MS is a tap.
@@ -51,6 +55,20 @@ void (function() {
     // that bound: rv_pconsole_run.cpp maps only target_fps 0 to the default.
     var CLICK_HOLD_MS = 50;
     var FUNCS = [ '_rv_pctouchpad_button', '_rv_pctouchpad_axis', '_rv_pctouchpad_trackpad' ];
+    // Device motion. W3C DeviceMotionEvent: x right, y top, z toward the user, the same axes as SDL's phone frame at
+    // natural orientation (SDL_sensor.h). The gyro goes out as SDL_sensor.h names its axes: x pitch (W3C beta),
+    // y yaw (gamma), z roll (alpha). Browser rates are degrees per second; SDL takes radians per second.
+    var DEG_TO_RAD = Math.PI / 180;
+    // Screen angles come in degrees; the frame table has one row per quarter turn of a full turn.
+    var DEGREES_PER_QUARTER_TURN = 90;
+    var QUARTER_TURNS = 4;
+    var AX = {X : 0, Y : 1, Z : 2};
+    // Quarter turns of the screen, counter-clockwise: screen.orientation.angle / 90, modulo 4. Each row names the device
+    // axis and sign of the pad's x and y; z stays. Row 1: the device top points left, so the pad's x is -device y.
+    var SCREEN_FRAME = [
+        {x : [ 1, AX.X ], y : [ 1, AX.Y ]}, {x : [ -1, AX.Y ], y : [ 1, AX.X ]}, {x : [ -1, AX.X ], y : [ -1, AX.Y ]},
+        {x : [ 1, AX.Y ], y : [ -1, AX.X ]}
+    ];
 
     // pointerId -> touch state. holders: element id -> pointer ids on it, the first one drives stick and trackpad.
     // clicks: button -> pending release timer. sinkChecked and sinkOk cache the console check.
@@ -104,10 +122,15 @@ void (function() {
         axis(s.x, dx / k);
         axis(s.y, dy / k);
     }
+    function stickDown(st, p) {
+        stickMove(st, p);
+        button(STICK[st.el.id].touch, true);
+    }
     function stickUp(st, p, tap) {
         var s = STICK[st.el.id];
         axis(s.x, 0);
         axis(s.y, 0);
+        button(s.touch, false);
         if (tap) {
             click(s.click);
         }
@@ -135,7 +158,7 @@ void (function() {
             up : function(st) { plateSet(st.el.id, false); },
             take : function() {}
         },
-        stick : {down : stickMove, move : stickMove, up : stickUp, take : stickMove},
+        stick : {down : stickDown, move : stickMove, up : stickUp, take : stickMove},
         pad : {down : padDown, move : padDown, up : padUp, take : padDown}
     };
 
@@ -291,9 +314,66 @@ void (function() {
         KIND[st.el.kind].up(st, {px : st.px, py : st.py}, tap);
     }
 
-    // Listeners are attached once, on the document; the canvas is looked up at each event.
+    // Screen angle in degrees from screen.orientation, else the iOS window.orientation (there -90 is a clockwise turn).
+    // The angle is rounded to whole quarter turns, then wrapped into the SCREEN_FRAME rows.
+    function quarterTurn() {
+        var so = window.screen && window.screen.orientation;
+        var angle = so && typeof so.angle === 'number' ? so.angle : (window.orientation || 0);
+        var turns = Math.round(angle / DEGREES_PER_QUARTER_TURN);
+        return ((turns % QUARTER_TURNS) + QUARTER_TURNS) % QUARTER_TURNS;
+    }
+
+    // Device vector [x, y, z] -> pad vector for the screen's quarter turn.
+    function toScreenFrame(v, quarter) {
+        var f = SCREEN_FRAME[quarter];
+        return [ f.x[0] * v[f.x[1]], f.y[0] * v[f.y[1]], v[AX.Z] ];
+    }
+
+    // A sample field must be a finite number: browsers send null for a missing sensor; NaN and Infinity are no data.
+    function complete(values) {
+        return values.every(function(v) { return typeof v === 'number' && isFinite(v); });
+    }
+
+    // A -1 from rv_pctouchpad_motion refuses for three reasons: no pad is attached, the pad has no gyro group, or a
+    // sample is not finite (the page filters those out). The refusal holds until reload.
+    var motionRefused = false;
+    // One warning per load: the device gives no motion data. Each such sample is skipped.
+    var motionDataWarned = false;
+    // Motion is off for reasons that are not a fault of the sample: the permission is refused, the pad is not shown,
+    // or the console has no motion function. Each case is silent; the page sends nothing until it changes.
+    function motionOpen(cv) {
+        var hasFunction = typeof Module._rv_pctouchpad_motion === 'function';
+        return !motionRefused && Module.rvMotionAllowed !== false && hasFunction && !!cv && live(cv);
+    }
+    function noMotionData() {
+        if (!motionDataWarned) {
+            motionDataWarned = true;
+            console.warn('touchpad: device motion samples have no numeric fields; such samples are skipped');
+        }
+    }
+
+    function onMotion(e) {
+        var cv = document.getElementById(CANVAS_ID);
+        if (!motionOpen(cv)) {
+            return;
+        }
+        var r = e.rotationRate, a = e.accelerationIncludingGravity;
+        if (!r || !a || !complete([ r.alpha, r.beta, r.gamma, a.x, a.y, a.z ])) {
+            noMotionData();
+            return;
+        }
+        var q = quarterTurn();
+        var g = toScreenFrame([ r.beta * DEG_TO_RAD, r.gamma * DEG_TO_RAD, r.alpha * DEG_TO_RAD ], q);
+        var acc = toScreenFrame([ a.x, a.y, a.z ], q);
+        if (Module._rv_pctouchpad_motion(g[0], g[1], g[2], acc[0], acc[1], acc[2]) === -1) {
+            motionRefused = true;
+        }
+    }
+
+    // Listeners are attached once, on the document and the window; the canvas is looked up at each event.
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', function(e) { finish(e.pointerId, false); });
     document.addEventListener('pointercancel', function(e) { finish(e.pointerId, true); });
+    window.addEventListener('devicemotion', onMotion);
 })();
