@@ -94,9 +94,24 @@ private:
     bool coordinates_warned_ = false;
     // The frame's rectangle in buffer pixels, as last computed by update_frame_rect().
     SDL_FRect frame_rect_{};
+    // The buffer size update_frame_rect() read last, in buffer pixels.
+    int buffer_w_ = 0;
+    int buffer_h_ = 0;
+#if defined(__EMSCRIPTEN__)
+    // Web only: what the page was last told, and whether it was told at all.
+    bool layout_sent_ = false;
+    SDL_FRect layout_rect_{};
+    int layout_out_w_ = 0;
+    int layout_out_h_ = 0;
+    int layout_frame_w_ = 0;
+#endif
 
     // Reads the buffer size and recomputes frame_rect_. Needs renderer_; the callers check it.
     int update_frame_rect();
+#if defined(__EMSCRIPTEN__)
+    // Web only: sends the layout to the page when it changed since the last delivery.
+    void report_frame_layout();
+#endif
     // A window point mapped to buffer pixels, then through frame_rect_ (refreshed by the caller) into frame pixels.
     rv_pcpointer to_frame(float x, float y);
 };

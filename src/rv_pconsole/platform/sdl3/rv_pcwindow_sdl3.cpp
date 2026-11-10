@@ -8,6 +8,10 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 namespace rv_3dmppc
 {
 
@@ -199,6 +203,9 @@ void rv_pcwindow_sdl3::present(const uint32_t *argb)
     if (update_frame_rect() != RV_OK) {
         return;
     }
+#if defined(__EMSCRIPTEN__)
+    report_frame_layout();
+#endif
 
     SDL_UpdateTexture(texture_, nullptr, argb, static_cast<int>(screen_width_ * ARGB8888_BYTES_PER_PIXEL));
     // The area outside the frame is the letterbox: clear it to opaque black.
@@ -223,9 +230,52 @@ int rv_pcwindow_sdl3::update_frame_rect()
         return RV_ERR_IO;
     }
 
+    buffer_w_ = buffer_w;
+    buffer_h_ = buffer_h;
     frame_rect_ = frame_rect_for(buffer_w, buffer_h, screen_width_, screen_height_);
     return RV_OK;
 }
+
+#if defined(__EMSCRIPTEN__)
+// Web only: tells the page the frame rectangle, the buffer size and the frame width in console pixels, so its on-screen
+// gamepad lays out around the frame. Sent only when one of them changed since the last delivery. A page without the hook
+// answers 0 and nothing is recorded, so the next present() tries again.
+void rv_pcwindow_sdl3::report_frame_layout()
+{
+    const int frame_w = static_cast<int>(screen_width_);
+    const bool unchanged = frame_rect_.x == layout_rect_.x && frame_rect_.y == layout_rect_.y &&
+        frame_rect_.w == layout_rect_.w && frame_rect_.h == layout_rect_.h && buffer_w_ == layout_out_w_ &&
+        buffer_h_ == layout_out_h_ && frame_w == layout_frame_w_;
+    if (layout_sent_ && unchanged) {
+        return;
+    }
+
+    const int delivered = EM_ASM_INT(
+        {
+            if (typeof Module.rvTouchpadLayout != 'function') {
+                return 0;
+            }
+            Module.rvTouchpadLayout($0, $1, $2, $3, $4, $5, $6);
+            return 1;
+        },
+        static_cast<double>(frame_rect_.x),
+        static_cast<double>(frame_rect_.y),
+        static_cast<double>(frame_rect_.w),
+        static_cast<double>(frame_rect_.h),
+        buffer_w_,
+        buffer_h_,
+        frame_w);
+    if (delivered == 0) {
+        return;
+    }
+
+    layout_sent_ = true;
+    layout_rect_ = frame_rect_;
+    layout_out_w_ = buffer_w_;
+    layout_out_h_ = buffer_h_;
+    layout_frame_w_ = frame_w;
+}
+#endif
 
 bool rv_pcwindow_sdl3::close_requested() const
 {
