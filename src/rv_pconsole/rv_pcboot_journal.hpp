@@ -16,7 +16,7 @@ enum class rv_pcboot_level {
     error,
 };
 
-// A warning's two console text ids: the found line and the recommended line.
+// A warning's or an error's two console text ids: the found line and the recommended line.
 struct rv_pcboot_texts {
     std::string_view found_id;
     std::string_view recommend_id;
