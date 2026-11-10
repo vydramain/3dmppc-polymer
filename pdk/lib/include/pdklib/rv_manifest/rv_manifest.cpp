@@ -81,6 +81,44 @@ static void render_array(std::ostringstream &out, const std::string &key, const 
     }
     out << "]\n";
 }
+
+// Group names of a mask, in bit order: the spelling the disc copy writes back.
+static std::vector<std::string> touch_names(uint32_t mask)
+{
+    std::vector<std::string> names;
+    for (const rv_manifest_touch_group_spec &group : rv_manifest_touch_groups) {
+        if ((mask & (1u << static_cast<unsigned>(group.group))) != 0) {
+            names.emplace_back(group.name);
+        }
+    }
+    return names;
+}
+
+// Each name in [touch_pad] show must be a group; one diagnostic per unknown name.
+static void check_touch_pad(const rv_manifest_tree &tree, rv_manifest_failer &failer)
+{
+    std::string known;
+    for (const std::string &name : touch_names(RV_TOUCH_GROUP_ALL)) {
+        known += known.empty() ? name : ", " + name;
+    }
+    for (const rv_manifest_tree_section &section : tree.sections) {
+        // [[touch_pad]] is already reported by rv_manifest_check; its entries are not judged a second time.
+        if (section.name != rv_manifest_section_touch_pad || section.array) {
+            continue;
+        }
+        for (const rv_manifest_tree_entry &entry : section.entries) {
+            if (entry.key != rv_manifest_key_touch_pad_show) {
+                continue;
+            }
+            for (const std::string &name : entry.value.arr) {
+                if (rv_manifest_touch_group_get(name) == nullptr) {
+                    failer.fail(entry.value.line, "unknown group '" + name + "' in [touch_pad] show - the groups are " + known);
+                }
+            }
+        }
+    }
+}
+
 // The front of the pipeline, in the order of the stages. Each one hands the next
 // a whole product and its complaints to one failer; only the binder is allowed
 // to know what rv_manifest looks like.
@@ -98,6 +136,7 @@ int rv_manifest_parse(const std::string &text, const std::string &origin, rv_man
     // error buries it.
     if (failer.empty()) {
         rv_manifest_check(tree, failer);
+        check_touch_pad(tree, failer);
     }
 
     if (!failer.empty()) {
@@ -135,7 +174,8 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     std::ostringstream out;
 
     // Every key of a present section is written, including empty arrays and zero
-    // counts, except [build] sdk and [assets.stream], which are left out when empty.
+    // counts, except [build] sdk and [assets.stream], which are left out when empty. [touch_pad] is left
+    // out only when every group is shown; an empty show list is still written.
     // This is the copy that goes ONTO THE DISC, and there it has to say
     // what the burner actually used rather than leaning on a default a later
     // version of the tool might change.
@@ -173,6 +213,12 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     if (!manifest.assets_stream_files.empty()) {
         out << "\n[assets.stream]\n";
         render_array(out, "files", manifest.assets_stream_files);
+    }
+
+    // Only when some group is hidden: a console older than this section refuses an unknown one.
+    if (manifest.touch_pad_show != RV_TOUCH_GROUP_ALL) {
+        out << "\n[touch_pad]\n";
+        render_array(out, "show", touch_names(manifest.touch_pad_show));
     }
 
     const rv_manifest_budget &budget = manifest.budget;
