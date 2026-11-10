@@ -296,6 +296,14 @@ public:
         return 0;
     }
 
+    // The on-screen gamepad groups the disc shows (rv_touch_group bits), sent once per run after open() did not fail.
+    // RV_OK also when no window was wanted: the platform decides what to show without one. RV_ERR_IO when the pad
+    // was wanted and could not come up; the run goes on without it. The default shows nothing and returns RV_OK.
+    virtual int show_touch_pad(uint32_t)
+    {
+        return RV_OK;
+    }
+
 protected:
     rv_pcplatform() = default;
 };

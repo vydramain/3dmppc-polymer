@@ -181,6 +181,12 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
         RV_LOG_WARN("pconsole",
             "display did not come up for '{}', continuing without presentation",
             disc->disc_title(disc->self));
+    } else {
+        // The on-screen pad lays out around the frame, so it is sent only when open() did not fail.
+        const int touch_shown = platform_.show_touch_pad(params_.touch_pad_show);
+        if (RV_OK != touch_shown) {
+            RV_LOG_WARN("pconsole", "on-screen gamepad did not come up, continuing without it: {}", touch_shown);
+        }
     }
 
     const int64_t dir = disc->disc_initialize(disc->self, reinterpret_cast<rv_pdko *>(this));
