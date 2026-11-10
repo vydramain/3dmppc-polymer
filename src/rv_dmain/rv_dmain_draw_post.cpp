@@ -8,6 +8,7 @@
 
 #include "pdk/cv/rv_cv.h"
 #include "pdklib/rv_font/rv_font.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 
 #include "rv_dmain_ui.hpp"
 
@@ -48,6 +49,20 @@ constexpr std::size_t RV_DMAIN_POST_LABEL_BUFFER_SIZE = 24; // gap + label + ": 
 
 static_assert(std::size(rv_service::UI_PROBE_LABELS) == RV_DMAIN_POST_PROBE_COUNT, "one label per probe");
 
+constexpr std::size_t post_longest_label()
+{
+    std::size_t longest = 0;
+    for (const std::string_view label : rv_service::UI_PROBE_LABELS) {
+        longest = label.size() > longest ? label.size() : longest;
+    }
+    return longest;
+}
+
+// A longer text in rv_dmain_ui.hpp must fail the build, not be cut on screen.
+static_assert(rv_service::UI_PROBE_GAP.size() + post_longest_label() + rv_service::UI_LABEL_END.size() + 1 <=
+        RV_DMAIN_POST_LABEL_BUFFER_SIZE,
+    "probe label buffer too small");
+
 // A run of characters in one ink; a panel line is a few of them side by side.
 struct rv_post_piece {
     std::string_view text;
@@ -77,10 +92,6 @@ void draw_line(std::span<const rv_post_piece> pieces, const rv_dmain_detail::rv_
 }
 
 } // namespace
-
-void rv_dmain::draw_post_row(int, const char *, const char *, const char *, bool)
-{
-}
 
 // The olive window around the test tiles: title bar, info panel (budget, probes, pads) and two hint
 // buttons. Without the font the panel turns red and no text is drawn: it is then the only sign left,
@@ -115,6 +126,13 @@ void rv_dmain::draw_post()
         buttons[i] = rv_ui_rect{ button_x, ui_band_top(window), button_w[i], theme::rv_theme_button_h };
         button_x += button_w[i] + RV_DMAIN_POST_BUTTON_GAP;
     }
+    // What does not fit inside the window face is dropped, not drawn outside it.
+    const bool buttons_fit = total_w <= window.w - 2 * UI_BEVEL;
+    const std::size_t button_count = buttons_fit ? std::size(hint_labels) : 0;
+    if (!buttons_fit && !hint_warned_) {
+        hint_warned_ = true;
+        RV_LOG_WARN("post", "screen {}x{} is too small, the hint buttons are not drawn", screen_width_, screen_height_);
+    }
 
     ui_plate_raised(theme::rv_theme_window, window, UI_DEPTH_WINDOW, file);
     file(make_bar(static_cast<float>(title_bar.x),
@@ -124,8 +142,8 @@ void rv_dmain::draw_post()
         ui_color(theme::rv_theme_dark),
         UI_DEPTH_ON_WINDOW));
     ui_plate_sunken(font_ok ? theme::rv_theme_inset : theme::rv_theme_error, panel, UI_DEPTH_ON_WINDOW, file);
-    for (const rv_ui_rect &button : buttons) {
-        ui_plate_raised(theme::rv_theme_button, button, UI_DEPTH_ON_WINDOW, file);
+    for (std::size_t i = 0; i < button_count; ++i) {
+        ui_plate_raised(theme::rv_theme_button, buttons[i], UI_DEPTH_ON_WINDOW, file);
     }
 
     // No font, no text anywhere.
@@ -151,7 +169,7 @@ void rv_dmain::draw_post()
         UI_NO_DISC,
         file);
 
-    for (std::size_t i = 0; i < std::size(hint_labels); ++i) {
+    for (std::size_t i = 0; i < button_count; ++i) {
         ui_text(styles[FONT_INK_TEXT],
             buttons[i],
             buttons[i].x + theme::rv_theme_button_pad_x,
@@ -221,7 +239,8 @@ void rv_dmain::draw_post()
         for (int col = 0; col < RV_DMAIN_POST_PROBES_PER_ROW; ++col) {
             const int index = row * RV_DMAIN_POST_PROBES_PER_ROW + col;
             const std::string_view label = UI_PROBE_LABELS[index];
-            const int length = std::snprintf(labels[index],
+            // snprintf returns the untruncated length; the view comes from the terminated buffer instead.
+            std::snprintf(labels[index],
                 sizeof(labels[index]),
                 "%.*s%.*s%.*s",
                 static_cast<int>(col == 0 ? 0 : UI_PROBE_GAP.size()),
@@ -231,8 +250,7 @@ void rv_dmain::draw_post()
                 static_cast<int>(UI_LABEL_END.size()),
                 UI_LABEL_END.data());
             const rv_verdict_row &shown = verdict_rows[probes[index]];
-            pieces[col * RV_DMAIN_POST_PIECES_PER_PROBE] = { std::string_view(labels[index], static_cast<std::size_t>(length)),
-                &styles[FONT_INK_BRIGHT] };
+            pieces[col * RV_DMAIN_POST_PIECES_PER_PROBE] = { labels[index], &styles[FONT_INK_BRIGHT] };
             pieces[col * RV_DMAIN_POST_PIECES_PER_PROBE + 1] = { shown.text, &styles[shown.ink] };
         }
         draw_line(pieces, panel_inside, text_x, line_y(RV_DMAIN_POST_PROBE_LINE_FIRST + row), file);

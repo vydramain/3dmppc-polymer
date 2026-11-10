@@ -88,10 +88,6 @@ private:
     // direct format, which carries its colour in the texel.
     void draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette, rv_texture_mapping_type mapping);
 
-    // One line of the POST list: a label, what was found, and whether it
-    // answered. Drawn by draw_post().
-    void draw_post_row(int row, const char *label, const char *detail, const char *status, bool good);
-
     // Borrowed facade — the console owns it and it stays valid until the disc
     // is torn down. Never deleted here.
     rv_pdko *pdk_ = nullptr;
@@ -130,6 +126,7 @@ private:
     // setup_done_ is set; before that the step has not run.
     bool setup_done_ = false;
     bool grid_warned_ = false; // the "screen too small" warning is logged once, not every frame
+    bool hint_warned_ = false; // the "hint buttons do not fit" warning is logged once, not every frame
     int texture_result_ = RV_ERR_INVAL;
     int idx4_result_ = RV_ERR_INVAL;
     int font_result_ = RV_ERR_INVAL;
