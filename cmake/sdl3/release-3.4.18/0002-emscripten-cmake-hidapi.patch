@@ -1,0 +1,13 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 90b368d..7af6024 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1701,6 +1701,8 @@ elseif(EMSCRIPTEN)
+     )
+   endif()
+
++  CheckHIDAPI()
++
+   if(SDL_JOYSTICK)
+     set(SDL_JOYSTICK_EMSCRIPTEN 1)
+     sdl_glob_sources(

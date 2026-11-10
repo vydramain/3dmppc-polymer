@@ -10,6 +10,10 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 namespace rv_3dmppc
 {
 
@@ -46,15 +50,29 @@ void rv_pcplatform_sdl3::pump()
         case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:
             gamepads_.sensor(event.gsensor);
             break;
+        case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+            gamepads_.note_button_press();
+            break;
         case SDL_EVENT_MOUSE_MOTION:
             window_.add_mouse(event.motion.xrel, event.motion.yrel);
+            window_.note_cursor(event.motion.x, event.motion.y);
+            break;
+        case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+            window_.note_cursor_left();
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            window_.note_mouse_press(event.button.button, event.button.x, event.button.y);
             break;
         case SDL_EVENT_KEY_DOWN:
-            // event.key.repeat is SDL's own key-repeat flag (auto-repeat
-            // while held) - trusting it means the console never has to
-            // hand-roll a debounce timer here, and holding Pause still
+            // event.key.repeat is SDL's own auto-repeat flag. Holding any key
+            // counts once: the repeats are skipped here, so the console never
+            // has to hand-roll a debounce timer, and holding Pause still
             // counts as exactly one request.
-            if (event.key.scancode == SDL_SCANCODE_PAUSE && !event.key.repeat) {
+            if (event.key.repeat) {
+                break;
+            }
+            window_.note_key_press(event.key.scancode == SDL_SCANCODE_ESCAPE);
+            if (event.key.scancode == SDL_SCANCODE_PAUSE) {
                 window_.note_pause_request();
             }
             break;
@@ -70,6 +88,7 @@ void rv_pcplatform_sdl3::pump()
     gamepads_.poll_all();
     if (video_up_) {
         window_.snapshot_keyboard();
+        window_.snapshot_cursor();
     }
 }
 
@@ -86,6 +105,11 @@ rv_pcgamepads &rv_pcplatform_sdl3::gamepads()
 rv_pcaudio_sink &rv_pcplatform_sdl3::audio()
 {
     return audio_;
+}
+
+uint32_t rv_pcplatform_sdl3::refused() const
+{
+    return refused_;
 }
 
 namespace
@@ -105,6 +129,19 @@ void log_display_bounds()
     }
     RV_LOG_WARN("pcplatform", "SDL_GetDisplayBounds failed: {}", SDL_GetError());
 }
+
+#ifdef __EMSCRIPTEN__
+// Page facts set on Module before main() by src/web/rv_web_pre.js; undefined reads as false.
+bool page_webhid_usable()
+{
+    return EM_ASM_INT({ return Module.rvWebhidUsable ? 1 : 0; });
+}
+
+bool page_save_load_failed()
+{
+    return EM_ASM_INT({ return Module.rvSaveLoadFailed ? 1 : 0; });
+}
+#endif
 } // namespace
 
 std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants &wants)
@@ -157,6 +194,36 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
             RV_LOG_WARN("pcplatform", "audio device failed to open: {}", SDL_GetError());
         }
     }
+
+    // Wanted and not up: the same condition as "off" in the summary below.
+    if (wants.window && !platform->video_up_) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_VIDEO;
+    }
+    if (wants.gamepads && !platform->gamepad_up_) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_GAMEPADS;
+    }
+    if (wants.audio && !platform->audio_up_) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_AUDIO;
+    }
+    // Pads present at make() only: the enumeration above is done, later arrivals do not count.
+    const bool pad_motion_refused = wants.gamepads && platform->gamepads_.motion_refused();
+    if (pad_motion_refused) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_PAD_MOTION;
+    }
+
+#ifdef __EMSCRIPTEN__
+    // Browser facts: a missing WebHID or JSPI matters only when pads were wanted.
+    const bool webhid_refused = wants.gamepads && !page_webhid_usable();
+    const bool save_load_refused = page_save_load_failed();
+    if (webhid_refused) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_WEBHID;
+        RV_LOG_WARN("pcplatform", "browser has no WebHID or JSPI: pads read through the Gamepad API only");
+    }
+    if (save_load_refused) {
+        platform->refused_ |= RV_PCPLATFORM_REFUSED_SAVE_LOAD;
+        RV_LOG_WARN("pcplatform", "browser save store did not load: the memory card is not saved this session");
+    }
+#endif
 
     RV_LOG_INFO("pcplatform",
         "sdl3: window={} gamepads={} audio={}",

@@ -53,7 +53,9 @@ constexpr std::string_view kKeyLibs = "libs";
 constexpr std::string_view kKeyLinkGroup = "link_group";
 constexpr std::string_view kKeyLinkFlags = "link_flags";
 constexpr std::string_view kKeyPreJs = "pre_js";
+constexpr std::string_view kKeyJsLibrary = "js_library";
 constexpr std::string_view kKeyShell = "shell";
+constexpr std::string_view kKeyTexts = "texts";
 constexpr std::string_view kKeyLicenses = "licenses";
 
 constexpr std::string_view kLinkGroupYes = "yes";
@@ -62,6 +64,7 @@ constexpr std::string_view kBlanks = " \t\r"; // \r: a kit written on Windows st
 constexpr char kKeySeparator = '=';
 constexpr char kVersionSeparator = '.';
 constexpr char kCommentStart = '#';
+constexpr std::size_t kReadChunk = 4096; // bytes per read of a kit file
 
 std::string_view trim(std::string_view text)
 {
@@ -207,9 +210,19 @@ int apply_pre_js(rv_pdktools::rv_burner_kit &kit, const std::string &value, std:
     return resolve_kit_file(kit.dir, value, kKeyPreJs, kit.pre_js, error);
 }
 
+int apply_js_library(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
+{
+    return resolve_kit_file(kit.dir, value, kKeyJsLibrary, kit.js_library, error);
+}
+
 int apply_shell(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
 {
     return resolve_kit_file(kit.dir, value, kKeyShell, kit.shell, error);
+}
+
+int apply_texts(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
+{
+    return resolve_kit_file(kit.dir, value, kKeyTexts, kit.texts, error);
 }
 
 // Key -> field table. Adding a key is one row here and one field in the struct.
@@ -225,7 +238,9 @@ constexpr std::array kKitFields{
     kit_field{ kKeyLinkGroup, apply_link_group },
     kit_field{ kKeyLinkFlags, apply_link_flags },
     kit_field{ kKeyPreJs, apply_pre_js },
+    kit_field{ kKeyJsLibrary, apply_js_library },
     kit_field{ kKeyShell, apply_shell },
+    kit_field{ kKeyTexts, apply_texts },
     kit_field{ kKeyLicenses, apply_licenses },
 };
 
@@ -235,33 +250,6 @@ const kit_field *find_field(std::string_view key)
         return field.key == key;
     });
     return it == kKitFields.end() ? nullptr : &*it;
-}
-
-// Splits "key = value" lines into @p entries; blank lines and '#' comments are skipped.
-// A key given twice is refused, since the later line would silently win.
-int parse_entries(std::string_view text, std::map<std::string, std::string, std::less<>> &entries, std::string &error)
-{
-    int line_no = 0;
-    while (!text.empty()) {
-        const std::size_t eol = text.find('\n');
-        const std::string_view line = trim(text.substr(0, eol));
-        text = eol == std::string_view::npos ? std::string_view{} : text.substr(eol + 1);
-        ++line_no;
-        if (line.empty() || line.front() == kCommentStart) {
-            continue;
-        }
-        const std::size_t sep = line.find(kKeySeparator);
-        if (sep == std::string_view::npos) {
-            error = "kit.txt line " + std::to_string(line_no) + ": expected 'key = value', got '" + std::string(line) + "'";
-            return RV_ERR_INVAL;
-        }
-        const std::string key(trim(line.substr(0, sep)));
-        if (!entries.emplace(key, std::string(trim(line.substr(sep + 1)))).second) {
-            error = "kit.txt line " + std::to_string(line_no) + ": key '" + key + "' is given twice";
-            return RV_ERR_INVAL;
-        }
-    }
-    return RV_OK;
 }
 
 bool has_list_separator(const std::string &text)
@@ -296,6 +284,54 @@ std::string absent_reason(std::string_view what, const fs::path &path, const std
 
 } // namespace
 
+int rv_pdktools::parse_entries(std::string_view text,
+    std::string_view source,
+    std::map<std::string, std::string, std::less<>> &entries,
+    std::string &error)
+{
+    int line_no = 0;
+    while (!text.empty()) {
+        const std::size_t eol = text.find('\n');
+        const std::string_view line = trim(text.substr(0, eol));
+        text = eol == std::string_view::npos ? std::string_view{} : text.substr(eol + 1);
+        ++line_no;
+        if (line.empty() || line.front() == kCommentStart) {
+            continue;
+        }
+        const std::size_t sep = line.find(kKeySeparator);
+        if (sep == std::string_view::npos) {
+            error = std::string(source) + " line " + std::to_string(line_no) + ": expected 'key = value', got '" +
+                std::string(line) + "'";
+            return RV_ERR_INVAL;
+        }
+        const std::string key(trim(line.substr(0, sep)));
+        if (!entries.emplace(key, std::string(trim(line.substr(sep + 1)))).second) {
+            error = std::string(source) + " line " + std::to_string(line_no) + ": key '" + key + "' is given twice";
+            return RV_ERR_INVAL;
+        }
+    }
+    return RV_OK;
+}
+
+int rv_pdktools::read_text_file(const fs::path &file, std::string &text, std::string &error)
+{
+    std::ifstream in(file);
+    if (!in) {
+        error = "cannot open '" + file.string() + "'";
+        return RV_ERR_IO;
+    }
+    text.clear();
+    std::array<char, kReadChunk> chunk{};
+    while (in.read(chunk.data(), chunk.size()) || in.gcount() > 0) {
+        text.append(chunk.data(), static_cast<std::size_t>(in.gcount()));
+    }
+    if (in.bad()) {
+        error = "cannot read '" + file.string() + "'";
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
 int rv_pdktools::rv_burner_kit_locate(fs::path &dir, std::string &error)
 {
     const fs::path exe_dir = rv_pdktools::executable_directory();
@@ -321,15 +357,13 @@ int rv_pdktools::rv_burner_kit_locate(fs::path &dir, std::string &error)
 
 int rv_pdktools::rv_burner_kit_read(const fs::path &dir, rv_burner_kit &out, std::string &error)
 {
-    std::ifstream in(dir / kKitFileName);
-    if (!in) {
-        error = "cannot open '" + (dir / kKitFileName).string() + "'";
-        return RV_ERR_IO;
+    std::string text;
+    if (const int rv = read_text_file(dir / kKitFileName, text, error); rv != RV_OK) {
+        return rv;
     }
-    const std::string text{ std::istreambuf_iterator<char>{ in }, std::istreambuf_iterator<char>{} };
 
     std::map<std::string, std::string, std::less<>> entries;
-    if (const int rv = parse_entries(text, entries, error); rv != RV_OK) {
+    if (const int rv = parse_entries(text, kKitFileName, entries, error); rv != RV_OK) {
         return rv;
     }
 
@@ -369,6 +403,9 @@ int rv_pdktools::rv_burner_kit_read(const fs::path &dir, rv_burner_kit &out, std
         if (const int rv = field.apply(out, it->second, error); rv != RV_OK) {
             return rv;
         }
+    }
+    if (const int rv = read_page_texts(out.texts, out.page_texts, error); rv != RV_OK) {
+        return rv;
     }
     return RV_OK;
 }

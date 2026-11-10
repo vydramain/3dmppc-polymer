@@ -30,4 +30,9 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang++)
 
+# Clang reads GCC under <sysroot>/usr: via the lib -> usr/lib symlink its depfile gets "..", which ninja shortens to a
+# missing <sysroot>/include/c++, so objects stay dirty; from usr the path shortens to the existing <sysroot>/usr/include/c++.
+set(CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN "${RV_STEAMRT4_SDK}/usr")
+set(CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN "${RV_STEAMRT4_SDK}/usr")
+
 # No -fuse-ld: the SDK has no lld, so the link uses its default GNU ld.

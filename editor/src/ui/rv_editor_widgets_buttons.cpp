@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
-#include <string>
 
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
@@ -17,14 +16,6 @@ namespace
 
 // Button horizontal padding multiplier: left and right of text.
 constexpr float button_pad_mult = 4.0f;
-// Transport button reference label: measured width for square sizing.
-constexpr const char *tool_button_ref_label = "MMMMMM";
-// Transport button minimum height: line spacing multiplier.
-constexpr float tool_button_line_mult = 3.0f;
-// Code font scale maximum: primary try for tool button code.
-constexpr float code_font_scale_max = 2.0f;
-// Code font scale medium: first fallback when code does not fit.
-constexpr float code_font_scale_mid = 1.5f;
 // Letter button inset: scale factor for 2-pixel border clearance.
 constexpr float letter_button_inset_mult = 2.0f;
 // Icon button padding multiplier: space around scaled icon.
@@ -47,22 +38,6 @@ ImVec2 rv_editor_floor(ImVec2 v)
     return ImVec2(std::floor(v.x), std::floor(v.y));
 }
 
-// Blend two 0xRRGGBB colours by averaging each channel.
-uint32_t rv_editor_blend_color(uint32_t color1, uint32_t color2)
-{
-    // Two colours are averaged.
-    constexpr uint32_t blended_colors = 2;
-
-    auto channel_avg = [](uint32_t c1, uint32_t c2, int shift) {
-        return (((c1 >> shift) & rgb_channel_mask) + ((c2 >> shift) & rgb_channel_mask)) / blended_colors;
-    };
-    const uint32_t r = channel_avg(color1, color2, channel_shift_red);
-    const uint32_t g = channel_avg(color1, color2, channel_shift_green);
-    const uint32_t b = channel_avg(color1, color2, 0);
-
-    return (r << channel_shift_red) | (g << channel_shift_green) | b;
-}
-
 // Label centred in [min, max), nudged one scaled pixel down-right when pressed.
 void rv_editor_label_centred(ImDrawList *dl,
     const char *label,
@@ -77,23 +52,6 @@ void rv_editor_label_centred(ImDrawList *dl,
     const float nudge = pressed ? static_cast<float>(t.scale) : 0.0f;
     const ImVec2 pos((min.x + max.x - size.x) / center_div + nudge, (min.y + max.y - size.y) / center_div + nudge);
     dl->AddText(rv_editor_floor(pos), rv_editor_col(rv_editor_item_text(t, item)), label, end);
-}
-
-// The shared face of every push button: a dark outline that sets it off the
-// window behind it, the bevel inside, brass on hover, focus dots.
-void rv_editor_button_face(ImDrawList *dl, const rv_editor_item &item, const rv_editor_theme &t, bool down)
-{
-    const float px = static_cast<float>(t.scale);
-    const ImVec2 min(item.min.x + px, item.min.y + px);
-    const ImVec2 max(item.max.x - px, item.max.y - px);
-    dl->AddRectFilled(item.min, item.max, rv_editor_col(t.dark));
-    rv_editor_draw_panel(dl, min, max, t, down ? t.inset : t.button, down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
-    if (item.hovered && !item.disabled) {
-        rv_editor_draw_frame(dl, min, max, t, t.selection);
-    }
-    if (item.focused) {
-        rv_editor_draw_focus(dl, min, max, t);
-    }
 }
 
 // Label to the right of a square mark: the layout of check boxes and radios.
@@ -116,6 +74,45 @@ void rv_editor_marked_label(ImDrawList *dl, const char *label, const rv_editor_i
     }
 }
 
+} // namespace
+
+// Blend two 0xRRGGBB colours by averaging each channel.
+uint32_t rv_editor_blend_color(uint32_t color1, uint32_t color2)
+{
+    // Two colours are averaged.
+    constexpr uint32_t blended_colors = 2;
+
+    auto channel_avg = [](uint32_t c1, uint32_t c2, int shift) {
+        return (((c1 >> shift) & rgb_channel_mask) + ((c2 >> shift) & rgb_channel_mask)) / blended_colors;
+    };
+    const uint32_t r = channel_avg(color1, color2, channel_shift_red);
+    const uint32_t g = channel_avg(color1, color2, channel_shift_green);
+    const uint32_t b = channel_avg(color1, color2, 0);
+
+    return (r << channel_shift_red) | (g << channel_shift_green) | b;
+}
+
+// The shared face of every push button: a dark outline, the bevel, a hover frame
+// and focus dots. A selected one is filled with the selection colour even when
+// pressed, and its hover frame is the light text colour, not the selection colour.
+void rv_editor_button_face(ImDrawList *dl, const rv_editor_item &item, const rv_editor_theme &t, bool down, bool selected)
+{
+    const float px = static_cast<float>(t.scale);
+    const ImVec2 min(item.min.x + px, item.min.y + px);
+    const ImVec2 max(item.max.x - px, item.max.y - px);
+    const uint32_t fill = selected ? t.selection : (down ? t.inset : t.button);
+    dl->AddRectFilled(item.min, item.max, rv_editor_col(t.dark));
+    rv_editor_draw_panel(dl, min, max, t, fill, down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
+    // A selected face is already brass: its hover frame is the light text colour.
+    const uint32_t hover = selected ? t.text_bright : t.selection;
+    if (item.hovered && !item.disabled) {
+        rv_editor_draw_frame(dl, min, max, t, hover);
+    }
+    if (item.focused) {
+        rv_editor_draw_focus(dl, min, max, t);
+    }
+}
+
 // A letter button's item: a square of frame height with its tooltip, unless disabled.
 rv_editor_item rv_editor_letter_add(const char *id, const char *tooltip, const rv_editor_state &state)
 {
@@ -127,16 +124,17 @@ rv_editor_item rv_editor_letter_add(const char *id, const char *tooltip, const r
     return item;
 }
 
-// A letter button's face and code; `down` sinks and nudges it.
+// A letter button's face and code; `down` sinks and nudges it, `selected` fills the face in the selection colour.
 void rv_editor_letter_draw(const rv_editor_item &item,
     const char *code,
     uint32_t color,
     const rv_editor_theme &theme,
-    bool down)
+    bool down,
+    bool selected)
 {
     const float side = ImGui::GetFrameHeight();
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    rv_editor_button_face(dl, item, theme, down);
+    rv_editor_button_face(dl, item, theme, down, selected);
     // Dimmed like a disabled picture: halfway to the window colour.
     const uint32_t ink = item.disabled ? rv_editor_blend_color(color, theme.window) : color;
     // The code at the default size, or smaller when it would cross the square's
@@ -162,8 +160,6 @@ void rv_editor_letter_draw(const rv_editor_item &item,
     }
 }
 
-} // namespace
-
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const ImVec2 text = ImGui::CalcTextSize(label, rv_editor_label_end(label));
@@ -177,73 +173,6 @@ bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_
     return item.clicked;
 }
 
-float rv_editor_tool_button_width(const char *)
-{
-    // One square for every transport button: a six-letter label with padding, or
-    // the letter over a line of text, whichever is larger.
-    const ImVec2 pad = ImGui::GetStyle().FramePadding;
-    const float line = ImGui::GetTextLineHeight();
-    const float ref_width = ImGui::CalcTextSize(tool_button_ref_label).x + pad.x * both_sides_mult;
-    const float line_height = line * tool_button_line_mult + pad.y * tool_button_line_mult;
-    return std::floor(std::max(ref_width, line_height));
-}
-
-bool rv_editor_tool_button(const char *label,
-    const char *code,
-    uint32_t color,
-    const char *name,
-    const char *shortcut,
-    const rv_editor_theme &theme,
-    const rv_editor_state &state)
-{
-    const float side = rv_editor_tool_button_width(label);
-    const rv_editor_item item = rv_editor_item_add(label, ImVec2(side, side), state);
-    const char *end = rv_editor_label_end(label);
-    if (!item.disabled) {
-        const std::string tip = name != nullptr ? std::string(name) : std::string(label, end);
-        if (shortcut != nullptr) {
-            ImGui::SetItemTooltip("%s (%s)", tip.c_str(), shortcut);
-        } else {
-            ImGui::SetItemTooltip("%s", tip.c_str());
-        }
-    }
-    const bool down = item.held && item.hovered;
-
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    rv_editor_button_face(dl, item, theme, down);
-    const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
-    const float pad = ImGui::GetStyle().FramePadding.y;
-    // The code at the largest of 2x/1.5x/1x the font's size that still fits the
-    // square's width, over the label, both centred across the square.
-    const float fit = side - pad * both_sides_mult;
-    float big = ImGui::GetFontSize() * code_font_scale_max;
-    float code_w = ImGui::GetFont()->CalcTextSizeA(big, FLT_MAX, 0.0f, code).x;
-    for (const float scale : { code_font_scale_mid, 1.0f }) {
-        if (code_w <= fit) {
-            break;
-        }
-        big = ImGui::GetFontSize() * scale;
-        code_w = ImGui::GetFont()->CalcTextSizeA(big, FLT_MAX, 0.0f, code).x;
-    }
-    const float y = std::floor((item.min.y + item.max.y - big - ImGui::GetTextLineHeight() - pad) / center_div + nudge);
-    // Dimmed: halfway to the window colour.
-    const uint32_t dim = item.disabled ? rv_editor_blend_color(color, theme.window) : color;
-    dl->AddText(ImGui::GetFont(),
-        big,
-        ImVec2(std::floor((item.min.x + item.max.x - code_w) / center_div + nudge), y),
-        rv_editor_col(dim),
-        code);
-    const ImVec2 size = ImGui::CalcTextSize(label, end);
-    dl->AddText(ImVec2(std::floor((item.min.x + item.max.x - size.x) / center_div + nudge), y + big + pad),
-        rv_editor_col(rv_editor_item_text(theme, item)),
-        label,
-        end);
-    if (item.focused) {
-        rv_editor_draw_focus(dl, item.min, item.max, theme);
-    }
-    return item.clicked;
-}
-
 bool rv_editor_letter_button(const char *id,
     const char *code,
     uint32_t color,
@@ -252,7 +181,7 @@ bool rv_editor_letter_button(const char *id,
     const rv_editor_state &state)
 {
     const rv_editor_item item = rv_editor_letter_add(id, tooltip, state);
-    rv_editor_letter_draw(item, code, color, theme, item.held && item.hovered);
+    rv_editor_letter_draw(item, code, color, theme, item.held && item.hovered, false);
     return item.clicked;
 }
 
@@ -268,7 +197,7 @@ bool rv_editor_letter_toggle(const char *id,
     if (item.clicked) {
         *on = !*on;
     }
-    rv_editor_letter_draw(item, code, color, theme, *on || (item.held && item.hovered));
+    rv_editor_letter_draw(item, code, color, theme, *on || (item.held && item.hovered), false);
     return item.clicked;
 }
 

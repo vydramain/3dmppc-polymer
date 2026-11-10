@@ -1,11 +1,16 @@
 #include "rv_burner_setup.hpp"
 
+#include <algorithm>
+#include <charconv>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <system_error>
+#include <utility>
 
 #include "pdk/rv_err.h"
 
@@ -55,10 +60,200 @@ constexpr const char *k_installed_at = "installed at ";
 // Ends the detail of a step whose child output is captured and shown only on failure.
 constexpr const char *k_silent_note = ". Nothing is printed until the step ends";
 
-// Runs one child step. On failure the child's own words go out first, then the reason.
-int run_child(const std::string &command, const char *what, std::string &output)
+// emsdk.py's download bar is 80 - 4 = 76 wide: one dash per 1/76 of the archive, the only progress it prints.
+constexpr int k_emsdk_bar_width = 76;
+// emsdk.py lines: "Downloading: <name> from <url>[, <N> Bytes]", then " [", the dashes, "]".
+constexpr std::string_view k_emsdk_header = "Downloading: ";
+constexpr std::string_view k_emsdk_from = " from ";
+constexpr std::string_view k_emsdk_bytes = " Bytes";
+constexpr std::string_view k_emsdk_bar_open = " [";
+constexpr char k_emsdk_dash = '-';
+constexpr char k_emsdk_bar_close = ']';
+// curl -# ends each update with the share, e.g. "45.3%".
+constexpr char k_curl_percent = '%';
+// A share line prints only when the integer share reaches the next multiple of this, so a terminal is not flooded.
+constexpr int k_share_step = 5;
+constexpr int k_share_full = 100;
+// A header is the download path (at most PATH_MAX, 4096 bytes) plus emsdk's URL and size, far below this.
+// A longer line is dropped so an unended one cannot grow the buffer.
+constexpr std::size_t k_emsdk_line_max = 16384;
+
+// One rung of the [n/N] ladder: its number and label, written once per step.
+struct ladder_step {
+    int number;
+    const char *label;
+};
+
+// Where the emsdk parser is in its stream.
+enum class emsdk_state {
+    outside,     // any other line
+    header_seen, // the last line was a header, so " [" comes next
+    in_bar,      // inside " [ ... ]"
+};
+
+// Progress of one archive in one step. Output comes in pieces that may split lines anywhere, so the
+// unfinished line waits in `line` between pieces.
+struct progress_watch {
+    progress_watch(ladder_step where, std::string archive)
+        : step(where)
+        , name(std::move(archive))
+    {
+    }
+
+    ladder_step step;
+    std::string name;
+    std::string size; // human size; empty while the total is unknown
+    std::string line;
+    int rung = -1;      // share / k_share_step last printed, -1 before the first
+    bool shown = false; // a share line was printed for this archive
+    emsdk_state state = emsdk_state::outside;
+    int dashes = 0;
+};
+
+void report_share(progress_watch &watch, int share)
 {
-    const int status = run_capture(command, output);
+    const int rung = share / k_share_step;
+    if (rung <= watch.rung) {
+        return;
+    }
+    watch.rung = rung;
+    watch.shown = true;
+    std::string detail = watch.name + ": " + std::to_string(share) + "%";
+    if (!watch.size.empty()) {
+        detail += " of " + watch.size;
+    }
+    rv_burner_print_step(watch.step.number, watch.step.label, detail, k_setup_steps);
+}
+
+void report_unknown_size(const progress_watch &watch)
+{
+    rv_burner_print_step(watch.step.number, watch.step.label, watch.name + ": size unknown", k_setup_steps);
+}
+
+bool is_digit_char(char c)
+{
+    return '0' <= c && c <= '9';
+}
+
+// Whole part of the number that ends @p text, "45.3" gives 45. False when no digit ends it.
+bool trailing_share(const std::string &text, int &share)
+{
+    std::size_t begin = text.size();
+    while (begin > 0 && (is_digit_char(text[begin - 1]) || '.' == text[begin - 1])) {
+        --begin;
+    }
+    const std::size_t end = std::min(text.find('.', begin), text.size());
+    if (begin == end) {
+        return false;
+    }
+    return std::errc() == std::from_chars(text.data() + begin, text.data() + end, share).ec;
+}
+
+void feed_curl(progress_watch &watch, char c)
+{
+    if ('\r' == c || '\n' == c) {
+        watch.line.clear();
+        return;
+    }
+    if (k_curl_percent != c) {
+        watch.line.push_back(c);
+        return;
+    }
+    int share = 0;
+    if (trailing_share(watch.line, share)) {
+        report_share(watch, share);
+    }
+    watch.line.clear();
+}
+
+// The byte count of a header ending in ", <N> Bytes"; false when the header has none.
+bool emsdk_header_size(const std::string &header, int64_t &bytes)
+{
+    if (!header.ends_with(k_emsdk_bytes)) {
+        return false;
+    }
+    const std::size_t end = header.size() - k_emsdk_bytes.size();
+    std::size_t begin = end;
+    while (begin > 0 && is_digit_char(header[begin - 1])) {
+        --begin;
+    }
+    if (begin == end) {
+        return false;
+    }
+    return std::errc() == std::from_chars(header.data() + begin, header.data() + end, bytes).ec;
+}
+
+void begin_emsdk_archive(progress_watch &watch, const std::string &header)
+{
+    const std::size_t name_begin = k_emsdk_header.size();
+    const std::size_t name_end = std::min(header.find(k_emsdk_from, name_begin), header.size());
+    // emsdk prints the full destination path; the progress line names only the file.
+    watch.name = std::filesystem::path(header.substr(name_begin, name_end - name_begin)).filename().string();
+    watch.rung = -1;
+    watch.dashes = 0;
+    watch.size.clear();
+    int64_t bytes = 0;
+    if (!emsdk_header_size(header, bytes)) {
+        report_unknown_size(watch);
+        return;
+    }
+    watch.size = rv_burner_human_size(bytes);
+}
+
+void finish_emsdk_line(progress_watch &watch)
+{
+    // A CRLF child ends the header with a carriage return that must not reach the byte count.
+    if (!watch.line.empty() && '\r' == watch.line.back()) {
+        watch.line.pop_back();
+    }
+    const bool header = watch.line.starts_with(k_emsdk_header);
+    watch.state = header ? emsdk_state::header_seen : emsdk_state::outside;
+    if (header) {
+        begin_emsdk_archive(watch, watch.line);
+    }
+    watch.line.clear();
+}
+
+void feed_emsdk_bar(progress_watch &watch, char c)
+{
+    if (k_emsdk_bar_close == c) {
+        watch.state = emsdk_state::outside;
+        return;
+    }
+    if (k_emsdk_dash != c) {
+        return;
+    }
+    ++watch.dashes;
+    report_share(watch, std::min(watch.dashes * k_share_full / k_emsdk_bar_width, k_share_full));
+}
+
+void feed_emsdk(progress_watch &watch, char c)
+{
+    if ('\n' == c) {
+        finish_emsdk_line(watch);
+        return;
+    }
+    if (emsdk_state::in_bar == watch.state) {
+        feed_emsdk_bar(watch, c);
+        return;
+    }
+    watch.line.push_back(c);
+    if (k_emsdk_line_max < watch.line.size()) {
+        watch.line.clear();
+        watch.state = emsdk_state::outside;
+        return;
+    }
+    if (emsdk_state::header_seen == watch.state && k_emsdk_bar_open == watch.line) {
+        watch.state = emsdk_state::in_bar;
+        watch.line.clear();
+    }
+}
+
+// Runs one child step. On failure the child's own words go out first, then the reason.
+// @p on_output sees each piece as the child writes it; an empty one prints nothing.
+int run_child(const std::string &command, const char *what, std::string &output, const child_output_sink &on_output = {})
+{
+    const int status = run_capture_each(command, output, on_output);
     if (0 == status) {
         return RV_OK;
     }
@@ -83,11 +278,24 @@ struct download_guard {
     }
 };
 
-int download_archive(const std::string &url, const std::filesystem::path &target)
+int download_archive(const std::string &url, const std::filesystem::path &target, ladder_step step)
 {
+    progress_watch watch{ step, url.substr(url.rfind('/') + 1) };
+    const child_output_sink on_output = [&watch](std::string_view piece) {
+        for (const char c : piece) {
+            feed_curl(watch, c);
+        }
+    };
     std::string output;
-    const std::string command = "curl -fsSL -o " + shell_quote(target.string()) + " " + shell_quote(url);
-    return run_child(command, "download", output);
+    const std::string command = "curl -fSL -# -o " + shell_quote(target.string()) + " " + shell_quote(url);
+    const int rc = run_child(command, step.label, output, on_output);
+    if (RV_OK != rc) {
+        return rc;
+    }
+    if (!watch.shown) {
+        report_unknown_size(watch);
+    }
+    return RV_OK;
 }
 
 int verify_archive(const std::filesystem::path &archive)
@@ -122,11 +330,17 @@ int unpack_archive(const std::filesystem::path &archive, const std::filesystem::
     return run_child(command, "unpack", output);
 }
 
-int install_emsdk(const std::filesystem::path &dir)
+int install_emsdk(const std::filesystem::path &dir, ladder_step step)
 {
+    progress_watch watch{ step, "" };
+    const child_output_sink on_output = [&watch](std::string_view piece) {
+        for (const char c : piece) {
+            feed_emsdk(watch, c);
+        }
+    };
     const std::string enter = "cd " + shell_quote(dir.string()) + " && ";
     std::string output;
-    const int rc = run_child(enter + k_emsdk_script + " install " + k_emsdk_version, "emsdk install", output);
+    const int rc = run_child(enter + k_emsdk_script + " install " + k_emsdk_version, "emsdk install", output, on_output);
     if (RV_OK != rc) {
         return rc;
     }
@@ -189,9 +403,10 @@ int install_web()
     const download_guard download{ dir.string() + k_download_suffix };
 
     // --- [2/7] download ---
-    const std::string download_detail = url + ", the installer of the Emscripten compiler" + k_silent_note;
-    rv_burner_print_step(2, "download", download_detail, k_setup_steps);
-    int rc = download_archive(url, download.path);
+    constexpr ladder_step download_step{ 2, "download" };
+    const std::string download_detail = url + ", the installer of the Emscripten compiler";
+    rv_burner_print_step(download_step.number, download_step.label, download_detail, k_setup_steps);
+    int rc = download_archive(url, download.path, download_step);
     if (RV_OK != rc) {
         return rc;
     }
@@ -216,10 +431,10 @@ int install_web()
     // --- [5/7] install ---
     const std::string install_detail = "emsdk " + std::string(k_emsdk_version) +
         " downloads the Emscripten compiler (clang for wasm, Binaryen, Emscripten, Node.js) and makes it current;"
-        " the install itself takes a long time" +
-        k_silent_note;
-    rv_burner_print_step(5, "install", install_detail, k_setup_steps);
-    rc = install_emsdk(dir);
+        " the install itself takes a long time";
+    constexpr ladder_step install_step{ 5, "install" };
+    rv_burner_print_step(install_step.number, install_step.label, install_detail, k_setup_steps);
+    rc = install_emsdk(dir, install_step);
     if (RV_OK != rc) {
         return rc;
     }

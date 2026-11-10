@@ -1,7 +1,10 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace rv_pdktools
@@ -12,6 +15,11 @@ namespace rv_pdktools
 // The kit is the browser firmware a disc is linked into: the console's static
 // libraries and kit.txt, written by the build next to them. The burner finds it
 // beside its own binary, so a tools package carries it without any setting.
+
+/// Keys of the page texts file named by kit.txt key texts; every one is required.
+inline constexpr std::string_view kWebTextLoading = "loading";
+inline constexpr std::string_view kWebTextAllowGamepads = "allow_gamepads";
+inline constexpr std::string_view kWebTextClickToStart = "click_to_start";
 
 /// What kit.txt says, with every path already resolved against the kit directory.
 struct rv_burner_kit {
@@ -30,8 +38,14 @@ struct rv_burner_kit {
     std::vector<std::string> link_flags;
     /// The --pre-js file.
     std::filesystem::path pre_js;
+    /// The --js-library file.
+    std::filesystem::path js_library;
     /// The HTML page shell of the disc's index.html.
     std::filesystem::path shell;
+    /// The page texts file, read into page_texts.
+    std::filesystem::path texts;
+    /// The page texts by key (kWebTextLoading and the others).
+    std::map<std::string, std::string, std::less<>> page_texts;
     /// License files of the third-party parts the kit ships.
     std::vector<std::filesystem::path> licenses;
 };
@@ -46,14 +60,15 @@ int rv_burner_kit_locate(std::filesystem::path &dir, std::string &error);
 /// Read and check kit.txt in @p dir.
 ///
 /// The PDK version is checked first, so a kit of another PDK is named as a version mismatch even
-/// when its keys differ. Then every key must be present exactly once and none may be unknown, and
-/// every file the kit names must exist inside the kit directory.
+/// when its keys differ. Then every key must be present exactly once and none may be unknown, every
+/// file the kit names must exist inside the kit directory, and the page texts file must hold every text.
 ///
 /// @param dir    the kit directory from rv_burner_kit_locate()
 /// @param out    receives the parsed kit; unspecified on failure
 /// @param error  set naming the key, line, file or version that is wrong
-/// @return RV_OK; RV_ERR_INVAL on a malformed or incomplete kit.txt or a kit of another PDK;
-///         RV_ERR_NOENT on a missing kit file; RV_ERR_IO when kit.txt cannot be read
+/// @return RV_OK; RV_ERR_INVAL on a malformed or incomplete kit.txt or page texts file, or a kit of another PDK;
+///         RV_ERR_NOENT when a file kit.txt names is not a regular file in the kit;
+///         RV_ERR_IO when kit.txt or the page texts file cannot be read
 int rv_burner_kit_read(const std::filesystem::path &dir, rv_burner_kit &out, std::string &error);
 
 /// Refuse a kit built against another PDK. The match is exact: the disc is compiled against
@@ -63,6 +78,30 @@ int rv_burner_kit_read(const std::filesystem::path &dir, rv_burner_kit &out, std
 /// @param error  set with both versions when they differ
 /// @return RV_OK when major and minor equal RV_MPPC_VER_MAJOR and RV_MPPC_VER_MINOR, RV_ERR_INVAL otherwise
 int rv_burner_kit_check_version(const rv_burner_kit &kit, std::string &error);
+
+/// The kit files' key = value reader, shared by kit.txt and the page texts file.
+///
+/// Blank lines and '#' comments are skipped; a key given twice is refused.
+///
+/// @param source  names the file in errors, e.g. "kit.txt"
+/// @return RV_OK; RV_ERR_INVAL on a line without '=' or a repeated key
+int parse_entries(std::string_view text,
+    std::string_view source,
+    std::map<std::string, std::string, std::less<>> &entries,
+    std::string &error);
+
+/// Read @p file whole into @p text.
+///
+/// @return RV_OK; RV_ERR_IO with the path in @p error when the file cannot be opened or a read fails
+int read_text_file(const std::filesystem::path &file, std::string &text, std::string &error);
+
+/// Read the page texts file @p file into @p texts: every kWebText key present once, and no other key.
+///
+/// @return RV_OK; RV_ERR_INVAL naming the key and the file when a text is missing or a key is unknown, or
+///         when a line is malformed or a key is repeated; RV_ERR_IO when the file cannot be opened or read
+int read_page_texts(const std::filesystem::path &file,
+    std::map<std::string, std::string, std::less<>> &texts,
+    std::string &error);
 
 // --- the Steam Runtime 4 reference ---
 //

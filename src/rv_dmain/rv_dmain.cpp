@@ -2,6 +2,8 @@
 #include "rv_dmain.hpp"
 
 #include <cmath>
+#include <iterator>
+#include <numeric>
 
 #include "pdk/ca/rv_ca.h"
 #include "pdk/cd/rv_cd.h"
@@ -10,6 +12,7 @@
 #include "pdk/cv/rv_cv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_color/rv_color.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 
 namespace rv_service
 {
@@ -20,8 +23,41 @@ namespace
 // --- baked assumptions, validated against the machine in disc_initialize ---
 
 constexpr int64_t RV_DMAIN_MIN_SCREEN = 64;
-constexpr int64_t RV_DMAIN_MIN_FRAME_CAPACITY = 16;
 constexpr int64_t RV_DMAIN_MIN_PORTS = 1;
+
+// The frame capacity minimum: the most primitives one frame of this disc files, as a sum of its parts.
+// Text is bounded by characters, not by screen width, so the bound holds on any screen.
+namespace ui = rv_dmain_detail;
+
+constexpr int RV_DMAIN_WINDOW_PLATES = 1; // the window
+constexpr int RV_DMAIN_PANEL_PLATES = 1;  // the info panel
+// One plate each: window, info panel, hint buttons and test tiles.
+constexpr int RV_DMAIN_PLATES =
+    RV_DMAIN_WINDOW_PLATES + RV_DMAIN_PANEL_PLATES + ui::UI_HINT_BUTTONS + ui::UI_GRID_COLS * ui::UI_GRID_ROWS;
+constexpr int RV_DMAIN_PLATE_TERM = RV_DMAIN_PLATES * ui::UI_PLATE_SPRITES;
+// The title bar is one bar, not a plate.
+constexpr int RV_DMAIN_TITLE_BAR_TERM = 1;
+// The art of the test cells, each at its most.
+constexpr int RV_DMAIN_ART_TERM = std::accumulate(std::begin(UI_TEST_ART_MAX), std::end(UI_TEST_ART_MAX), 0);
+
+// Text: one glyph sprite per character at most.
+constexpr int RV_DMAIN_BOLD_PASSES = 2; // the title is drawn twice (ui_text_bold)
+constexpr int RV_DMAIN_TITLE_TEXT = RV_DMAIN_BOLD_PASSES * static_cast<int>(UI_TITLE.size());
+constexpr int RV_DMAIN_BAR_TEXT = RV_DMAIN_TITLE_TEXT + static_cast<int>(UI_NO_DISC.size());
+constexpr int RV_DMAIN_HINT_TEXT = static_cast<int>(UI_HINT_SOUND.size() + UI_HINT_POWER.size());
+constexpr int RV_DMAIN_CAPTION_TEXT = ui_chars(UI_TEST_CAPTIONS);
+// Every probe: its label with a gap before and ": " after, and a verdict.
+constexpr int RV_DMAIN_PROBE_TEXT = ui_chars(UI_PROBE_LABELS) +
+    static_cast<int>(std::size(UI_PROBE_LABELS) * (UI_PROBE_GAP.size() + UI_LABEL_END.size() + UI_VERDICT_OK.size()));
+// The budget and pads lines, as long as their buffers allow.
+constexpr int RV_DMAIN_PANEL_TEXT = UI_BUDGET_LINE_CHARS + UI_PADS_LINE_CHARS;
+constexpr int RV_DMAIN_TEXT_TERM =
+    RV_DMAIN_BAR_TEXT + RV_DMAIN_HINT_TEXT + RV_DMAIN_CAPTION_TEXT + RV_DMAIN_PROBE_TEXT + RV_DMAIN_PANEL_TEXT;
+
+constexpr int64_t RV_DMAIN_MIN_FRAME_CAPACITY =
+    RV_DMAIN_PLATE_TERM + RV_DMAIN_TITLE_BAR_TERM + RV_DMAIN_ART_TERM + RV_DMAIN_TEXT_TERM;
+static_assert(RV_DMAIN_MIN_FRAME_CAPACITY < rv_pdklib::rv_manifest_budget_pccv{}.frame_capacity,
+    "below the default frame capacity");
 
 // --- the show ---
 
@@ -150,10 +186,11 @@ void rv_dmain::frame_render()
     // identically either way (rv_de::frame_render).
     rv_cv *cv = rv_pdko_cv(pdk_);
 
-    // The Z flag is on because the cut-out row depends on it: a hole must write
+    // The Z flag is on because the cut-out cell depends on it: a hole must write
     // neither colour nor depth, and that is only observable when per-pixel depth
     // resolves primitives sharing an ordering-table bucket.
-    rv_cv_frame_configure(cv, RV_PIPELINE_BUFFER_CONFIG_TYPE_Z, rv_pdklib::rv_hsv_to_rgb(hue_, 0.5f, 0.35f));
+    // The backdrop is constant (the theme's dark); the test art keeps its own animated colours (hue_).
+    rv_cv_frame_configure(cv, RV_PIPELINE_BUFFER_CONFIG_TYPE_Z, rv_dmain_detail::ui_color(rv_pdklib::rv_theme_dark));
 
     draw_test_grid();
     draw_post();
@@ -180,11 +217,12 @@ void rv_dmain::disc_shutdown()
     if (addr_font_ != 0) {
         rv_cv_video_asset_free(cv, addr_font_);
     }
-    if (addr_font_palette_ != 0) {
-        rv_cv_video_asset_free(cv, addr_font_palette_);
-    }
-    if (addr_font_palette_bad_ != 0) {
-        rv_cv_video_asset_free(cv, addr_font_palette_bad_);
+    // A fallback entry equals the text palette's address: free each distinct address once.
+    for (int ink = 0; ink < FONT_INK_COUNT; ++ink) {
+        const int64_t addr = addr_font_palette_[ink];
+        if (addr != 0 && (ink == FONT_INK_TEXT || addr != addr_font_palette_[FONT_INK_TEXT])) {
+            rv_cv_video_asset_free(cv, addr);
+        }
     }
     if (addr_idx4_ != 0) {
         rv_cv_video_asset_free(cv, addr_idx4_);
@@ -194,8 +232,9 @@ void rv_dmain::disc_shutdown()
     }
     addr_texture_ = 0;
     addr_font_ = 0;
-    addr_font_palette_ = 0;
-    addr_font_palette_bad_ = 0;
+    for (int64_t &addr : addr_font_palette_) {
+        addr = 0;
+    }
     addr_idx4_ = 0;
     addr_idx4_palette_ = 0;
 

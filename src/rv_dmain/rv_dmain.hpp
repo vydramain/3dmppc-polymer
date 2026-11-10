@@ -3,8 +3,8 @@
 // subsystem the machine claims to have, so a broken one shows up on screen or
 // in the speakers rather than staying buried in a log.
 //
-//   rv_cv  — a spinning textured cube, plus three sprites showing the wrap
-//            modes and the cut-out transparency rule
+//   rv_cv  - twelve test tiles (line, polygons, fill modes, wrap modes, the
+//            cut-out rule, depth order, a spinning cube), each captioned
 //   rv_cd  — reads an asset off the mounted medium and proves it arrived
 //   rv_cm  — a boot counter that survives a restart
 //   rv_ca  — a synthesized beep on the south button
@@ -23,6 +23,7 @@
 #include "pdk/cv/rv_primitives.h"
 #include "pdk/de/rv_de.h"
 #include "pdk/rv_pdko.h"
+#include "rv_dmain_ui.hpp"
 
 // NAMESPACE: `rv_service`, not `rv_3dmppc` — this is a DISC, not part of the
 // machine, and a game declared inside the console's namespace reads as part of
@@ -78,8 +79,8 @@ private:
 
     // One cell of the test card. `index` picks the cell; each draws exactly one
     // of the console's drawing capabilities, labelled with what it proves.
-    void draw_cell(int index);
-    void draw_cell_label(int index, int cx, int cy);
+    void draw_cell(int index, const rv_dmain_detail::rv_ui_rect &cell, const rv_dmain_detail::rv_ui_rect &tile);
+    void draw_cell_label(int index, const rv_dmain_detail::rv_ui_rect &cell, const rv_dmain_detail::rv_ui_rect &tile);
     void draw_cell_art(int index, int ax, int ay, int aw, int ah, rv_color hot, rv_color cold, rv_color mid);
     void draw_cube_cell(int x, int y, int w, int h);
 
@@ -87,15 +88,11 @@ private:
     // direct format, which carries its colour in the texel.
     void draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette, rv_texture_mapping_type mapping);
 
-    // One line of the POST list: a label, what was found, and whether it
-    // answered. Drawn by draw_post().
-    void draw_post_row(int row, const char *label, const char *detail, const char *status, bool good);
-
     // Borrowed facade — the console owns it and it stays valid until the disc
     // is torn down. Never deleted here.
     rv_pdko *pdk_ = nullptr;
 
-    // Everything the POST list reports. Queried once and kept, because that is
+    // Everything the info panel reports. Queried once and kept, because that is
     // what the contract says these are — session-stable answers — and because
     // printing them IS the test: a number on screen proves the query answered.
     int64_t screen_width_ = 0;
@@ -128,16 +125,22 @@ private:
     // The codes each setup step returned. They mean something only once
     // setup_done_ is set; before that the step has not run.
     bool setup_done_ = false;
+    bool grid_warned_ = false; // the "screen too small" warning is logged once, not every frame
+    bool hint_warned_ = false; // the "hint buttons do not fit" warning is logged once, not every frame
     int texture_result_ = RV_ERR_INVAL;
     int idx4_result_ = RV_ERR_INVAL;
     int font_result_ = RV_ERR_INVAL;
 
-    // Two palettes over ONE atlas: the console has no vertex-colour modulation
-    // yet, so a second colour of text means a second palette and a different
-    // addr_palette — 32 bytes, not another 3 KiB of glyphs. Red is worth it: a
-    // status column where failure looks like success is not a status column.
-    int64_t addr_font_palette_ = 0;
-    int64_t addr_font_palette_bad_ = 0;
+    // Several palettes over ONE atlas: the console has no vertex-colour modulation yet, so each
+    // colour of text is a palette and its own addr_palette - 32 bytes, not another 3 KiB of glyphs.
+    enum rv_font_ink : int {
+        FONT_INK_TEXT,
+        FONT_INK_BRIGHT,
+        FONT_INK_DISABLED,
+        FONT_INK_ERROR,
+        FONT_INK_COUNT
+    };
+    int64_t addr_font_palette_[FONT_INK_COUNT] = {};
     float spin_ = 0.0f;
     float hue_ = 0.0f;
 

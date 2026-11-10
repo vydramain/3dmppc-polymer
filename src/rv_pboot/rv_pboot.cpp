@@ -25,6 +25,7 @@
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 #include "rv_pconsole/rv_pcslots.hpp"
+#include "rv_pconsole/rv_pctexts.hpp"
 
 // The built-in disc never goes through dlopen, so it has no entry points - but
 // it needs the same rv_de table of hooks as any other. The macro expands the
@@ -159,6 +160,59 @@ int rv_pboot_prepare_conf(const rv_pboot_args &args,
     return RV_OK;
 }
 
+// Brings up the disc at the path, puts its medium in the drive and runs it; returns what disc_run reports.
+// A refused bring_up is logged here, a disc_run refusal by the console.
+int64_t rv_pboot_path_disc(rv_pconsole &console, rv_pcloader &loader, const rv_pboot_args &args, const rv_pconsole_conf &conf)
+{
+    const int64_t up = loader.bring_up();
+
+    if (up < 0) {
+        rv_console_print_error(std::format("refusing to boot '{}'", rv_pdklib::rv_log_escape(args.disc_path)));
+        return RV_ERR_INVAL;
+    }
+
+    // The bytes the disc reads through rv_cd come out of the same place its
+    // code came out of; that is what makes a disc ONE object rather than a
+    // program plus a loose pile of assets - and it holds for both media.
+    // The archive is the shipped form and cannot change while mounted; the
+    // unpacked directory is the development form, and its entries may be
+    // symlinks to the author's own files, which is exactly what makes a
+    // live script reload possible (conf.params.medium_live, set by
+    // rv_pboot_prepare_conf). Which medium that is, per this build, is
+    // rv_pboot_disc_medium()'s call (rv_pboot_discmedium.hpp) - a player
+    // build's medium_live is always false, so it always gets the archive
+    // medium back.
+    console.drive().medium_insert(rv_pboot_disc_medium(args.disc_path, conf.params.medium_live));
+    return console.disc_run(loader.disc());
+}
+
+// Runs the built-in default disc for checking the console; returns what disc_run reports.
+int64_t rv_pboot_run_builtin_disc(rv_pconsole &console)
+{
+    // No disc in the machine: the built-in default disc for checking the console. It
+    // is how the console is checked without a game, and it is not a game
+    // itself. `service` is a disc's namespace, not the machine's, and this
+    // is the only line in the console that names a disc. Its object lives in
+    // this frame, so it outlives the whole disc_run.
+    std::optional<rv_service::rv_dmain> built_in;
+    std::optional<rv_de> built_in_de;
+    built_in.emplace();
+    built_in_de = rv_dmain_table(&*built_in);
+    return console.disc_run(&*built_in_de);
+}
+
+// Starts the run's disc and returns what disc_run reports: negative when the disc did not start or its run ended in an error.
+int64_t rv_pboot_start_disc(rv_pconsole &console, rv_pcloader &loader, const rv_pboot_args &args, const rv_pconsole_conf &conf)
+{
+    // The disc path is the only choice here; each branch runs its disc once.
+    const int64_t rc =
+        args.disc_path != nullptr ? rv_pboot_path_disc(console, loader, args, conf) : rv_pboot_run_builtin_disc(console);
+    if (rc < 0) {
+        return rc;
+    }
+    return RV_OK;
+}
+
 } // namespace
 
 std::filesystem::path rv_pboot_exe_dir()
@@ -176,6 +230,12 @@ int rv_pboot_run(int argc, char **argv)
     int exit_code = 0;
     if (rv_pboot_preflight(argc, argv, args, slots, machine, exit_code) != RV_OK) {
         return exit_code;
+    }
+
+    // Every screen text comes from this table, so it loads before anything is drawn.
+    if (rv_pctexts_load() != RV_OK) {
+        rv_console_print_error("refusing to boot: the UI texts did not load");
+        return 1;
     }
 
     // The loader's teardown runs disc_shutdown(), a hook allowed to touch
@@ -250,44 +310,23 @@ int rv_pboot_run(int argc, char **argv)
     // accepted: an address-space reservation is allowed to fail even when the
     // budget looked fine on paper. check_ready() logs the controller that refused
     // and its constructor logged why; this line only names what is being refused.
+    // The start screen then shows the journaled error and waits for a press; it returns at once
+    // when no window is shown or the screen cannot be drawn.
     const int ready_rc = console->check_ready();
     if (ready_rc != RV_OK) {
         rv_console_print_error(std::format("refusing to boot '{}'",
             args.disc_path != nullptr ? rv_pdklib::rv_log_escape(args.disc_path) : "built-in disc"));
+        static_cast<void>(console->boot_screen_run([ready_rc]() -> int64_t {
+            return ready_rc;
+        }));
         return 1;
     }
 
-    const bool disc_path_set = args.disc_path != nullptr;
-    const int up = disc_path_set ? loader.bring_up() : RV_OK;
-
-    if (up < 0) {
-        rv_console_print_error(std::format("refusing to boot '{}'", rv_pdklib::rv_log_escape(args.disc_path)));
-        return 1;
-    }
-
-    if (disc_path_set) {
-        // The bytes the disc reads through rv_cd come out of the same place its
-        // code came out of; that is what makes a disc ONE object rather than a
-        // program plus a loose pile of assets - and it holds for both media.
-        // The archive is the shipped form and cannot change while mounted; the
-        // unpacked directory is the development form, and its entries may be
-        // symlinks to the author's own files, which is exactly what makes a
-        // live script reload possible (conf.params.medium_live above). Which
-        // medium that is, per this build, is rv_pboot_disc_medium()'s call
-        // (rv_pboot_discmedium.hpp) - a player build's medium_live is always
-        // false, so it always gets the archive medium back.
-        console->drive().medium_insert(rv_pboot_disc_medium(args.disc_path, conf.params.medium_live));
-
-        return static_cast<int>(console->disc_run(loader.disc()) < 0 ? 1 : 0);
-    }
-
-    // No disc in the machine: the built-in default disc for checking the console. It
-    // is how the console is checked without a game, and it is not a game
-    // itself. `service` is a disc's namespace, not the machine's, and this
-    // is the only line in the console that names a disc.
-    rv_service::rv_dmain disc;
-    rv_de de = rv_dmain_table(&disc);
-    return static_cast<int>(console->disc_run(&de) < 0 ? 1 : 0);
+    // The start screen runs the disc start once its wait is over; quit returns RV_OK without it.
+    const int64_t start_rc = console->boot_screen_run([&]() {
+        return rv_pboot_start_disc(*console, loader, args, conf);
+    });
+    return start_rc < 0 ? 1 : 0;
 }
 
 } // namespace rv_3dmppc

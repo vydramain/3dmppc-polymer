@@ -1,10 +1,13 @@
 #include "rv_pconsole.hpp"
 
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "rv_pconsole/platform/rv_pcplatform.hpp"
 #include "rv_pconsole/rv_pcslots.hpp"
 
 // The console's PCM format and the platform's are the same format by
@@ -16,18 +19,128 @@ static_assert(rv_3dmppc::RV_PCCA_PCM_RATE == rv_3dmppc::RV_PCPLATFORM_PCM_RATE,
 static_assert(rv_3dmppc::RV_PCCA_PCM_CHANNELS == rv_3dmppc::RV_PCPLATFORM_PCM_CHANNELS,
     "the mixer's channel count and the platform's PCM sink must agree");
 
+namespace
+{
+
+// Slot names: the boot journal and check_ready() both print them, so they are written once.
+inline constexpr const char *rv_pcslot_ca = "ca";
+inline constexpr const char *rv_pcslot_cio = "cio";
+inline constexpr const char *rv_pcslot_cm = "cm";
+inline constexpr const char *rv_pcslot_cv = "cv";
+inline constexpr const char *rv_pcslot_cg = "cg";
+inline constexpr const char *rv_pcslot_cd = "cd";
+inline constexpr const char *rv_pcslot_cl = "cl";
+
+// Console text ids of a controller that did not start: the found and the recommended line.
+// The short ids are for the screen, the plain ids for the log.
+inline constexpr const char *rv_pcboot_text_not_started = "boot.not_started";
+inline constexpr const char *rv_pcboot_text_see_log = "boot.see_log";
+inline constexpr const char *rv_pcboot_text_not_started_short = "boot.not_started_short";
+inline constexpr const char *rv_pcboot_text_see_log_short = "boot.see_log_short";
+
+// Text ids of a refused platform service, per rv_pcboot_refusal_rows below.
+inline constexpr const char *rv_pcboot_text_audio_found = "boot.audio_found";
+inline constexpr const char *rv_pcboot_text_audio_recommend = "boot.audio_recommend";
+inline constexpr const char *rv_pcboot_text_gamepads_found = "boot.gamepads_found";
+inline constexpr const char *rv_pcboot_text_gamepads_recommend = "boot.gamepads_recommend";
+inline constexpr const char *rv_pcboot_text_webhid_found = "boot.webhid_found";
+inline constexpr const char *rv_pcboot_text_webhid_recommend = "boot.webhid_recommend";
+inline constexpr const char *rv_pcboot_text_motion_found = "boot.motion_found";
+inline constexpr const char *rv_pcboot_text_motion_recommend = "boot.motion_recommend";
+inline constexpr const char *rv_pcboot_text_video_found = "boot.video_found";
+inline constexpr const char *rv_pcboot_text_video_recommend = "boot.video_recommend";
+inline constexpr const char *rv_pcboot_text_save_load_found = "boot.save_load_found";
+inline constexpr const char *rv_pcboot_text_save_load_recommend = "boot.save_load_recommend";
+
+// Short screen ids of the same refusals.
+inline constexpr const char *rv_pcboot_text_audio_found_short = "boot.audio_found_short";
+inline constexpr const char *rv_pcboot_text_audio_recommend_short = "boot.audio_recommend_short";
+inline constexpr const char *rv_pcboot_text_gamepads_found_short = "boot.gamepads_found_short";
+inline constexpr const char *rv_pcboot_text_gamepads_recommend_short = "boot.gamepads_recommend_short";
+inline constexpr const char *rv_pcboot_text_webhid_found_short = "boot.webhid_found_short";
+inline constexpr const char *rv_pcboot_text_webhid_recommend_short = "boot.webhid_recommend_short";
+inline constexpr const char *rv_pcboot_text_motion_found_short = "boot.motion_found_short";
+inline constexpr const char *rv_pcboot_text_motion_recommend_short = "boot.motion_recommend_short";
+inline constexpr const char *rv_pcboot_text_video_found_short = "boot.video_found_short";
+inline constexpr const char *rv_pcboot_text_video_recommend_short = "boot.video_recommend_short";
+inline constexpr const char *rv_pcboot_text_save_load_found_short = "boot.save_load_found_short";
+inline constexpr const char *rv_pcboot_text_save_load_recommend_short = "boot.save_load_recommend_short";
+
+// A row warns its slot when its refused bit is set. Rows are in report order: the first
+// matching row for a slot gives its texts. The caller passes only the bits its slot reads.
+struct rv_pcboot_refusal_row {
+    const char *slot;
+    uint32_t refused_bit;
+    const char *found_id;
+    const char *recommend_id;
+    const char *screen_found_id;
+    const char *screen_recommend_id;
+};
+
+inline constexpr rv_pcboot_refusal_row rv_pcboot_refusal_rows[] = {
+    { rv_pcslot_ca,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_AUDIO,
+        rv_pcboot_text_audio_found,
+        rv_pcboot_text_audio_recommend,
+        rv_pcboot_text_audio_found_short,
+        rv_pcboot_text_audio_recommend_short },
+    { rv_pcslot_cio,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_GAMEPADS,
+        rv_pcboot_text_gamepads_found,
+        rv_pcboot_text_gamepads_recommend,
+        rv_pcboot_text_gamepads_found_short,
+        rv_pcboot_text_gamepads_recommend_short },
+    { rv_pcslot_cio,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_WEBHID,
+        rv_pcboot_text_webhid_found,
+        rv_pcboot_text_webhid_recommend,
+        rv_pcboot_text_webhid_found_short,
+        rv_pcboot_text_webhid_recommend_short },
+    { rv_pcslot_cio,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_PAD_MOTION,
+        rv_pcboot_text_motion_found,
+        rv_pcboot_text_motion_recommend,
+        rv_pcboot_text_motion_found_short,
+        rv_pcboot_text_motion_recommend_short },
+    { rv_pcslot_cm,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_SAVE_LOAD,
+        rv_pcboot_text_save_load_found,
+        rv_pcboot_text_save_load_recommend,
+        rv_pcboot_text_save_load_found_short,
+        rv_pcboot_text_save_load_recommend_short },
+    { rv_pcslot_cv,
+        rv_3dmppc::RV_PCPLATFORM_REFUSED_VIDEO,
+        rv_pcboot_text_video_found,
+        rv_pcboot_text_video_recommend,
+        rv_pcboot_text_video_found_short,
+        rv_pcboot_text_video_recommend_short },
+};
+
+// Journals a controller right after it is made. Its own constructor has already logged why it refused.
+void rv_pcboot_journal_slot(rv_3dmppc::rv_pcboot_journal &journal, const char *name, bool valid, uint32_t refused)
+{
+    if (!valid) {
+        journal.add_error(name,
+            { rv_pcboot_text_not_started, rv_pcboot_text_see_log },
+            { rv_pcboot_text_not_started_short, rv_pcboot_text_see_log_short });
+        return;
+    }
+    for (const auto &row : rv_pcboot_refusal_rows) {
+        if (std::string_view(row.slot) == name && (refused & row.refused_bit) != 0) {
+            journal.add_warning(name, { row.found_id, row.recommend_id }, { row.screen_found_id, row.screen_recommend_id });
+            return;
+        }
+    }
+    journal.add_ok(name);
+}
+
+} // namespace
+
 rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     rv_3dmppc::rv_pcplatform &platform,
     rv_3dmppc::rv_pcloader *loader)
     : params_(conf.params)
     , platform_(platform)
-    , ca_(rv_pcca_make(conf.slots.ca, conf.ca))
-    , cio_(rv_pccio_make(conf.slots.cio, conf.cio, platform_))
-    , cm_(rv_pccm_make(conf.slots.cm, conf.cm))
-    , cv_(rv_pccv_make(conf.slots.cv, conf.cv))
-    , cg_(rv_pccg_make(conf.slots.cg, conf.cg, *cv_))
-    , cd_(rv_pccd_make(conf.slots.cd, conf.cd))
-    , cl_(rv_pccl_make(conf.slots.cl, conf.cl, *cd_))
     , loader_(loader)
     , pcm_(static_cast<size_t>(
           (RV_PCCA_PCM_RATE / static_cast<int64_t>(params_.target_fps ? params_.target_fps : RV_PCONSOLE_DEFAULT_TARGET_FPS) +
@@ -35,11 +148,35 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
           RV_PCCA_PCM_CHANNELS))
     , script_entry_(conf.cl.script_entry)
 {
-    // Here and not in the initialiser list: video_attach() is not itself part
-    // of building cd_, and keeping it out of the list means the invariant it
-    // establishes (rv_pccd.hpp: cv_ outlives cd_) is not tangled with the
-    // ORDER the list happens to be written in. audio_attach() is the same
-    // seam for ca_ - see rv_pccd.hpp's own comment on audio_attach().
+    // What the platform refused to bring up, read once: the warnings come from the same bits.
+    const uint32_t refused = platform_.refused();
+
+    // Built one at a time, each journaled as it is made, in dependency order:
+    // cg_ needs cv_, cl_ needs cd_.
+    ca_ = rv_pcca_make(conf.slots.ca, conf.ca);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_ca, ca_->valid(), refused);
+    // Only a cio that is not null reads the platform's pads; the null cio never does.
+    const uint32_t cio_refused = conf.slots.cio != rv_pccio_impl::null ? refused : 0;
+    cio_ = rv_pccio_make(conf.slots.cio, conf.cio, platform_);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cio, cio_->valid(), cio_refused);
+    cm_ = rv_pccm_make(conf.slots.cm, conf.cm);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cm, cm_->valid(), refused);
+    cv_ = rv_pccv_make(conf.slots.cv, conf.cv);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cv, cv_->valid(), refused);
+    boot_screen_during_boot();
+    cg_ = rv_pccg_make(conf.slots.cg, conf.cg, *cv_);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cg, cg_->valid(), refused);
+    boot_screen_during_boot();
+    cd_ = rv_pccd_make(conf.slots.cd, conf.cd);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cd, cd_->valid(), refused);
+    boot_screen_during_boot();
+    cl_ = rv_pccl_make(conf.slots.cl, conf.cl, *cd_);
+    rv_pcboot_journal_slot(boot_journal_, rv_pcslot_cl, cl_->valid(), refused);
+    boot_screen_during_boot();
+
+    // The attach calls run once all seven controllers exist: cd_ attaches cv_, ca_
+    // and cg_. cv_ must outlive cd_ (rv_pccd.hpp: ~rv_pccd_fs frees textures
+    // through it). audio_attach() is the same seam for ca_ - see rv_pccd.hpp.
     cd_->video_attach(*cv_);
     cd_->audio_attach(*ca_);
     cd_->geometry_attach(*cg_);
@@ -92,13 +229,13 @@ int rv_3dmppc::rv_pconsole::check_ready() const
         int code;
     };
     const slot_check slots[] = {
-        { "ca", ca_->valid(), RV_ERR_NOMEM },
-        { "cd", cd_->valid(), RV_ERR_NOMEM },
-        { "cio", cio_->valid(), RV_ERR_NOMEM },
-        { "cm", cm_->valid(), RV_ERR_IO },
-        { "cv", cv_->valid(), RV_ERR_NOMEM },
-        { "cg", cg_->valid(), RV_ERR_NOMEM },
-        { "cl", cl_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_ca, ca_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cd, cd_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cio, cio_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cm, cm_->valid(), RV_ERR_IO },
+        { rv_pcslot_cv, cv_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cg, cg_->valid(), RV_ERR_NOMEM },
+        { rv_pcslot_cl, cl_->valid(), RV_ERR_NOMEM },
     };
     for (const auto &slot : slots) {
         if (!slot.valid) {
@@ -107,6 +244,11 @@ int rv_3dmppc::rv_pconsole::check_ready() const
         }
     }
     return RV_OK;
+}
+
+const rv_3dmppc::rv_pcboot_journal &rv_3dmppc::rv_pconsole::boot_journal() const
+{
+    return boot_journal_;
 }
 
 // --- C contract (pdk/rv_pdko.h) ----------------------------------------------

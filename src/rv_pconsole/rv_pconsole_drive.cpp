@@ -64,4 +64,21 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
     return RV_OK;
 }
 
+int64_t rv_pconsole::boot_screen_run(std::function<int64_t()> rest)
+{
+    if (!boot_screen_begin()) {
+        return rest();
+    }
+
+    boot_screen_result result = boot_screen_step();
+    while (result == boot_screen_result::running) {
+        std::this_thread::sleep_for(RV_PCONSOLE_BOOT_SCREEN_SLICE);
+        result = boot_screen_step();
+    }
+    if (result == boot_screen_result::quit) {
+        return RV_OK;
+    }
+    return rest();
+}
+
 } // namespace rv_3dmppc

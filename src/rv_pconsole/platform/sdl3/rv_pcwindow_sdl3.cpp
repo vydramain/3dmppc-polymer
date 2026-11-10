@@ -84,6 +84,27 @@ int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t 
         scale = 1;
     }
 
+    // The window is made once. A second call with the same geometry only retitles it; another geometry is refused.
+    const bool made = window_ != nullptr;
+    const bool same_geometry = screen_width == screen_width_ && screen_height == screen_height_ && scale == scale_;
+    if (made && !same_geometry) {
+        RV_LOG_ERR("pcplatform",
+            "window is {}x{} at scale {}, refusing {}x{} at scale {}",
+            screen_width_,
+            screen_height_,
+            scale_,
+            screen_width,
+            screen_height,
+            scale);
+        return RV_ERR_INVAL;
+    }
+    if (made) {
+        if (!SDL_SetWindowTitle(window_, title)) {
+            RV_LOG_WARN("pcplatform", "SDL_SetWindowTitle failed: {}", SDL_GetError());
+        }
+        return RV_OK;
+    }
+
     const int window_w = static_cast<int>(screen_width * static_cast<int64_t>(scale));
     const int window_h = static_cast<int>(screen_height * static_cast<int64_t>(scale));
     window_ = SDL_CreateWindow(title, window_w, window_h, SDL_WINDOW_RESIZABLE);
@@ -119,6 +140,7 @@ int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t 
 
     screen_width_ = screen_width;
     screen_height_ = screen_height;
+    scale_ = scale;
 
     RV_LOG_INFO("pcplatform", "window {}x{} at scale {}", screen_width, screen_height, scale);
     return RV_OK;
@@ -171,6 +193,18 @@ uint32_t rv_pcwindow_sdl3::consume_pause_requests()
     return requests;
 }
 
+rv_pcpresses rv_pcwindow_sdl3::consume_presses()
+{
+    const rv_pcpresses presses = presses_;
+    presses_ = {};
+    return presses;
+}
+
+rv_pcpointer rv_pcwindow_sdl3::cursor() const
+{
+    return cursor_;
+}
+
 void rv_pcwindow_sdl3::note_close()
 {
     close_requested_ = true;
@@ -187,6 +221,63 @@ void rv_pcwindow_sdl3::add_mouse(float dx, float dy)
     // the deltas accumulate here and are drained on read.
     mouse_dx_ += dx;
     mouse_dy_ += dy;
+}
+
+void rv_pcwindow_sdl3::note_key_press(bool escape)
+{
+    ++presses_.keys;
+    if (escape) {
+        ++presses_.escape;
+    }
+}
+
+void rv_pcwindow_sdl3::note_mouse_press(uint8_t button, float x, float y)
+{
+    ++presses_.mouse_buttons;
+    if (button == SDL_BUTTON_LEFT) {
+        presses_.last_click = to_frame(x, y);
+    }
+}
+
+void rv_pcwindow_sdl3::note_cursor(float x, float y)
+{
+    cursor_x_ = x;
+    cursor_y_ = y;
+    cursor_on_window_ = true;
+}
+
+void rv_pcwindow_sdl3::note_cursor_left()
+{
+    cursor_on_window_ = false;
+}
+
+void rv_pcwindow_sdl3::snapshot_cursor()
+{
+    cursor_ = cursor_on_window_ ? to_frame(cursor_x_, cursor_y_) : rv_pcpointer{};
+}
+
+rv_pcpointer rv_pcwindow_sdl3::to_frame(float x, float y)
+{
+    // No renderer means no frame to be inside: the answer is not inside. open() has already logged why.
+    rv_pcpointer point{};
+    if (!renderer_) {
+        return point;
+    }
+
+    float frame_x = 0.0f;
+    float frame_y = 0.0f;
+    if (!SDL_RenderCoordinatesFromWindow(renderer_, x, y, &frame_x, &frame_y)) {
+        if (!coordinates_warned_) {
+            coordinates_warned_ = true;
+            RV_LOG_WARN("pcplatform", "SDL_RenderCoordinatesFromWindow failed: {}", SDL_GetError());
+        }
+        return point;
+    }
+
+    point.x = static_cast<int64_t>(std::floor(frame_x));
+    point.y = static_cast<int64_t>(std::floor(frame_y));
+    point.inside = point.x >= 0 && point.x < screen_width_ && point.y >= 0 && point.y < screen_height_;
+    return point;
 }
 
 void rv_pcwindow_sdl3::snapshot_keyboard()

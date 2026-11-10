@@ -213,6 +213,11 @@ public:
         return inner_->audio();
     }
 
+    uint32_t refused() const override
+    {
+        return inner_->refused();
+    }
+
     rv_pcframe_window &frame_window()
     {
         return window_;

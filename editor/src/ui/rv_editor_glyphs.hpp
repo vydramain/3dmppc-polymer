@@ -13,7 +13,6 @@ constexpr const char *pause = "Ps";
 constexpr const char *step_frame = "Sf";
 constexpr const char *stop = "Sp";
 constexpr const char *reload = "Rl";
-constexpr const char *more = "Mo";
 constexpr const char *run_in_player = "Pl";
 constexpr const char *export_ = "Ex";
 constexpr const char *new_ = "Nw";

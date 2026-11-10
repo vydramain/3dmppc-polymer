@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -18,6 +19,8 @@
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/platform/rv_pccmdchan.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
+#include "rv_pconsole/rv_pcboot_journal.hpp"
+#include "rv_pconsole/rv_pcboot_screen.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
@@ -27,6 +30,11 @@ namespace rv_3dmppc
 // Frame rate when the disc does not specify target_fps; used by both
 // rv_pconsole.cpp and rv_pconsole_run.cpp to compute the default timeline.
 constexpr uint64_t RV_PCONSOLE_DEFAULT_TARGET_FPS = 60;
+
+// Start screen step spacing, one frame at 60 Hz, in both drivers: a key or button is answered within a frame,
+// and a full redraw each pass does not keep a core busy. Native sleeps this long between steps (sdl3 sets no
+// vsync); web skips browser frames until it has passed.
+constexpr auto RV_PCONSOLE_BOOT_SCREEN_SLICE = std::chrono::milliseconds(16);
 
 // Bounded, best-effort wait at shutdown for the dev command channel: the last answer
 // reaches a client still listening, and a client that is gone cannot hold the shutdown open.
@@ -81,6 +89,10 @@ private:
     // controller above. Null when the built-in disc is running.
     rv_pcloader *loader_ = nullptr;
 
+    // What each controller reported as it was made, in the order the constructor made them.
+    // Written only by the constructor; read through boot_journal().
+    rv_pcboot_journal boot_journal_;
+
     // The per-frame PCM scratch buffer, sized once at construction to the
     // largest a single frame can ever need: (RV_PCCA_PCM_RATE /
     // target_fps + 1) stereo frames, so a fractional-remainder frame from the
@@ -88,12 +100,17 @@ private:
     // Host scratch of the console, sized by target_fps; outside every module budget.
     std::vector<int16_t> pcm_;
 
-    // Stereo frames the device has pulled from audio_fill this run; logged at the end.
+    // Stereo frames of machine sound handed to the device this run; logged at the end.
+    // Silence during a suspended web frame is not counted.
     int64_t audio_device_frames_ = 0;
 
     // Time of the device's last pull, or of the run's start, or of its last resume from pause.
     // The console is single-threaded, so the device's pulls reach it on this thread only.
     std::chrono::steady_clock::time_point audio_pull_{};
+
+    // True while a browser frame runs, JSPI suspension included; only run_web_loop sets it. The device gets silence
+    // then: the machine must not advance inside a frame that has not finished.
+    bool web_frame_running_ = false;
 
     // --dump-audio: raw S16LE stereo of every block the sound module produced, device or frames.
     // Open only during a run that asked for it; a write error closes it and ends the dump.
@@ -251,6 +268,36 @@ private:
     // Holds no loop and no pacing: the caller decides when the next iteration runs and what waits between.
     step_result frame_step(rv_de *disc, run_state &run);
 
+    // The start screen's state and clock between begin and the last step. Members, not
+    // locals: the caller's loop calls the step once per pass.
+    rv_pcboot_state boot_state_ = rv_pcboot_state::starting;
+    // Bit per state (1u << rv_pcboot_state): the states that already warned that their frame is too small.
+    uint32_t boot_unfit_warned_ = 0;
+    std::chrono::steady_clock::time_point boot_started_{};
+    std::vector<uint32_t> boot_picture_;
+
+    // The start screen's window, opened at most once per console. Whether it shows is remembered.
+    // absent: no window to show on - embedded, open refused, or none wanted.
+    enum class boot_window_state {
+        unopened,
+        shown,
+        absent
+    };
+    boot_window_state boot_window_ = boot_window_state::unopened;
+
+    // Composes the current state's picture into boot_picture_ and presents it. RV_OK, or the build's rc.
+    // Warns once per state when the frame is too small to draw all of it.
+    int boot_screen_show();
+    // Logs the too-small warning for the current state, once per state; unfit <= 0 logs nothing.
+    void boot_screen_warn_unfit(int64_t unfit);
+    // Presents an opaque black frame the size of the console screen, so the page does not keep its last picture.
+    // No-op without a presenting window or a usable size. A failure is logged when memory allows; the last picture stays.
+    void boot_screen_present_black();
+    // True when the start screen's window shows. The first call opens it; later calls answer from boot_window_.
+    bool boot_window_shows();
+    // Presents the starting view from the journal so far. Called while the constructor makes the controllers.
+    void boot_screen_during_boot();
+
     // Every one of these is a SLOT: rv_pconsole_cmd_devtools.cpp in a development build,
     // rv_pconsole_cmd_standard.cpp in a player build, chosen in CMakeLists.txt.
     // The frame loop calls them unconditionally so there is one loop and not
@@ -317,6 +364,25 @@ public:
     // card image is a file that is unreadable or has refused geometry. The machine did
     // not provide what the disc declared and the run must not start.
     int check_ready() const;
+
+    // Each controller in the order it was made: ok, or a warning with the texts that say why.
+    const rv_pcboot_journal &boot_journal() const;
+
+    // The start screen, driven by the caller's loop. Begin opens the window and shows the first
+    // view; false means no screen to wait on (embedded, no window wanted, the window did not come
+    // up, or the first view could not be drawn). Step is one pass, only after a begin that returned
+    // true; quit means the operator stopped the machine.
+    enum class boot_screen_result {
+        running,
+        done,
+        quit
+    };
+    bool boot_screen_begin();
+    boot_screen_result boot_screen_step();
+    // Runs the start screen to its end, then returns rest()'s result; quit returns RV_OK without
+    // calling rest. Rest must be set. Without a screen, rest runs at once. With a screen the web build does not return:
+    // the screen runs on the browser frame loop and rest runs from its last frame.
+    int64_t boot_screen_run(std::function<int64_t()> rest);
 };
 
 } // namespace rv_3dmppc

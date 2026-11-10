@@ -3,10 +3,13 @@
 
 #include "panes/rv_editor_panes.hpp"
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <ctime>
 #include <filesystem>
 #include <iterator>
 #include <string>
@@ -15,6 +18,8 @@
 
 #include "imgui.h"
 
+#include "build/rv_editor_export.hpp"
+#include "build/rv_editor_setup_progress.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -36,6 +41,19 @@ constexpr const char *file_uri_prefix = "file://";
 constexpr const char *uri_hex_digits = "0123456789ABCDEF";
 constexpr unsigned hex_digit_bits = 4;
 constexpr unsigned hex_digit_mask = 0x0F;
+
+// The full bar in permille: the ProgressBar fraction is permille / permille_scale.
+constexpr float permille_scale = 1000.0f;
+// Negative width: the bar fills the row up to the right edge, minus one pixel.
+constexpr float bar_width = -1.0f;
+// Least width a clipped line gets: a child of width 0 would fill the row again instead.
+constexpr float clipped_min_width = 1.0f;
+// Room in font widths (em) the state line needs beside the buttons: the lamp and a few words.
+constexpr float state_min_em = 14.0f;
+// Room in font widths the directory field needs beside the kind radios: its label and a short path.
+constexpr float dest_min_em = 20.0f;
+// Room for a time format of up to 31 characters; strftime returns 0 when the output does not fit.
+constexpr std::size_t time_buffer_bytes = 32;
 
 // Text keys of the kinds, in rv_editor_export_kind order.
 constexpr std::array kind_keys = { "pane_export.kind_disc", "pane_export.kind_player", "pane_export.kind_web" };
@@ -103,6 +121,41 @@ std::string rv_editor_export_state_line(const rv_editor_export &exporter, rv_edi
     }
 }
 
+// The text on the bar: "<file>: <pct>%" or "<file>: size unknown"; the bare text when the line named no file.
+std::string rv_editor_export_setup_overlay(const rv_editor_setup_progress &progress)
+{
+    const bool named = !progress.file.empty();
+    switch (progress.part) {
+    case rv_editor_setup_part::share:
+        return named ?
+            rv_editor_text_format("pane_export.setup_share_file", std::make_format_args(progress.file, progress.percent)) :
+            rv_editor_text_format("pane_export.setup_share", std::make_format_args(progress.percent));
+    case rv_editor_setup_part::size_unknown:
+        return named ? rv_editor_text_format("pane_export.setup_size_unknown_file", std::make_format_args(progress.file)) :
+                       std::string(rv_editor_text("pane_export.setup_size_unknown"));
+    default:
+        return {};
+    }
+}
+
+// The step line, then the bar filled by the overall share; an unknown size adds no fill and no percent.
+void rv_editor_export_setup_progress_draw(const rv_editor_setup_progress &progress, const rv_editor_theme &theme)
+{
+    const std::string step =
+        rv_editor_text_format("pane_export.setup_step", std::make_format_args(progress.step, progress.total, progress.label));
+    rv_editor_label(step.c_str(), rv_editor_label_kind::normal, theme);
+    const float fraction = static_cast<float>(rv_editor_setup_permille(progress)) / permille_scale;
+    const std::string overlay = rv_editor_export_setup_overlay(progress);
+    // An empty overlay draws no text; nullptr would make ImGui print the fraction as a percent.
+    ImGui::ProgressBar(fraction, ImVec2(bar_width, 0.0f), overlay.c_str());
+}
+
+// The bar is drawn only while the setup runs; after it ends the state line and the lamp show the result.
+bool rv_editor_export_setup_bar_due(const rv_editor_export &exporter, const rv_editor_export_form &form)
+{
+    return exporter.busy() && form.op == rv_editor_export_op::setup && exporter.setup_progress().total > 0;
+}
+
 // The failure reason under a failed state line: the burner's last stderr line, or the exit text when it printed none.
 void rv_editor_export_reason(const std::string &reason, const rv_editor_theme &theme)
 {
@@ -131,6 +184,96 @@ void rv_editor_export_dest(rv_editor_export_form &form, const rv_editor_theme &t
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##export_dest", form.dest, sizeof(form.dest), theme);
     rv_editor_item_tooltip(rv_editor_text("pane_export.dest_tooltip"));
+}
+
+// Opens a one-line child of `width` that clips what it draws; pair with rv_editor_export_clip_end.
+void rv_editor_export_clip_begin(const char *id, float width)
+{
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::BeginChild(id, ImVec2(width, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
+}
+
+// Closes the child; the whole line is the tooltip while the child is hovered.
+void rv_editor_export_clip_end(const std::string &full)
+{
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+    if (ImGui::IsItemHovered()) {
+        rv_editor_tooltip(full.c_str());
+    }
+}
+
+// Room left on the row after its last item: from that item's right edge to the window's content edge.
+// Call it with no SameLine pending: a pending SameLine would move the cursor and the measure would be wrong.
+float rv_editor_export_row_left()
+{
+    // After an item the cursor is back at the row's left edge, so cursor plus available width is the content's right edge.
+    const float content_right = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+    return content_right - ImGui::GetItemRectMax().x - ImGui::GetStyle().ItemSpacing.x;
+}
+
+// Keeps the next item on the row only when it has `min_em` font widths of room; otherwise it starts a new line.
+void rv_editor_export_same_line_if_room(float min_em)
+{
+    if (rv_editor_export_row_left() >= ImGui::GetFontSize() * min_em) {
+        ImGui::SameLine();
+    }
+}
+
+// The state line: a child of the width left, which clips a line running past the row's right edge.
+void rv_editor_export_state_row(const std::string &line, rv_editor_status_kind lamp, const rv_editor_theme &theme)
+{
+    rv_editor_export_clip_begin("##export_state", ImGui::GetContentRegionAvail().x);
+    rv_editor_status(line.c_str(), lamp, theme);
+    rv_editor_export_clip_end(line);
+}
+
+// The end time of a record as local time, in the format the text file gives; the unknown-time text when either call fails.
+std::string rv_editor_export_record_time(const rv_editor_export_record &record)
+{
+    const std::time_t t = std::chrono::system_clock::to_time_t(record.ended);
+    std::tm tm{};
+    char buf[time_buffer_bytes] = {};
+    const char *format = rv_editor_text("pane_export.recent_time_format");
+    if (localtime_r(&t, &tm) == nullptr || std::strftime(buf, sizeof(buf), format, &tm) == 0) {
+        return rv_editor_text("pane_export.recent_time_unknown");
+    }
+    return buf;
+}
+
+// One ended export: its lamp, kind, path clipped to the width left, then the end time at the right.
+void rv_editor_export_recent_row(const rv_editor_export_record &record, const rv_editor_theme &theme)
+{
+    const std::string time = rv_editor_export_record_time(record);
+    const std::string path = record.result.string();
+    const float time_width = ImGui::CalcTextSize(time.c_str()).x + ImGui::GetStyle().ItemSpacing.x;
+    ImGui::PushID(&record);
+    rv_editor_status("", rv_editor_export_lamp(record.state), theme);
+    ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
+    rv_editor_label(rv_editor_text(kind_keys[static_cast<std::size_t>(record.kind)]), rv_editor_label_kind::normal, theme);
+    ImGui::SameLine();
+    rv_editor_export_clip_begin("##recent_path", std::max(ImGui::GetContentRegionAvail().x - time_width, clipped_min_width));
+    rv_editor_label(path.c_str(), rv_editor_label_kind::normal, theme);
+    rv_editor_export_clip_end(path);
+    ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
+    rv_editor_label(time.c_str(), rv_editor_label_kind::dim, theme);
+    ImGui::PopID();
+}
+
+// The session's ended exports, newest first; a dim line when there are none yet.
+void rv_editor_export_recent(const rv_editor_export &exporter, const rv_editor_theme &theme)
+{
+    rv_editor_label(rv_editor_text("pane_export.recent_header"), rv_editor_label_kind::dim, theme);
+    const auto &records = exporter.recent();
+    if (records.empty()) {
+        rv_editor_label(rv_editor_text("pane_export.recent_empty"), rv_editor_label_kind::dim, theme);
+        return;
+    }
+    for (auto it = records.rbegin(); it != records.rend(); ++it) {
+        rv_editor_export_recent_row(*it, theme);
+    }
 }
 
 // A refusal's reason goes to the log under `key`.
@@ -269,6 +412,7 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_export_form &form = export_form_draft;
     rv_editor_export_prefill(form, app.project.root);
     rv_editor_export_kinds(form, theme);
+    rv_editor_export_same_line_if_room(dest_min_em);
     rv_editor_export_dest(form, theme);
 
     const rv_editor_export &exporter = app.exporter;
@@ -296,15 +440,20 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
     if (setup_why == nullptr) {
         rv_editor_item_tooltip(rv_editor_text("pane_export.setup_tooltip"));
     }
+    rv_editor_export_same_line_if_room(state_min_em);
+    const std::string line = rv_editor_export_state_line(exporter, form.op);
+    rv_editor_export_state_row(line, rv_editor_export_lamp(exporter.state()), theme);
     if (!form.error.empty()) {
         rv_editor_label(form.error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
-    const std::string line = rv_editor_export_state_line(exporter, form.op);
-    rv_editor_status(line.c_str(), rv_editor_export_lamp(exporter.state()), theme);
+    if (rv_editor_export_setup_bar_due(exporter, form)) {
+        rv_editor_export_setup_progress_draw(exporter.setup_progress(), theme);
+    }
     const std::string &reason = exporter.failure_reason();
     if (!reason.empty()) {
         rv_editor_export_reason(reason, theme);
     }
+    rv_editor_export_recent(exporter, theme);
 }
 
 } // namespace rv_editor

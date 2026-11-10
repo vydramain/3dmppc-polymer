@@ -12,6 +12,7 @@
 #include "ui/rv_editor_widget_item.hpp"
 #include "ui/rv_editor_widgets_table.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
+#include "ui/rv_editor_widgets_tile.hpp"
 
 namespace rv_editor
 {
@@ -27,18 +28,6 @@ bool rv_editor_icon_button(const char *id,
     rv_editor_icon_name icon,
     const rv_editor_theme &theme,
     const rv_editor_state &state = {});
-// A square transport button as wide as rv_editor_tool_button_width says: a large
-// `code` (1-2 letters, rv_editor_glyph) in `color` over a short label. The tooltip
-// is `name` (nullptr: the label) and `shortcut` (nullptr: none); a disabled button
-// dims the code and says why.
-bool rv_editor_tool_button(const char *label,
-    const char *code,
-    uint32_t color,
-    const char *name,
-    const char *shortcut,
-    const rv_editor_theme &theme,
-    const rv_editor_state &state = {});
-float rv_editor_tool_button_width(const char *label);
 
 // A square button of frame height with one coloured code (rv_editor_glyph)
 // standing in for an icon; `tooltip` names what it does.
@@ -487,7 +476,7 @@ struct rv_editor_transport_actions {
 };
 
 // `reserve`: width of what is drawn right after the bar on the same row (e.g. a status);
-// the bar hides more of its own buttons behind More rather than let that overflow.
+// the bar takes the largest tile size that leaves that room, so every button stays shown.
 rv_editor_transport_actions
 rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_theme &theme, float reserve = 0.0f);
 

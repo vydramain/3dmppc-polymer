@@ -178,7 +178,7 @@ void rv_editor_catalog_overflow(const rv_editor_theme &theme)
         ImGui::Text("%s", text.c_str());
     }
     rv_editor_scroll_end(theme);
-    // The transport in a narrow strip: what does not fit goes behind More.
+    // The transport in a narrow strip: the bar takes a smaller tile size, every button stays shown.
     ImGui::TextUnformatted(rv_editor_text("catalog_more.overflow_transport_label"));
     ImGui::BeginChild("##cat_narrow",
         ImVec2(transport_strip_width_px, ImGui::GetFrameHeight() * transport_bar_height_frames),

@@ -7,6 +7,7 @@
 #include "text/rv_editor_text.hpp"
 
 #include <cctype>
+#include <chrono>
 #include <cstddef>
 #include <iterator>
 #include <string>
@@ -187,7 +188,10 @@ int rv_editor_export::start(const rv_editor_project &project,
     runs_ = run;
     result_ = result_path;
     failure_reason_.clear();
+    setup_progress_ = rv_editor_setup_progress();
     label_ = std::string(export_label);
+    setup_job_ = false;
+    kind_ = kind;
     state_ = rv_editor_build_state::building;
     log.add(rv_editor_log_source::editor,
         rv_editor_log_level::info,
@@ -222,7 +226,9 @@ int rv_editor_export::start_setup(const rv_editor_toolchain &tools, rv_editor_lo
     runs_ = run;
     result_.clear();
     failure_reason_.clear();
+    setup_progress_ = rv_editor_setup_progress();
     label_ = std::string(web_setup_label);
+    setup_job_ = true;
     state_ = rv_editor_build_state::building;
     log.add(rv_editor_log_source::editor,
         rv_editor_log_level::info,
@@ -254,6 +260,10 @@ int rv_editor_export::update(rv_editor_log &log, std::string &error)
         return RV_OK;
     }
     const int rc = job_.pump(log, error);
+    if (setup_job_) {
+        // Only a ladder line changes the state; the same line read again changes nothing.
+        rv_editor_setup_feed(job_.last_stderr_line(), setup_progress_);
+    }
     if (!job_.ended()) {
         return rc;
     }
@@ -269,6 +279,13 @@ int rv_editor_export::update(rv_editor_log &log, std::string &error)
     }
 
     state_ = rv_editor_export_end_state(job_);
+    // A setup is not an export, so it leaves no record. The oldest record goes when the list is full.
+    if (!setup_job_) {
+        recent_.push_back({ kind_, result_, state_, std::chrono::system_clock::now() });
+    }
+    while (recent_.size() > rv_editor_export_recent_max) {
+        recent_.pop_front();
+    }
     const std::string label = label_ + " #" + std::to_string(run);
     if (state_ == rv_editor_build_state::succeeded) {
         // A setup has no result path: it only reports that it is done.

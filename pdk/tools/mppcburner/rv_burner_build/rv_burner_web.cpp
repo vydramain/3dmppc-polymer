@@ -1,7 +1,10 @@
 #include <cstddef>
 #include <filesystem>
 #include <format>
+#include <fstream>
+#include <ios>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -31,7 +34,8 @@ static constexpr const char *k_opt_level = "-O3";                 // speed: the 
 static constexpr const char *k_group_begin = "-Wl,--start-group"; // libs and archive resolve each other in any order
 static constexpr const char *k_group_end = "-Wl,--end-group";
 static constexpr const char *k_pre_js_flag = "--pre-js";
-static constexpr const char *k_shell_flag = "--shell-file";     // the page shell the kit names
+static constexpr const char *k_js_library_flag = "--js-library";
+static constexpr const char *k_shell_flag = "--shell-file";     // the page shell, with the kit's texts filled in
 static constexpr const char *k_single_file = "-sSINGLE_FILE=1"; // one html carries the code and the disc
 static constexpr const char *k_embed_flag = "--embed-file";
 static constexpr const char *k_embed_suffix = "@/disc.mppcdisc";      // the disc's name in the page's file system
@@ -43,6 +47,9 @@ static constexpr const char *k_zip_extension = ".zip";       // DIR.zip beside D
 // 256 MiB: a fixed budget several times the console's measured needs (about 22 MB, 15 MB and 3 MB, plus the disc).
 // The console sizes its RAM from the heap maximum, so k_no_growth keeps that maximum equal to this start.
 static constexpr std::size_t k_initial_memory = std::size_t{ 256 } * 1024 * 1024;
+static constexpr std::string_view k_label_open = "@rv_text_"; // a page text label in the shell: @rv_text_KEY@
+static constexpr std::string_view k_label_close = "@";
+static constexpr const char *k_filled_shell_name = "page-shell.html"; // the shell with the texts, in the web project dir
 
 // The emsdk directory: --emsdk when given, else the one setup web installs.
 static int emsdk_directory(const rv_burner_options &options, fs::path &dir, std::string &error)
@@ -54,7 +61,8 @@ static int emsdk_directory(const rv_burner_options &options, fs::path &dir, std:
     return rv_burner_emscripten_dir(dir, error);
 }
 
-// The kit and the emsdk the page is built from. Checked before any compile, and again at finish.
+static int fill_web_shell(const rv_burner_kit &kit, std::string &filled, std::string &error);
+// The kit, its page shell and the emsdk the page is built from. Checked before any compile, and again at finish.
 static int locate_web_tools(const rv_burner_options &options, rv_burner_kit &kit, fs::path &emsdk, std::string &error)
 {
     fs::path kit_dir;
@@ -69,6 +77,11 @@ static int locate_web_tools(const rv_burner_options &options, rv_burner_kit &kit
     const int version_err = rv_burner_kit_check_version(kit, error);
     if (RV_OK != version_err) {
         return version_err;
+    }
+    std::string filled;
+    const int shell_err = fill_web_shell(kit, filled, error);
+    if (RV_OK != shell_err) {
+        return shell_err;
     }
     const int dir_err = emsdk_directory(options, emsdk, error);
     if (RV_OK != dir_err) {
@@ -207,7 +220,126 @@ static std::string join_words(const std::vector<std::string> &words)
     return line;
 }
 
-// Links the kit's libraries and the disc archive with the page shell into index.html beside the image.
+static std::string shell_label(std::string_view key)
+{
+    return std::format("{}{}{}", k_label_open, key, k_label_close);
+}
+
+// Text for an HTML text node or a double-quoted attribute value.
+static std::string escape_html(const std::string &text)
+{
+    std::string escaped;
+    for (const char c : text) {
+        switch (c) {
+        case '&':
+            escaped += "&amp;";
+            break;
+        case '<':
+            escaped += "&lt;";
+            break;
+        case '>':
+            escaped += "&gt;";
+            break;
+        case '"':
+            escaped += "&quot;";
+            break;
+        case '\'':
+            escaped += "&#39;";
+            break;
+        default:
+            escaped += c;
+            break;
+        }
+    }
+    return escaped;
+}
+
+// A text with no label in the shell would never reach the page: the shell is not from this burner.
+static int require_shell_labels(const rv_burner_kit &kit, const std::string &shell, std::string &error)
+{
+    for (const auto &entry : kit.page_texts) {
+        const std::string label = shell_label(entry.first);
+        if (shell.find(label) == std::string::npos) {
+            error = std::format("the shell '{}' has no label '{}': not a shell of this burner", kit.shell.string(), label);
+            return RV_ERR_INVAL;
+        }
+    }
+    return RV_OK;
+}
+
+// Copies the shell with each label replaced by its escaped text. The scan resumes after each label, so a text
+// cannot start another one.
+static int fill_shell_labels(const rv_burner_kit &kit, const std::string &shell, std::string &filled, std::string &error)
+{
+    std::size_t pos = 0;
+    std::size_t open = shell.find(k_label_open);
+    while (open != std::string::npos) {
+        const std::size_t key_begin = open + k_label_open.size();
+        const std::size_t key_end = shell.find(k_label_close, key_begin);
+        if (key_end == std::string::npos) {
+            error = std::format("the shell '{}' has '{}' without '{}'", kit.shell.string(), k_label_open, k_label_close);
+            return RV_ERR_INVAL;
+        }
+        const std::string key = shell.substr(key_begin, key_end - key_begin);
+        const auto text = kit.page_texts.find(key);
+        if (text == kit.page_texts.end()) {
+            error = std::format("the shell '{}' has an unknown label '{}'", kit.shell.string(), shell_label(key));
+            return RV_ERR_INVAL;
+        }
+        filled.append(shell, pos, open - pos);
+        filled += escape_html(text->second);
+        pos = key_end + k_label_close.size();
+        open = shell.find(k_label_open, pos);
+    }
+    filled.append(shell, pos);
+    return RV_OK;
+}
+
+// The kit's page shell with every label replaced by its text.
+static int fill_web_shell(const rv_burner_kit &kit, std::string &filled, std::string &error)
+{
+    std::string shell;
+    const int read_err = read_text_file(kit.shell, shell, error);
+    if (RV_OK != read_err) {
+        return read_err;
+    }
+    const int require_err = require_shell_labels(kit, shell, error);
+    if (RV_OK != require_err) {
+        return require_err;
+    }
+    const int fill_err = fill_shell_labels(kit, shell, filled, error);
+    if (RV_OK != fill_err) {
+        return fill_err;
+    }
+    return RV_OK;
+}
+
+// The filled shell is written into the web project directory, not beside index.html: the page embeds it.
+static fs::path filled_shell_path(const rv_burner_finish_input &input)
+{
+    return web_project_dir(input) / k_filled_shell_name;
+}
+
+// Writes the filled shell for --shell-file.
+static int write_filled_shell(const rv_burner_finish_input &input, const rv_burner_kit &kit, std::string &error)
+{
+    std::string filled;
+    const int fill_err = fill_web_shell(kit, filled, error);
+    if (RV_OK != fill_err) {
+        return fill_err;
+    }
+    const fs::path file = filled_shell_path(input);
+    std::ofstream out(file, std::ios::binary | std::ios::trunc);
+    out.write(filled.data(), static_cast<std::streamsize>(filled.size()));
+    out.close();
+    if (!out) {
+        error = std::format("cannot write '{}'", file.string());
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+// Links the kit's libraries and the disc archive with the filled page shell into index.html beside the image.
 static int
 link_web_page(const rv_burner_finish_input &input, const rv_burner_kit &kit, const fs::path &emsdk, std::string &error)
 {
@@ -230,8 +362,10 @@ link_web_page(const rv_burner_finish_input &input, const rv_burner_kit &kit, con
     }
     words.push_back(k_pre_js_flag);
     words.push_back(shell_quote(kit.pre_js.string()));
+    words.push_back(k_js_library_flag);
+    words.push_back(shell_quote(kit.js_library.string()));
     words.push_back(k_shell_flag);
-    words.push_back(shell_quote(kit.shell.string()));
+    words.push_back(shell_quote(filled_shell_path(input).string()));
     words.push_back(k_single_file);
     words.push_back(k_embed_flag);
     words.push_back(shell_quote(escape_embed_source(input.destination.path.string()) + k_embed_suffix));
@@ -329,7 +463,7 @@ static int write_zip(const fs::path &page_dir, const rv_burner_kit &kit, std::st
     return RV_OK;
 }
 
-// Compiles the disc as an archive, then links it into the page. Runs after the burn wrote the image.
+// Compiles the disc, writes the filled page shell, then links the page. Runs after the burn wrote the image.
 int finish_web(const rv_burner_finish_input &input, std::string &error)
 {
     rv_burner_kit kit;
@@ -341,6 +475,10 @@ int finish_web(const rv_burner_finish_input &input, std::string &error)
     const int compile_err = compile_web_disc(input, kit, emsdk, error);
     if (RV_OK != compile_err) {
         return compile_err;
+    }
+    const int shell_err = write_filled_shell(input, kit, error);
+    if (RV_OK != shell_err) {
+        return shell_err;
     }
     const int link_err = link_web_page(input, kit, emsdk, error);
     if (RV_OK != link_err) {

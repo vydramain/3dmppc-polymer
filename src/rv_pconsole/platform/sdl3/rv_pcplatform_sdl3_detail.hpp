@@ -17,6 +17,8 @@
 namespace rv_3dmppc
 {
 
+// pump() and the consume_* reads run on the console's one thread: the start screen
+// calls them before disc_run, and disc_run calls pump() on every pass.
 class rv_pcwindow_sdl3 final : public rv_pcwindow
 {
 public:
@@ -28,6 +30,8 @@ public:
     rv_istate keyboard_state() const override;
     rv_imouse consume_mouse() override;
     uint32_t consume_pause_requests() override;
+    rv_pcpresses consume_presses() override;
+    rv_pcpointer cursor() const override;
 
     // Whether SDL_INIT_VIDEO came up; open() refuses when it did not. Set by
     // rv_pcplatform_sdl3::make() before open() is ever called.
@@ -53,6 +57,17 @@ public:
     // SDL's key-repeat events before calling this, so every call here is a
     // fresh press, never a hold.
     void note_pause_request();
+    // Counts one key DOWN edge without auto-repeat. escape means the key is Esc, which also counts as a key.
+    void note_key_press(bool escape);
+    // Counts one button DOWN edge; a primary press also records its frame point.
+    void note_mouse_press(uint8_t button, float x, float y);
+    // Records the window point of a motion event; snapshot_cursor() maps it into frame pixels.
+    void note_cursor(float x, float y);
+    // The pointer left the window: cursor() reports not inside until the next motion.
+    void note_cursor_left();
+    // Maps the last window point through the current presentation into cursor_. Called once per
+    // pump() after its events, so a still pointer follows a resize or letterbox change.
+    void snapshot_cursor();
     // Re-derive keyboard_state_ from SDL_GetKeyboardState(). No-op without a
     // window: keys only ever reach a window.
     void snapshot_keyboard();
@@ -65,11 +80,21 @@ private:
     SDL_Texture *texture_ = nullptr;
     int64_t screen_width_ = 0;
     int64_t screen_height_ = 0;
+    uint64_t scale_ = 0;
     bool close_requested_ = false;
     rv_istate keyboard_state_{};
     float mouse_dx_ = 0.0f;
     float mouse_dy_ = 0.0f;
     uint32_t pause_requests_ = 0;
+    rv_pcpresses presses_{};
+    rv_pcpointer cursor_{};
+    float cursor_x_ = 0.0f;
+    float cursor_y_ = 0.0f;
+    bool cursor_on_window_ = false;
+    bool coordinates_warned_ = false;
+
+    // A window point mapped through the logical presentation into frame pixels.
+    rv_pcpointer to_frame(float x, float y);
 };
 
 // Trackpads read per pad. Checked against SDL 3.4's source: Steam Controller 28de:1304 has two
@@ -107,6 +132,10 @@ public:
     rv_istate state(uint32_t id) const override;
     int64_t rumble(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) override;
     int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) override;
+    uint32_t consume_button_presses() override;
+
+    // Since the platform was made, some pad refused its motion sensors.
+    bool motion_refused() const;
 
     ~rv_pcgamepads_sdl3() override;
 
@@ -115,6 +144,8 @@ public:
     void remove(uint32_t joystick_id);
     // A gyro sample is integrated into the pad's fusion; an accel sample is only stored for the next gyro step.
     void sensor(const SDL_GamepadSensorEvent &event);
+    // Counts one button DOWN edge on any pad: one call per SDL gamepad button DOWN event.
+    void note_button_press();
     void poll_all();
 
 private:
@@ -138,6 +169,8 @@ private:
     std::unordered_map<uint32_t, rv_pcpad_sdl3> pads_;
     std::vector<uint32_t> connected_;
     uint64_t generation_ = 0;
+    uint32_t button_presses_ = 0;
+    bool motion_refused_ = false;
     rv_istate empty_state_{};
 };
 
@@ -223,6 +256,7 @@ public:
     rv_pcwindow &window() override;
     rv_pcgamepads &gamepads() override;
     rv_pcaudio_sink &audio() override;
+    uint32_t refused() const override;
 
     // Declared first: destroyed last, after window_/gamepads_/audio_ below
     // have already torn down every SDL handle they own.
@@ -238,6 +272,8 @@ public:
     bool video_up_ = false;
     bool gamepad_up_ = false;
     bool audio_up_ = false;
+    // rv_pcplatform_refusal bits; set once by make(), read by refused().
+    uint32_t refused_ = 0;
 };
 
 } // namespace rv_3dmppc

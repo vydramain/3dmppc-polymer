@@ -21,6 +21,7 @@
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
+#include "ui/rv_editor_widgets_tile.hpp"
 
 namespace rv_editor
 {
@@ -67,6 +68,22 @@ static_assert(std::size(snap_step_labels) == std::size(snap_step_values),
     "snap_step_labels and snap_step_values must have equal size");
 // Default snap step choice index (0.25 matches camera_snap_step_default in editor/src/app/rv_editor_app_parts.hpp).
 constexpr int default_snap_step_index = 1;
+
+// The Toolchest tools in rv_editor_scene_tool order. The letters repeat the keys that pick them in
+// rv_editor_scene_viewport.cpp; the ids are unique tile labels, never drawn.
+struct rv_editor_scene_tool_option {
+    const char *code;
+    const char *id;
+    const char *name_id;
+};
+constexpr rv_editor_scene_tool_option scene_tool_options[] = {
+    { "Q", "##tool_select", "scene_tools.tool_select" },
+    { "W", "##tool_move", "scene_tools.tool_move" },
+    { "E", "##tool_rotate", "scene_tools.tool_rotate" },
+    { "R", "##tool_scale", "scene_tools.tool_scale" },
+};
+static_assert(std::size(scene_tool_options) == static_cast<size_t>(rv_editor_scene_tool::scale) + 1,
+    "scene_tool_options needs one entry per rv_editor_scene_tool");
 
 // One checkbox per layer of the scene; a layer switched off is not drawn or selected.
 void rv_editor_scene_layers_menu(rv_editor_scene_doc &doc, const rv_editor_theme &theme)
@@ -446,19 +463,27 @@ void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, co
 void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     rv_editor_scene_camera cam = ui.state.scene_camera;
-    const char *const tool_ids[] = { "scene_tools.tool_select",
-        "scene_tools.tool_move",
-        "scene_tools.tool_rotate",
-        "scene_tools.tool_scale" };
-    for (int t = 0; t < std::ssize(tool_ids); ++t) {
-        const char *tool_name = rv_editor_text(tool_ids[t]);
-        if (rv_editor_radio(tool_name, cam.tool == static_cast<rv_editor_scene_tool>(t), theme)) {
-            cam.tool = static_cast<rv_editor_scene_tool>(t);
+    // Row 1: the tools as small tiles in a line; the tool in use is filled. The tooltip is the name, with its key.
+    for (int t = 0; t < std::ssize(scene_tool_options); ++t) {
+        const rv_editor_scene_tool_option &option = scene_tool_options[t];
+        const rv_editor_scene_tool tool = static_cast<rv_editor_scene_tool>(t);
+        const rv_editor_tile tile{ .label = option.id,
+            .code = option.code,
+            .color = theme.text,
+            .name = rv_editor_text(option.name_id),
+            .selected = cam.tool == tool };
+        if (t > 0) {
+            ImGui::SameLine();
+        }
+        if (rv_editor_tile_button(tile, rv_editor_tile_size::small, theme)) {
+            cam.tool = tool;
         }
     }
+    // Row 2: Snap, its step and Grid in a line.
     const char *snap_label = rv_editor_text("scene_tools.snap_label");
     rv_editor_checkbox(snap_label, &cam.snap, theme);
     rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_tooltip"));
+    ImGui::SameLine();
     int step = default_snap_step_index;
     // On error the dropdown keeps the default (the warning is logged).
     if (rv_editor_snap_step_index(cam, step) != RV_OK) {
@@ -471,6 +496,7 @@ void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port
         }
     }
     rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_step_tooltip"));
+    ImGui::SameLine();
     const char *grid_label = rv_editor_text("scene_tools.grid_label");
     rv_editor_checkbox(grid_label, &cam.grid, theme);
     const bool changed = cam != ui.state.scene_camera;

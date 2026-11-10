@@ -237,6 +237,83 @@ them. A script's own `print` is routed into the same logger, on stderr, not
 stdout — stdout is reserved for the development channel's protocol lines
 (see below) and carries nothing when `--dev` is off.
 
+### Start screen
+
+When the console starts it brings up its components in the order they load, and logs one
+line for each: `pcboot: <name>: ok`, `pcboot: <name>: warning` or `pcboot: <name>: error`,
+with what was found and what to try. A warning means the component started but refused
+something, such as sound or motion sensors. An error means the component did not start
+because its controller is not usable. The components are `ca` (sound), `cio` (input), `cm`
+(memory card), `cv` (video), `cg` (geometry), `cd` (drive) and `cl` (script).
+
+With a window, the native console shows a "3dmppc" window in the editor's olive
+colours, from video on. It has three parts: a status line with an icon, a
+sunken field with the same journal lines as they come in, and a button band at the bottom.
+In the journal the level word is coloured: `ok` in the text colour, `warning` in orange,
+`error` in red, and the component name is bright.
+
+While the components start, the icon is an hourglass, the status is "Starting up the
+system...", and the button is "Stop for Maintenance". If nothing is wrong, the window stays
+for one second and the boot goes on. If a component warned, then once all of them are up the
+screen goes to the warning state instead: a note icon, "Started with N warning(s).", and
+"Press any button to continue", which waits for any key, mouse button or gamepad button.
+Esc, or a click on the button during that second, holds the screen ("Stopped for
+maintenance.") until a press, and then the boot goes on.
+
+If a component did not start, the window shows a cross, "The system cannot start.", and a
+"Power off" button. The console's refusal line is already in the log when the screen
+appears. The screen waits for a press, and then the console exits with code 1.
+
+The window comes before the disc is chosen, built-in or by path, and has nothing to do with the
+disc. With `--mode_cv=null` or `--frame-fd` there is no window, so no screen and no
+wait: the lines are only in the log. In the browser the screen is the same, and its lines
+also go to the browser console.
+
+The texts are in `src/texts/rv_console_texts.toml`, section `[boot]`. They are built into the
+console, so a translation is an edit of that file followed by a rebuild.
+
+### In a browser
+
+`mppcburner build <dir> -t web -o <out>` writes the console as a web page:
+`<out>/index.html` with the disc inside, `<out>/licenses/`, and `<out>.zip` beside `<out>`
+with both. The page is built from the kit in `bin/firmware/web/`, which a player release
+does not carry. It needs Emscripten, the compiler that turns C and C++ into
+WebAssembly, the code format browsers run: `mppcburner setup web` installs it, or
+`-e PATH` names one. A disc with scripts is refused, since the web console has no Lua.
+
+The page waits for a click on it or a key press, and only then starts the console. Sound
+starts with it, since browsers allow audio only after a user gesture.
+
+The page texts (the loading line, the gamepad button, the start prompt) are in the kit's
+`rv_web_texts.txt`, as `key = value` lines. A changed value translates the page at the next
+burn, without rebuilding the console. A missing or unknown key makes the burn fail with its
+reason.
+
+In a browser with WebHID (the page's access to HID devices, such as gamepads) and JSPI
+(a way for WebAssembly to wait for the browser), the page shows a button at the
+bottom right, labelled with the value of `allow_gamepads` in `rv_web_texts.txt`
+("Allow gamepads" by default). The boot journal advises Chrome or Edge 137 or newer.
+The click asks for the gamepads the browser offers. A gamepad granted this way gets the
+driver SDL has for that model, which gives motion sensors and touchpads where that driver
+supports them; this is not checked on real hardware yet. Gamepads granted earlier open at
+page load, without a prompt. A declined request is not an error.
+
+Without WebHID or JSPI, gamepads use the browser's standard Gamepad API (the common browser
+interface for gamepads), with no motion sensors or touchpads. The boot check logs
+`pcboot: cio: warning` with its advice, and the start screen stops at that report until a
+key, a mouse button or a gamepad button is pressed (see "Start screen").
+
+The memory card is kept in the browser's storage (IndexedDB), in the browser profile and for
+the page's address. The console writes it back once a second and when the page is left. A
+reload or a closed tab can lose up to one second of saves, plus a write still in progress.
+If the storage does not load, the boot check logs `pcboot: cm: warning`; the start screen
+stops at that report the same way, and the card is not saved in that session.
+
+If the disc does not start after the start screen, or a component did not start and the
+error screen was dismissed with a press, the page stays on a black frame. The reason
+is in the browser console: the line `the disc did not start` gives the code, and the cause is
+logged above or on stderr.
+
 ---
 
 ## The development runtime

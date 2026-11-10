@@ -1,0 +1,9 @@
+diff --git a/src/hidapi/SDL_hidapi.c b/src/hidapi/SDL_hidapi.c
+index dba2eef..7d65952 100644
+--- a/src/hidapi/SDL_hidapi.c
++++ b/src/hidapi/SDL_hidapi.c
+@@ -597,2 +597,4 @@ typedef struct PLATFORM_hid_device_ PLATFORM_hid_device;
+ #include "SDL_hidapi_ios.h"
++#elif defined(SDL_PLATFORM_EMSCRIPTEN)
++#include "SDL_hidapi_emscripten.h"
+ #endif
