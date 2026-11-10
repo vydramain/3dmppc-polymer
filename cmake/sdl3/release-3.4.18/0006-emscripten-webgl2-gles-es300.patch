@@ -1,0 +1,101 @@
+diff --git a/src/render/opengles2/SDL_render_gles2.c b/src/render/opengles2/SDL_render_gles2.c
+index a37f2b1..bf99bc4 100644
+--- a/src/render/opengles2/SDL_render_gles2.c
++++ b/src/render/opengles2/SDL_render_gles2.c
+@@ -39,10 +39,15 @@
+ #define USE_VERTEX_BUFFER_OBJECTS 0
+ #endif
+ 
+-/* To prevent unnecessary window recreation,
+- * these should match the defaults selected in SDL_GL_ResetAttributes
++/* SDL_GL_ResetAttributes selects major 2: a window created with those defaults is reconfigured when the
++ * renderer asks for 3 (web, OPENGLES_300). A window created with SDL_WINDOW_OPENGL and ES 3.0 attributes set before
++ * creation avoids it.
+  */
++#ifdef OPENGLES_300
++#define RENDERER_CONTEXT_MAJOR 3
++#else
+ #define RENDERER_CONTEXT_MAJOR 2
++#endif
+ #define RENDERER_CONTEXT_MINOR 0
+ 
+ // This is always the same number between the various EXT/ARB/GLES extensions.
+@@ -499,7 +504,7 @@ static bool GLES2_CacheShader(GLES2_RenderData *data, GLES2_ShaderType type, GLe
+     GLuint id = 0;
+     GLint compileSuccessful = GL_FALSE;
+     int attempt, num_src;
+-    const GLchar *shader_src_list[4];
++    const GLchar *shader_src_list[5];
+     const GLchar *shader_body = GLES2_GetShader(type);
+ 
+     if (!shader_body) {
+@@ -511,6 +516,7 @@ static bool GLES2_CacheShader(GLES2_RenderData *data, GLES2_ShaderType type, GLe
+ 
+ #ifdef OPENGLES_300
+         shader_src_list[num_src++] = "#version 300 es\n";
++        shader_src_list[num_src++] = GLES2_GetShaderCompatPrologue(shader_type == GL_FRAGMENT_SHADER);
+ #endif
+         shader_src_list[num_src++] = GLES2_GetShaderPrologue(type);
+ 
+diff --git a/src/render/opengles2/SDL_shaders_gles2.c b/src/render/opengles2/SDL_shaders_gles2.c
+index 13aa00d..397a342 100644
+--- a/src/render/opengles2/SDL_shaders_gles2.c
++++ b/src/render/opengles2/SDL_shaders_gles2.c
+@@ -499,6 +499,31 @@ static const char GLES2_Fragment_TextureExternalOES[] =
+  * Shader selector                                                                               *
+  *************************************************************************************************/
+ 
++#ifdef OPENGLES_300
++// WebGL 2 has GLSL ES 3.00 only, which drops attribute, varying, texture2D and gl_FragColor: the macros keep the 1.00 bodies.
++// The external OES shader does not compile as ES 3.00 and WebGL 2 has no external textures: not supported on web.
++static const char GLES2_Vertex_Compat_ES300[] =
++"#define attribute in\n"
++"#define varying out\n"
++"\n"
++;
++
++// ES 3.00 has no default float precision in fragment shaders; the include adds one too, the fallback include does not.
++static const char GLES2_Fragment_Compat_ES300[] =
++"#define varying in\n"
++"#define texture2D texture\n"
++"precision mediump float;\n"
++"out mediump vec4 sdl_FragColor;\n"
++"#define gl_FragColor sdl_FragColor\n"
++"\n"
++;
++
++const char *GLES2_GetShaderCompatPrologue(bool fragment)
++{
++    return fragment ? GLES2_Fragment_Compat_ES300 : GLES2_Vertex_Compat_ES300;
++}
++#endif
++
+ const char *GLES2_GetShaderPrologue(GLES2_ShaderType type)
+ {
+     switch (type) {
+diff --git a/src/render/opengles2/SDL_shaders_gles2.h b/src/render/opengles2/SDL_shaders_gles2.h
+index a0ef726..e1e8fbe 100644
+--- a/src/render/opengles2/SDL_shaders_gles2.h
++++ b/src/render/opengles2/SDL_shaders_gles2.h
+@@ -25,6 +25,11 @@
+ 
+ #ifdef SDL_VIDEO_RENDER_OGL_ES2
+ 
++// WebGL 2 accepts only GLSL ES 3.00 shaders: the web build selects the 3.00 path (PIXELART, 3.0 context).
++#ifdef __EMSCRIPTEN__
++#define OPENGLES_300
++#endif
++
+ typedef enum
+ {
+     GLES2_SHADER_FRAGMENT_INCLUDE_NONE = 0,
+@@ -66,6 +71,9 @@ typedef enum
+ } GLES2_ShaderType;
+ 
+ extern const char *GLES2_GetShaderPrologue(GLES2_ShaderType type);
++#ifdef OPENGLES_300
++extern const char *GLES2_GetShaderCompatPrologue(bool fragment);
++#endif
+ extern const char *GLES2_GetShaderInclude(GLES2_ShaderIncludeType type);
+ extern const char *GLES2_GetShader(GLES2_ShaderType type);
+ extern GLES2_ShaderIncludeType GLES2_GetTexCoordPrecisionEnumFromHint(void);
