@@ -3,8 +3,8 @@
 // subsystem the machine claims to have, so a broken one shows up on screen or
 // in the speakers rather than staying buried in a log.
 //
-//   rv_cv  — a spinning textured cube, plus three sprites showing the wrap
-//            modes and the cut-out transparency rule
+//   rv_cv  - twelve test tiles (line, polygons, fill modes, wrap modes, the
+//            cut-out rule, depth order, a spinning cube), each captioned
 //   rv_cd  — reads an asset off the mounted medium and proves it arrived
 //   rv_cm  — a boot counter that survives a restart
 //   rv_ca  — a synthesized beep on the south button
@@ -92,7 +92,7 @@ private:
     // is torn down. Never deleted here.
     rv_pdko *pdk_ = nullptr;
 
-    // Everything the POST list reports. Queried once and kept, because that is
+    // Everything the info panel reports. Queried once and kept, because that is
     // what the contract says these are — session-stable answers — and because
     // printing them IS the test: a number on screen proves the query answered.
     int64_t screen_width_ = 0;

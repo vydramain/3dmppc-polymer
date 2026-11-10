@@ -1,4 +1,4 @@
-// rv_dmain: status POST display.
+// rv_dmain: the olive window, its title bar, the info panel and the hint buttons.
 #include "rv_dmain.hpp"
 
 #include <cstdio>

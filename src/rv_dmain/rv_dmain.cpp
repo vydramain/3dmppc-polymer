@@ -186,7 +186,7 @@ void rv_dmain::frame_render()
     // identically either way (rv_de::frame_render).
     rv_cv *cv = rv_pdko_cv(pdk_);
 
-    // The Z flag is on because the cut-out row depends on it: a hole must write
+    // The Z flag is on because the cut-out cell depends on it: a hole must write
     // neither colour nor depth, and that is only observable when per-pixel depth
     // resolves primitives sharing an ordering-table bucket.
     // The backdrop is constant (the theme's dark); the test art keeps its own animated colours (hue_).

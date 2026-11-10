@@ -18,8 +18,9 @@ namespace rv_service
 namespace
 {
 
-// Ordering-table probes. Larger depth = nearer, so the wrap row sits behind
-// the cube and the status bars sit in front of it.
+// Ordering-table probes. Larger depth = nearer. The art spans -400..400: in front of the tiles
+// (UI_DEPTH_TILE) and the window layers, behind the text (UI_DEPTH_TEXT). The Depth and Cutout
+// cells use both ends to prove the sort.
 constexpr int32_t RV_DMAIN_DEPTH_ART_LO = -400;
 constexpr int32_t RV_DMAIN_DEPTH_ART_HI = 400;
 
@@ -370,7 +371,7 @@ void rv_dmain::draw_textured(int x,
     rv_texture_mapping_type mapping)
 {
     // Empty on a refused texture load: the failure is not drawn here, its outcome
-    // is the TEX row of draw_post(), and its code is in the WARN of the setup step.
+    // is the tex probe of the info panel (draw_post()), and its code is in the WARN of the setup step.
     if (addr_texture == 0) {
         return;
     }
