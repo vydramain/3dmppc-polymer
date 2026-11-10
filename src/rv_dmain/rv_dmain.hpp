@@ -132,12 +132,16 @@ private:
     int idx4_result_ = RV_ERR_INVAL;
     int font_result_ = RV_ERR_INVAL;
 
-    // Two palettes over ONE atlas: the console has no vertex-colour modulation
-    // yet, so a second colour of text means a second palette and a different
-    // addr_palette — 32 bytes, not another 3 KiB of glyphs. Red is worth it: a
-    // status column where failure looks like success is not a status column.
-    int64_t addr_font_palette_ = 0;
-    int64_t addr_font_palette_bad_ = 0;
+    // Several palettes over ONE atlas: the console has no vertex-colour modulation yet, so each
+    // colour of text is a palette and its own addr_palette - 32 bytes, not another 3 KiB of glyphs.
+    enum rv_font_ink : int {
+        FONT_INK_TEXT,
+        FONT_INK_BRIGHT,
+        FONT_INK_DISABLED,
+        FONT_INK_ERROR,
+        FONT_INK_COUNT
+    };
+    int64_t addr_font_palette_[FONT_INK_COUNT] = {};
     float spin_ = 0.0f;
     float hue_ = 0.0f;
 

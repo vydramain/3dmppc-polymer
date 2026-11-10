@@ -101,9 +101,10 @@ void rv_dmain::draw_post()
         return;
     }
 
-    const rv_pdklib::rv_font_style ink = rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
+    const rv_pdklib::rv_font_style ink =
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_TEXT], RV_DMAIN_DEPTH_TEXT, 1);
     const rv_pdklib::rv_font_style bad =
-        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_bad_, RV_DMAIN_DEPTH_TEXT, 1);
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_ERROR], RV_DMAIN_DEPTH_TEXT, 1);
 
     // Opaque slabs, not a dim overlay: the console has no blending, and light
     // ink over lit geometry is exactly what made the first version unreadable.

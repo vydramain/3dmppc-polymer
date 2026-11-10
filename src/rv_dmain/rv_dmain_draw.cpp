@@ -205,7 +205,7 @@ void rv_dmain::draw_cell_label(int index, int cx, int cy)
     if (addr_font_ != 0) {
         rv_cv *cv = rv_pdko_cv(pdk_);
         const rv_pdklib::rv_font_style ink =
-            rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
+            rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_TEXT], RV_DMAIN_DEPTH_TEXT, 1);
         rv_pdklib::rv_font_draw(ink,
             cx + RV_DMAIN_CELL_LABEL_OFFSET_X,
             cy + 1,

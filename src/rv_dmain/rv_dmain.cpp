@@ -180,11 +180,12 @@ void rv_dmain::disc_shutdown()
     if (addr_font_ != 0) {
         rv_cv_video_asset_free(cv, addr_font_);
     }
-    if (addr_font_palette_ != 0) {
-        rv_cv_video_asset_free(cv, addr_font_palette_);
-    }
-    if (addr_font_palette_bad_ != 0) {
-        rv_cv_video_asset_free(cv, addr_font_palette_bad_);
+    // A fallback entry equals the text palette's address: free each distinct address once.
+    for (int ink = 0; ink < FONT_INK_COUNT; ++ink) {
+        const int64_t addr = addr_font_palette_[ink];
+        if (addr != 0 && (ink == FONT_INK_TEXT || addr != addr_font_palette_[FONT_INK_TEXT])) {
+            rv_cv_video_asset_free(cv, addr);
+        }
     }
     if (addr_idx4_ != 0) {
         rv_cv_video_asset_free(cv, addr_idx4_);
@@ -194,8 +195,9 @@ void rv_dmain::disc_shutdown()
     }
     addr_texture_ = 0;
     addr_font_ = 0;
-    addr_font_palette_ = 0;
-    addr_font_palette_bad_ = 0;
+    for (int64_t &addr : addr_font_palette_) {
+        addr = 0;
+    }
     addr_idx4_ = 0;
     addr_idx4_palette_ = 0;
 
