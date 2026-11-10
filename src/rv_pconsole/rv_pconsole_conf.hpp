@@ -182,6 +182,11 @@ struct rv_pconsole_params {
     // archive the bytes cannot have changed, so re-reading them is not a
     // refresh, it is a lie that costs a frame.
     bool medium_live = false;
+
+    // Which on-screen gamepad groups the disc shows, as rv_touch_group bits: the
+    // disc's [touch_pad] show. Set by rv_pboot_run from the mounted manifest;
+    // RV_TOUCH_GROUP_ALL for the built-in disc.
+    uint32_t touch_pad_show = rv_pdklib::RV_TOUCH_GROUP_ALL;
 };
 
 struct rv_pconsole_conf {

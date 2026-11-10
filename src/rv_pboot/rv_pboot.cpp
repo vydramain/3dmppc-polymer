@@ -265,6 +265,9 @@ int rv_pboot_run(int argc, char **argv)
         return exit_code;
     }
 
+    // The built-in disc has no manifest to name gamepad groups, so it shows them all.
+    conf.params.touch_pad_show = args.disc_path != nullptr ? loader.info().touch_pad_show : rv_pdklib::RV_TOUCH_GROUP_ALL;
+
     // Open exactly the endpoints the virtual devices will use.
     rv_pcplatform_wants wants;
     wants.window = slots.cv != rv_pccv_impl::null;
