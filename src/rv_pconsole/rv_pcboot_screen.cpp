@@ -53,9 +53,13 @@ constexpr uint32_t RV_PCBOOT_INSET = rv_pchost_ui_argb(rv_pdklib::rv_theme_inset
 constexpr uint32_t RV_PCBOOT_BUTTON = rv_pchost_ui_argb(rv_pdklib::rv_theme_button);
 constexpr uint32_t RV_PCBOOT_TEXT = rv_pchost_ui_argb(rv_pdklib::rv_theme_text);
 constexpr uint32_t RV_PCBOOT_TEXT_BRIGHT = rv_pchost_ui_argb(rv_pdklib::rv_theme_text_bright);
+constexpr uint32_t RV_PCBOOT_WARNING = rv_pchost_ui_argb(rv_pdklib::rv_theme_warning);
+constexpr uint32_t RV_PCBOOT_ERROR = rv_pchost_ui_argb(rv_pdklib::rv_theme_error);
 
 // Glyphs are drawn at the font's own size: the 8x8 cell is the screen's unit of text.
 constexpr int RV_PCBOOT_TEXT_SCALE = 1;
+// Pixels one character advances: the second piece of a two-coloured line starts after the first one's characters.
+constexpr int64_t RV_PCBOOT_CHAR_ADVANCE = rv_pdklib::rv_font_cell_width * RV_PCBOOT_TEXT_SCALE;
 constexpr int64_t RV_PCBOOT_CELL = rv_pdklib::rv_font_cell_height;
 constexpr char RV_PCBOOT_WORD_SEPARATOR = ' '; // Between the words of a wrapped text
 
@@ -129,13 +133,17 @@ constexpr state_look RV_PCBOOT_LOOKS[] = {
 static_assert(std::size(RV_PCBOOT_LOOKS) == static_cast<std::size_t>(rv_pcboot_state::error) + 1,
     "one row per rv_pcboot_state value");
 
-// Journal level words, indexed by rv_pcboot_level.
-constexpr std::string_view RV_PCBOOT_LEVEL_IDS[] = {
-    RV_PCBOOT_LEVEL_OK_ID,
-    RV_PCBOOT_LEVEL_WARNING_ID,
-    RV_PCBOOT_LEVEL_ERROR_ID,
+// Journal level words and the colour of each, indexed by rv_pcboot_level.
+struct level_look {
+    std::string_view text_id;
+    uint32_t argb;
 };
-static_assert(std::size(RV_PCBOOT_LEVEL_IDS) == static_cast<std::size_t>(rv_pcboot_level::error) + 1,
+constexpr level_look RV_PCBOOT_LEVEL_LOOKS[] = {
+    { RV_PCBOOT_LEVEL_OK_ID, RV_PCBOOT_TEXT },
+    { RV_PCBOOT_LEVEL_WARNING_ID, RV_PCBOOT_WARNING },
+    { RV_PCBOOT_LEVEL_ERROR_ID, RV_PCBOOT_ERROR },
+};
+static_assert(std::size(RV_PCBOOT_LEVEL_LOOKS) == static_cast<std::size_t>(rv_pcboot_level::error) + 1,
     "one row per rv_pcboot_level value");
 
 const state_look &look_of(rv_pcboot_state state)
@@ -316,10 +324,13 @@ int begin_frame(std::vector<uint32_t> &out, int64_t width, int64_t height, int64
     return RV_OK;
 }
 
-// One line of the journal panel, drawn `indent` pixels from the line area's left.
+// One line of the journal panel, drawn `indent` pixels from the line area's left: the first
+// `bright_chars` characters in text_bright, the rest in `argb`.
 struct journal_line {
     int64_t indent;
     std::string text;
+    std::size_t bright_chars;
+    uint32_t argb;
 };
 
 // Word-wraps `text` to `width` pixels onto `lines`, every line at `indent`. A text with
@@ -350,11 +361,11 @@ void wrap_into(std::vector<journal_line> &lines, std::string_view text, int64_t 
             current = std::move(candidate);
             continue;
         }
-        lines.push_back({ indent, std::move(current) });
+        lines.push_back({ indent, std::move(current), 0, RV_PCBOOT_TEXT });
         current = std::string(word);
     }
     if (!current.empty()) {
-        lines.push_back({ indent, std::move(current) });
+        lines.push_back({ indent, std::move(current), 0, RV_PCBOOT_TEXT });
     }
 }
 
@@ -367,8 +378,9 @@ std::vector<journal_line> journal_lines(const rv_pcboot_journal &journal, int64_
     const int64_t indented = width - RV_PCBOOT_FOUND_INDENT;
     for (const rv_pcboot_entry &entry : journal.entries()) {
         // The header is one line, not wrapped: the journal stops at it when it does not fit.
-        const char *level = rv_pctext(RV_PCBOOT_LEVEL_IDS[static_cast<std::size_t>(entry.level)]);
-        lines.push_back({ RV_PCBOOT_NO_INDENT, entry.name + rv_pctext(RV_PCBOOT_SEPARATOR_ID) + level });
+        const level_look &look = RV_PCBOOT_LEVEL_LOOKS[static_cast<std::size_t>(entry.level)];
+        const std::string head = entry.name + rv_pctext(RV_PCBOOT_SEPARATOR_ID);
+        lines.push_back({ RV_PCBOOT_NO_INDENT, head + rv_pctext(look.text_id), head.size(), look.argb });
         if (entry.level == rv_pcboot_level::ok) {
             continue;
         }
@@ -401,7 +413,16 @@ void draw_journal(const rv_pchost_text_target &target,
             count_unfit(unfit, static_cast<int64_t>(lines.size() - i));
             return;
         }
-        rv_pchost_text_draw(target, line_x, line_y, lines[i].text, RV_PCBOOT_TEXT_SCALE, RV_PCBOOT_TEXT);
+        const std::string_view whole = lines[i].text;
+        const std::string_view lead = whole.substr(0, lines[i].bright_chars);
+        const int64_t lead_advance = static_cast<int64_t>(lead.size()) * RV_PCBOOT_CHAR_ADVANCE;
+        rv_pchost_text_draw(target, line_x, line_y, lead, RV_PCBOOT_TEXT_SCALE, RV_PCBOOT_TEXT_BRIGHT);
+        rv_pchost_text_draw(target,
+            line_x + lead_advance,
+            line_y,
+            whole.substr(lead.size()),
+            RV_PCBOOT_TEXT_SCALE,
+            lines[i].argb);
         line_y += RV_PCBOOT_LINE_PITCH;
     }
 }
