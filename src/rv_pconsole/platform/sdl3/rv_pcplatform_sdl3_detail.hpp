@@ -266,6 +266,13 @@ struct rv_pcsdl3_quit_guard {
     }
 };
 
+// The web on-screen gamepad's virtual joystick id, 0 when none. The destructor detaches it (rv_pctouchpad_sdl3.cpp).
+struct rv_pctouch_pad_sdl3 {
+    SDL_JoystickID id = 0;
+
+    ~rv_pctouch_pad_sdl3();
+};
+
 class rv_pcplatform_sdl3 final : public rv_pcplatform
 {
 public:
@@ -276,10 +283,17 @@ public:
     rv_pcgamepads &gamepads() override;
     rv_pcaudio_sink &audio() override;
     uint32_t refused() const override;
+#if defined(__EMSCRIPTEN__)
+    // Web only: attaches the page's on-screen gamepad for the groups. Native has no pad and keeps the base RV_OK.
+    int show_touch_pad(uint32_t groups) override;
+#endif
 
     // Declared first: destroyed last, after window_/gamepads_/audio_ below
     // have already torn down every SDL handle they own.
     rv_pcsdl3_quit_guard quit_guard_;
+
+    // Declared second: destroyed after the pads and window, before SDL_Quit(), so the detach runs with SDL up.
+    rv_pctouch_pad_sdl3 touch_pad_;
 
     rv_pcwindow_sdl3 window_;
     rv_pcgamepads_sdl3 gamepads_;
