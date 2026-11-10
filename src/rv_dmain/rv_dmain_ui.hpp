@@ -1,7 +1,9 @@
 // rv_dmain: drawing pieces of the olive screen - colour conversion, plates, fitted text, texts.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <string_view>
 
 #include "pdk/cv/rv_vertex.h"
@@ -33,6 +35,10 @@ constexpr int UI_BEVEL = rv_pdklib::rv_theme_bevel_px;
 constexpr int UI_RINGS = UI_BEVEL;         // one bevel ring per bevel pixel
 constexpr int UI_PLATE_MIN = 2 * UI_BEVEL; // a plate smaller than this has no face
 constexpr int UI_BOLD_SHIFT = 1;           // bold = same text again one pixel right
+constexpr int UI_PLATE_FACE_SPRITES = 1;   // a plate's face is one sprite
+constexpr int UI_RING_STRIPS = 4;          // a ring is four strips: top, left, bottom, right
+// The most sprites one plate files (ui_plate): the face and every ring strip.
+constexpr int UI_PLATE_SPRITES = UI_PLATE_FACE_SPRITES + UI_RING_STRIPS * UI_RINGS;
 
 // Nearest RGB555 value, passed as c5 << 3: the flat-fill dither and the >> 3 then leave it unchanged.
 constexpr uint8_t ui_channel(int c8)
@@ -49,7 +55,7 @@ constexpr rv_color ui_color(uint32_t rgb)
 }
 
 // One plate: face plus one bevel ring per bevel pixel (UI_RINGS) of four non-overlapping strips
-// (at most 1 + 4 * UI_RINGS sprites). In a ring the top row and left column are `a`, the bottom row and
+// (at most UI_PLATE_SPRITES sprites). In a ring the top row and left column are `a`, the bottom row and
 // right column `b`; the top-right and bottom-left corners are `b`. Nothing is filed for a plate narrower
 // or lower than UI_PLATE_MIN.
 template <typename Sink>
@@ -99,6 +105,9 @@ constexpr int32_t UI_DEPTH_ON_WINDOW = -850; // title bar, panel and buttons
 constexpr int32_t UI_DEPTH_TILE = -700;      // the test tiles
 constexpr int32_t UI_DEPTH_TEXT = 900;       // all text, in front of everything
 
+constexpr int UI_GRID_COLS = 4;        // test cells per grid row
+constexpr int UI_GRID_ROWS = 3;        // grid rows
+constexpr int UI_HINT_BUTTONS = 2;     // hint buttons on the band (one plate each)
 constexpr int UI_PANEL_LINES = 4;      // text lines the info panel holds
 constexpr int UI_PANEL_PAD_Y = 4;      // panel padding above and below its lines
 constexpr int UI_PANEL_ABOVE_BAND = 4; // gap between the panel and the button band
@@ -234,5 +243,52 @@ inline constexpr std::string_view UI_PROBE_LABELS[] = { "tex", "font", "audio", 
 inline constexpr std::string_view UI_VERDICT_OK = "ok ";
 inline constexpr std::string_view UI_VERDICT_ERR = "err";
 inline constexpr std::string_view UI_VERDICT_NA = "n/a";
+
+// --- what one frame can file: counts the frame capacity minimum is built from ---
+
+static_assert(std::size(UI_TEST_CAPTIONS) ==
+        static_cast<std::size_t>(rv_dmain_detail::UI_GRID_COLS * rv_dmain_detail::UI_GRID_ROWS),
+    "one caption per grid cell");
+static_assert(UI_VERDICT_OK.size() == UI_VERDICT_ERR.size() && UI_VERDICT_ERR.size() == UI_VERDICT_NA.size(),
+    "verdicts are one length");
+
+// Characters of a text list: an upper bound for its glyph sprites, a space files none.
+template <std::size_t N>
+constexpr int ui_chars(const std::string_view (&texts)[N])
+{
+    int chars = 0;
+    for (const std::string_view text : texts) {
+        chars += static_cast<int>(text.size());
+    }
+    return chars;
+}
+
+// Primitives of the cube cell: one quad per face of the cube (RV_DMAIN_CUBE).
+inline constexpr int UI_CUBE_FACES = 6;
+// Primitives of the depth cell: one bar per rung of the ladder.
+inline constexpr int UI_DEPTH_LADDER_BARS = 3;
+// Primitives of a cell whose art is one primitive (line, polygon, bar or textured sprite).
+inline constexpr int UI_ART_SINGLE = 1;
+// The cut-out cell: the backdrop bar and the textured sprite over it.
+inline constexpr int UI_ART_CUTOUT = 2;
+
+// The most primitives the art of each test cell files, in grid order (see UI_TEST_CAPTIONS).
+inline constexpr int UI_TEST_ART_MAX[] = { UI_ART_SINGLE, // Line
+    UI_ART_SINGLE,                                        // Tri
+    UI_ART_SINGLE,                                        // Quad
+    UI_ART_SINGLE,                                        // Wire
+    UI_ART_SINGLE,                                        // Sprite
+    UI_ART_SINGLE,                                        // Direct15
+    UI_ART_SINGLE,                                        // Tile
+    UI_ART_SINGLE,                                        // Idx4
+    UI_ART_CUTOUT,                                        // Cutout
+    UI_DEPTH_LADDER_BARS,                                 // Depth
+    UI_ART_SINGLE,                                        // Stretch
+    UI_CUBE_FACES };                                      // 3D
+static_assert(std::size(UI_TEST_ART_MAX) == std::size(UI_TEST_CAPTIONS), "one art count per cell");
+
+// The formatted panel lines are cut by their buffers in rv_dmain_draw_post.cpp (size - 1 characters).
+inline constexpr int UI_BUDGET_LINE_CHARS = 95; // budget line: buffer of 96
+inline constexpr int UI_PADS_LINE_CHARS = 47;   // pads line: buffer of 48
 
 } // namespace rv_service

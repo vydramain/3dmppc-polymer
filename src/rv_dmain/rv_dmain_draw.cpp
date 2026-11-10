@@ -44,6 +44,7 @@ constexpr rv_dmain_face RV_DMAIN_CUBE[6] = {
     { { { -1, 1, -1 }, { 1, 1, -1 }, { -1, 1, 1 }, { 1, 1, 1 } }, { 0, 1, 0 } },
     { { { -1, -1, 1 }, { 1, -1, 1 }, { -1, -1, -1 }, { 1, -1, -1 } }, { 0, -1, 0 } },
 };
+static_assert(std::size(RV_DMAIN_CUBE) == UI_CUBE_FACES, "one quad per cube face");
 
 using rv_dmain_detail::make_bar;
 using rv_dmain_detail::to_screen;
@@ -75,8 +76,6 @@ rv_vertex make_vertex(int x, int y, rv_color color)
 namespace
 {
 
-constexpr int RV_DMAIN_GRID_COLS = 4;
-constexpr int RV_DMAIN_GRID_ROWS = 3;
 constexpr int RV_DMAIN_TILE_MARGIN_X = 2;                          // tile inset from the cell's left and right edges
 constexpr int RV_DMAIN_CAPTION_GAP = 2;                            // tile bottom to caption top
 constexpr int RV_DMAIN_CAPTION_H = rv_pdklib::rv_font_cell_height; // one text line at scale 1
@@ -103,8 +102,8 @@ void rv_dmain::draw_test_grid()
 {
     using namespace rv_dmain_detail;
     const rv_ui_rect grid = ui_grid(ui_window(static_cast<int>(screen_width_), static_cast<int>(screen_height_)));
-    const int cw = grid.w / RV_DMAIN_GRID_COLS;
-    const int ch = grid.h / RV_DMAIN_GRID_ROWS;
+    const int cw = grid.w / UI_GRID_COLS;
+    const int ch = grid.h / UI_GRID_ROWS;
     const rv_ui_rect probe = cell_tile(grid.x, grid.y, cw, ch);
     if (probe.w - 2 * UI_BEVEL < 1 || probe.h - 2 * UI_BEVEL < 1) {
         if (!grid_warned_) {
@@ -114,8 +113,8 @@ void rv_dmain::draw_test_grid()
         return;
     }
 
-    for (int i = 0; i < RV_DMAIN_GRID_COLS * RV_DMAIN_GRID_ROWS; ++i) {
-        const rv_ui_rect cell{ grid.x + i % RV_DMAIN_GRID_COLS * cw, grid.y + i / RV_DMAIN_GRID_COLS * ch, cw, ch };
+    for (int i = 0; i < UI_GRID_COLS * UI_GRID_ROWS; ++i) {
+        const rv_ui_rect cell{ grid.x + i % UI_GRID_COLS * cw, grid.y + i / UI_GRID_COLS * ch, cw, ch };
         draw_cell(i, cell, cell_tile(cell.x, cell.y, cw, ch));
     }
 }
@@ -341,6 +340,7 @@ void rv_dmain::draw_cell_art(int index, int ax, int ay, int aw, int ah, rv_color
         const int32_t depth[] = { RV_DMAIN_DEPTH_ART_HI,
             RV_DMAIN_DEPTH_ART_HI - RV_DMAIN_DEPTH_STEP_OFFSET,
             RV_DMAIN_DEPTH_ART_LO };
+        static_assert(std::size(depth) == UI_DEPTH_LADDER_BARS, "one bar per ladder rung");
         for (int i = 0; i < std::ssize(depth); ++i) {
             const rv_primitive primitive = make_bar(static_cast<float>(ax + i * RV_DMAIN_DEPTH_LADDER_STEP_X),
                 static_cast<float>(ay + i * RV_DMAIN_DEPTH_LADDER_STEP_Y),
