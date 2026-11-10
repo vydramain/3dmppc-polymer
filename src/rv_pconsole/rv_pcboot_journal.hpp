@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -12,6 +13,7 @@ namespace rv_3dmppc
 enum class rv_pcboot_level {
     ok,
     warning,
+    error,
 };
 
 // A warning's two console text ids: the found line and the recommended line.
@@ -36,9 +38,13 @@ class rv_pcboot_journal
 public:
     void add_ok(std::string_view name);
     void add_warning(std::string_view name, const rv_pcboot_texts &log, const rv_pcboot_texts &screen);
+    // A component that did not come up.
+    void add_error(std::string_view name, const rv_pcboot_texts &log, const rv_pcboot_texts &screen);
 
     const std::vector<rv_pcboot_entry> &entries() const;
     bool has_warning() const;
+    bool has_error() const;
+    int64_t warning_count() const;
 
 private:
     std::vector<rv_pcboot_entry> entries_;
