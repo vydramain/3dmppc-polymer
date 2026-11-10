@@ -1,7 +1,9 @@
 // The web on-screen gamepad: a virtual SDL joystick showing the groups the disc asks for. Native has no pad.
 #include "rv_pconsole/platform/sdl3/rv_pcplatform_sdl3_detail.hpp"
 
+#include <algorithm>
 #include <bit>
+#include <cmath>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -15,6 +17,9 @@ namespace rv_3dmppc
 {
 namespace
 {
+// The pad the rv_pctouchpad_* C functions drive: they have no object to reach it by, and there is one pad per process.
+rv_pctouch_pad_sdl3 *live_touch_pad = nullptr;
+
 #ifdef __EMSCRIPTEN__
 using rv_pdklib::rv_touch_group;
 
@@ -79,11 +84,45 @@ bool page_touchpad_wanted()
 {
     return EM_ASM_INT({ return Module.rvTouchpadWanted ? 1 : 0; });
 }
+
+// The page calls before show_touch_pad, or with no pad: one warning per process, not one per call.
+int no_touch_pad()
+{
+    static bool warned = false;
+    if (!warned) {
+        warned = true;
+        RV_LOG_WARN("pcplatform", "rv_pctouchpad_*: no on-screen gamepad is attached");
+    }
+    return RV_ERR_INVAL;
+}
+
+// SDL numbers the pad's buttons by the set bits of its mask, in bit order. -1 when the mask has no such button.
+int touch_button_index(uint32_t mask, int button)
+{
+    static_assert(SDL_GAMEPAD_BUTTON_COUNT <= 32, "the button mask is 32 bits");
+    if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT || (mask & (1u << button)) == 0) {
+        return -1;
+    }
+    return std::popcount(mask & ((1u << button) - 1));
+}
+
+// Full scale in SDL's Sint16 units; SDL's stick y grows down, the console's up.
+constexpr float RV_PCTOUCH_AXIS_MAX = static_cast<float>(SDL_JOYSTICK_AXIS_MAX);
+constexpr float RV_PCTOUCH_STICK_Y_SIGN = -1.0f;
+// The page draws one touch point per trackpad, so each pad is driven with its first finger.
+constexpr int RV_PCTOUCH_FINGER = 0;
 #endif
 } // namespace
 
 rv_pctouch_pad_sdl3::~rv_pctouch_pad_sdl3()
 {
+    // Order: the pointer clears first, so the page's calls get RV_ERR_INVAL; then the handle closes; then the device detaches.
+    if (live_touch_pad == this) {
+        live_touch_pad = nullptr;
+    }
+    if (joystick != nullptr) {
+        SDL_CloseJoystick(joystick);
+    }
     // id stays 0 when nothing was attached; otherwise SDL is still up, the pads are closed.
     if (id != 0 && !SDL_DetachVirtualJoystick(id)) {
         RV_LOG_WARN("pcplatform", "SDL_DetachVirtualJoystick failed: {}", SDL_GetError());
@@ -93,12 +132,16 @@ rv_pctouch_pad_sdl3::~rv_pctouch_pad_sdl3()
 #if defined(__EMSCRIPTEN__)
 int rv_pcplatform_sdl3::show_touch_pad(uint32_t groups)
 {
+    if (touch_pad_.id != 0) {
+        RV_LOG_WARN("pcplatform", "show_touch_pad called again: the on-screen gamepad is already attached");
+        return RV_ERR_INVAL;
+    }
     if (!page_touchpad_wanted()) {
         return RV_OK;
     }
 
-    // SDL fills both sticks and both triggers itself: axis_mask stays 0. nbuttons is the mask's bit count: SDL gives
-    // each set bit the next index and drops bits past nbuttons.
+    // axis_mask 0: SDL fills all six axes for a gamepad-type device, so an axis index is its SDL_GamepadAxis.
+    // nbuttons is the mask's bit count: SDL gives each set bit the next index and drops bits past nbuttons.
     const uint32_t buttons = touch_buttons(groups);
     const bool trackpads = touch_group_shown(groups, rv_touch_group::trackpads);
     SDL_VirtualJoystickDesc desc{};
@@ -118,6 +161,13 @@ int rv_pcplatform_sdl3::show_touch_pad(uint32_t groups)
         return RV_ERR_IO;
     }
     touch_pad_.id = id;
+    touch_pad_.button_mask = buttons;
+    touch_pad_.joystick = SDL_OpenJoystick(id);
+    if (touch_pad_.joystick == nullptr) {
+        RV_LOG_WARN("pcplatform", "SDL_OpenJoystick failed, the on-screen gamepad is off: {}", SDL_GetError());
+        return RV_ERR_IO;
+    }
+    live_touch_pad = &touch_pad_;
 
     const int delivered = EM_ASM_INT(
         {
@@ -130,6 +180,70 @@ int rv_pcplatform_sdl3::show_touch_pad(uint32_t groups)
         groups);
     if (delivered == 0) {
         RV_LOG_WARN("pcplatform", "the page has no rvTouchpadShow: the on-screen gamepad is attached but not shown");
+    }
+    return RV_OK;
+}
+
+// The page's calls, Module._rv_pctouchpad_*: each returns RV_OK or RV_ERR_*.
+// down is an int from the page: a bool argument other than 0 or 1 is undefined.
+extern "C" EMSCRIPTEN_KEEPALIVE int rv_pctouchpad_button(int button, int down)
+{
+    if (live_touch_pad == nullptr) {
+        return no_touch_pad();
+    }
+    const int index = touch_button_index(live_touch_pad->button_mask, button);
+    if (index < 0) {
+        RV_LOG_WARN("pcplatform", "rv_pctouchpad_button: button {} is not on the pad", button);
+        return RV_ERR_INVAL;
+    }
+    if (!SDL_SetJoystickVirtualButton(live_touch_pad->joystick, index, down != 0)) {
+        RV_LOG_WARN("pcplatform", "SDL_SetJoystickVirtualButton failed: {}", SDL_GetError());
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int rv_pctouchpad_axis(int axis, float value)
+{
+    if (live_touch_pad == nullptr) {
+        return no_touch_pad();
+    }
+    const bool trigger = axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;
+    const bool stick_y = axis == SDL_GAMEPAD_AXIS_LEFTY || axis == SDL_GAMEPAD_AXIS_RIGHTY;
+    const bool known = axis >= SDL_GAMEPAD_AXIS_LEFTX && axis < SDL_GAMEPAD_AXIS_COUNT;
+    if (!known || !std::isfinite(value)) {
+        RV_LOG_WARN("pcplatform", "rv_pctouchpad_axis: axis {} value {} is not a pad axis", axis, value);
+        return RV_ERR_INVAL;
+    }
+    // Sticks are -1..1, triggers 0..1; values past the range are cut off at it.
+    const float clamped = std::clamp(value, trigger ? 0.0f : -1.0f, 1.0f);
+    const float sign = stick_y ? RV_PCTOUCH_STICK_Y_SIGN : 1.0f;
+    const auto raw = static_cast<Sint16>(std::lround(sign * clamped * RV_PCTOUCH_AXIS_MAX));
+    if (!SDL_SetJoystickVirtualAxis(live_touch_pad->joystick, axis, raw)) {
+        RV_LOG_WARN("pcplatform", "SDL_SetJoystickVirtualAxis failed: {}", SDL_GetError());
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int rv_pctouchpad_trackpad(int pad, int down, float x, float y)
+{
+    if (live_touch_pad == nullptr) {
+        return no_touch_pad();
+    }
+    const bool known = pad >= 0 && pad < RV_PCGAMEPADS_SDL3_TRACKPADS && std::isfinite(x) && std::isfinite(y);
+    if (!known) {
+        RV_LOG_WARN("pcplatform", "rv_pctouchpad_trackpad: pad {} at {}, {} is not a trackpad point", pad, x, y);
+        return RV_ERR_INVAL;
+    }
+    // Points are 0..1 from the top left corner, as SDL has them; the pressure says whether a finger is down.
+    const float px = std::clamp(x, 0.0f, 1.0f);
+    const float py = std::clamp(y, 0.0f, 1.0f);
+    const bool is_down = down != 0;
+    const float pressure = is_down ? 1.0f : 0.0f;
+    if (!SDL_SetJoystickVirtualTouchpad(live_touch_pad->joystick, pad, RV_PCTOUCH_FINGER, is_down, px, py, pressure)) {
+        RV_LOG_WARN("pcplatform", "SDL_SetJoystickVirtualTouchpad failed: {}", SDL_GetError());
+        return RV_ERR_IO;
     }
     return RV_OK;
 }

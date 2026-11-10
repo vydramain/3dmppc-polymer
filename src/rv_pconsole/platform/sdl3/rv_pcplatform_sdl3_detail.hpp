@@ -269,6 +269,10 @@ struct rv_pcsdl3_quit_guard {
 // The web on-screen gamepad's virtual joystick id, 0 when none. The destructor detaches it (rv_pctouchpad_sdl3.cpp).
 struct rv_pctouch_pad_sdl3 {
     SDL_JoystickID id = 0;
+    // Open from show_touch_pad until the destructor closes it; the page's rv_pctouchpad_* calls drive it.
+    SDL_Joystick *joystick = nullptr;
+    // Bit N is SDL_GamepadButton N; the pad's button index is the count of set bits below it.
+    uint32_t button_mask = 0;
 
     ~rv_pctouch_pad_sdl3();
 };
