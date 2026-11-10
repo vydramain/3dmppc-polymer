@@ -240,17 +240,29 @@ stdout — stdout is reserved for the development channel's protocol lines
 ### Start screen
 
 When the console starts it brings up its components in the order they load, and logs one
-line for each: `pcboot: <name>: ok`, or `pcboot: <name>: warning` with what was found and
-what to try. The components are `ca` (sound), `cio` (input), `cm` (memory card), `cv`
-(video), `cg` (geometry), `cd` (drive) and `cl` (script).
+line for each: `pcboot: <name>: ok`, `pcboot: <name>: warning` or `pcboot: <name>: error`,
+with what was found and what to try. A warning means the component started but refused
+something, such as sound or motion sensors. An error means the component did not start
+because its controller is not usable. The components are `ca` (sound), `cio` (input), `cm`
+(memory card), `cv` (video), `cg` (geometry), `cd` (drive) and `cl` (script).
 
-With a window, the native console shows a grey "3dmppc" window from video on, with the same
-lines as they come in, an hourglass, "Starting up the system...", and a "Stop for
-Maintenance" button. If nothing is wrong, the window stays for one second and the boot goes
-on. If a component warns, the window shows what was found and what is recommended, and waits
-for "Press any button to continue": any key, mouse button or gamepad button. Esc, or a click
-on the button during that second, shows the report at once ("All components started without
-problems." when nothing warned), and then it waits the same way.
+With a window, the native console shows a "3dmppc" window in the editor's olive
+colours, from video on. It has three parts: a status line with an icon, a
+sunken field with the same journal lines as they come in, and a button band at the bottom.
+In the journal the level word is coloured: `ok` in the text colour, `warning` in orange,
+`error` in red, and the component name is bright.
+
+While the components start, the icon is an hourglass, the status is "Starting up the
+system...", and the button is "Stop for Maintenance". If nothing is wrong, the window stays
+for one second and the boot goes on. If a component warned, then once all of them are up the
+screen goes to the warning state instead: a note icon, "Started with N warning(s).", and
+"Press any button to continue", which waits for any key, mouse button or gamepad button.
+Esc, or a click on the button during that second, holds the screen ("Stopped for
+maintenance.") until a press, and then the boot goes on.
+
+If a component did not start, the window shows a cross, "The system cannot start.", and a
+"Power off" button. The console's refusal line is already in the log when the screen
+appears. The screen waits for a press, and then the console exits with code 1.
 
 The window comes before the disc is chosen, built-in or by path, and has nothing to do with the
 disc. With `--mode_cv=null` or `--frame-fd` there is no window, so no screen and no
@@ -297,7 +309,8 @@ reload or a closed tab can lose up to one second of saves, plus a write still in
 If the storage does not load, the boot check logs `pcboot: cm: warning`; the start screen
 stops at that report the same way, and the card is not saved in that session.
 
-If the disc does not start after the start screen, the page stays on a black frame. The reason
+If the disc does not start after the start screen, or a component did not start and the
+error screen was dismissed with a press, the page stays on a black frame. The reason
 is in the browser console: the line `the disc did not start` gives the code, and the cause is
 logged above or on stderr.
 
