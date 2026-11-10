@@ -11,6 +11,7 @@
 namespace rv_3dmppc
 {
 
+// Rectangle in host frame pixels, top-left origin, w and h its size; it may lie partly or wholly outside the target.
 struct rv_pchost_rect {
     int64_t x;
     int64_t y;
@@ -66,6 +67,7 @@ inline void rv_pchost_ui_edge(const rv_pchost_text_target &target, const rv_pcho
     }
 }
 
+// `face` is a host ARGB word (for example rv_pchost_ui_argb(token)); the bevel colours are theme tokens converted above.
 // Face colour with the light edge top and left.
 inline void rv_pchost_ui_raised(const rv_pchost_text_target &target, const rv_pchost_rect &rect, uint32_t face)
 {
@@ -76,6 +78,7 @@ inline void rv_pchost_ui_raised(const rv_pchost_text_target &target, const rv_pc
     rv_pchost_ui_edge(target, rect, RV_PCHOST_UI_BEVEL_HI, RV_PCHOST_UI_BEVEL_LO);
 }
 
+// `face` is a host ARGB word (for example rv_pchost_ui_argb(token)); the bevel colours are theme tokens converted above.
 // Face colour with the shade edge top and left.
 inline void rv_pchost_ui_sunken(const rv_pchost_text_target &target, const rv_pchost_rect &rect, uint32_t face)
 {
