@@ -348,9 +348,27 @@ endif()
 # -sJSPI_EXPORTS: the frame export that the JS frame loop awaits (rv_pconsole_drive_web.cpp).
 # -sMIN/MAX_WEBGL_VERSION=2: SDL's GLES2 renderer asks for a WebGL 2 context (GLSL ES 3.00 shaders), WebGL 1 is not used.
 set(RV_WEB_LINK_FLAGS -lidbfs.js -sEXPORTED_RUNTIME_METHODS=callMain -sJSPI -sJSPI_EXPORTS=rv_pconsole_web_frame -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2)
-set(RV_WEB_PRE_JS ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_pre.js)
+# The pre-js is glued at build time from these parts, in this order: each part reads the globals of the
+# parts before it, so a new part goes after the last part it needs. The kit installs the glued file.
+set(RV_WEB_PRE_JS_PARTS
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_pre.js
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_touchpad_draw.js
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_touchpad_layout.js
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_touchpad.js
+)
+set(RV_WEB_PRE_JS ${CMAKE_CURRENT_BINARY_DIR}/rv_web_pre.js)
+if(EMSCRIPTEN)
+  add_custom_command(OUTPUT ${RV_WEB_PRE_JS}
+    COMMAND ${CMAKE_COMMAND} -E cat ${RV_WEB_PRE_JS_PARTS} > ${RV_WEB_PRE_JS}
+    DEPENDS ${RV_WEB_PRE_JS_PARTS}
+    COMMENT "Gluing the web pre-js"
+  )
+  add_custom_target(rv_web_pre_js ALL DEPENDS ${RV_WEB_PRE_JS})
+endif()
 if(EMSCRIPTEN AND NOT 3DMPPC_WEB_KIT)
   target_link_options(3dmppc PRIVATE ${RV_WEB_LINK_FLAGS} --pre-js ${RV_WEB_PRE_JS} --js-library ${RV_WEB_JS_LIBRARY})
+  # A changed part relinks 3dmppc, not only re-glues the file.
+  set_property(TARGET 3dmppc APPEND PROPERTY LINK_DEPENDS ${RV_WEB_PRE_JS})
 endif()
 
 if(MSVC)
