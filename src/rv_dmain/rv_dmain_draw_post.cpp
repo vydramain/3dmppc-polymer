@@ -34,7 +34,6 @@ void format_bytes(char *out, std::size_t cap, int64_t bytes)
     }
 }
 
-constexpr int32_t RV_DMAIN_DEPTH_TEXT = 900; // over everything, it explains it
 constexpr int RV_DMAIN_POST_BUTTON_GAP = 12; // between the two hint buttons
 constexpr int RV_DMAIN_POST_PROBE_ROWS = 2;  // probe lines in the panel, after the budget line
 constexpr int RV_DMAIN_POST_PROBES_PER_ROW = 3;
@@ -153,10 +152,10 @@ void rv_dmain::draw_post()
 
     static_assert(FONT_INK_COUNT == 4, "styles below follow rv_font_ink");
     const rv_pdklib::rv_font_style styles[FONT_INK_COUNT] = {
-        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_TEXT], RV_DMAIN_DEPTH_TEXT, 1),
-        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_BRIGHT], RV_DMAIN_DEPTH_TEXT, 1),
-        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_DISABLED], RV_DMAIN_DEPTH_TEXT, 1),
-        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_ERROR], RV_DMAIN_DEPTH_TEXT, 1),
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_TEXT], UI_DEPTH_TEXT, 1),
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_BRIGHT], UI_DEPTH_TEXT, 1),
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_DISABLED], UI_DEPTH_TEXT, 1),
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_ERROR], UI_DEPTH_TEXT, 1),
     };
 
     // Title bar: the name in bold on the left, the tray state on the right.

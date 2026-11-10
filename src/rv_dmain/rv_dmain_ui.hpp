@@ -92,11 +92,12 @@ void ui_plate_sunken(uint32_t face, const rv_ui_rect &r, int32_t depth, Sink &&s
     ui_plate(face, rv_pdklib::rv_theme_bevel_lo, rv_pdklib::rv_theme_bevel_hi, r, depth, sink);
 }
 
-// Window layout. Depths: larger = nearer. The test art (-400..400) and the text (900), both in
-// rv_dmain_draw.cpp, lie in front of all three layers.
+// Window layout. Depths: larger = nearer. The test art (-400..400, in rv_dmain_draw.cpp) and the
+// text (UI_DEPTH_TEXT) lie in front of the window layers.
 constexpr int32_t UI_DEPTH_WINDOW = -900;    // the window plate
 constexpr int32_t UI_DEPTH_ON_WINDOW = -850; // title bar, panel and buttons
 constexpr int32_t UI_DEPTH_TILE = -700;      // the test tiles
+constexpr int32_t UI_DEPTH_TEXT = 900;       // all text, in front of everything
 
 constexpr int UI_PANEL_LINES = 4;      // text lines the info panel holds
 constexpr int UI_PANEL_PAD_Y = 4;      // panel padding above and below its lines

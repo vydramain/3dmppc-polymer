@@ -22,7 +22,6 @@ namespace
 // the cube and the status bars sit in front of it.
 constexpr int32_t RV_DMAIN_DEPTH_ART_LO = -400;
 constexpr int32_t RV_DMAIN_DEPTH_ART_HI = 400;
-constexpr int32_t RV_DMAIN_DEPTH_TEXT = 900; // over everything, it explains it
 
 // Polygon vertex counts
 constexpr int RV_DMAIN_TRI_VERTICES = 3;
@@ -218,7 +217,7 @@ void rv_dmain::draw_cell_label(int index, const rv_dmain_detail::rv_ui_rect &cel
     rv_cv *cv = rv_pdko_cv(pdk_);
     const std::string_view caption = UI_TEST_CAPTIONS[index];
     const rv_pdklib::rv_font_style ink =
-        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_TEXT], RV_DMAIN_DEPTH_TEXT, 1);
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_[FONT_INK_TEXT], UI_DEPTH_TEXT, 1);
     ui_text(ink,
         cell,
         tile.x + (tile.w - ui_ink_width(caption, 1)) / 2,
