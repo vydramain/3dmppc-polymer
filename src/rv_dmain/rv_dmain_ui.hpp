@@ -204,6 +204,14 @@ inline constexpr std::string_view UI_NO_DISC = "No disc inserted"; // shown when
 inline constexpr std::string_view UI_HINT_SOUND = "Z Sound";       // hint button: beep
 inline constexpr std::string_view UI_HINT_POWER = "Esc Power off"; // hint button: power off
 
+// Panel line formats (snprintf): width, height, video memory, voices, sound memory / pads, boot count.
+inline constexpr const char *UI_BUDGET_FORMAT = "Virtual %lldx%lld  %s  %lldv  %s";
+inline constexpr const char *UI_PADS_FORMAT = "pads: %lld   boot count: %lu";
+
+// Probe label end, and the gap before every label but the first of a row.
+inline constexpr std::string_view UI_LABEL_END = ": ";
+inline constexpr std::string_view UI_PROBE_GAP = "  ";
+
 // Captions of the 12 test cells, in grid order.
 inline constexpr std::string_view UI_TEST_CAPTIONS[] = { "Line",
     "Tri",
