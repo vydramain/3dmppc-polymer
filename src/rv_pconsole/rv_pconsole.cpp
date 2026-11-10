@@ -120,7 +120,7 @@ inline constexpr rv_pcboot_refusal_row rv_pcboot_refusal_rows[] = {
 void rv_pcboot_journal_slot(rv_3dmppc::rv_pcboot_journal &journal, const char *name, bool valid, uint32_t refused)
 {
     if (!valid) {
-        journal.add_warning(name,
+        journal.add_error(name,
             { rv_pcboot_text_not_started, rv_pcboot_text_see_log },
             { rv_pcboot_text_not_started_short, rv_pcboot_text_see_log_short });
         return;

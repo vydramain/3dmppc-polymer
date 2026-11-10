@@ -310,10 +310,14 @@ int rv_pboot_run(int argc, char **argv)
     // accepted: an address-space reservation is allowed to fail even when the
     // budget looked fine on paper. check_ready() logs the controller that refused
     // and its constructor logged why; this line only names what is being refused.
+    // The start screen then shows the journaled error and waits for a press (no window: it returns at once).
     const int ready_rc = console->check_ready();
     if (ready_rc != RV_OK) {
         rv_console_print_error(std::format("refusing to boot '{}'",
             args.disc_path != nullptr ? rv_pdklib::rv_log_escape(args.disc_path) : "built-in disc"));
+        console->boot_screen_run([ready_rc]() -> int64_t {
+            return ready_rc;
+        });
         return 1;
     }
 
