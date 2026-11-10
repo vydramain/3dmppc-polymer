@@ -59,11 +59,43 @@
     }, function(err) { console.warn('webhid: requestDevice failed: ' + err); });
   }
 
+  // The value requestPermission answers with when motion is allowed; any other value keeps it off.
+  var MOTION_GRANTED = 'granted';
+  // iOS asks for motion sensors only inside a user gesture. The answer lands in Module.rvMotionAllowed.
+  // onMotion in rv_web_touchpad_input.js reads this flag. Without a request (Android, desktop)
+  // motion stays allowed; a page without the on-screen pad skips it.
+  function askMotion() {
+    Module.rvMotionAllowed = true;
+    var hasRequest = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
+    if (!Module.rvTouchpadWanted || !hasRequest) {
+      return;
+    }
+    Module.rvMotionAllowed = false;
+    var request;
+    // A synchronous throw must not stop the console from starting.
+    try {
+      request = Promise.resolve(DeviceMotionEvent.requestPermission());
+    } catch (err) {
+      console.warn('motion: permission request threw: ' + err);
+      return;
+    }
+    request.then(function(state) {
+      Module.rvMotionAllowed = state === MOTION_GRANTED;
+      if (!Module.rvMotionAllowed) {
+        console.warn('motion: permission ' + state + ', motion sensors stay off');
+      }
+    }, function(err) {
+      console.warn('motion: permission request failed: ' + err);
+    });
+  }
+
   // Starts from the gesture itself: callMain creates the AudioContext, and browsers allow audio only inside a user gesture.
+  // The motion request goes out here too, without waiting for its answer, so the console starts at the same point.
   function startConsole() {
     window.removeEventListener('keydown', onGesture);
     start.remove();
     Module.canvas.focus();
+    askMotion();
     Module.callMain();
   }
 
