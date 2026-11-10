@@ -303,6 +303,14 @@ interface for gamepads), with no motion sensors or touchpads. The boot check log
 `pcboot: cio: warning` with its advice, and the start screen stops at that report until a
 key, a mouse button or a gamepad button is pressed (see "Start screen").
 
+On a phone or tablet the page draws an on-screen gamepad over the console. A phone is a
+coarse pointer without hover, so a touch laptop and a computer get no pad. The groups come
+from the `show` list of `[touch_pad]` in the disc (see [disc.toml](#disctoml)). On iOS the
+motion sensors ask for permission when the console starts on the first touch or key press.
+Vibration works where the browser has `navigator.vibrate`; in practice these are Android
+browsers. The web build requires WebGL 2 (`-sMIN_WEBGL_VERSION=2`); a browser without it
+cannot create the canvas context.
+
 The memory card is kept in the browser's storage (IndexedDB), in the browser profile and for
 the page's address. The console writes it back once a second and when the page is left. A
 reload or a closed tab can lose up to one second of saves, plus a write still in progress.
@@ -690,6 +698,9 @@ format = "idx8"
 
 [assets.stream]
 files = ["assets/music/*.mp3"]
+
+[touch_pad]
+show = ["sticks", "dpad", "face", "menu"]
 ```
 
 `[assets]` is optional. Each file in `files` is sorted by its extension: `.png` is a
@@ -719,6 +730,16 @@ drive asset, not loaded into sound memory. The PCM is not stored in the project,
 build directory and the image. A path listed in both `[assets]` and `[assets.stream]`
 refuses the burn, naming both sections; so does a stream file that is not `.wav` or `.mp3`.
 A sound and a stream with the same stem collide and the burn is refused.
+
+`[touch_pad]` is optional. Its `show` list names the gamepad groups the disc shows:
+`sticks`, `trackpads`, `dpad`, `face`, `bumpers`, `triggers`, `rear`, `menu` and `gyro`.
+Every group but `gyro` is a set of on-screen elements, and the pad shows exactly the listed
+ones. `gyro` draws nothing: through this pad it gives the game the phone's motion sensors.
+Without the section every group is shown; an empty list shows none. A name that is not one
+of these is a manifest error that gives the file and the line. The list takes effect only
+in the web console, on a phone or tablet. On a computer and in the native console
+there is no on-screen pad, so the list changes nothing there. A console older than this
+section refuses a disc that has it, because an unknown section is an error.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
 both. Every `[budget.*]` section is optional - a disc that states none is held to the
