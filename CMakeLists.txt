@@ -355,6 +355,7 @@ set(RV_WEB_PRE_JS_PARTS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_touchpad_draw.js
   ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_touchpad_layout.js
   ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_touchpad.js
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_touchpad_input.js
 )
 set(RV_WEB_PRE_JS ${CMAKE_CURRENT_BINARY_DIR}/rv_web_pre.js)
 if(EMSCRIPTEN)
