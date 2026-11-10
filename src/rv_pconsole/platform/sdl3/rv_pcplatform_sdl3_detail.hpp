@@ -273,6 +273,8 @@ struct rv_pctouch_pad_sdl3 {
     SDL_Joystick *joystick = nullptr;
     // Bit N is SDL_GamepadButton N; the pad's button index is the count of set bits below it.
     uint32_t button_mask = 0;
+    // True when the pad has the gyro and accel sensors (the disc's gyro group); rv_pctouchpad_motion() needs them.
+    bool motion = false;
 
     ~rv_pctouch_pad_sdl3();
 };

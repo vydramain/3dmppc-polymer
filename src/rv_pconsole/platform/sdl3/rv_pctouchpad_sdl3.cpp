@@ -79,10 +79,48 @@ constexpr SDL_VirtualJoystickTouchpadDesc RV_PCTOUCH_PAD_TRACKPADS[RV_PCGAMEPADS
     { .nfingers = RV_PCTOUCH_PAD_FINGERS, .padding = {} },
 };
 
+// Assumption, not measured: the page sends no motion rate, so 60 Hz is a guess to check on a phone.
+constexpr float RV_PCTOUCH_MOTION_RATE_HZ = 60.0f;
+constexpr SDL_VirtualJoystickSensorDesc RV_PCTOUCH_SENSORS[] = {
+    { .type = SDL_SENSOR_GYRO, .rate = RV_PCTOUCH_MOTION_RATE_HZ },
+    { .type = SDL_SENSOR_ACCEL, .rate = RV_PCTOUCH_MOTION_RATE_HZ },
+};
+// x, y, z of one sensor sample.
+constexpr int RV_PCTOUCH_VEC_VALUES = 3;
+
 // Page fact set by src/web/rv_web_touchpad.js, which the web pre-js bundle includes; undefined reads as false.
 bool page_touchpad_wanted()
 {
     return EM_ASM_INT({ return Module.rvTouchpadWanted ? 1 : 0; });
+}
+
+// Ceiling: navigator.vibrate stops by itself after this long. SDL sends zero strength when the disc's rumble ends,
+// which cancels it sooner. A rumble with no end (duration 0 in SDL_RumbleGamepad) gets no zero from SDL, so it stops
+// here. Upgrade: a keep-alive that re-sends the vibration before this ends, once a disc needs a rumble longer than this.
+constexpr int RV_PCTOUCH_VIBRATE_MS = 60000;
+
+// A browser gives one strength (Android) or none (iOS): any non-zero strength vibrates, zero stops it.
+bool SDLCALL page_rumble(void *, Uint16 low, Uint16 high)
+{
+    const int duration = (low != 0 || high != 0) ? RV_PCTOUCH_VIBRATE_MS : 0;
+    const int vibrates = EM_ASM_INT(
+        {
+            if (!navigator.vibrate) {
+                return 0;
+            }
+            navigator.vibrate($0);
+            return 1;
+        },
+        duration);
+    if (vibrates == 0) {
+        static bool warned = false;
+        if (!warned) {
+            warned = true;
+            RV_LOG_INFO("pcplatform", "the browser has no navigator.vibrate: the disc's rumble is not felt here");
+        }
+        return SDL_Unsupported();
+    }
+    return true;
 }
 
 // The page calls before show_touch_pad, or with no pad: one warning per process, not one per call.
@@ -92,6 +130,17 @@ int no_touch_pad()
     if (!warned) {
         warned = true;
         RV_LOG_WARN("pcplatform", "rv_pctouchpad_*: no on-screen gamepad is attached");
+    }
+    return RV_ERR_INVAL;
+}
+
+// The page sends motion to a pad with no gyro: one warning per process, as no_touch_pad().
+int no_touch_motion()
+{
+    static bool warned = false;
+    if (!warned) {
+        warned = true;
+        RV_LOG_WARN("pcplatform", "rv_pctouchpad_motion: the on-screen gamepad has no motion sensors");
     }
     return RV_ERR_INVAL;
 }
@@ -144,6 +193,7 @@ int rv_pcplatform_sdl3::show_touch_pad(uint32_t groups)
     // nbuttons is the mask's bit count: SDL gives each set bit the next index and drops bits past nbuttons.
     const uint32_t buttons = touch_buttons(groups);
     const bool trackpads = touch_group_shown(groups, rv_touch_group::trackpads);
+    const bool motion = touch_group_shown(groups, rv_touch_group::gyro);
     SDL_VirtualJoystickDesc desc{};
     SDL_INIT_INTERFACE(&desc);
     desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
@@ -153,6 +203,9 @@ int rv_pcplatform_sdl3::show_touch_pad(uint32_t groups)
     desc.axis_mask = 0;
     desc.ntouchpads = trackpads ? RV_PCGAMEPADS_SDL3_TRACKPADS : 0;
     desc.touchpads = trackpads ? RV_PCTOUCH_PAD_TRACKPADS : nullptr;
+    desc.nsensors = motion ? static_cast<uint16_t>(SDL_arraysize(RV_PCTOUCH_SENSORS)) : 0;
+    desc.sensors = motion ? RV_PCTOUCH_SENSORS : nullptr;
+    desc.Rumble = page_rumble;
     desc.name = RV_PCTOUCH_PAD_NAME;
 
     const SDL_JoystickID id = SDL_AttachVirtualJoystick(&desc);
@@ -162,12 +215,14 @@ int rv_pcplatform_sdl3::show_touch_pad(uint32_t groups)
     }
     touch_pad_.id = id;
     touch_pad_.button_mask = buttons;
+    touch_pad_.motion = motion;
     touch_pad_.joystick = SDL_OpenJoystick(id);
     if (touch_pad_.joystick == nullptr) {
         RV_LOG_WARN("pcplatform", "SDL_OpenJoystick failed, the on-screen gamepad is off: {}", SDL_GetError());
         return RV_ERR_IO;
     }
     live_touch_pad = &touch_pad_;
+    RV_LOG_INFO("pcplatform", "on-screen gamepad: {} buttons, {} trackpads, motion {}", desc.nbuttons, desc.ntouchpads, motion);
 
     const int delivered = EM_ASM_INT(
         {
@@ -243,6 +298,35 @@ extern "C" EMSCRIPTEN_KEEPALIVE int rv_pctouchpad_trackpad(int pad, int down, fl
     const float pressure = is_down ? 1.0f : 0.0f;
     if (!SDL_SetJoystickVirtualTouchpad(live_touch_pad->joystick, pad, RV_PCTOUCH_FINGER, is_down, px, py, pressure)) {
         RV_LOG_WARN("pcplatform", "SDL_SetJoystickVirtualTouchpad failed: {}", SDL_GetError());
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+// The page's motion sample in SDL's units: gyro rad/s, accel m/s^2 (the page converts the axes).
+// Both sensors take one timestamp, in nanoseconds, from the same SDL clock.
+extern "C" EMSCRIPTEN_KEEPALIVE int rv_pctouchpad_motion(float gx, float gy, float gz, float ax, float ay, float az)
+{
+    if (live_touch_pad == nullptr) {
+        return no_touch_pad();
+    }
+    if (!live_touch_pad->motion) {
+        return no_touch_motion();
+    }
+    const bool gyro_finite = std::isfinite(gx) && std::isfinite(gy) && std::isfinite(gz);
+    const bool accel_finite = std::isfinite(ax) && std::isfinite(ay) && std::isfinite(az);
+    if (!gyro_finite || !accel_finite) {
+        RV_LOG_WARN("pcplatform", "rv_pctouchpad_motion: a sample value is not finite");
+        return RV_ERR_INVAL;
+    }
+    const float gyro[RV_PCTOUCH_VEC_VALUES] = { gx, gy, gz };
+    const float accel[RV_PCTOUCH_VEC_VALUES] = { ax, ay, az };
+    const uint64_t stamp = SDL_GetTicksNS();
+    const bool sent =
+        SDL_SendJoystickVirtualSensorData(live_touch_pad->joystick, SDL_SENSOR_GYRO, stamp, gyro, RV_PCTOUCH_VEC_VALUES) &&
+        SDL_SendJoystickVirtualSensorData(live_touch_pad->joystick, SDL_SENSOR_ACCEL, stamp, accel, RV_PCTOUCH_VEC_VALUES);
+    if (!sent) {
+        RV_LOG_WARN("pcplatform", "SDL_SendJoystickVirtualSensorData failed: {}", SDL_GetError());
         return RV_ERR_IO;
     }
     return RV_OK;
