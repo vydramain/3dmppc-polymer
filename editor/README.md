@@ -14,21 +14,24 @@ console (`3dmppc --dev`) - it links none of their code.
   later one failed or was cancelled; builds saved files first when nothing has
   succeeded yet or one changed since
 - Reload - F8 reloads Lua scripts and textures without restarting
-- Scene editor - layout objects, cameras and volumes in 3D; edit in Wireframe,
-  Filled or Textured mode
+- Scene editor - layout objects (id, parent, entity and `[[component]]` data), cameras and
+  volumes in 3D; edit in Wireframe, Filled or Textured mode
 - Release Candidate - Burn layout builds disc images for final checks before
   release
 - Built-in Code editor - Neovim embedded; diagnostics from clangd and
   lua-language-server
 - Terminal - shell on a tile, in the project directory
+- Inspector - runs `mppcinspector` on the project when it opens, after a save and after
+  each build, and shows each finding in Problems (source `inspector`) with file, line,
+  level and text
 
 ## Limitations
 
-- Scene editor viewport shows `.obj` meshes and volumes but a game only draws
-  what its own code draws; the example discs ignore meshes and don't draw quads
-  or volumes yet
-- Scenes are PDK 1.0 files; a scene of PDK 0.x opens read-only until
-  its `version` is raised to "1.0" by hand
+- Scene editor viewport shows `.glb` and `.gltf` meshes and volumes (any other mesh file
+  is a placeholder box), but a game only draws what its own code draws, and only a scene
+  it reads from its file
+- A scene has no version; an object in the removed form 1 (its data as keys such as
+  `kind`) is refused, by the editor too
 
 ## Requirements
 
@@ -49,12 +52,18 @@ Empty means the editor's own directory. The editor checks the three bakers there
 executable, version) and reports a path it cannot look up as its own problem; Project > Project
 Settings > Toolchain shows them. It passes the directory to `mppcburner` as `--baker` on each
 build, unpacked build, release candidate and PNG texture bake, and records their versions in
-a release candidate:
+a release candidate. `mppcinspector` is found the same way (beside the editor, or from
+`inspector`); it runs `mppcinspector <disc> --report PATH` with the report under the
+project's cache directory, `<cache>/<hash>/inspector.tsv` (exit 0 clean or warnings, 1
+errors, 2 failed: no findings are shown after 2). A missing inspector only turns that check
+off in the editor; the burner still runs its own check before each build and refuses the
+build when it cannot find `mppcinspector`:
 
 ```toml
 [tools]
 console = "/path/to/3dmppc"
 burner = "/path/to/mppcburner"
+inspector = "/path/to/mppcinspector"
 baker = "/path/to/bakers"
 player = "/path/to/3dmppc"   # built without devtools; there is no default
 ```

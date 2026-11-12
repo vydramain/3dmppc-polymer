@@ -118,6 +118,7 @@ build-dev/pconsole/
     3dmppc          the console: --dev, loose disc directories, reload
     3dmppc-editor   the editor
     mppcburner      compiles a disc directory and burns a .mppcdisc
+    mppcinspector   checks a disc directory's sources; exit 0 clean, 1 errors, 2 failed run
     mppctexbaker    bakes a PNG into a console texture (.mppctex)
     mppcmusbaker    bakes a WAV into console sound (.pcm)
     mppcmodbaker    bakes a glTF 2.0 model (.glb, or .gltf with its .bin and PNGs) into a .mppcmod and its PNG textures
@@ -301,7 +302,9 @@ page load, without a prompt. A declined request is not an error.
 Without WebHID or JSPI, gamepads use the browser's standard Gamepad API (the common browser
 interface for gamepads), with no motion sensors or touchpads. The boot check logs
 `pcboot: cio: warning` with its advice, and the start screen stops at that report until a
-key, a mouse button or a gamepad button is pressed (see "Start screen").
+key, a mouse button or a gamepad button is pressed (see "Start screen"). On a phone or
+tablet, where the page shows the on-screen gamepad (below), a missing WebHID is no
+warning and no stop: the phone's own motion sensors feed that gamepad, so it needs no WebHID.
 
 On a phone or tablet the page draws an on-screen gamepad over the console. A phone is a
 coarse pointer without hover, so a touch laptop and a computer get no pad. The groups come
@@ -764,6 +767,12 @@ way `build`'s own plan would - same format and the same `[budget]` size check.
 It writes `-o` only once baking succeeds, so a refusal never leaves a partial
 file, and prints the entry's disc name (what `--map` would call it) as the
 only line on stdout.
+
+Before it compiles anything, `build` runs `mppcinspector <disc> [--report PATH]` on the
+disc directory: it prints each finding as `file:line: error|warning: text [rule, key ...]`
+and exits 0 when there is no error finding, 1 when there are errors (the build is then
+refused) and 2 on a usage error or a failed run. The editor runs it too and shows the
+findings in Problems.
 
 The burner refuses rather than shipping something broken: a texture larger than
 the console allows, assets that overflow the virtual VRAM, or two assets whose
