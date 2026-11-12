@@ -275,6 +275,7 @@ void rv_editor_app_update(rv_editor_app &app)
 
     const bool was_busy = app.build.busy();
     (void)rv_editor_app_update_build(app);
+    app.inspect.update(app.log);
     (void)rv_editor_app_update_export(app);
     (void)rv_editor_app_update_session(app);
 

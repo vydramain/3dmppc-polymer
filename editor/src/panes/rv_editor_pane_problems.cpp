@@ -34,6 +34,7 @@ constexpr int problems_table_column_count = 5;
 std::vector<rv_editor_problem> rv_editor_gather_problems(const rv_editor_app &app)
 {
     std::vector<rv_editor_problem> out = app.problems;
+    out.insert(out.end(), app.inspect.problems().begin(), app.inspect.problems().end());
     for (const auto &[file, diags] : app.nvim.diagnostics()) {
         for (const rv_editor_nvim_diagnostic &d : diags) {
             if (d.severity != diag_severity_error && d.severity != diag_severity_warn) {

@@ -1401,6 +1401,15 @@ already_running = "a build is already running"
 no_project = "no project is open"
 no_cache_dir = "no cache directory: neither XDG_CACHE_HOME nor HOME is set"
 
+[inspect]
+not_started = "inspector: {}"
+no_cache_dir = "no cache directory: neither XDG_CACHE_HOME nor HOME is set"
+exit_code = "code {}"
+exit_signal = "signal {}"
+failed = "inspector: it ended with {}, no findings shown"
+no_report = "inspector: the report is not read: {}"
+bad_report = "inspector: the report is not understood: {}"
+
 [export]
 busy = "an export is already running"
 no_project = "no project is open"
