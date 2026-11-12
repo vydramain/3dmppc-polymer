@@ -145,6 +145,9 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     case rv_editor_pane_kind::test_case:
         rv_editor_pane_test_case(shell.app, theme);
         return;
+    case rv_editor_pane_kind::new_project:
+        rv_editor_page_new_project(shell, theme);
+        return;
     case rv_editor_pane_kind::open_project:
         rv_editor_page_open_project(shell, theme);
         return;

@@ -63,6 +63,7 @@ enum class rv_editor_pane_kind : uint32_t {
     checks,           // the shown candidate's checks, as a tab of its own
     session,          // the running or the last session: build, profile, time, how it ended
     test_case,        // a written check of the game, or free play, and its result
+    new_project,      // New Project's form, as a tab
     open_project,     // Open Project's browser, as a tab
     settings,         // Settings, as a tab
     help,             // Help, as a tab

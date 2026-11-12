@@ -79,7 +79,14 @@ void rv_editor_menu_file(rv_editor_shell &shell)
     if (rv_editor_menu_item(rv_editor_text("shell_menu.new_file"), nullptr, no_code)) {
         rv_editor_menu_code_keys(shell, code_keys_new_buffer);
     }
-    if (rv_editor_menu_item(rv_editor_text("shell_start.open_project"), nullptr, nullptr)) {
+    if (rv_editor_menu_item(rv_editor_text("shell_start.new_project"),
+            rv_editor_text("catalog_status.shortcut_new_project"),
+            nullptr)) {
+        rv_editor_shell_page(shell, rv_editor_start_page::new_project);
+    }
+    if (rv_editor_menu_item(rv_editor_text("shell_start.open_project"),
+            rv_editor_text("catalog_status.shortcut_open_project"),
+            nullptr)) {
         rv_editor_shell_open_project(shell);
     }
     rv_editor_separator();
@@ -330,16 +337,17 @@ void rv_editor_menu_help(rv_editor_shell &shell)
     }
 }
 
-bool rv_editor_scene_pane_focused(const rv_editor_workspace &ws)
+// Kind of the pane in the focused tile; empty when there is none.
+rv_editor_pane_kind rv_editor_focused_pane_kind(const rv_editor_workspace &ws)
 {
     if (ws.focused_leaf >= ws.layout.nodes.size()) {
-        return false;
+        return rv_editor_pane_kind::empty;
     }
     const rv_editor_tile_node &node = ws.layout.nodes[ws.focused_leaf];
     if (node.kind != rv_editor_tile_kind::leaf || node.leaf.active >= node.leaf.tabs.size()) {
-        return false;
+        return rv_editor_pane_kind::empty;
     }
-    return ws.panes.panes[node.leaf.tabs[node.leaf.active]].kind == rv_editor_pane_kind::scene;
+    return ws.panes.panes[node.leaf.tabs[node.leaf.active]].kind;
 }
 } // namespace
 
@@ -394,9 +402,23 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
         rv_editor_app_build(app);
     }
     // Ctrl+S in a Code tile stays with nvim; only a focused Scene pane saves the scene.
-    if (!ImGui::GetIO().WantTextInput && rv_editor_scene_pane_focused(shell.ws) &&
+    if (!ImGui::GetIO().WantTextInput && rv_editor_focused_pane_kind(shell.ws) == rv_editor_pane_kind::scene &&
         ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S)) {
         rv_editor_shell_scene_save(shell);
+    }
+    // Save All from any pane: the code tile and the terminal leave Ctrl+Shift+S to the editor.
+    if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S)) {
+        rv_editor_shell_save_all(shell);
+    }
+    // Ctrl+O and Ctrl+N are Vim's and the shell's keys in the code tile and the terminal.
+    const rv_editor_pane_kind focus = rv_editor_focused_pane_kind(shell.ws);
+    if (!ImGui::GetIO().WantTextInput && focus != rv_editor_pane_kind::code && focus != rv_editor_pane_kind::terminal &&
+        ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_O)) {
+        rv_editor_shell_open_project(shell);
+    }
+    if (!ImGui::GetIO().WantTextInput && focus != rv_editor_pane_kind::code && focus != rv_editor_pane_kind::terminal &&
+        ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_N)) {
+        rv_editor_shell_page(shell, rv_editor_start_page::new_project);
     }
     if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F)) {
         app.project_search.focus = true;

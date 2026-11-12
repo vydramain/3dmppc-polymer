@@ -83,7 +83,7 @@ rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_k
 }
 
 constexpr std::optional<rv_editor_pane_kind> rv_editor_page_pane[] = { std::nullopt,
-    std::nullopt,
+    rv_editor_pane_kind::new_project,
     rv_editor_pane_kind::open_project,
     rv_editor_pane_kind::settings,
     rv_editor_pane_kind::help,
