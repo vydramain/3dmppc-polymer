@@ -42,6 +42,7 @@ struct rv_editor_tool {
 //   [tools]
 //   console = "/path/to/3dmppc"
 //   burner = "/path/to/mppcburner"
+//   inspector = "/path/to/mppcinspector"
 //   baker = "/path/to/bakers"    (a directory, or a file in it; empty: next to the editor)
 //   player = "/path/to/3dmppc"   (built without devtools; no default place)
 //
@@ -51,6 +52,7 @@ struct rv_editor_tool {
 struct rv_editor_toolchain {
     rv_editor_tool console;
     rv_editor_tool burner;
+    rv_editor_tool inspector;
     rv_editor_tool baker;
     rv_editor_tool texbaker; // PNG
     rv_editor_tool musbaker; // WAV
@@ -62,10 +64,11 @@ struct rv_editor_toolchain {
     std::string settings_error; // settings.toml exists and does not parse
 };
 
-// The tools the editor lists and counts, in order: the console, the burner and the three bakers.
+// The tools the editor lists and counts, in order: the console, the burner, the inspector and the three bakers.
 inline constexpr rv_editor_tool rv_editor_toolchain::*rv_editor_toolchain_tools[] = {
     &rv_editor_toolchain::console,
     &rv_editor_toolchain::burner,
+    &rv_editor_toolchain::inspector,
     &rv_editor_toolchain::texbaker,
     &rv_editor_toolchain::musbaker,
     &rv_editor_toolchain::modbaker,

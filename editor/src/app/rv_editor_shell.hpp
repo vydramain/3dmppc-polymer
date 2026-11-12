@@ -49,8 +49,8 @@ struct rv_editor_start {
 // Frames the Game view gets to settle its fit after a layout change.
 constexpr int game_fit_attempts = 8;
 
-// Settings: number of tool paths checked in the Toolchain (baker, burner, console, player)
-constexpr size_t settings_tools_count = 4;
+// Settings: number of tool paths checked in the Toolchain (baker, burner, inspector, console, player)
+constexpr size_t settings_tools_count = 5;
 
 // Workspaces: number of layouts (Code, Scene, Debug, Burn) in rv_editor_workspaces.
 constexpr size_t editor_workspace_slots_count = 4;

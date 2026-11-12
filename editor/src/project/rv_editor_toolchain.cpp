@@ -24,6 +24,7 @@ namespace
 // Tool executable names as they appear on the system or in next to the editor.
 constexpr std::string_view tool_console_name = "3dmppc";
 constexpr std::string_view tool_burner_name = "mppcburner";
+constexpr std::string_view tool_inspector_name = "mppcinspector";
 constexpr std::string_view tool_player_name = "player";
 // The firmware is the console the burner packs into a player: firmware/3dmppc beside the burner, never on PATH.
 constexpr std::string_view tool_firmware_name = "3dmppc";
@@ -37,6 +38,7 @@ constexpr std::string_view tool_modbaker_name = "mppcmodbaker"; // .glb
 // Tool key names used in settings.toml and configuration.
 constexpr std::string_view tool_console_key = "console";
 constexpr std::string_view tool_burner_key = "burner";
+constexpr std::string_view tool_inspector_key = "inspector";
 constexpr std::string_view tool_baker_key = "baker";
 constexpr std::string_view tool_player_key = "player";
 
@@ -53,6 +55,7 @@ struct tool_spec {
 constexpr tool_spec tool_specs[] = {
     { tool_console_key, tool_console_name, false, true, &rv_editor_toolchain::console },
     { tool_burner_key, tool_burner_name, true, true, &rv_editor_toolchain::burner },
+    { tool_inspector_key, tool_inspector_name, false, true, &rv_editor_toolchain::inspector },
     { tool_baker_key, std::string_view(), false, false, &rv_editor_toolchain::baker }, // a directory: no executable name
     { tool_player_key, tool_player_name, false, false, &rv_editor_toolchain::player },
 };
@@ -276,6 +279,11 @@ rv_editor_toolchain rv_editor_toolchain_find()
         "",
         "",
         {} };
+    tc.inspector = { self.empty() ? "" : self / std::string(tool_inspector_name),
+        std::string(tool_origin_next_to_editor),
+        "",
+        "",
+        {} };
     tc.baker = { "", std::string(tool_origin_next_to_editor), "", "", {} };
 
     read_tool_settings(tc);
@@ -291,6 +299,7 @@ rv_editor_toolchain rv_editor_toolchain_find()
 
     rv_editor_tool_check(tc.console, tool_console_name.data());
     rv_editor_tool_check(tc.burner, tool_burner_name.data());
+    rv_editor_tool_check(tc.inspector, tool_inspector_name.data());
     rv_editor_tool_check(tc.firmware, tool_firmware_name.data());
     rv_editor_tool_check(tc.player, tool_player_name.data());
     rv_editor_bakers_fill(tc);

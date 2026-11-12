@@ -41,6 +41,7 @@ struct rv_editor_tool_row {
 constexpr rv_editor_tool_row tool_rows[] = {
     { &rv_editor_toolchain::console, "panes.tool_runtime" },
     { &rv_editor_toolchain::burner, "panes.tool_burner" },
+    { &rv_editor_toolchain::inspector, "panes.tool_inspector" },
     { &rv_editor_toolchain::firmware, "panes.tool_firmware" },
     { &rv_editor_toolchain::texbaker, "panes.tool_texbaker" },
     { &rv_editor_toolchain::musbaker, "panes.tool_musbaker" },
