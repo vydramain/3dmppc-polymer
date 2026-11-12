@@ -42,13 +42,13 @@ struct rv_editor_tool {
 //   [tools]
 //   console = "/path/to/3dmppc"
 //   burner = "/path/to/mppcburner"
-//   inspector = "/path/to/mppcinspector"
-//   baker = "/path/to/bakers"    (a directory, or a file in it; empty: next to the editor)
+//   baker = "/path/to/bakers"    (a directory, or a file in it; empty: next to the editor; it holds mppcinspector too)
 //   player = "/path/to/3dmppc"   (built without devtools; no default place)
 //
 // baker is the directory record of the bakers: path is the directory, problem the first problem
-// of the three bakers or none, or that the directory cannot be read (project.baker_dir_error); it has
-// no version. texbaker, musbaker, modbaker are the bakers the burner runs from that directory.
+// of the three bakers and mppcinspector, or none, or that the directory cannot be read (project.baker_dir_error); it has
+// no version. texbaker, musbaker, modbaker are the bakers the burner runs from that directory, and
+// inspector is mppcinspector in it (no version either); without it nothing builds.
 struct rv_editor_toolchain {
     rv_editor_tool console;
     rv_editor_tool burner;
@@ -68,10 +68,10 @@ struct rv_editor_toolchain {
 inline constexpr rv_editor_tool rv_editor_toolchain::*rv_editor_toolchain_tools[] = {
     &rv_editor_toolchain::console,
     &rv_editor_toolchain::burner,
-    &rv_editor_toolchain::inspector,
     &rv_editor_toolchain::texbaker,
     &rv_editor_toolchain::musbaker,
     &rv_editor_toolchain::modbaker,
+    &rv_editor_toolchain::inspector,
 };
 
 // Looks the tools up again and starts the burner's and the three bakers' version checks,

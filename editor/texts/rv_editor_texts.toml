@@ -668,9 +668,8 @@ log_time_4 = "12:00:04"
 log_msg_error = "script_error: main.lua:12: ')' expected"
 
 [shell_settings]
-label_baker = "Bakers: directory of mppctexbaker, mppcmusbaker, mppcmodbaker"
+label_baker = "Bakers: directory of mppctexbaker, mppcmusbaker, mppcmodbaker and mppcinspector"
 label_burner = "Burner: mppcburner"
-label_inspector = "Inspector: mppcinspector"
 label_console = "Runtime: 3dmppc built with devtools"
 label_player = "Player: 3dmppc built without devtools, for a candidate's final check"
 empty_auto_next = "Empty: found automatically next to the editor"

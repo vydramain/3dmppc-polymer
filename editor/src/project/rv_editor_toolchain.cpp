@@ -38,7 +38,6 @@ constexpr std::string_view tool_modbaker_name = "mppcmodbaker"; // .glb
 // Tool key names used in settings.toml and configuration.
 constexpr std::string_view tool_console_key = "console";
 constexpr std::string_view tool_burner_key = "burner";
-constexpr std::string_view tool_inspector_key = "inspector";
 constexpr std::string_view tool_baker_key = "baker";
 constexpr std::string_view tool_player_key = "player";
 
@@ -55,7 +54,6 @@ struct tool_spec {
 constexpr tool_spec tool_specs[] = {
     { tool_console_key, tool_console_name, false, true, &rv_editor_toolchain::console },
     { tool_burner_key, tool_burner_name, true, true, &rv_editor_toolchain::burner },
-    { tool_inspector_key, tool_inspector_name, false, true, &rv_editor_toolchain::inspector },
     { tool_baker_key, std::string_view(), false, false, &rv_editor_toolchain::baker }, // a directory: no executable name
     { tool_player_key, tool_player_name, false, false, &rv_editor_toolchain::player },
 };
@@ -177,7 +175,7 @@ std::filesystem::path rv_editor_bakers_dir(const std::filesystem::path &given, s
     return ec ? given : target.parent_path();
 }
 
-// Sets the three bakers in the bakers' directory record tc.baker (empty path: the editor's own
+// Sets the three bakers and mppcinspector in the bakers' directory record tc.baker (empty path: the editor's own
 // directory) and checks each. tc.baker.problem is the first problem found. Versions are left to the caller.
 void rv_editor_bakers_fill(rv_editor_toolchain &tc)
 {
@@ -193,6 +191,16 @@ void rv_editor_bakers_fill(rv_editor_toolchain &tc)
         if (tc.baker.problem.empty()) {
             tc.baker.problem = tool.problem;
         }
+    }
+    // The burner runs mppcinspector from the same directory, so it is found and checked like a baker (no version is asked).
+    tc.inspector = { dir.empty() ? std::filesystem::path() : dir / std::string(tool_inspector_name),
+        tc.baker.origin,
+        "",
+        "",
+        {} };
+    rv_editor_tool_check(tc.inspector, tool_inspector_name.data());
+    if (tc.baker.problem.empty()) {
+        tc.baker.problem = tc.inspector.problem;
     }
     if (ec) {
         // The directory itself cannot be read: that is the problem, whatever the bakers say.
@@ -279,11 +287,6 @@ rv_editor_toolchain rv_editor_toolchain_find()
         "",
         "",
         {} };
-    tc.inspector = { self.empty() ? "" : self / std::string(tool_inspector_name),
-        std::string(tool_origin_next_to_editor),
-        "",
-        "",
-        {} };
     tc.baker = { "", std::string(tool_origin_next_to_editor), "", "", {} };
 
     read_tool_settings(tc);
@@ -299,7 +302,6 @@ rv_editor_toolchain rv_editor_toolchain_find()
 
     rv_editor_tool_check(tc.console, tool_console_name.data());
     rv_editor_tool_check(tc.burner, tool_burner_name.data());
-    rv_editor_tool_check(tc.inspector, tool_inspector_name.data());
     rv_editor_tool_check(tc.firmware, tool_firmware_name.data());
     rv_editor_tool_check(tc.player, tool_player_name.data());
     rv_editor_bakers_fill(tc);
