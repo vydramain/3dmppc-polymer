@@ -1,8 +1,6 @@
 #include "rv_inspector_run.hpp"
 
-#include <algorithm>
 #include <cstdio>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -19,9 +17,6 @@ namespace rv_pdktools
 namespace
 {
 
-// Printed once when a finding has a repair rule; mppcrepairer reads the same disc directory. The path is
-// quoted so that one with spaces can be copied.
-constexpr const char *k_repair_hint_format = "fix available: run mppcrepairer \"%s\"\n";
 // The usage text, printed for --help and for a usage error.
 constexpr const char *k_usage_text =
     "mppcinspector - check a disc directory's sources and print the findings\n"
@@ -44,13 +39,6 @@ constexpr const char *k_error_format = "mppcinspector: %s\n";
 constexpr std::string_view k_operand_error_text = "expects one operand, the disc directory; got ";
 constexpr std::string_view k_empty_report_error_text = "--report needs a non-empty PATH";
 
-bool has_fix(std::span<const rv_pdklib::rv_inspect_finding> findings)
-{
-    return std::any_of(findings.begin(), findings.end(), [](const rv_pdklib::rv_inspect_finding &f) {
-        return !f.fix.empty();
-    });
-}
-
 } // namespace
 
 int rv_inspector_run(const rv_inspector_options &options, bool &has_error, std::string &error)
@@ -69,9 +57,6 @@ int rv_inspector_run(const rv_inspector_options &options, bool &has_error, std::
 
     rv_inspector_print_findings(findings);
     rv_inspector_print_summary(findings);
-    if (has_fix(findings)) {
-        rv_pdklib::rv_fprintf(stdout, k_repair_hint_format, options.disc.string().c_str());
-    }
 
     if (!options.report.empty()) {
         const int rc = rv_inspector_report_write(options.report, findings, error);

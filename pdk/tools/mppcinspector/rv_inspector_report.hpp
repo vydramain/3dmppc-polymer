@@ -1,7 +1,6 @@
 #pragma once
 
 // The report file of mppcinspector's run: cleared before the rules run, written after them.
-// Kept as a header so another program can write reports under the same contract in its own process.
 
 #include <cerrno>
 #include <cstddef>

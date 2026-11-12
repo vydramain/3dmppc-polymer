@@ -1,7 +1,6 @@
 #pragma once
 
-// mppcinspector's disc check, kept as a header so another program can run the same check in its own process.
-// It includes pdkkit, so only targets that link mppcinspector_disc may include it.
+// mppcinspector's disc check. It includes pdkkit, so only a target that links pdkkit may include it.
 
 #include <algorithm>
 #include <cstddef>
@@ -25,16 +24,15 @@ namespace rv_pdktools
 namespace detail
 {
 
-// Texts of the disc check. A finding line adds its location, severity and labels around the rule's text, key,
-// rule and fix, which are copied as given.
+// Texts of the disc check. A finding line adds its location, severity and labels around the rule's text, key
+// and rule, which are copied as given.
 inline constexpr std::string_view rv_disc_no_dir_text = "no disc directory at ";
 inline constexpr std::string_view rv_disc_not_dir_text = "not a directory: ";
 inline constexpr std::string_view rv_disc_stat_text = "cannot examine disc directory ";
 // Summary line: the error and warning counts.
 inline constexpr const char *rv_disc_summary_format = "%zu error(s), %zu warning(s)\n";
-// Bracket labels of a finding line: "... [<rule>, key <key>, fix <fix>]".
+// Bracket labels of a finding line: "... [<rule>, key <key>]".
 inline constexpr std::string_view rv_disc_key_label = ", key ";
-inline constexpr std::string_view rv_disc_fix_label = ", fix ";
 
 // The rule tables in run order: the disc.toml rules, then the kit's.
 inline constexpr std::span<const rv_pdklib::rv_inspect_rule> rv_disc_rule_tables[] = {
@@ -64,14 +62,13 @@ inline int rv_disc_check_dir(const std::filesystem::path &disc, std::string &err
     return RV_OK;
 }
 
-// "<file>[:<line>]: <severity>: <text> [<rule>[, key <key>][, fix <fix>]]"; line 0 is the whole file.
+// "<file>[:<line>]: <severity>: <text> [<rule>[, key <key>]]"; line 0 is the whole file.
 inline std::string rv_disc_format_finding(const rv_pdklib::rv_inspect_finding &f)
 {
     const std::string severity(rv_pdklib::detail::rv_inspect_severity_words[static_cast<size_t>(f.severity)]);
     const std::string line_no = f.line == 0 ? std::string() : ":" + std::to_string(f.line);
     const std::string key_part = f.key.empty() ? std::string() : std::string(rv_disc_key_label) + f.key;
-    const std::string fix_part = f.fix.empty() ? std::string() : std::string(rv_disc_fix_label) + f.fix;
-    return f.file + line_no + ": " + severity + ": " + f.text + " [" + f.rule + key_part + fix_part + "]";
+    return f.file + line_no + ": " + severity + ": " + f.text + " [" + f.rule + key_part + "]";
 }
 
 inline size_t rv_disc_count_severity(std::span<const rv_pdklib::rv_inspect_finding> findings,

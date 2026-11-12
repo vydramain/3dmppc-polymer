@@ -27,10 +27,6 @@
 namespace rv_pdkkit
 {
 
-// Repair rules named in a finding's `fix`; the repair table registers them.
-inline constexpr std::string_view rv_scene_fix_drop_header = "scene-drop-header";
-inline constexpr std::string_view rv_scene_fix_form2 = "scene-form2";
-
 namespace detail
 {
 
@@ -203,7 +199,7 @@ inline void rv_scene_add_notes(std::vector<rv_pdklib::rv_inspect_finding> &out,
 }
 
 // The form-1 findings: the count on the first form-1 object, then the notes, then the comments the conversion
-// loses. The migration runs on a copy; a refused one has no fix and gives its reason in the text.
+// loses. The migration runs on a copy; a refused one gives its reason in the text.
 inline void rv_scene_add_form1(std::vector<rv_pdklib::rv_inspect_finding> &out,
     const std::string &file,
     const std::string &text,
@@ -223,7 +219,6 @@ inline void rv_scene_add_form1(std::vector<rv_pdklib::rv_inspect_finding> &out,
         static_cast<uint32_t>(first->line),
         rv_scene_form1_rule,
         std::string(rv_scene_form1_text) + std::to_string(count) + refusal);
-    f.fix = refused ? std::string() : std::string(rv_scene_fix_form2);
     // A refused conversion writes nothing and loses nothing: no notes, no lost comments.
     if (refused) {
         return;
@@ -273,7 +268,6 @@ inline int rv_scene_inspect(const std::string &text,
             detail::rv_scene_old_header_rule,
             detail::rv_scene_old_header_text);
         f.key = e.key;
-        f.fix = std::string(rv_scene_fix_drop_header);
     }
     for (const rv_pdklib::rv_manifest_tree_section &s : scene.other_sections) {
         detail::rv_scene_add(out,

@@ -35,9 +35,8 @@ struct rv_inspect_finding {
     // Key or section; may be empty.
     std::string key;
     std::string rule;
+    // What is wrong and how to fix it by hand.
     std::string text;
-    // Repair rule name; empty - not repairable.
-    std::string fix;
 };
 
 // Appends findings to `out`. A failure to run is not a finding: returns the error
@@ -54,7 +53,7 @@ struct rv_inspect_rule {
 namespace detail
 {
 
-// Report: one finding per line, seven tab-separated fields. Tab, LF, CR and backslash
+// Report: one finding per line, six tab-separated fields. Tab, LF, CR and backslash
 // inside a field are escaped so that a line is always exactly one finding.
 // Severity words are indexed by severity.
 inline constexpr std::string_view rv_inspect_severity_words[] = { "error", "warning" };
@@ -74,7 +73,6 @@ enum rv_inspect_field : size_t {
     rv_inspect_field_key,
     rv_inspect_field_rule,
     rv_inspect_field_text,
-    rv_inspect_field_fix,
     rv_inspect_field_count,
 };
 
@@ -89,7 +87,6 @@ inline constexpr rv_inspect_text_slot rv_inspect_text_slots[] = {
     { rv_inspect_field_key, &rv_inspect_finding::key },
     { rv_inspect_field_rule, &rv_inspect_finding::rule },
     { rv_inspect_field_text, &rv_inspect_finding::text },
-    { rv_inspect_field_fix, &rv_inspect_finding::fix },
 };
 
 inline void rv_inspect_append_field(std::string &out, std::string_view field)
@@ -205,8 +202,6 @@ inline std::string rv_inspect_report_format(std::span<const rv_inspect_finding> 
         detail::rv_inspect_append_field(out, f.rule);
         out += detail::rv_inspect_sep;
         detail::rv_inspect_append_field(out, f.text);
-        out += detail::rv_inspect_sep;
-        detail::rv_inspect_append_field(out, f.fix);
         out += detail::rv_inspect_eol;
     }
     return out;

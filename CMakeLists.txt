@@ -435,7 +435,7 @@ if(3DMPPC_DEVTOOLS)
   )
   ExternalProject_Add_Step(3dmppc_pdktools rv_announce DEPENDEES configure DEPENDERS build
     COMMAND ${CMAKE_COMMAND} -E true
-    COMMENT "Nested build pdktools (mppcburner, bakers, mppcinspector, mppcrepairer): log ${RV_LOGS_REL}/3dmppc_pdktools-*.log"
+    COMMENT "Nested build pdktools (mppcburner, bakers, mppcinspector): log ${RV_LOGS_REL}/3dmppc_pdktools-*.log"
     ALWAYS 1
   )
   ExternalProject_Add(3dmppc_editor
@@ -526,7 +526,6 @@ if(3DMPPC_DEVTOOLS)
         ${CMAKE_BINARY_DIR}/bin/mppcmusbaker
         ${CMAKE_BINARY_DIR}/bin/mppcmodbaker
         ${CMAKE_BINARY_DIR}/bin/mppcinspector
-        ${CMAKE_BINARY_DIR}/bin/mppcrepairer
         ${RV_FIRMWARE_ELF})
     add_custom_target(check-linux-compat
       COMMAND ${CMAKE_COMMAND}
