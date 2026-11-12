@@ -14,7 +14,6 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
-#include "pdkkit/scene/rv_scene_migrate.hpp"
 #include "scene/rv_editor_scene_fields.hpp"
 #include "scene/rv_editor_scene_object_detail.hpp"
 

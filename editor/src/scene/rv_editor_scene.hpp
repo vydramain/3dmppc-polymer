@@ -71,7 +71,7 @@ struct rv_editor_scene {
 };
 
 // RV_OK on success; RV_ERR_INVAL if the file is unreadable, malformed, or a number or text of a data component does
-// not read (reason in error). A form-1 file is migrated to form 2 on the way in.
+// not read (reason in error). A form-1 file is malformed.
 int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error);
 
 // RV_OK on success; RV_ERR_INVAL if read-only, if a data component does not read or tess is not above zero (reason in error);

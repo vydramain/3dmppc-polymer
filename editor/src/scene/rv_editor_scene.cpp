@@ -10,7 +10,6 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
-#include "pdkkit/scene/rv_scene_migrate.hpp"
 #include "project/rv_editor_toml.hpp"
 
 namespace rv_editor
@@ -39,16 +38,6 @@ constexpr size_t hex_id_buffer_bytes = 16;
 
 // Default preamble for new scene files.
 constexpr std::string_view scene_preamble = "# A scene: 3dmppc-editor's Scene layout edits it.\n\n";
-
-// Logs each line of a migration's notes (the fields it dropped) as a warning.
-void log_lines(std::string_view text)
-{
-    while (!text.empty()) {
-        const size_t end = text.find('\n');
-        RV_LOG_WARN(scene_log_tag, "{}", text.substr(0, end));
-        text = end == std::string_view::npos ? std::string_view() : text.substr(end + 1);
-    }
-}
 
 // One object of a parsed scene as the editor's model; its parent index is already in range.
 rv_editor_scene_object rv_editor_scene_object_from_pdk(const rv_pdkkit::rv_scene &pdk, const rv_pdkkit::rv_scene_object &p)
@@ -100,12 +89,6 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
     if (rv_pdkkit::rv_scene_parse(rv_editor_file_text(path), path.string(), pdk, error) != 0) {
         return RV_ERR_INVAL;
     }
-    std::string notes;
-    if (rv_pdkkit::rv_scene_migrate(pdk, notes) != RV_OK) {
-        error = notes;
-        return RV_ERR_INVAL;
-    }
-    log_lines(notes);
     rv_editor_scene s;
     s.path = path;
     s.preamble = pdk.preamble;
