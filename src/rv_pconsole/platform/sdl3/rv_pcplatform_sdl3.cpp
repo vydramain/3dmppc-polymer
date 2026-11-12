@@ -131,10 +131,16 @@ void log_display_bounds()
 }
 
 #ifdef __EMSCRIPTEN__
-// Page facts set on Module before main() by src/web/rv_web_pre.js; undefined reads as false.
+// Page facts set on Module before main() by the web pre-js parts (src/web/rv_web_pre.js,
+// src/web/rv_web_touchpad.js); undefined reads as false.
 bool page_webhid_usable()
 {
     return EM_ASM_INT({ return Module.rvWebhidUsable ? 1 : 0; });
+}
+
+bool page_touchpad_wanted()
+{
+    return EM_ASM_INT({ return Module.rvTouchpadWanted ? 1 : 0; });
 }
 
 bool page_save_load_failed()
@@ -212,8 +218,8 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
     }
 
 #ifdef __EMSCRIPTEN__
-    // Browser facts: a missing WebHID or JSPI matters only when pads were wanted.
-    const bool webhid_refused = wants.gamepads && !page_webhid_usable();
+    // Browser facts: a page with the on-screen gamepad (a phone) needs no WebHID, since its motion comes from the sensors.
+    const bool webhid_refused = wants.gamepads && !page_webhid_usable() && !page_touchpad_wanted();
     const bool save_load_refused = page_save_load_failed();
     if (webhid_refused) {
         platform->refused_ |= RV_PCPLATFORM_REFUSED_WEBHID;
