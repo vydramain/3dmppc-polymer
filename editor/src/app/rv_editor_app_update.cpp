@@ -7,6 +7,8 @@
 #include <string_view>
 #include <utility>
 
+#include "text/rv_editor_text.hpp"
+
 namespace rv_editor
 {
 
@@ -283,6 +285,13 @@ void rv_editor_app_update(rv_editor_app &app)
     const bool build_ended = was_busy && !app.build.busy();
     if (build_ended) {
         rv_editor_app_build_ended_note(app);
+        // The build may have changed what the inspector reports: look again, after the run that is under way.
+        std::string inspect_error;
+        if (app.inspect.request(app.project, app.tools, app.log, inspect_error) != RV_OK) {
+            app.log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
+                rv_editor_text_format("inspect.not_started", std::make_format_args(inspect_error)));
+        }
     }
     // The build Run started runs, or Run says why not; never the one before.
     const bool run_for_build = build_ended && app.run_after_build;

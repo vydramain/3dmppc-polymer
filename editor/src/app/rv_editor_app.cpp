@@ -115,7 +115,7 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.project.manifest_error);
     }
     std::string inspect_error;
-    if (app.inspect.start(app.project, app.tools, app.log, inspect_error) != RV_OK) {
+    if (app.inspect.request(app.project, app.tools, app.log, inspect_error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor,
             rv_editor_log_level::warning,
             rv_editor_text_format("inspect.not_started", std::make_format_args(inspect_error)));

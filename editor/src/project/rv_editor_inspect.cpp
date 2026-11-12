@@ -6,6 +6,7 @@
 #include <format>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_inspect/rv_inspect.hpp"
@@ -32,6 +33,7 @@ int rv_editor_inspect::start(const rv_editor_project &project,
     std::string &error)
 {
     (void)log;
+    next_project_.reset();
     problems_.clear();
     running_ = false;
     if (tools.inspector.path.empty() || !tools.inspector.problem.empty()) {
@@ -57,6 +59,26 @@ int rv_editor_inspect::start(const rv_editor_project &project,
     return rc;
 }
 
+int rv_editor_inspect::request(const rv_editor_project &project,
+    const rv_editor_toolchain &tools,
+    rv_editor_log &log,
+    std::string &error)
+{
+    if (!running_) {
+        return start(project, tools, log, error);
+    }
+    if (project.root != root_) {
+        // A cancel already under way is no failure: the run is stopping either way.
+        std::string cancel_error;
+        (void)job_.cancel(cancel_error);
+        problems_.clear();
+    }
+    next_project_ = project;
+    next_tools_.inspector.path = tools.inspector.path;
+    next_tools_.inspector.problem = tools.inspector.problem;
+    return RV_OK;
+}
+
 void rv_editor_inspect::update(rv_editor_log &log)
 {
     if (!running_) {
@@ -72,7 +94,19 @@ void rv_editor_inspect::update(rv_editor_log &log)
         return;
     }
     running_ = false;
-    finish(log);
+    if (!job_.cancelled()) {
+        finish(log);
+    }
+    if (next_project_) {
+        const rv_editor_project project = std::move(*next_project_);
+        next_project_.reset();
+        std::string error;
+        if (start(project, next_tools_, log, error) != RV_OK) {
+            log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
+                rv_editor_text_format("inspect.not_started", std::make_format_args(error)));
+        }
+    }
 }
 
 void rv_editor_inspect::finish(rv_editor_log &log)

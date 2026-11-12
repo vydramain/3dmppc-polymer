@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,10 @@ public:
     // RV_OK, also when nothing runs: no inspector or one with a problem. A new start drops the previous
     // findings. Otherwise the process's RV_ERR_* with the reason in `error`.
     int start(const rv_editor_project &project, const rv_editor_toolchain &tools, rv_editor_log &log, std::string &error);
+    // A run now when none runs. While one runs for the same project, one more run follows it, however many
+    // requests come; for another project the running one is cancelled and the new one follows it, the old
+    // findings dropped. running() stays true between the two. Results as start().
+    int request(const rv_editor_project &project, const rv_editor_toolchain &tools, rv_editor_log &log, std::string &error);
     // Pumps the process into the log; at its end reads the report. A run that gave none logs why and shows no findings.
     void update(rv_editor_log &log);
     bool running() const
@@ -40,6 +45,9 @@ private:
     std::filesystem::path report_;
     bool running_ = false;
     std::vector<rv_editor_problem> problems_;
+    // The run due when the current one ends: the latest request's project and inspector.
+    std::optional<rv_editor_project> next_project_;
+    rv_editor_toolchain next_tools_; // only its inspector is kept: a toolchain cannot be copied
 };
 
 } // namespace rv_editor

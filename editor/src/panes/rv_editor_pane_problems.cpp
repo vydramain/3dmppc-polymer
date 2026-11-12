@@ -23,8 +23,9 @@ namespace
 constexpr std::string_view diag_severity_error = "error";
 constexpr std::string_view diag_severity_warn = "warn";
 
-// Problem source: "build" vs language server (source name varies).
+// Problem source: "build", "inspector", else a language server (source name varies).
 constexpr std::string_view problem_source_build = "build";
+constexpr std::string_view problem_source_inspector = "inspector";
 
 // Problems table columns: icon, source, file, line:col, message.
 constexpr int problems_table_column_count = 5;
@@ -34,6 +35,8 @@ constexpr int problems_table_column_count = 5;
 std::vector<rv_editor_problem> rv_editor_gather_problems(const rv_editor_app &app)
 {
     std::vector<rv_editor_problem> out = app.problems;
+    // The inspector reports what the build also may say of the same place: it is shown once.
+    rv_editor_problems_drop_reported(out, app.inspect.problems());
     out.insert(out.end(), app.inspect.problems().begin(), app.inspect.problems().end());
     for (const auto &[file, diags] : app.nvim.diagnostics()) {
         for (const rv_editor_nvim_diagnostic &d : diags) {
@@ -68,10 +71,15 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
     size_t build_total = 0;
     size_t lsp_errors = 0;
     size_t lsp_total = 0;
+    size_t inspector_errors = 0;
+    size_t inspector_total = 0;
     for (const rv_editor_problem &p : problems) {
         if (p.source == problem_source_build) {
             build_errors += p.error ? 1 : 0;
             ++build_total;
+        } else if (p.source == problem_source_inspector) {
+            inspector_errors += p.error ? 1 : 0;
+            ++inspector_total;
         } else {
             lsp_errors += p.error ? 1 : 0;
             ++lsp_total;
@@ -82,6 +90,11 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
         // Idle with diagnostics: show only language server info without pretending it's a build result.
         const size_t lsp_warnings = lsp_total - lsp_errors;
         what = rv_editor_text_format("pane_problems.idle_servers", std::make_format_args(lsp_errors, lsp_warnings));
+        if (inspector_total != 0) {
+            const size_t inspector_warnings = inspector_total - inspector_errors;
+            what += rv_editor_text_format("pane_problems.inspector_suffix",
+                std::make_format_args(inspector_errors, inspector_warnings));
+        }
     } else {
         const char *build_word = b.busy() ? rv_editor_text("pane_problems.building") : rv_editor_text("pane_problems.build");
         const size_t build_number = b.number();
@@ -96,8 +109,13 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             const size_t lsp_warnings = lsp_total - lsp_errors;
             what += rv_editor_text_format("pane_problems.servers_suffix", std::make_format_args(lsp_errors, lsp_warnings));
         }
+        if (inspector_total != 0) {
+            const size_t inspector_warnings = inspector_total - inspector_errors;
+            what += rv_editor_text_format("pane_problems.inspector_suffix",
+                std::make_format_args(inspector_errors, inspector_warnings));
+        }
     }
-    const size_t errors = build_errors + lsp_errors;
+    const size_t errors = build_errors + lsp_errors + inspector_errors;
 
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
