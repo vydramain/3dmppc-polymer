@@ -40,7 +40,7 @@ Every build goes to a new numbered directory. Run and Build and Restart start th
 
 ## When a build is refused
 
-Before it builds, mppcburner runs mppcinspector on the disc. If the inspector finds an error in the sources, the build is refused and nothing is compiled.
+Before it builds, mppcburner runs mppcinspector on the disc. Without mppcinspector in the bakers' directory the editor does not start a build at all. If the inspector finds an error in the sources, the build is refused and nothing is compiled.
 
 To see what is wrong, open Problems. Every finding has the source inspector, a file, a line and a message that ends with the rule and the key in brackets. Problems also shows warnings, and it fills up again when you open the project, when you save a file and after every build.
 
@@ -90,9 +90,9 @@ Burn layout. For checking a disc before it ships. To make an image, press Build 
 
 To see and change the tools, choose File > Settings.... The page has a row for each tool: Runtime, Burner, Inspector, Bakers and Player. Each shows the path in use and its status. To use another file, type or Browse... the Override path, then press Check and Apply. Revert drops the changes.
 
-The editor looks for the console, burner, inspector and bakers next to itself. The player has no default place: name it if you want to run a candidate in it. Settings are kept in settings.toml, in its [tools] section.
+The editor looks for the console and burner next to itself. The Bakers row is a directory: it holds mppctexbaker, mppcmusbaker, mppcmodbaker and mppcinspector, and the editor looks for them in its own directory unless you name another. The player has no default place: name it if you want to run a candidate in it. Settings are kept in settings.toml, in its [tools] section.
 
-A missing tool turns off only the commands that need it, and the status bar says Tools: N missing. Without mppcinspector, the editor shows no inspector findings in Problems. The burner needs mppcinspector too: a build is refused, with an error that says where it looked, if the burner cannot find it. The editor tells the burner to look in the bakers' directory, so keep mppcinspector there.
+A missing tool turns off the commands that need it, and the status bar says Tools: N missing. A missing mppcinspector counts as a missing baker: Build, Run when it builds, Build and Restart and the exports are unavailable, and the tooltip of the button says why. The check of Problems in the background needs it too. The burner runs mppcinspector from the bakers' directory, so keep it there next to the bakers.
 
 The same page sets Vsync and the Frame rate limit. To change the size of the text, choose View > Code Text Size, Game Scale or UI Scale. To see the tools of the open project, choose Project > Project Settings; Look for Tools Again searches again.
 
@@ -125,6 +125,9 @@ The editor uses the standard directories. XDG_CONFIG_HOME, XDG_CACHE_HOME and XD
 - Shift+F5 — stop
 - F8 — reload the entry script, a module or a texture in the running game
 - Ctrl+S — save the file in a Code tile, or the scene in a Scene pane
+- Ctrl+Shift+S — Save All, from any pane
+- Ctrl+O — Open Project; it does not work while a Code tile or the Terminal has the keyboard
+- Ctrl+N — open the New Project page; it does not work while a Code tile or the Terminal has the keyboard
 - Ctrl+Z — undo
 - Ctrl+Shift+Z — redo
 - Ctrl+Y — redo a scene edit
@@ -137,4 +140,5 @@ The editor uses the standard directories. XDG_CONFIG_HOME, XDG_CACHE_HOME and XD
 - Delete — delete the chosen scene object
 - Ctrl+C — copy the selected lines of a log, or stop the running command in a Terminal
 - Ctrl+Shift+V — paste into a Terminal
+- Vim and the shell keep Ctrl+O and Ctrl+N; press Ctrl+F6 to move the keyboard out of the tile first.
 - F1 — open this manual; Help > Keyboard Shortcuts lists the keys in the editor

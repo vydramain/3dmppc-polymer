@@ -29,6 +29,8 @@ it for its Problems pane). Exit status: 0 no error findings (warnings allowed),
 1 error findings, 2 a usage error or a failed run. `mppcburner build` runs it
 before it compiles anything and refuses the build on exit status 1; it looks for
 it in the `--baker` directory when one is given, else next to itself, then on `$PATH`.
+The editor looks for `mppcinspector` in the bakers' directory, the one it passes to the
+burner as `--baker`; Build and Run are refused when `mppcinspector` is not there.
 
 Tools are named for the **act**, artifacts for the **thing**. `mppcdisc` is a
 disc, so no tool may be called that — otherwise every sentence in the

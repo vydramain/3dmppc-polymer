@@ -44,7 +44,8 @@ See the root README for details and your platform's package list.
 
 The editor looks for the console and burner next to its own executable, where a development
 build puts them (`build-dev/pconsole/bin/`), and the three bakers in the same directory:
-`mppctexbaker` (PNG), `mppcmusbaker` (WAV) and `mppcmodbaker` (.glb).
+`mppctexbaker` (PNG), `mppcmusbaker` (WAV) and `mppcmodbaker` (.glb), and `mppcinspector`
+beside them.
 Settings in File > Settings or `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml`
 override them. `baker` is the bakers' directory, not an executable. A file path, or a symlink
 to one, means the directory where that file really lies, as with `mppcburner --baker`.
@@ -52,18 +53,17 @@ Empty means the editor's own directory. The editor checks the three bakers there
 executable, version) and reports a path it cannot look up as its own problem; Project > Project
 Settings > Toolchain shows them. It passes the directory to `mppcburner` as `--baker` on each
 build, unpacked build, release candidate and PNG texture bake, and records their versions in
-a release candidate. `mppcinspector` is found the same way (beside the editor, or from
-`inspector`); it runs `mppcinspector <disc> --report PATH` with the report under the
+a release candidate. `mppcinspector` is found in the bakers' directory, where the burner
+runs it from, and is checked with the bakers; without it Build and Run are unavailable.
+The editor runs `mppcinspector <disc> --report PATH` with the report under the
 project's cache directory, `<cache>/<hash>/inspector.tsv` (exit 0 clean or warnings, 1
-errors, 2 failed: no findings are shown after 2). A missing inspector only turns that check
-off in the editor; the burner still runs its own check before each build and refuses the
-build when it cannot find `mppcinspector`:
+errors, 2 failed: no findings are shown after 2). The burner runs its own check before
+each build too:
 
 ```toml
 [tools]
 console = "/path/to/3dmppc"
 burner = "/path/to/mppcburner"
-inspector = "/path/to/mppcinspector"
 baker = "/path/to/bakers"
 player = "/path/to/3dmppc"   # built without devtools; there is no default
 ```
