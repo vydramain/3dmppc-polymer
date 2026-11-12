@@ -157,8 +157,6 @@ namespace detail
 
 // The disc rule's name, prefixed to its error by rv_inspect_run.
 inline constexpr std::string_view rv_scene_disc_rule = "scene-disc";
-// The [build] sdk value that marks a disc built with the kit.
-inline constexpr std::string_view rv_scene_disc_kit_sdk = "kit";
 // The suffix that picks scene files out of the [assets] files patterns.
 inline constexpr std::string_view rv_scene_disc_suffix = ".scene.toml";
 
@@ -180,8 +178,8 @@ rv_scene_disc_expand(const std::filesystem::path &disc, const std::string &patte
 
 } // namespace detail
 
-// Checks every scene of a disc that builds with the kit. A disc whose disc.toml is missing or not clean, or
-// whose [build] sdk does not name the kit, has no finding here: the disc.toml rules report the first.
+// Checks every scene the disc's [assets] files patterns name, with or without the kit. A disc whose disc.toml is
+// missing or not clean has no finding here: the disc.toml rules report it, and its patterns are not trusted.
 inline int
 rv_scene_inspect_disc(const std::filesystem::path &disc, std::vector<rv_pdklib::rv_inspect_finding> &out, std::string &error)
 {
@@ -191,10 +189,6 @@ rv_scene_inspect_disc(const std::filesystem::path &disc, std::vector<rv_pdklib::
         return RV_ERR_IO;
     }
     if (!clean) {
-        return RV_OK;
-    }
-    const std::vector<std::string> &sdk = manifest.build_sdk;
-    if (std::find(sdk.begin(), sdk.end(), detail::rv_scene_disc_kit_sdk) == sdk.end()) {
         return RV_OK;
     }
     std::vector<std::string> scenes;
