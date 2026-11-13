@@ -81,6 +81,8 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         return rv_editor_text("workspace.pane_session");
     case rv_editor_pane_kind::test_case:
         return rv_editor_text("workspace.pane_test_case");
+    case rv_editor_pane_kind::new_project:
+        return rv_editor_text("workspace.pane_new_project");
     case rv_editor_pane_kind::open_project:
         return rv_editor_text("workspace.pane_open_project");
     case rv_editor_pane_kind::settings:

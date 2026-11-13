@@ -9,6 +9,7 @@
 
 #include "project/rv_editor_templates.hpp"
 #include "release/rv_editor_candidate_store.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -42,6 +43,7 @@ void rv_editor_app_init(rv_editor_app &app)
     }
     rv_editor_app_tool_note(app, "runtime", app.tools.console);
     rv_editor_app_tool_note(app, "burner", app.tools.burner);
+    rv_editor_app_tool_note(app, "inspector", app.tools.inspector);
     rv_editor_app_tool_note(app, "texbaker", app.tools.texbaker);
     rv_editor_app_tool_note(app, "musbaker", app.tools.musbaker);
     rv_editor_app_tool_note(app, "modbaker", app.tools.modbaker);
@@ -111,6 +113,12 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     rv_editor_recent_add(app.project.root);
     if (!app.project.manifest_error.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.project.manifest_error);
+    }
+    std::string inspect_error;
+    if (app.inspect.request(app.project, app.tools, app.log, inspect_error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            rv_editor_text_format("inspect.not_started", std::make_format_args(inspect_error)));
     }
     return RV_OK;
 }

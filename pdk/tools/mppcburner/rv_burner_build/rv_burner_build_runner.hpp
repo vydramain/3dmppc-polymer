@@ -18,7 +18,8 @@ int rv_burner_build_manifest(const std::filesystem::path &disc_dir, rv_pdklib::r
 
 // --- the burn pipeline ---
 //
-// One disc directory in, one .mppcdisc out, in four phases:
+// One disc directory in, one .mppcdisc out, in four phases.
+// Before [1/4], a sources check refuses error findings, a missing mppcinspector, a bad --baker hint and an incomplete check.
 //
 //   [1/4] manifest  parse and validate disc.toml
 //   [2/4] compile   generate a CMake project and build it into disc.so

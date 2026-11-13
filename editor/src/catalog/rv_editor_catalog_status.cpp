@@ -90,9 +90,7 @@ void rv_editor_catalog_menus()
     }
     ImGui::TextUnformatted(rv_editor_text("catalog_status.context_help"));
     if (rv_editor_window_context_menu_begin("##context")) {
-        rv_editor_menu_item(rv_editor_text("catalog_status.context_rename"),
-            rv_editor_text("catalog_status.shortcut_context_rename"),
-            nullptr);
+        rv_editor_menu_item(rv_editor_text("catalog_status.context_rename"), nullptr, nullptr);
         rv_editor_menu_item(rv_editor_text("catalog_status.context_delete"),
             rv_editor_text("catalog_status.shortcut_context_delete"),
             nullptr);

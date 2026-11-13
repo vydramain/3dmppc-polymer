@@ -205,8 +205,9 @@ bool rv_editor_term_keys(rv_editor_terminal &term)
             continue;
         }
         // Ctrl or Alt with a letter or digit arrives as a key, not as text:
-        // Ctrl+C is the interrupt. Ctrl+B stays Build.
-        if ((io.KeyCtrl || io.KeyAlt) && !(io.KeyCtrl && key == ImGuiKey_B)) {
+        // Ctrl+C is the interrupt. Ctrl+B stays Build, Ctrl+Shift+S Save All.
+        const bool is_save_all = io.KeyCtrl && io.KeyShift && key == ImGuiKey_S;
+        if ((io.KeyCtrl || io.KeyAlt) && !(io.KeyCtrl && key == ImGuiKey_B) && !is_save_all) {
             uint32_t ch = 0;
             if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
                 ch = 'a' + static_cast<uint32_t>(key - ImGuiKey_A);

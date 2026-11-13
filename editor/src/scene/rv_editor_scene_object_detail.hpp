@@ -11,7 +11,7 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
-#include "pdkkit/scene/rv_scene_migrate.hpp"
+#include "pdkkit/ecs/rv_ecs_component.hpp"
 #include "scene/rv_editor_scene.hpp"
 
 namespace rv_editor
@@ -26,28 +26,39 @@ inline constexpr size_t uv_size = 4;
 inline constexpr std::string_view reason_no_sprite = "has no quad or billboard component";
 inline constexpr std::string_view reason_tess_positive = "must be a number greater than zero";
 
-namespace migrate = rv_pdkkit::detail;
+// A component's name and its field at `index`, in declaration order, from its ECS description.
+template <typename T>
+inline std::string component_name_of()
+{
+    return rv_pdkkit::ecs_component_traits<T>::desc.name;
+}
 
-// The component and field names the accessors use: pdkkit's descriptions, and the sprites' legacy names as the
-// migration writes them.
+template <typename T>
+inline std::string component_field_of(std::size_t index)
+{
+    return rv_pdkkit::ecs_component_traits<T>::desc.fields[index].name;
+}
+
+// The component and field names the accessors use: pdkkit's descriptions, and the sprites' components, which
+// are not in the ECS table, so their names and keys are literal here.
 struct scene_names {
-    std::string name = migrate::migrate_name_of<rv_pdkkit::ecs_component_name>();
-    std::string name_text = migrate::migrate_field_of<rv_pdkkit::ecs_component_name>(0);
-    std::string transform = migrate::migrate_name_of<rv_pdkkit::ecs_component_transform>();
-    std::string position = migrate::migrate_field_of<rv_pdkkit::ecs_component_transform>(0);
-    std::string rotation = migrate::migrate_field_of<rv_pdkkit::ecs_component_transform>(1);
-    std::string scale = migrate::migrate_field_of<rv_pdkkit::ecs_component_transform>(2);
-    std::string camera = migrate::migrate_name_of<rv_pdkkit::ecs_component_camera>();
-    std::string volume = migrate::migrate_name_of<rv_pdkkit::ecs_component_volume>();
-    std::string model = migrate::migrate_name_of<rv_pdkkit::ecs_component_model>();
-    std::string model_source = migrate::migrate_field_of<rv_pdkkit::ecs_component_model>(0);
-    std::string model_tint = migrate::migrate_field_of<rv_pdkkit::ecs_component_model>(1);
-    std::string legacy_quad = migrate::legacy_quad_name;
-    std::string legacy_billboard = migrate::legacy_billboard_name;
-    std::string legacy_texture = migrate::legacy_texture_key;
-    std::string legacy_uv = migrate::legacy_uv_key;
-    std::string legacy_tint = migrate::legacy_tint_key;
-    std::string legacy_tess = migrate::legacy_tess_key;
+    std::string name = component_name_of<rv_pdkkit::ecs_component_name>();
+    std::string name_text = component_field_of<rv_pdkkit::ecs_component_name>(0);
+    std::string transform = component_name_of<rv_pdkkit::ecs_component_transform>();
+    std::string position = component_field_of<rv_pdkkit::ecs_component_transform>(0);
+    std::string rotation = component_field_of<rv_pdkkit::ecs_component_transform>(1);
+    std::string scale = component_field_of<rv_pdkkit::ecs_component_transform>(2);
+    std::string camera = component_name_of<rv_pdkkit::ecs_component_camera>();
+    std::string volume = component_name_of<rv_pdkkit::ecs_component_volume>();
+    std::string model = component_name_of<rv_pdkkit::ecs_component_model>();
+    std::string model_source = component_field_of<rv_pdkkit::ecs_component_model>(0);
+    std::string model_tint = component_field_of<rv_pdkkit::ecs_component_model>(1);
+    std::string legacy_quad = "legacy_quad";
+    std::string legacy_billboard = "legacy_billboard";
+    std::string legacy_texture = "texture";
+    std::string legacy_uv = "uv";
+    std::string legacy_tint = "tint";
+    std::string legacy_tess = "tess";
 };
 
 inline const scene_names &names()

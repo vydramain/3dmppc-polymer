@@ -2,6 +2,7 @@
 
 #include "project/rv_editor_problems.hpp"
 
+#include <algorithm>
 #include <charconv>
 
 #include "pdk/rv_err.h"
@@ -93,6 +94,15 @@ bool rv_editor_problem_parse(std::string_view text, const std::filesystem::path 
         return true;
     }
     return false;
+}
+
+void rv_editor_problems_drop_reported(std::vector<rv_editor_problem> &build, const std::vector<rv_editor_problem> &inspector)
+{
+    std::erase_if(build, [&](const rv_editor_problem &b) {
+        return std::ranges::any_of(inspector, [&](const rv_editor_problem &i) {
+            return i.file == b.file && i.line == b.line && i.message == b.message;
+        });
+    });
 }
 
 } // namespace rv_editor

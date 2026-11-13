@@ -1,174 +1,144 @@
 # 3dmppc editor
 
-## What this editor is
+## What you need
 
-A separate program from the console and tools. It works on a game directory,
-drives mppcburner to build it and a development console to run it. It works
-at 1280x720 times the UI scale or bigger, showing tiled panes of code, logs,
-game view and settings between the menu bar and a status bar.
+The editor builds and runs games for the 3dmppc console. It works on a game directory: a folder with a disc.toml in it. The editor is a separate program, and it drives the tools next to it.
 
-## Workspace: tiles and layout
+- the console, built with devtools, to run the game
+- mppcburner, to build the game
+- mppcinspector, to check the sources before a build
+- the bakers mppctexbaker, mppcmusbaker and mppcmodbaker, for PNG, WAV and glTF files
+- a player, 3dmppc built without devtools, only for a candidate's last check
 
-Tiles hold panes (code, logs, game view, files, etc.). A tile's header has
-X on the left to close and M on the right to maximize; right click opens the
-menu. Tiles can be split, closed, maximized or changed to another kind.
-Several panes in one tile show as folder tabs. Drag a tile header or tab to
-another tile's edge or tab strip to move it there. Escape cancels. The
-tile with focus wears a brass frame. Ctrl+F6 and Ctrl+Shift+F6 move the
-keyboard between tiles.
+A development build puts all of them but the player beside the editor, so you need to set nothing up. The window needs 1280x720 times the UI scale or more.
 
-## Four layouts: Code, Scene, Debug, Burn
+## First start: open or create a project
 
-Four layouts share the same panes, documents, build and runtime. Choose one
-once a project is open, at the right end of the menu bar or in Window >
-Reference Layouts. Each layout keeps its own arrangement of tiles and
-windows, saved to ~/.config/3dmppc-editor/layout-code, layout-scene,
-layout-debug and layout-burn (or XDG_CONFIG_HOME if set). The last one
-chosen is remembered. Reset Layout puts the chosen layout back to its
-standard tiles without changing the others. Choosing another layout changes
-only what is shown, never what is built, running or being edited.
+Without a project the Project Toolchest on the left shows Recent Projects, New Project, Open Project, Settings and Help.
 
-## Project Catalog: without a project
+To open a project, choose File > Open Project... or Open Project in the Toolchest, and pick the game directory. To open one you used lately, select it in Recent Projects and press Enter or double click.
 
-The Project Toolchest on the left shows Recent Projects, New Project,
-Open Project, Settings and Help. Recent Projects lists your recent games
-with their status. Select one and press Enter or double click to open it.
-New Project is a form for a template, name, disc id and directory. Open
-Project opens a game directory. The Toolchest's pages answer from there.
-New Project text stays while you look at other pages; Reset clears it.
+To start a new game, choose New Project, pick a template (Demo (C++) or Demo (Lua)), give a Name and a Disc ID, choose the Directory and press Create Project. Reset clears the form.
 
-## No modal windows
+The editor never opens a modal window. A form, a question or a setting is a page next to the Toolchest, a tab in a tile or an area inside a pane.
 
-The editor has no modal windows. A form, setting or question is a page
-beside the Project Toolchest, a tab in a tile or an area inside the pane.
-Context menus, drop-downs and tooltips stay short-lived and close with
-Escape or a click elsewhere.
+## Build and run
 
-## Building and running a game
+To build, choose Project > Build or press Ctrl+B. To cancel it, choose Project > Cancel Build.
 
-With a project open, click Build (Ctrl+B) or Run (F5). Run builds the
-saved files first if nothing has succeeded yet or one changed since.
-Pause (F6), Step Frame (F7) and Stop (Shift+F5) control a paused or
-running game. Reload (F8) updates a texture or Lua script in a running
-session without a rebuild. Build and Restart stops the game, builds again
-and starts the new build. The Game tile shows the disc's screen; Console
-Output, Problems, Runtime Log and Build Log hold the details. Run >
-Run Configuration keeps profiles in .3dmppc-editor/project.toml,
-grouped as the console sets them: Session (runtime, working directory,
-Start Paused, Fixed Step, Reload On Save, more options, environment),
-Audio (Mute), Memory Card (card path). Every build goes to a new
-numbered directory and runs only if the burner exits 0. A running game
-keeps running while the next build is made. Each log pane's controls show
-Source, Level, Find, Follow, Wrap, Copy, Export and Clear View in one row;
-buttons that do not fit go behind More. Every icon in the editor is a
-two-letter code in the same square: Bd Build, Rn Run, Ps Pause, Sf Step Frame,
-Sp Stop, Rl Reload, and others for the panes and files.
+To play, press F5 or choose Run > Run. Run builds first if the last build did not succeed or a file changed since, then starts the game. A build uses the files as saved, so if a file has unsaved changes the editor asks first. The picture appears in the Game tile.
 
-## Code
+To pause, press F6. To run one frame of a paused game, press F7. To stop, press Shift+F5.
 
-The Code layout shows the source files on the left, the code editor and game
-view in the middle, with build output below. Open the project folder to browse
-and edit files. Build and Run commands sit above the game frame. If the build
-finds errors, the Problems pane lists them with line and column; click to open
-and fix. Search Results (Ctrl+Shift+F) finds text across the whole project.
+To change a Lua script or a texture in a running game without a rebuild, save it and press F8. Choose Run > Build and Restart when a change needs a new build.
 
-## Debug
+To run the last build that succeeded with your current scripts and assets, choose Run > Run Last Successful Build.
 
-The Debug layout puts the game in front for playing and watching what happens.
-Runtime Controls at the top let you Pause, Step Frame and Run. Session shows
-the game's state and marks you make while it plays. Inspector reads what the
-game's code reports, frame by frame when paused. Test Case lists test scenarios
-in the project; mark each as Passed, Failed or Blocked with a note. Findings
-stores frames you capture during play.
+To change how Run starts the game, choose Run > Run Configuration... Profiles are kept in the project folder. They hold the runtime, the working directory, Start Paused, Fixed Step, Reload On Save, Mute and the Memory card.
 
-## Burn
+Every build goes to a new numbered directory. Run and Build and Restart start the game only if the burner ends with exit code 0. A running game keeps running while the next build is made.
 
-The Burn layout is for checking a release candidate disc before shipping.
-Build Candidate makes a numbered image file. Run Candidate plays that exact
-image with its own memory card. Run in Player opens it in the player program.
-Eight checks mark off as you test: Build, Disc loads, Player, Launch, Input,
-Audio, Main scenario, Exit. Approved or Rejected seals the decision once all
-checks pass. Export Report writes the test log and results to a file.
+## When a build is refused
 
-## Scene
+Before it builds, mppcburner runs mppcinspector on the disc. Without mppcinspector in the bakers' directory the editor does not start a build at all. If the inspector finds an error in the sources, the build is refused and nothing is compiled.
 
-The Scene layout edits 3D scenes. Each scene is a set of objects with position,
-rotation and scale. The Hierarchy on the left lists Groups, Cameras, Boxes,
-Quads, Billboards and Volumes. Inspector edits the chosen object's transform
-and texture. The viewport shows the scene in Wireframe, Filled or Textured mode.
-Assets at the bottom opens your project's textures, sounds and scene files.
-Drag objects in the viewport or use the Transform Toolchest: W to move, E to
-rotate, R to scale.
+To see what is wrong, open Problems. Every finding has the source inspector, a file, a line and a message that ends with the rule and the key in brackets. Problems also shows warnings, and it fills up again when you open the project, when you save a file and after every build.
 
-## Game
+To jump to the place, double click the row or press Enter on it. The file opens at that line.
 
-The Game tile draws the frame from the running game. Click on it to give the
-game the keyboard; Shift+Esc takes it back. Use Fit, Integer or 1x, 2x, 3x
-buttons to choose the window size. Fit scales to the tile size; Integer uses
-whole multiples of the frame size. When paused, the last frame stays on screen.
-Sound still plays when the window is hidden.
+The burner prints each finding as one line. For example, if disc.toml has files = ["assets/snd/*.wave"] under [assets] and no file ends in .wave, the build stops with this line.
 
-## Files
+disc.toml:11: error: pattern 'assets/snd/*.wave' matched no files under '.' [disc-toml-patterns, key [assets] files]
 
-The Files pane shows your project directory as it is on disk. Open folders to
-browse. Right click to New File, New Folder, Rename or Delete. Double click a
-file to open it in the Code editor. Links show with an arrow and are not entered.
-Folders named .mppcburn and .git are hidden.
+Read it from left to right. disc.toml:11 is the file and the line. error means the build is refused; a warning would not stop it. The text says what is wrong: the pattern matches nothing. The brackets name the rule, disc-toml-patterns, and the key, [assets] files.
 
-## Code
+To fix it, edit that line of disc.toml so the pattern matches real files, for example assets/snd/*.wav, or add the files it should find. Press Ctrl+S, then Ctrl+B. The row leaves Problems when the inspector runs again and finds nothing.
 
-A Code tile is a text editor window. Double click a file in Files to open it
-here. Each file is a tab; click a tab to switch. Type, select with Shift+arrow,
-cut and paste with Ctrl+X, Ctrl+C, Ctrl+V. Ctrl+Z and Ctrl+Shift+Z undo and
-redo. Ctrl+S saves. Ctrl+F searches, Ctrl+H replaces. F2 switches Vim mode on
-and off. The status line marks unsaved files with a plus sign and shows the
-file name.
+Compiler errors and warnings from the build are in Problems too, with the source build. The whole output is in Build Log.
 
-## Terminal
+## Layouts and panes
 
-The Terminal tile runs a shell in your project directory. Type commands as you
-would in a terminal window. Ctrl+C stops a running command. The wheel scrolls
-back through 5000 lines of history. F5, F6, F7 and Ctrl+B stay available for
-the editor. When the shell ends, the tile offers to start a new one.
+There are four layouts: Code, Scene, Debug and Burn. To switch, click one at the right end of the menu bar or choose Window > Reference Layouts. Each keeps its own tiles. Window > Reset Layout puts the chosen one back to its standard tiles. Switching changes only what is shown, never what is built, running or edited.
+
+A tile holds one pane or several as tabs. To move a pane, drag its tile header or tab to the edge of another tile; Escape cancels. To close a tile use the X in its header, and to maximize it use the M. Right click the header to split, change or close it. To add a pane, choose Window > New Tile. To move the keyboard to the next tile, press Ctrl+F6.
+
+Code layout. Files on the left, a Code tile in the middle and the Game with Runtime Controls on the right. Console Output, Problems, Terminal and Search Results are tabs below. To search the whole project, press Ctrl+Shift+F.
+
+Code tile. It is a text editor, Neovim inside. To open a file, double click it in Files. Each file is a tab. The Vim button switches Vim mode on and off. A file with unsaved changes shows [+]. Ctrl+S saves it. Ctrl+Z and Ctrl+Shift+Z undo and redo.
+
+Files. It shows the project directory as it is on disk. Right click a file or folder, or use the buttons, for New File, New Folder, Rename and Delete. Open as Text opens a file in a Code tile. The folders .mppcburn, .git and .3dmppc-editor are hidden.
+
+Game. To play, click the picture and the game gets the keyboard. To give it back, press Shift+Escape. To change the size, use Fit, Integer, 1x, 2x or 3x.
+
+Terminal. A shell in the project directory. To stop a running command, press Ctrl+C. To paste several lines, press Ctrl+Shift+V and confirm.
+
+Scene layout. To make a scene, choose Scene > New Scene or press Create Scene in the Scene pane. The file goes to scenes/ in the project. To open one, choose Scene > Open Scene. A scene is a list of objects. Each object has an id, a parent and an entity, and its data sits in components, the [[component]] blocks of the scene file, such as name, transform and model.
+
+- Hierarchy lists the objects as a tree. Search by name, sort by File order, Name or Type, and drag an object to move it under another. Right click for Duplicate, Delete and Move to Root.
+- Inspector shows the chosen object: Kind, Id, Name, Entity, Visible and its Components. To change a field, edit it; Reset puts it back. To add data, press Add component. Remove takes a component off.
+- The Scene view draws the objects. Shade: Wireframe, Filled or Textured. View: Persp, Top, Front or Right. Snap and Grid help to place things.
+- To work on an object, press Q to select, W to move, E to rotate or R to scale, and drag in the view. Press F to fill the view with the chosen object, and Home for the view the scene opened with. Escape takes back a drag.
+- Add in the Scene menu puts a Model, a Camera, a Volume or an Empty entity in the scene. To save, press Ctrl+S in the Scene pane or choose Scene > Save Scene.
+
+A game shows a scene only if its code reads the scene file. After a change, save and choose Run > Build and Restart.
+
+Debug layout. For playing and watching. Runtime Controls pause and step the game. Session says what the run is and holds the marks you set with the Session Toolchest: Mark, Capture, Report and Restart. Inspector: state reads the game's Lua values and lets you Pin them. Test Case lists the test cases of the project. In Findings, fill in Title, Steps, Expected and Actual and press Record Finding.
+
+Burn layout. For checking a disc before it ships. To make an image, press Build Candidate. To play exactly that image, press Run Candidate; to try it in the player, press Player. Mark each check as you test: Build, Disc loads, Player, Launch, Input, Audio, Main scenario and Exit. When all pass, Approve or Reject the candidate. Export writes the disc, the player or a web page into a directory.
+
+## Settings and tools
+
+To see and change the tools, choose File > Settings.... The page has a row for each tool: Runtime, Burner, Inspector, Bakers and Player. Each shows the path in use and its status. To use another file, type or Browse... the Override path, then press Check and Apply. Revert drops the changes.
+
+The editor looks for the console and burner next to itself. The Bakers row is a directory: it holds mppctexbaker, mppcmusbaker, mppcmodbaker and mppcinspector, and the editor looks for them in its own directory unless you name another. The player has no default place: name it if you want to run a candidate in it. Settings are kept in settings.toml, in its [tools] section.
+
+A missing tool turns off the commands that need it, and the status bar says Tools: N missing. A missing mppcinspector counts as a missing baker: Build, Run when it builds, Build and Restart and the exports are unavailable, and the tooltip of the button says why. The check of Problems in the background needs it too. The burner runs mppcinspector from the bakers' directory, so keep it there next to the bakers.
+
+The same page sets Vsync and the Frame rate limit. To change the size of the text, choose View > Code Text Size, Game Scale or UI Scale. To see the tools of the open project, choose Project > Project Settings; Look for Tools Again searches again.
 
 ## Where things go
 
-The editor stores files in standard directories. Set XDG_CONFIG_HOME, XDG_CACHE_HOME
-or XDG_STATE_HOME to use custom paths; otherwise ~/.config, ~/.cache and
-~/.local/state are used. Per-project folders below are named by a hash of the
-project path, shown as <hash>.
+The editor uses the standard directories. XDG_CONFIG_HOME, XDG_CACHE_HOME and XDG_STATE_HOME change them; otherwise ~/.config, ~/.cache and ~/.local/state are used. A folder named by a hash of the project path is shown as <hash>.
+
 - Layouts in ~/.config/3dmppc-editor/: layout-code, layout-scene, layout-debug, layout-burn.
-- Settings in ~/.config/3dmppc-editor/settings.toml.
-- Code text size, Game scale, last layout shown in ~/.config/3dmppc-editor/view.
-- Recent projects list in ~/.config/3dmppc-editor/recent.
-- Builds per project in ~/.cache/3dmppc-editor/<hash>/builds/<n> with logs <n>.log.
-- Baked textures staged for Reload in ~/.cache/3dmppc-editor/<hash>/staging/<build number>/<name>.
+- Settings and tool paths in ~/.config/3dmppc-editor/settings.toml.
+- Code text size, Game scale, UI scale and last layout in ~/.config/3dmppc-editor/view.
+- Recent projects in ~/.config/3dmppc-editor/recent.
+- Builds in ~/.cache/3dmppc-editor/<hash>/builds/<n>, with the log <n>.log.
+- Burner maps beside them: <n>.map and <n>.mppcdisc.map.
+- The inspector report, read for Problems, in ~/.cache/3dmppc-editor/<hash>/inspector.tsv.
+- Textures staged for Reload in ~/.cache/3dmppc-editor/<hash>/staging/<build number>/.
 - Release candidates in ~/.cache/3dmppc-editor/<hash>/candidates/.
-- Burner maps beside builds and images: <n>.map and <n>.mppcdisc.map.
-- Session logs in ~/.local/state/3dmppc-editor/<hash>/sessions/, named
-  <start time YYYYmmdd-HHMMSS>-<session number>-<pid>.log, the 20 newest kept.
+- Session logs in ~/.local/state/3dmppc-editor/<hash>/sessions/, the 20 newest kept.
 - Memory card in ~/.local/state/3dmppc-editor/<hash>/memcard.mppccard.
 - Findings, captured frames and test results in ~/.local/state/3dmppc-editor/<hash>/findings/.
-- Run profiles in the project folder: <project>/.3dmppc-editor/project.toml.
-- Scenes in the project folder: <project>/scenes/.
-- Burner output in the project folder: <project>/.mppcburn/.
+- Run profiles in the project: .3dmppc-editor/project.toml.
+- Scenes in the project: scenes/.
+- Burner output in the project: .mppcburn/.
 
-## Tools and Settings
+## Keyboard shortcuts
 
-The console, burner and baker are looked for next to the editor's own
-executable. Settings (File > Settings, or Settings in the Project Toolchest
-without a project) shows each tool's override, the path in use and its status,
-with Browse and Check buttons. Apply saves the changes. A missing tool disables
-only the commands that need it, with a reason shown.
-
-## Fonts
-
-Code tiles and the terminal use a 9x16 monospace font. View > Code Text Size
-picks Normal (16 px, the default), Large (32 px), or Small (14 px), each times
-the UI scale; the choice is kept. The editor's interface draws in a small
-bitmap font that scales with the UI scale.
-
-## Help and this manual
-
-This manual is open from Help > Manual in the menu bar or by pressing F1. A
-link to it appears on the editor's start page, where you see recent projects.
+- Ctrl+B — build
+- F5 — run, or resume a paused game
+- F6 — pause
+- F7 — run one frame of a paused game
+- Shift+F5 — stop
+- F8 — reload the entry script, a module or a texture in the running game
+- Ctrl+S — save the file in a Code tile, or the scene in a Scene pane
+- Ctrl+Shift+S — Save All, from any pane
+- Ctrl+O — Open Project; it does not work while a Code tile or the Terminal has the keyboard
+- Ctrl+N — open the New Project page; it does not work while a Code tile or the Terminal has the keyboard
+- Ctrl+Z — undo
+- Ctrl+Shift+Z — redo
+- Ctrl+Y — redo a scene edit
+- Ctrl+Shift+F — search the whole project
+- Ctrl+F6 — move the keyboard to the next tile
+- Ctrl+Shift+F6 — move the keyboard to the previous tile
+- Shift+Escape — give the keyboard back from the Game
+- Escape — cancel a drag of a tile or of an object, or close the New Scene form
+- Ctrl+D — duplicate the chosen scene object
+- Delete — delete the chosen scene object
+- Ctrl+C — copy the selected lines of a log, or stop the running command in a Terminal
+- Ctrl+Shift+V — paste into a Terminal
+- Vim and the shell keep Ctrl+O and Ctrl+N; press Ctrl+F6 to move the keyboard out of the tile first.
+- F1 — open this manual; Help > Keyboard Shortcuts lists the keys in the editor

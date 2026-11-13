@@ -26,8 +26,8 @@ for how the packaged disc is loaded.
 
 | Disc                             | What it is                                             |
 | -------------------------------- | ------------------------------------------------------ |
-| [`example-cpp-pdkkit/`](example-cpp-pdkkit/) | the **example disc** on the pdkkit framework (`sdk = ["kit"]`; it reads its objects from the scene through the drive), and the thing you copy when starting a real game. |
-| [`example-cpp-bare/`](example-cpp-bare/) | the same demo as `example-cpp-pdkkit/` in C++ on pdklib alone, without pdkkit: the layout is a table in `src/example-cpp-bare-layout.cpp`, and the scene file is copied but not read. |
+| [`example-cpp-pdkkit/`](example-cpp-pdkkit/) | the **example disc** on the pdkkit framework (`sdk = ["kit"]`; it reads its objects from `scenes/main.scene.toml` with pdkkit's scene loader), and the thing you copy when starting a real game. |
+| [`example-cpp-bare/`](example-cpp-bare/) | the same demo as `example-cpp-pdkkit/` in C++ on pdklib alone, without pdkkit: the layout is a table in `src/example-cpp-bare-layout.cpp`, and it has no scene file. |
 | [`example-lua-bare/`](example-lua-bare/) | the same shape plus `scripts/`: all four lifecycle hooks (`disc_initialize`, `frame_update`, `frame_render`, `disc_shutdown`) forward one-to-one into a Lua chunk through `rv_cl`, and the script reaches `rv_cv`/`rv_ca`/`rv_cio` through the same exported console functions a C++ disc calls — no wrapper layer. |
 
 ## Real games live in their own repositories

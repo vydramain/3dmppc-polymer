@@ -23,6 +23,7 @@
 #include "nvim/rv_editor_nvim.hpp"
 #include "project/rv_editor_change.hpp"
 #include "project/rv_editor_descriptions.hpp"
+#include "project/rv_editor_inspect.hpp"
 #include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
 #include "project/rv_editor_run_profile.hpp"
@@ -57,6 +58,8 @@ struct rv_editor_app {
     // Writes the chosen processes' lines to files; the app decides which (rv_editor_app_logs.cpp).
     rv_editor_log_file log_files;
     rv_editor_build build;
+    // mppcinspector's findings on the open project: one run per open.
+    rv_editor_inspect inspect;
     // The export job (mppcburner writes a disc, a player or a web page); the Export pane starts it.
     rv_editor_export exporter;
     rv_editor_session session;

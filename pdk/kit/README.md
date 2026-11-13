@@ -119,22 +119,19 @@ and only the editor reads it (`component/rv_component_records_read.hpp`).
 
 ## The scene
 
-A scene is a document in disc.toml's dialect. Its `[scene]` table carries
-`version = "M.m"`, the PDK version it was written against
-(`scene/rv_scene.hpp`). `rv_version_compatible` decides whether a file is read
-(`scene/rv_scene_read.hpp`).
-The old `format = 1` header with no `version` is read as 0.0, compatible only
-while the PDK major is 0.
+A scene is a document in disc.toml's dialect. A scene carries no version. The
+reader keeps every `[scene]` key, an old `version` or `format` among them
+(`rv_scene_parse` in `scene/rv_scene_read.hpp`), and the writer writes it back
+with its name and value (`rv_scene_render` in `scene/rv_scene_write.hpp`). The
+rule for keys is in `pdk/README.md`, section "Versions".
 
-Form 2 is current: each `[[object]]` has `id`, `parent` and `entity`, and its
-data sits in `[[component]]` blocks. Form 1 objects carry a `kind` and their
-data as fields. `scene/rv_scene_migrate.hpp` converts form 1 to form 2 in
-memory; the ECS loader calls it, the parser does not.
+Each `[[object]]` has `id`, `parent` and `entity`, and its data sits in
+`[[component]]` blocks. An object in the removed form 1, with a `kind` and its
+data as fields, is a parse error.
 
 Numbers are Q20.12 fixed-point values, written as the shortest decimal that
-reads back to the same value (`scene/rv_scene_write.hpp`). The writer writes
-`version` only, as the editor does. The reader takes the file's bytes, never a
-path (`scene/rv_scene.hpp`).
+reads back to the same value (`scene/rv_scene_write.hpp`). The reader takes
+the file's bytes, never a path (`scene/rv_scene.hpp`).
 
 ## Sound
 
@@ -170,7 +167,6 @@ medium read logs on every attempt.
 | `ecs/rv_ecs_store.hpp` | per-type component storage |
 | `ecs/rv_ecs_transform.hpp` | the transform system: world matrix per entity |
 | `scene/rv_scene.hpp` | the scene document as a disc reads it |
-| `scene/rv_scene_migrate.hpp` | in-memory migration from form 1 to form 2 |
-| `scene/rv_scene_read.hpp` | the scene loader and its transforms, inline |
+| `scene/rv_scene_read.hpp` | the scene loader, inline |
 | `scene/rv_scene_write.hpp` | the scene writer, the inverse of the parser |
 | `sound/rv_pdkkit_sound.hpp` | named samples and voice calls |
