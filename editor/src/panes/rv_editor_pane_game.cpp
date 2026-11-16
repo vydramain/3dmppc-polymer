@@ -2,6 +2,7 @@
 // View > Game Scale says, and, while the tile holds the keyboard, its pad.
 
 #include "app/rv_editor_shell.hpp"
+#include "panes/rv_editor_game_status.hpp"
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
@@ -79,12 +80,6 @@ uint64_t rv_editor_game_keys()
 namespace
 {
 
-// Status line: dimension separator (width x height).
-constexpr std::string_view dimension_sep = "x";
-
-// Status line: separator between dimensions and scale text.
-constexpr std::string_view dimensions_scale_sep = "  ";
-
 // Game picture tint color when console disconnected, hung, timeout, or stale: white semi-transparent.
 constexpr uint32_t warn_picture_tint = IM_COL32(255, 255, 255, 96);
 
@@ -96,7 +91,7 @@ constexpr size_t bytes_per_pixel_argb8888 = 4;
 
 // Fit, Integer, 1x, 2x, 3x (View > Game Scale), then Run: one shelf, same in
 // every state, so it never changes the well's height between them. Burn's
-// candidate view carries its own Run Candidate here instead of the dev Run.
+// candidate view has no Run here: Release Controls' Run plays the candidate.
 void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     constexpr rv_editor_game_scale modes[] = { rv_editor_game_scale::fit,
@@ -119,12 +114,7 @@ void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme, cons
             ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_game_scale, .scale = modes[i] });
         }
     }
-    if (app.release_view) {
-        const char *run_candidate_text = rv_editor_text("pane_game.run_candidate");
-        rv_editor_flow(rv_editor_button_width(run_candidate_text));
-        if (rv_editor_button(run_candidate_text, theme, { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
-            rv_editor_app_run_candidate(app);
-        }
+    if (!rv_editor_game_shelf_shows_run(app.release_view)) {
         return;
     }
     const char *run_text = rv_editor_text("pane_game.run");
@@ -178,23 +168,46 @@ void rv_editor_game_picture(const rv_editor_ui_port &ui,
     rv_editor_game_scale mode)
 {
     const bool have = rv_editor_game_texture != nullptr && rv_editor_game_frame != 0;
-    ImVec2 area = ImGui::GetContentRegionAvail();
-    area.y -= ImGui::GetTextLineHeightWithSpacing();
-    rv_editor_game_view view{};
-    if (have) {
-        view =
-            rv_editor_game_place(static_cast<int>(rv_editor_game_w), static_cast<int>(rv_editor_game_h), area.x, area.y, mode);
-        status = std::to_string(rv_editor_game_w) + dimension_sep.data() + std::to_string(rv_editor_game_h) +
-            dimensions_scale_sep.data() + rv_editor_game_scale_text(mode, view) + dimensions_scale_sep.data() + status;
-    }
     // Indexed by rv_editor_game_line: normal, warn, muted.
     constexpr rv_editor_label_kind line_kinds[] = { rv_editor_label_kind::normal,
         rv_editor_label_kind::warning,
         rv_editor_label_kind::dim };
     static_assert(std::size(line_kinds) == static_cast<size_t>(rv_editor_game_line::muted) + 1,
         "one kind per status line colour, in enum order");
-    rv_editor_label(status.c_str(), line_kinds[static_cast<size_t>(line)], theme);
-    rv_editor_item_tooltip(status.c_str());
+    const rv_editor_label_kind kind = line_kinds[static_cast<size_t>(line)];
+    // Wrapped lines are never cut, so the area is what is left under them.
+    const auto wrapped_h = [](const std::string &text, float width) {
+        return ImGui::CalcTextSize(text.c_str(), nullptr, false, width).y + ImGui::GetStyle().ItemSpacing.y;
+    };
+    ImVec2 area = ImGui::GetContentRegionAvail();
+    rv_editor_game_view view{};
+    if (have) {
+        // The size line is one line while the scale is placed; it only wraps in a very narrow tile.
+        const float state_h = wrapped_h(status, area.x);
+        view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
+            static_cast<int>(rv_editor_game_h),
+            area.x,
+            area.y - state_h - ImGui::GetTextLineHeightWithSpacing(),
+            mode);
+        const rv_editor_game_status_lines lines = rv_editor_game_status_compose(static_cast<int>(rv_editor_game_w),
+            static_cast<int>(rv_editor_game_h),
+            rv_editor_game_scale_text(mode, view),
+            status,
+            "");
+        rv_editor_label(lines.size_scale.c_str(), kind, theme, rv_editor_label_layout::wrap);
+        rv_editor_label(lines.state.c_str(), kind, theme, rv_editor_label_layout::wrap);
+        area = ImGui::GetContentRegionAvail();
+        if (view.h > area.y) {
+            view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
+                static_cast<int>(rv_editor_game_h),
+                area.x,
+                area.y,
+                mode);
+        }
+    } else {
+        rv_editor_label(status.c_str(), kind, theme, rv_editor_label_layout::wrap);
+        area = ImGui::GetContentRegionAvail();
+    }
 
     // The whole area is dark, so what the frame leaves over is not the tile's olive.
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
@@ -245,7 +258,7 @@ bool rv_editor_game_join_stale(const rv_editor_app &app, std::string &status)
     const char *state_name = rv_editor_run_state_name(s.state());
     const std::string stale_msg =
         rv_editor_text_format("pane_game.stale_session", std::make_format_args(session_num, state_name));
-    status += stale_msg;
+    status += ' ' + stale_msg;
     return true;
 }
 
@@ -283,7 +296,7 @@ std::pair<const char *, rv_editor_game_line> rv_editor_game_state_status(const r
     }
 }
 
-// Burn's tile: the shelf's Run Candidate and, once a candidate's image runs, its
+// Burn's tile: the shelf without Run and, once a candidate's image runs, its
 // own frame. The unpacked development build never stands in for it (README),
 // whether stopped or a development session is live.
 void rv_editor_game_candidate_tile(rv_editor_app &app,
