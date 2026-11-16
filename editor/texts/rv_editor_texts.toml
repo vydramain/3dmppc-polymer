@@ -1184,7 +1184,7 @@ details = "Details"
 build_directory = "Build directory"
 code_hash = "Code hash"
 marks = "Marks"
-marks_help = "Mark Moment in the Session Toolchest notes the frame, and a word on it, while you play."
+marks_help = "Mark Moment in Runtime Controls notes the frame, and a word on it, while you play."
 
 [workspace]
 pane_empty = "Empty"

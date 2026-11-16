@@ -28,20 +28,23 @@ inline int &rv_editor_test_failures()
 }
 
 struct rv_editor_test_register {
-    rv_editor_test_register(const char *name, void (*fn)()) { rv_editor_test_all().push_back({name, fn}); }
+    rv_editor_test_register(const char *name, void (*fn)())
+    {
+        rv_editor_test_all().push_back({ name, fn });
+    }
 };
 
 } // namespace rv_editor_test
 
-#define RV_EDITOR_TEST(name)                                                                                              \
-    static void name();                                                                                                   \
-    static rv_editor_test::rv_editor_test_register name##_registered(#name, name);                                         \
+#define RV_EDITOR_TEST(name)                                                       \
+    static void name();                                                            \
+    static rv_editor_test::rv_editor_test_register name##_registered(#name, name); \
     static void name()
 
-#define RV_EDITOR_CHECK(cond)                                                                                             \
-    do {                                                                                                                  \
-        if (!(cond)) {                                                                                                    \
-            std::fprintf(stderr, "%s:%d: CHECK failed: %s\n", __FILE__, __LINE__, #cond);                                 \
-            ++rv_editor_test::rv_editor_test_failures();                                                                  \
-        }                                                                                                                 \
+#define RV_EDITOR_CHECK(cond)                                                             \
+    do {                                                                                  \
+        if (!(cond)) {                                                                    \
+            std::fprintf(stderr, "%s:%d: CHECK failed: %s\n", __FILE__, __LINE__, #cond); \
+            ++rv_editor_test::rv_editor_test_failures();                                  \
+        }                                                                                 \
     } while (0)

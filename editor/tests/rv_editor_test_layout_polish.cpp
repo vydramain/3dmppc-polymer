@@ -35,7 +35,6 @@ RV_EDITOR_TEST(rv_editor_test_shelf_content_right_edge_inside_padding)
 RV_EDITOR_TEST(rv_editor_test_disabled_button_with_nav_focus_is_not_focused)
 {
     rv_editor_test::rv_editor_test_imgui gui;
-    const rv_editor_theme theme = rv_editor_theme_olive;
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     bool focused = true;
     for (int i = 0; i < 3; ++i) {

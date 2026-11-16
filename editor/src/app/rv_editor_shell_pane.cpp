@@ -80,7 +80,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         // Measured each frame: a strip's minimum is what it drew.
         const float top = ImGui::GetCursorPosY();
         if (kind == rv_editor_pane_kind::controls) {
-            rv_editor_pane_controls(shell.app, theme);
+            rv_editor_pane_controls(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         } else if (kind == rv_editor_pane_kind::toolchest) {
             rv_editor_pane_toolchest(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         } else {

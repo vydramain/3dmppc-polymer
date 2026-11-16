@@ -8,6 +8,7 @@
 
 #include "imgui.h"
 
+#include "panes/rv_editor_pane_mark_tools.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -184,7 +185,7 @@ void rv_editor_reserved_line(const char *id,
 
 } // namespace
 
-void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     const rv_editor_session &s = app.session;
     if (!app.project.open) {
@@ -265,7 +266,9 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     // smallest size is drawn and the row's end clips.
     const rv_editor_action_kind action = rv_editor_action_for(s, app.build.busy(), !badge_label.empty());
     const float action_w = rv_editor_action_width(action, badge_label, badge_kind, theme);
-    const float reserve = action_w;
+    // The mark row follows the action; it too is part of what the bar leaves room for.
+    const float marks_w = rv_editor_mark_tools_min_width(theme, false);
+    const float reserve = (action_w > 0.0f ? action_w + ImGui::GetStyle().ItemSpacing.x : 0.0f) + marks_w;
     const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme, reserve);
     if (clicked.build) {
         rv_editor_app_build(app);
@@ -294,6 +297,9 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_flow(action_w);
         rv_editor_action_draw(app, action, badge_label, badge_kind, theme);
     }
+    // The mark row fills what remains of the row, or moves to the next one when its minimum does not fit.
+    rv_editor_flow(marks_w);
+    (void)rv_editor_mark_tools(app, theme, ui, false);
 
     const rv_editor_controls_message_text message = rv_editor_controls_message({ action == rv_editor_action_kind::force_stop,
         s.hung(),
