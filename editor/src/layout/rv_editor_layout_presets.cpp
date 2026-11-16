@@ -30,10 +30,10 @@ constexpr float scene_assets_ratio = 0.55f;
 constexpr float debug_log_ratio = 0.71f;
 // Debug preset: right column (session and toolchest) ratio.
 constexpr float debug_column_ratio = 0.68f;
-// Burn preset: build log ratio at bottom.
-constexpr float burn_log_ratio = 0.68f;
-// Burn preset: right game panel ratio.
-constexpr float burn_game_ratio = 0.35f;
+// Burn preset: candidate share of the left column, the logs take the rest.
+constexpr float burn_log_ratio = 0.60f;
+// Burn preset: left column (candidate and logs) share of the width; the Game's fit then sets its own width.
+constexpr float burn_column_ratio = 0.45f;
 
 // Builds a tree by inserting panes next to panes already placed.
 struct rv_editor_preset_builder {
@@ -116,18 +116,19 @@ void rv_editor_preset_debug(rv_editor_preset_builder &b)
     (void)rv_editor_tile_activate(b.layout, log);
 }
 
-// Burn (reference 0007): the release controls over the candidate beside its
-// playtest, the build's and the playtest's logs underneath (68/32, 35/65),
-// and an Export tab beside the candidate.
+// Burn: the release controls as a full-width strip on top; under it the candidate
+// (Export beside it, Candidate in front) over the build log (Playtest Log beside
+// it, Build Log in front) on the left, and the Game the whole remaining height
+// on the right. The Game goes in before the build log so it spans the column.
 void rv_editor_preset_burn(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
     const rv_editor_pane_id candidate = b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
-    b.add(rv_editor_pane_kind::export_, candidate, rv_editor_tile_dock::tab, 0.0f);
-    (void)rv_editor_tile_activate(b.layout, candidate);
+    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, burn_column_ratio);
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, burn_log_ratio);
-    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, burn_game_ratio);
+    b.add(rv_editor_pane_kind::export_, candidate, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
+    (void)rv_editor_tile_activate(b.layout, candidate);
     (void)rv_editor_tile_activate(b.layout, log);
 }
 
