@@ -26,6 +26,7 @@ compile_commands.json
 # from its own remote, not carried by this repo.
 #   solid-maid -> github.com/vydramain/Solidmaid
 /mppcdiscs/solid-maid
+/mppcdiscs/squid-maid
 
 # --- what the tools produce ---------------------------------------------------
 # Everything below is REGENERATED from something that is tracked, which is the
