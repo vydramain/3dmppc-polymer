@@ -30,7 +30,8 @@ rv_editor_item rv_editor_item_add(const char *id, ImVec2 size, const rv_editor_s
     item.max = ImGui::GetItemRectMax();
     item.hovered = ImGui::IsItemHovered();
     item.held = ImGui::IsItemActive();
-    item.focused = ImGui::IsItemFocused();
+    // A disabled item takes nav focus but must not draw the focus frame.
+    item.focused = !item.disabled && ImGui::IsItemFocused();
     if (item.disabled) {
         ImGui::EndDisabled();
         ImGui::SetItemTooltip("%s", state.disabled);

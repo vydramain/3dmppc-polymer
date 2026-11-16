@@ -87,8 +87,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
             rv_editor_pane_release_controls(shell.app, theme);
         }
         const float tall = ImGui::GetCursorPosY() - top - ImGui::GetStyle().ItemSpacing.y;
-        shell.strips[pane] = { static_cast<int32_t>(ImGui::GetFontSize() * rv_editor_strip_width_em),
-            static_cast<int32_t>(tall) };
+        shell.strips[pane] = { static_cast<int32_t>(ImGui::GetFontSize() * rv_editor_strip_width_em), rv_editor_px_ceil(tall) };
         return;
     }
     case rv_editor_pane_kind::runtime_log:

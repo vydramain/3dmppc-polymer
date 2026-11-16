@@ -119,6 +119,9 @@ bool rv_editor_dropdown(const char *label,
 // tooltip, and a Copy button that puts it on the clipboard.
 void rv_editor_path_row(const char *label, const std::string &path, const rv_editor_theme &theme);
 
+// Whole pixels for a measured height or chrome: rounded up, so a fraction never cuts the last row off.
+int32_t rv_editor_px_ceil(float px);
+
 // --- layers: shelf and well ----------------------------------------------------
 // Every pane reads header (dark), shelf (its buttons), well (its content).
 

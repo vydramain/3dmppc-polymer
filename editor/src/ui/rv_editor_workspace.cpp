@@ -365,10 +365,10 @@ int rv_editor_workspace_draw(rv_editor_workspace &ws,
     const float frame_h = ImGui::GetFrameHeight();
     // Leaf chrome: the frame, the header, room for a tab strip and the content padding.
     const float pad = theme.pad_px * s;
-    const rv_editor_tile_metrics m{ static_cast<int>(pad),
-        { static_cast<int>(chrome_mul * (bevel + pad)),
-            static_cast<int>(chrome_mul * (bevel + pad) + frame_h + ImGui::GetStyle().ItemSpacing.y) },
-        static_cast<int>(frame_h) };
+    const rv_editor_tile_metrics m{ rv_editor_px_ceil(pad),
+        { rv_editor_px_ceil(chrome_mul * (bevel + pad)),
+            rv_editor_px_ceil(chrome_mul * (bevel + pad) + frame_h + ImGui::GetStyle().ItemSpacing.y) },
+        rv_editor_px_ceil(frame_h) };
 
     std::vector<rv_editor_size> pane_min(ws.panes.panes.size());
     const ImVec2 glyph = ImGui::CalcTextSize(grid_cell_width_probe);
