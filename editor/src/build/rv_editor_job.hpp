@@ -68,6 +68,11 @@ public:
     {
         return err_last_line_;
     }
+    // The stderr bytes the last pump() read, for a reader that needs more than the last line.
+    const std::string &stderr_read() const
+    {
+        return err_read_;
+    }
 
 private:
     rv_editor_process proc_;
@@ -80,6 +85,7 @@ private:
     // so the job keeps its own line for the bytes still waiting for their '\n'.
     std::string err_line_;
     std::string err_last_line_;
+    std::string err_read_;
     std::chrono::steady_clock::time_point cancel_at_{};
     bool cancelled_ = false;
     bool ended_ = false;

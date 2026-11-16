@@ -48,6 +48,8 @@ constexpr const char *k_download_suffix = ".download";
 
 // emsdk's own scripts, run from inside the emsdk directory.
 constexpr const char *k_emsdk_script = "./emsdk";
+// emsdk is python: unbuffered, its progress reaches the pipe as it is written, not in one block at exit.
+constexpr const char *k_emsdk_env = "PYTHONUNBUFFERED=1 ";
 constexpr const char *k_embuilder_script = "upstream/emscripten/embuilder";
 // Prebuilds the libc and libc++ variants for wasm so the first web burn does not wait for them.
 constexpr const char *k_embuilder_target = "MINIMAL";
@@ -340,7 +342,8 @@ int install_emsdk(const std::filesystem::path &dir, ladder_step step)
     };
     const std::string enter = "cd " + shell_quote(dir.string()) + " && ";
     std::string output;
-    const int rc = run_child(enter + k_emsdk_script + " install " + k_emsdk_version, "emsdk install", output, on_output);
+    const int rc =
+        run_child(enter + k_emsdk_env + k_emsdk_script + " install " + k_emsdk_version, "emsdk install", output, on_output);
     if (RV_OK != rc) {
         return rc;
     }

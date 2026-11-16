@@ -141,19 +141,15 @@ std::string rv_editor_export_setup_overlay(const rv_editor_setup_progress &progr
 // The step line, then the bar filled by the overall share; an unknown size adds no fill and no percent.
 void rv_editor_export_setup_progress_draw(const rv_editor_setup_progress &progress, const rv_editor_theme &theme)
 {
-    const std::string step =
-        rv_editor_text_format("pane_export.setup_step", std::make_format_args(progress.step, progress.total, progress.label));
+    // Before the first ladder line the total is not known: the bar waits empty under the starting text.
+    const std::string step = progress.total > 0 ?
+        rv_editor_text_format("pane_export.setup_step", std::make_format_args(progress.step, progress.total, progress.label)) :
+        std::string(rv_editor_text("pane_export.setup_starting"));
     rv_editor_label(step.c_str(), rv_editor_label_kind::normal, theme);
     const float fraction = static_cast<float>(rv_editor_setup_permille(progress)) / permille_scale;
     const std::string overlay = rv_editor_export_setup_overlay(progress);
     // An empty overlay draws no text; nullptr would make ImGui print the fraction as a percent.
     ImGui::ProgressBar(fraction, ImVec2(bar_width, 0.0f), overlay.c_str());
-}
-
-// The bar is drawn only while the setup runs; after it ends the state line and the lamp show the result.
-bool rv_editor_export_setup_bar_due(const rv_editor_export &exporter, const rv_editor_export_form &form)
-{
-    return exporter.busy() && form.op == rv_editor_export_op::setup && exporter.setup_progress().total > 0;
 }
 
 // The failure reason under a failed state line: the burner's last stderr line, or the exit text when it printed none.
@@ -446,7 +442,7 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
     if (!form.error.empty()) {
         rv_editor_label(form.error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
-    if (rv_editor_export_setup_bar_due(exporter, form)) {
+    if (rv_editor_export_setup_bar_due(exporter)) {
         rv_editor_export_setup_progress_draw(exporter.setup_progress(), theme);
     }
     const std::string &reason = exporter.failure_reason();

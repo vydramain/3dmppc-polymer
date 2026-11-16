@@ -26,6 +26,10 @@ struct rv_editor_setup_progress {
 // prefix, a malformed progress tail) leaves `progress` unchanged; that is not an error.
 bool rv_editor_setup_feed(const std::string &line, rv_editor_setup_progress &progress);
 
+// Reads every line of a chunk of stderr, '\n' or '\r' ending a line (the burner redraws a progress line with '\r'),
+// and leaves `progress` at the last ladder line. True when any line was a ladder line.
+bool rv_editor_setup_feed_text(const std::string &chunk, rv_editor_setup_progress &progress);
+
 // Overall share of the setup in permille: completed steps plus the in-step part, over the total steps.
 // 0 before the first ladder line, and for a state outside 1 <= step <= total.
 int rv_editor_setup_permille(const rv_editor_setup_progress &progress);

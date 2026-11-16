@@ -159,6 +159,18 @@ bool rv_editor_setup_feed(const std::string &line, rv_editor_setup_progress &pro
     return true;
 }
 
+bool rv_editor_setup_feed_text(const std::string &chunk, rv_editor_setup_progress &progress)
+{
+    bool any = false;
+    std::size_t from = 0;
+    while (from < chunk.size()) {
+        const std::size_t end = std::min(chunk.find_first_of(line_ends, from), chunk.size());
+        any = rv_editor_setup_feed(chunk.substr(from, end - from), progress) || any;
+        from = end + 1;
+    }
+    return any;
+}
+
 int rv_editor_setup_permille(const rv_editor_setup_progress &progress)
 {
     if (progress.step < 1 || progress.step > progress.total) {

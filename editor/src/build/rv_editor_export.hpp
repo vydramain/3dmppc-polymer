@@ -69,6 +69,11 @@ public:
     {
         return state_ == rv_editor_build_state::building || state_ == rv_editor_build_state::cancelling;
     }
+    // True while the started job is the web setup.
+    bool setup_job() const
+    {
+        return setup_job_;
+    }
     // The path the current or last export writes; the finished file or directory once state() is succeeded.
     // Empty after a setup.
     const std::filesystem::path &result() const
@@ -105,8 +110,13 @@ private:
     // True while the started job is the web setup; only its stderr is read as the ladder.
     bool setup_job_ = false;
     rv_editor_setup_progress setup_progress_;
+    // The setup's stderr after its last line end: a line cut by the frame waits here for its rest.
+    std::string setup_tail_;
     uint32_t runs_ = 0;
     std::deque<rv_editor_export_record> recent_;
 };
+
+// True while the running job is the web setup, from its first frame: the bar shows before any ladder line came.
+bool rv_editor_export_setup_bar_due(const rv_editor_export &exporter);
 
 } // namespace rv_editor

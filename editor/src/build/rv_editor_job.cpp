@@ -113,6 +113,7 @@ int rv_editor_job::pump(rv_editor_log &log, std::string &error)
     }
     std::string out;
     std::string err;
+    err_read_.clear();
     const int64_t pid = proc_.pid();
     // The first failure is the one reported: a later one must not hide why the first happened.
     int result = RV_OK;
@@ -128,6 +129,7 @@ int rv_editor_job::pump(rv_editor_log &log, std::string &error)
     log.add_stream(source_, out_partial_, out, rv_editor_log_channel::out, pid, run_);
     log.add_stream(source_, err_partial_, err, rv_editor_log_channel::err, pid, run_);
     keep_stderr_stream(err_line_, err, err_last_line_);
+    err_read_ = err;
 
     if (cancelled_ && std::chrono::steady_clock::now() - cancel_at_ > rv_editor_cancel_grace) {
         const int stop_result = proc_.stop(true);
@@ -149,6 +151,7 @@ int rv_editor_job::pump(rv_editor_log &log, std::string &error)
     log.add_stream(source_, out_partial_, out, rv_editor_log_channel::out, pid, run_);
     log.add_stream(source_, err_partial_, err, rv_editor_log_channel::err, pid, run_);
     keep_stderr_stream(err_line_, err, err_last_line_);
+    err_read_ += err;
     log.flush_stream(source_, out_partial_, rv_editor_log_channel::out, pid, run_);
     log.flush_stream(source_, err_partial_, rv_editor_log_channel::err, pid, run_);
     // The run's unterminated tail is decided like a line that ended with '\n'.
