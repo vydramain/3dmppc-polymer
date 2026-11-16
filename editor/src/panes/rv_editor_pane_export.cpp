@@ -5,11 +5,9 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <ctime>
 #include <filesystem>
 #include <iterator>
 #include <string>
@@ -19,6 +17,7 @@
 #include "imgui.h"
 
 #include "build/rv_editor_export.hpp"
+#include "build/rv_editor_export_setup.hpp"
 #include "build/rv_editor_setup_progress.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
@@ -46,14 +45,10 @@ constexpr unsigned hex_digit_mask = 0x0F;
 constexpr float permille_scale = 1000.0f;
 // Negative width: the bar fills the row up to the right edge, minus one pixel.
 constexpr float bar_width = -1.0f;
-// Least width a clipped line gets: a child of width 0 would fill the row again instead.
-constexpr float clipped_min_width = 1.0f;
 // Room in font widths (em) the state line needs beside the buttons: the lamp and a few words.
 constexpr float state_min_em = 14.0f;
 // Room in font widths the directory field needs beside the kind radios: its label and a short path.
 constexpr float dest_min_em = 20.0f;
-// Room for a time format of up to 31 characters; strftime returns 0 when the output does not fit.
-constexpr std::size_t time_buffer_bytes = 32;
 
 // Text keys of the kinds, in rv_editor_export_kind order.
 constexpr std::array kind_keys = { "pane_export.kind_disc", "pane_export.kind_player", "pane_export.kind_web" };
@@ -224,52 +219,22 @@ void rv_editor_export_state_row(const std::string &line, rv_editor_status_kind l
     rv_editor_export_clip_end(line);
 }
 
-// The end time of a record as local time, in the format the text file gives; the unknown-time text when either call fails.
-std::string rv_editor_export_record_time(const rv_editor_export_record &record)
+// The installed marker costs a filesystem hit, so it is re-read only when the pane reopens (a frame was skipped), the kind
+// changes or a run ends (a setup may have just finished).
+bool rv_editor_export_installed_cached(rv_editor_export_kind kind, bool busy)
 {
-    const std::time_t t = std::chrono::system_clock::to_time_t(record.ended);
-    std::tm tm{};
-    char buf[time_buffer_bytes] = {};
-    const char *format = rv_editor_text("pane_export.recent_time_format");
-    if (localtime_r(&t, &tm) == nullptr || std::strftime(buf, sizeof(buf), format, &tm) == 0) {
-        return rv_editor_text("pane_export.recent_time_unknown");
+    static bool installed = false;
+    static bool was_busy = false;
+    static int last_frame = -2;
+    static rv_editor_export_kind last_kind = rv_editor_export_kind::disc;
+    const int frame = ImGui::GetFrameCount();
+    if (frame - last_frame > 1 || kind != last_kind || (was_busy && !busy)) {
+        installed = rv_editor_web_support_installed(rv_editor_emscripten_dir());
     }
-    return buf;
-}
-
-// One ended export: its lamp, kind, path clipped to the width left, then the end time at the right.
-void rv_editor_export_recent_row(const rv_editor_export_record &record, const rv_editor_theme &theme)
-{
-    const std::string time = rv_editor_export_record_time(record);
-    const std::string path = record.result.string();
-    const float time_width = ImGui::CalcTextSize(time.c_str()).x + ImGui::GetStyle().ItemSpacing.x;
-    ImGui::PushID(&record);
-    rv_editor_status("", rv_editor_export_lamp(record.state), theme);
-    ImGui::SameLine();
-    ImGui::AlignTextToFramePadding();
-    rv_editor_label(rv_editor_text(kind_keys[static_cast<std::size_t>(record.kind)]), rv_editor_label_kind::normal, theme);
-    ImGui::SameLine();
-    rv_editor_export_clip_begin("##recent_path", std::max(ImGui::GetContentRegionAvail().x - time_width, clipped_min_width));
-    rv_editor_label(path.c_str(), rv_editor_label_kind::normal, theme);
-    rv_editor_export_clip_end(path);
-    ImGui::SameLine();
-    ImGui::AlignTextToFramePadding();
-    rv_editor_label(time.c_str(), rv_editor_label_kind::dim, theme);
-    ImGui::PopID();
-}
-
-// The session's ended exports, newest first; a dim line when there are none yet.
-void rv_editor_export_recent(const rv_editor_export &exporter, const rv_editor_theme &theme)
-{
-    rv_editor_label(rv_editor_text("pane_export.recent_header"), rv_editor_label_kind::dim, theme);
-    const auto &records = exporter.recent();
-    if (records.empty()) {
-        rv_editor_label(rv_editor_text("pane_export.recent_empty"), rv_editor_label_kind::dim, theme);
-        return;
-    }
-    for (auto it = records.rbegin(); it != records.rend(); ++it) {
-        rv_editor_export_recent_row(*it, theme);
-    }
+    last_frame = frame;
+    last_kind = kind;
+    was_busy = busy;
+    return installed;
 }
 
 // A refusal's reason goes to the log under `key`.
@@ -428,17 +393,26 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
             { rv_editor_look::live, rv_editor_export_open_why(form, exporter) })) {
         rv_editor_export_open(app, form);
     }
-    ImGui::SameLine();
-    const char *setup_why = exporter.busy() ? rv_editor_text("pane_export.setup_busy_why") : nullptr;
-    if (rv_editor_button(rv_editor_text("pane_export.setup_button"), theme, { rv_editor_look::live, setup_why })) {
-        rv_editor_export_setup(app, form);
+    const bool busy = exporter.busy();
+    const auto slot = rv_editor_export_setup_shown(form.kind, rv_editor_export_installed_cached(form.kind, busy), busy);
+    if (slot == rv_editor_export_setup_item::button) {
+        ImGui::SameLine();
+        const char *setup_why = busy ? rv_editor_text("pane_export.setup_busy_why") : nullptr;
+        if (rv_editor_button(rv_editor_text("pane_export.setup_button"), theme, { rv_editor_look::live, setup_why })) {
+            rv_editor_export_setup(app, form);
+        }
+        if (setup_why == nullptr) {
+            rv_editor_item_tooltip(rv_editor_text("pane_export.setup_tooltip"));
+        }
+    } else if (slot == rv_editor_export_setup_item::installed_note) {
+        ImGui::SameLine();
+        rv_editor_label(rv_editor_text("pane_export.state_web_installed"), rv_editor_label_kind::dim, theme);
     }
-    if (setup_why == nullptr) {
-        rv_editor_item_tooltip(rv_editor_text("pane_export.setup_tooltip"));
+    if (rv_editor_export_state_shown(exporter.state())) {
+        rv_editor_export_same_line_if_room(state_min_em);
+        const std::string line = rv_editor_export_state_line(exporter, form.op);
+        rv_editor_export_state_row(line, rv_editor_export_lamp(exporter.state()), theme);
     }
-    rv_editor_export_same_line_if_room(state_min_em);
-    const std::string line = rv_editor_export_state_line(exporter, form.op);
-    rv_editor_export_state_row(line, rv_editor_export_lamp(exporter.state()), theme);
     if (!form.error.empty()) {
         rv_editor_label(form.error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
@@ -449,7 +423,6 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
     if (!reason.empty()) {
         rv_editor_export_reason(reason, theme);
     }
-    rv_editor_export_recent(exporter, theme);
 }
 
 } // namespace rv_editor
