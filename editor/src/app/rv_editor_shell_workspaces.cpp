@@ -91,13 +91,6 @@ bool rv_editor_strip_leaf(const rv_editor_workspace &ws, uint32_t node)
     return true;
 }
 
-// Debug keeps its Runtime Log's height: fitting the tiles to the Game there would
-// give the log's rows to the picture, which Fit draws whole in any tile anyway.
-bool rv_editor_preset_fits_game(rv_editor_layout_preset preset)
-{
-    return preset != rv_editor_layout_preset::debug;
-}
-
 // Walks up from `node` to find a split on `axis` whose sibling is not a strip,
 // adjusts `node`'s ratio by `delta` (positive grow, negative shrink). When
 // `guard_bottom_sibling` and `delta > 0`, skips taking height from bottom row.
@@ -145,9 +138,8 @@ int32_t rv_editor_strip_min_along(const rv_editor_workspace &ws, uint32_t node, 
     return axis == rv_editor_axis::x ? need.w : need.h;
 }
 
-// A split holding only strip leaves side by side, such as Runtime Controls beside
-// the Session Toolchest: not a strip itself, but it needs no more than the
-// tallest (or widest) of the strips it holds.
+// A split holding only strip leaves side by side: not a strip itself, but it
+// needs no more than the tallest (or widest) of the strips it holds.
 bool rv_editor_strip_row(const rv_editor_workspace &ws, uint32_t node)
 {
     const rv_editor_tile_node &n = ws.layout.nodes[node];
@@ -203,6 +195,12 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
 
 } // namespace
 
+// Every preset has a Game, so every one fits its tiles to the picture.
+bool rv_editor_preset_fits_game(rv_editor_layout_preset)
+{
+    return true;
+}
+
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
 {
     if (to == shell.active) {
@@ -241,8 +239,8 @@ void rv_editor_shell_frame_start(rv_editor_shell &shell)
 {
     rv_editor_shell_take_layout_request(shell);
     // Untouched (reset/fresh preset, no splitter dragged since) and rects from
-    // the last draw of this very tree. Independent of game_fit: Debug does not
-    // fit the Game but its strips still fit.
+    // the last draw of this very tree. Independent of game_fit: a Game the user
+    // stopped fitting leaves the strips fitting.
     const size_t slot = rv_editor_workspace_slot(shell.active);
     if (shell.layout_untouched[slot] && !shell.ws.dragged && shell.ws.rects.size() == shell.ws.layout.nodes.size()) {
         rv_editor_shell_fit_strips(shell.ws);

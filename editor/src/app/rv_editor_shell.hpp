@@ -129,8 +129,8 @@ struct rv_editor_shell {
     // By slot: a starting tree whose Game tile keeps the screen's proportions until
     // a splitter is dragged; the tries left to settle, and the area at the last one.
     std::array<bool, editor_workspace_slots_count> game_fit{};
-    // By slot: true from a reset/fresh preset until the first splitter drag, whether
-    // or not the preset also fits the Game (Debug does not, but its strips still do).
+    // By slot: true from a reset/fresh preset until the first splitter drag; its
+    // strips are fit to their buttons meanwhile, and the Game while game_fit holds.
     std::array<bool, editor_workspace_slots_count> layout_untouched{};
     int game_fit_tries = game_fit_attempts;
     rv_editor_size game_fit_last{ 0, 0 };
@@ -218,6 +218,9 @@ inline constexpr rv_editor_layout_preset rv_editor_workspaces[] = { rv_editor_la
     rv_editor_layout_preset::scene,
     rv_editor_layout_preset::debug,
     rv_editor_layout_preset::burn };
+
+// Whether the starting tree of `preset` sizes its Game tile to the picture.
+bool rv_editor_preset_fits_game(rv_editor_layout_preset preset);
 
 // Shows layout `to` as the user left it. Nothing else changes.
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to);
