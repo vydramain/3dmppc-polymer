@@ -4,10 +4,12 @@
 
 #include "panes/rv_editor_panes.hpp"
 
+#include <algorithm>
 #include <string>
 
 #include "imgui.h"
 
+#include "panes/rv_editor_findings_result.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -74,6 +76,8 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
         }
         ImGui::PopID();
     }
+    // Beside the last radio when it fits, so the button takes no row of its own.
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("findings.new_test_case")));
     const bool new_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::case_new);
     const char *new_why = new_pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
     if (rv_editor_button(rv_editor_text("findings.new_test_case"), theme, { rv_editor_look::live, new_why })) {
@@ -96,6 +100,13 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##note", f.note, sizeof(f.note), theme);
     rv_editor_item_tooltip(rv_editor_text("findings.note_tooltip"));
+    if (f.note[0] == '\0' && !ImGui::IsItemActive()) {
+        const ImVec2 min = ImGui::GetItemRectMin();
+        const ImVec2 pad = ImGui::GetStyle().FramePadding;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + pad.x, min.y + pad.y),
+            ImGui::GetColorU32(ImGuiCol_TextDisabled),
+            rv_editor_text("findings.note_placeholder"));
+    }
     const char *no_session = app.session.number() != 0 ? nullptr : rv_editor_text("findings.no_session_yet");
     const bool result_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::case_result);
     const char *result_why = result_pending ? rv_editor_text("app_why_not.request_pending") : no_session;
@@ -110,11 +121,22 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
                 { rv_editor_pane_request_kind::case_result, rv_editor_tile_none, case_path, {}, i });
         }
     }
+    rv_editor_label(rv_editor_case_result_line(f.results).c_str(),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::wrap);
     if (!f.error.empty()) {
         rv_editor_finding_error(app, theme);
     }
-    for (const std::string &r : f.results) {
-        rv_editor_label(r.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
+    // The latest result is on the line above, so the list shows only the earlier ones.
+    if (f.results.size() > 1) {
+        // The floor keeps a few lines visible when the tile is low.
+        const float height = std::max(ImGui::GetContentRegionAvail().y, ImGui::GetTextLineHeightWithSpacing() * 3.0f);
+        ImGui::BeginChild("##results", ImVec2(0, height), ImGuiChildFlags_None);
+        for (size_t i = 0; i + 1 < f.results.size(); ++i) {
+            rv_editor_label(f.results[i].c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
+        }
+        ImGui::EndChild();
     }
     rv_editor_well_end();
 }
