@@ -135,6 +135,9 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
     case rv_editor_pane_kind::runtime_log:
         title = title_subject("shell_titles.runtime_log", "shell_titles.playtest_log", burn ? candidate : session, burn);
         break;
+    case rv_editor_pane_kind::observe:
+        title = rv_editor_text("shell_titles.inspector");
+        break;
     case rv_editor_pane_kind::scene:
         title = title_scene(app);
         break;
