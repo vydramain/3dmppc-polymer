@@ -27,8 +27,6 @@ char mark_draft[mark_note_field_size] = {};
 // the count grew. no_mark_sent: nothing is waiting.
 constexpr size_t no_mark_sent = std::numeric_limits<size_t>::max();
 size_t mark_count_at_send = no_mark_sent;
-// The field never gets narrower than this many ems when the row is sized for a reserve.
-constexpr float min_field_em = 10.0f;
 
 // The row's tiles; their looks do not depend on the session.
 struct rv_editor_mark_tiles {
@@ -72,11 +70,17 @@ float rv_editor_small_tiles_width(const rv_editor_mark_tiles &t, bool with_resta
     return tiles + (with_restart ? 4.0f : 3.0f) * ImGui::GetStyle().ItemSpacing.x;
 }
 
+// The field is never narrower than its hint with the frame padding on both sides.
+float rv_editor_mark_field_min_width()
+{
+    return ImGui::CalcTextSize(rv_editor_text("pane_toolchest.mark_placeholder")).x + 2.0f * ImGui::GetStyle().FramePadding.x;
+}
+
 } // namespace
 
 float rv_editor_mark_tools_min_width(const rv_editor_theme &theme, bool with_restart)
 {
-    return min_field_em * ImGui::GetFontSize() + rv_editor_small_tiles_width(rv_editor_make_mark_tiles(theme), with_restart);
+    return rv_editor_mark_field_min_width() + rv_editor_small_tiles_width(rv_editor_make_mark_tiles(theme), with_restart);
 }
 
 std::vector<rv_editor_tile_rect>
@@ -105,16 +109,20 @@ rv_editor_mark_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_
     const char *restart_why = restart_pending ? rv_editor_text("app_why_not.restart_pending") : no_session;
     const rv_editor_mark_tiles tiles = rv_editor_make_mark_tiles(theme);
 
-    // The field takes what is left of the row after the small tiles and their gaps.
-    const float field_w = std::max(1.0f, ImGui::GetContentRegionAvail().x - rv_editor_small_tiles_width(tiles, with_restart));
+    // The field takes what is left of the row after the small tiles and their gaps, but not less than its hint.
+    const float field_w = std::max(rv_editor_mark_field_min_width(),
+        ImGui::GetContentRegionAvail().x - rv_editor_small_tiles_width(tiles, with_restart));
     ImGui::SetNextItemWidth(field_w);
     rv_editor_text_field("##mark_note", mark_draft, sizeof(mark_draft), theme, { {}, mark_pending });
     if (mark_draft[0] == '\0' && !ImGui::IsItemActive()) {
         const ImVec2 min = ImGui::GetItemRectMin();
         const ImVec2 pad = ImGui::GetStyle().FramePadding;
+        // Clipped to the field, so a narrow field never spills the hint over the tiles.
+        ImGui::PushClipRect(min, ImGui::GetItemRectMax(), true);
         ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + pad.x, min.y + pad.y),
             ImGui::GetColorU32(ImGuiCol_TextDisabled),
             rv_editor_text("pane_toolchest.mark_placeholder"));
+        ImGui::PopClipRect();
     }
     std::vector<rv_editor_tile_rect> rects;
     const auto track = [&rects] {
