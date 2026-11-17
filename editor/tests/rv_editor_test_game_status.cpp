@@ -25,7 +25,8 @@ RV_EDITOR_TEST(rv_editor_test_game_status_two_lines)
 
 RV_EDITOR_TEST(rv_editor_test_game_status_state_carries_stale)
 {
-    const auto l = rv_editor_game_status_compose(320, 240, "Fit 2.00x", "Stopped.", "stale: the last frame of session 3, stopped");
+    const auto l =
+        rv_editor_game_status_compose(320, 240, "Fit 2.00x", "Stopped.", "stale: the last frame of session 3, stopped");
     RV_EDITOR_CHECK(l.size_scale == "320x240  Fit 2.00x");
     RV_EDITOR_CHECK(has(l.state, "Stopped."));
     RV_EDITOR_CHECK(has(l.state, "stale: the last frame of session 3, stopped"));
