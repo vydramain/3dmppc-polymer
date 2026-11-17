@@ -267,8 +267,8 @@ appears. The screen waits for a press, and then the console exits with code 1.
 
 The window comes before the disc is chosen, built-in or by path, and has nothing to do with the
 disc. With `--mode_cv=null` or `--frame-fd` there is no window, so no screen and no
-wait: the lines are only in the log. In the browser the screen is the same, and its lines
-also go to the browser console.
+wait: the lines are only in the log. In the browser the screen is the same, and the log lines
+also go to the browser console, by their level (debug, info, warn, error).
 
 The texts are in `src/texts/rv_console_texts.toml`, section `[boot]`. They are built into the
 console, so a translation is an edit of that file followed by a rebuild.
@@ -293,18 +293,20 @@ reason.
 In a browser with WebHID (the page's access to HID devices, such as gamepads) and JSPI
 (a way for WebAssembly to wait for the browser), the page shows a button at the
 bottom right, labelled with the value of `allow_gamepads` in `rv_web_texts.txt`
-("Allow gamepads" by default). The boot journal advises Chrome or Edge 137 or newer.
+("Allow gamepads" by default).
 The click asks for the gamepads the browser offers. A gamepad granted this way gets the
 driver SDL has for that model, which gives motion sensors and touchpads where that driver
 supports them; this is not checked on real hardware yet. Gamepads granted earlier open at
 page load, without a prompt. A declined request is not an error.
 
 Without WebHID or JSPI, gamepads use the browser's standard Gamepad API (the common browser
-interface for gamepads), with no motion sensors or touchpads. The boot check logs
-`pcboot: cio: warning` with its advice, and the start screen stops at that report until a
-key, a mouse button or a gamepad button is pressed (see "Start screen"). On a phone or
-tablet, where the page shows the on-screen gamepad (below), a missing WebHID is no
-warning and no stop: the phone's own motion sensors feed that gamepad, so it needs no WebHID.
+interface for gamepads), with no motion sensors or touchpads. The log gets one info line
+about it, and the boot check stays ok, so the start screen does not stop.
+
+When a DualShock 4, DualSense, Switch Pro or Joy-Con connects without its motion sensors or
+touchpad, the log gets one warning that names what the pad lacks and how to get it: the
+page's gamepad button, when WebHID and JSPI are there, otherwise Chrome or Edge 137 or newer
+on a computer. The warning is only in the log, not on the screen.
 
 On a phone or tablet the page draws an on-screen gamepad over the console. The page takes
 itself for a phone when the main pointer is coarse without hover, or the browser calls
