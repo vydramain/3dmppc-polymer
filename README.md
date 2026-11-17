@@ -308,7 +308,13 @@ warning and no stop: the phone's own motion sensors feed that gamepad, so it nee
 
 On a phone or tablet the page draws an on-screen gamepad over the console. A phone is a
 coarse pointer without hover, so a touch laptop and a computer get no pad. The groups come
-from the `show` list of `[touch_pad]` in the disc (see [disc.toml](#disctoml)). On iOS the
+from the `show` list of `[touch_pad]` in the disc (see [disc.toml](#disctoml)). A stick
+takes its centre where the finger lands, and its cap is drawn under the finger and follows
+it up to the stick's travel; past that the value is clipped to the circle (the console
+applies the dead zone). A pressed plate sinks like a pressed button of the editor: an
+opaque dark fill and the label nudged by a pixel. A trackpad shows the finger while it
+touches, and a released L2 or R2 reads 0. The page scripts have their own checks, run with
+`node --test src/web/tests/` (the built-in `node:test`, no dependencies). On iOS the
 motion sensors ask for permission when the console starts on the first touch or key press.
 Vibration works where the browser has `navigator.vibrate`; in practice these are Android
 browsers. The web build requires WebGL 2 (`-sMIN_WEBGL_VERSION=2`); a browser without it
@@ -617,12 +623,12 @@ the script that demonstrates it.
 
 ### What an acceptance run has to prove
 
-The console carries no test code, so the harness that checks this runtime lives
-outside the repository — it builds both configurations from a working tree,
-drives the channel over a fifo so the disc can be EDITED mid-run, and asserts on
-protocol lines rather than on log text. What stays here is the list it has to
-satisfy, because that list is a property of the contract above and not of
-whoever wrote the script:
+The console carries no test code (the page scripts in `src/web` have their own node tests,
+see above), so the harness that checks this runtime lives outside the repository — it
+builds both configurations from a working tree, drives the channel over a fifo so the disc
+can be EDITED mid-run, and asserts on protocol lines rather than on log text. What stays
+here is the list it has to satisfy, because that list is a property of the contract above
+and not of whoever wrote the script:
 
 1. Both configurations build, and both burn and boot an ordinary disc.
 2. The player build contains no verb of the protocol and no hex encoder for
