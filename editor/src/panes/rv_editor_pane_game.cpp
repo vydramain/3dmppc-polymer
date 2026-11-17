@@ -156,7 +156,7 @@ enum class rv_editor_game_line {
     muted
 };
 
-// One status line, then the picture area to the tile's bottom edge, dark, with the
+// The status line (one, or two when narrow), then the picture area to the tile's bottom edge, dark, with the
 // frame placed as Game Scale says once a texture exists; empty otherwise. Every
 // state routes through here so this-frame's area is the same shape regardless of
 // what the state has to show (game-steady).
@@ -175,27 +175,38 @@ void rv_editor_game_picture(const rv_editor_ui_port &ui,
     static_assert(std::size(line_kinds) == static_cast<size_t>(rv_editor_game_line::muted) + 1,
         "one kind per status line colour, in enum order");
     const rv_editor_label_kind kind = line_kinds[static_cast<size_t>(line)];
-    // Wrapped lines are never cut, so the area is what is left under them.
-    const auto wrapped_h = [](const std::string &text, float width) {
-        return ImGui::CalcTextSize(text.c_str(), nullptr, false, width).y + ImGui::GetStyle().ItemSpacing.y;
-    };
     ImVec2 area = ImGui::GetContentRegionAvail();
     rv_editor_game_view view{};
     if (have) {
-        // The size line is one line while the scale is placed; it only wraps in a very narrow tile.
-        const float state_h = wrapped_h(status, area.x);
-        view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
-            static_cast<int>(rv_editor_game_h),
-            area.x,
-            area.y - state_h - ImGui::GetTextLineHeightWithSpacing(),
-            mode);
-        const rv_editor_game_status_lines lines = rv_editor_game_status_compose(static_cast<int>(rv_editor_game_w),
-            static_cast<int>(rv_editor_game_h),
-            rv_editor_game_scale_text(mode, view),
-            status,
-            "");
-        rv_editor_label(lines.size_scale.c_str(), kind, theme, rv_editor_label_layout::wrap);
-        rv_editor_label(lines.state.c_str(), kind, theme, rv_editor_label_layout::wrap);
+        // The scale in the text depends on the view, the view on the height left under the text: place with a
+        // one-line estimate, decide the row count from that text, and re-place for two rows if it needs them, so the
+        // drawn scale matches the drawn picture. The check after drawing is a safety net for wrapped rows.
+        const auto place = [&](float text_h) {
+            return rv_editor_game_place(static_cast<int>(rv_editor_game_w),
+                static_cast<int>(rv_editor_game_h),
+                area.x,
+                area.y - text_h,
+                mode);
+        };
+        const auto compose = [&] {
+            return rv_editor_game_status_compose(static_cast<int>(rv_editor_game_w),
+                static_cast<int>(rv_editor_game_h),
+                rv_editor_game_scale_text(mode, view),
+                status,
+                "");
+        };
+        const float line_h = ImGui::GetTextLineHeightWithSpacing();
+        view = place(line_h);
+        rv_editor_game_status_lines lines = compose();
+        std::vector<std::string> rows =
+            rv_editor_game_status_rows(lines, area.x, ImGui::CalcTextSize(rv_editor_game_status_joined(lines).c_str()).x);
+        if (rows.size() > 1) {
+            view = place(line_h * 2.0f);
+            lines = compose();
+            rows =
+                rv_editor_game_status_rows(lines, area.x, ImGui::CalcTextSize(rv_editor_game_status_joined(lines).c_str()).x);
+        }
+        rv_editor_game_status_draw(rows, kind, theme);
         area = ImGui::GetContentRegionAvail();
         if (view.h > area.y) {
             view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
@@ -205,7 +216,7 @@ void rv_editor_game_picture(const rv_editor_ui_port &ui,
                 mode);
         }
     } else {
-        rv_editor_label(status.c_str(), kind, theme, rv_editor_label_layout::wrap);
+        rv_editor_game_status_draw({ status }, kind, theme);
         area = ImGui::GetContentRegionAvail();
     }
 
@@ -230,6 +241,10 @@ void rv_editor_game_picture(const rv_editor_ui_port &ui,
     }
     const ImVec2 i0(p0.x + view.x, p0.y + view.y);
     const ImVec2 i1(i0.x + view.w, i0.y + view.h);
+    // Centred views can overflow the area: clip so they never cover the status lines; the frame sits outside the picture.
+    dl->PushClipRect(ImVec2(p0.x - frame_thickness_px, p0.y),
+        ImVec2(p0.x + area.x + frame_thickness_px, p0.y + area.y + frame_thickness_px),
+        true);
     dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)),
         i0,
         i1,
@@ -243,9 +258,10 @@ void rv_editor_game_picture(const rv_editor_ui_port &ui,
             0.0f,
             frame_thickness_px);
     }
+    dl->PopClipRect();
 }
 
-// Appends " stale: the last frame of session N, <state>" to status when a frame
+// Appends " stale: session N, <state>" to status when a frame
 // from an ended session is still on the texture, marked as such rather than
 // looking like the game; returns whether it did.
 bool rv_editor_game_join_stale(const rv_editor_app &app, std::string &status)

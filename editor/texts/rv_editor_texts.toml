@@ -155,7 +155,7 @@ timeout = "not answering: the last request timed out"
 state_paused = "paused"
 playing_keyboard = "playing: Shift+Esc gives the keyboard back"
 click_to_play = "click the picture to play"
-stale_session = "stale: the last frame of session {}, {}"
+stale_session = "stale: session {}, {}"
 frame_status = "frame {}, {}"
 
 [manual]
