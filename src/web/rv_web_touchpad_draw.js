@@ -148,6 +148,12 @@ var rvTouchDraw = (function() {
         var fy = Math.round(c.y + c.h / 2 - at.y * (c.h / 2 - FIELD_INSET_PX));
         paint(ctx, fx - FINGER_PX / 2, fy - FINGER_PX / 2, FINGER_PX, FINGER_PX, C_BRIGHT, LINE_ALPHA);
     }
+    // Inverse of drawPad's finger point: pad pixel to -1..1, +y up, clipped to the field edge.
+    function padAt(c, px, py) {
+        var x = (px - (c.x + c.w / 2)) / (c.w / 2 - FIELD_INSET_PX);
+        var y = (c.y + c.h / 2 - py) / (c.h / 2 - FIELD_INSET_PX);
+        return {x : Math.min(1, Math.max(-1, x)), y : Math.min(1, Math.max(-1, y))};
+    }
     var DRAW = {btn : drawBtn, well : drawWell, stick : drawStick, pad : drawPad};
     // Draws element c = {kind, x, y, w, h} in pad pixels; the caller's context transform sets the pad-pixel scale.
     // Stick and pad take at = {x, y} in -1..1, +y up. Canvas alpha is restored even if a draw throws.
@@ -165,5 +171,5 @@ var rvTouchDraw = (function() {
         }
     }
 
-    return {control : control, ink : ink, capTravel : capTravel};
+    return {control : control, ink : ink, capTravel : capTravel, padAt : padAt};
 })();

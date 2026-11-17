@@ -146,10 +146,12 @@ void (function() {
         }
     }
 
-    // Trackpad: touch position in 0..1 from the pad's top-left corner, clamped to its square.
+    // Trackpad: touch position in 0..1 from the pad's top-left corner, clamped to its square. The picture's finger
+    // point follows the same touch; a lift removes it.
     function padTouch(st, p, down) {
         var s = PAD[st.el.id];
         trackpad(s.pad, down, clamp01((p.px - st.el.x) / st.el.w), clamp01((p.py - st.el.y) / st.el.h));
+        rvTouchpad.point(st.el.id, down ? rvTouchDraw.padAt(st.el, p.px, p.py) : null);
     }
     function padDown(st, p) { padTouch(st, p, true); }
     function padUp(st, p, tap) {
@@ -301,10 +303,10 @@ void (function() {
         KIND[el.kind].take(next, p);
     }
 
-    // Lift or cancel, from the last known position. The last holder of a stick or trackpad releases without reading
-    // the DOM (a lift within TAP_MS may tap). A plate release also redraws the pad through rvTouchpad.press, which
-    // looks up the canvas. Otherwise handOver gives the output to the next holder, unless the element left the layout
-    // or the canvas is gone, hidden or unsized: then the remaining holders are released instead.
+    // Lift or cancel, from the last known position. The last holder of a stick, trackpad or plate releases it, and each
+    // release redraws the pad through rvTouchpad (point or press), which is safe without the canvas: it warns once and
+    // draws nothing. A lift within TAP_MS may tap. Otherwise handOver gives the output to the next holder, unless the
+    // element left the layout or the canvas is gone, hidden or unsized: then the remaining holders are released instead.
     function finish(pid, cancel) {
         var st = active[pid];
         if (!st) {
