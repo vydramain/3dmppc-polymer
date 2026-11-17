@@ -87,6 +87,16 @@ cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev
 `PATH` is a game directory or its `disc.toml` file; both open the same project.
 The editor can also open projects from File > Open Project... in the menu.
 
+## Tests
+
+The editor has a unit test executable, run by ctest. In the devtools build:
+
+```sh
+ctest --test-dir build-dev/sdk/editor
+```
+
+On its own, use `ctest --test-dir editor/build`. The test binary is not part of the delivery's `bin`.
+
 ## Manual
 
 The complete user manual is built into the editor: Help > Manual (F1). Its
