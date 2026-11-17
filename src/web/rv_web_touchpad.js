@@ -10,8 +10,9 @@ var rvTouchpad = (function() {
     Module.rvTouchpadWanted = matchMedia(PHONE_QUERY).matches;
 
     var shown = false, groups = 0, frame = null, outW = 0, outH = 0;
-    // pressed: id -> bool. warned: ids already reported for a missing label. noCanvasWarned: one-time flag.
-    var pressed = {}, warned = {}, noCanvasWarned = false;
+    // pressed: id -> bool. at: id -> {x, y} cap or finger point of a stick or trackpad. warned: ids already reported for a
+    // missing label. noCanvasWarned: one-time flag.
+    var pressed = {}, at = {}, warned = {}, noCanvasWarned = false;
 
     // A missing canvas means a broken page build (shell and this script ship together): one warning, then silent.
     function canvas() {
@@ -76,9 +77,9 @@ var rvTouchpad = (function() {
         ctx.setTransform(model.scale, 0, 0, model.scale, 0, 0);
         ctx.imageSmoothingEnabled = false;
         model.elements.forEach(function(el) {
-            // Well has no id and no label; null at centres the stick and pad caps.
+            // Well has no id and no label; no point centres the stick cap and hides the pad finger.
             var text = el.id ? labelOf(cv, el.id) : '';
-            rvTouchDraw.control(ctx, el, text, !!pressed[el.id], null);
+            rvTouchDraw.control(ctx, el, text, !!pressed[el.id], at[el.id] || null);
         });
     }
 
@@ -114,6 +115,15 @@ var rvTouchpad = (function() {
         controls : controls,
         press : function(id, down) {
             pressed[id] = !!down;
+            redraw();
+        },
+        // at = {x, y} in -1..1, +y up, as rvTouchDraw.control takes it; null removes the point.
+        point : function(id, p) {
+            if (p) {
+                at[id] = p;
+            } else {
+                delete at[id];
+            }
             redraw();
         }
     };

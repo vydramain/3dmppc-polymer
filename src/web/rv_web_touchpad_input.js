@@ -113,17 +113,26 @@ void (function() {
         rvTouchpad.press(id, down);
     }
 
-    // Stick: offset from the element centre in half-sides, clipped to the unit circle; +y is up.
+    // Stick: floating centre (st.ox, st.oy) at the touch point; axes are the offset from it over the cap travel R,
+    // clipped to the unit circle, +y up. The cap is drawn at centre + axes * R; draw takes it from the plate centre.
     function stickMove(st, p) {
-        var s = STICK[st.el.id];
-        var dx = (p.px - st.el.x - st.el.w / 2) / (st.el.w / 2);
-        var dy = (st.el.y + st.el.h / 2 - p.py) / (st.el.h / 2);
+        var s = STICK[st.el.id], e = st.el;
+        var r = rvTouchDraw.capTravel(e);
+        var dx = (p.px - st.ox) / r;
+        var dy = (st.oy - p.py) / r;
         var k = Math.max(1, Math.hypot(dx, dy));
         axis(s.x, dx / k);
         axis(s.y, dy / k);
+        rvTouchpad.point(e.id, {x : (st.ox - e.x - e.w / 2) / r + dx / k, y : (e.y + e.h / 2 - st.oy) / r + dy / k});
+    }
+    // New centre at the finger: the first touch and a handover both start from axes (0, 0).
+    function stickTake(st, p) {
+        st.ox = p.px;
+        st.oy = p.py;
+        stickMove(st, p);
     }
     function stickDown(st, p) {
-        stickMove(st, p);
+        stickTake(st, p);
         button(STICK[st.el.id].touch, true);
     }
     function stickUp(st, p, tap) {
@@ -131,6 +140,7 @@ void (function() {
         axis(s.x, 0);
         axis(s.y, 0);
         button(s.touch, false);
+        rvTouchpad.point(st.el.id, null);
         if (tap) {
             click(s.click);
         }
@@ -158,7 +168,7 @@ void (function() {
             up : function(st) { plateSet(st.el.id, false); },
             take : function() {}
         },
-        stick : {down : stickDown, move : stickMove, up : stickUp, take : stickMove},
+        stick : {down : stickDown, move : stickMove, up : stickUp, take : stickTake},
         pad : {down : padDown, move : padDown, up : padUp, take : padDown}
     };
 

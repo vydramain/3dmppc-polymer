@@ -113,14 +113,18 @@ var rvTouchDraw = (function() {
         caption(ctx, x, y, label, C_TEXT, scale);
     }
 
+    function capSide(c) { return Math.round(Math.min(c.w, c.h) * CAP_SHARE); }
+    // Cap travel in pad pixels, the same on both axes (the cap stays inside the shorter side); input reads it as the
+    // stick radius, so one formula sets both the picture and the axes.
+    function capTravel(c) { return Math.min(c.w, c.h) / 2 - capSide(c) / 2 - CAP_GAP_PX; }
     // A null at centres the cap; otherwise the cap moves to at, keeping CAP_GAP_PX from the field edge.
     function drawStick(ctx, c, label, pressed, at) {
         face(ctx, c, C_INSET, C_LO, C_HI);
         caption(ctx, c.x + FIELD_INSET_PX, c.y + FIELD_INSET_PX, label, C_DISABLED, 1);
         var a = at || {x : 0, y : 0};
-        var side = Math.round(Math.min(c.w, c.h) * CAP_SHARE);
-        var cx = c.x + c.w / 2 + a.x * (c.w / 2 - side / 2 - CAP_GAP_PX);
-        var cy = c.y + c.h / 2 - a.y * (c.h / 2 - side / 2 - CAP_GAP_PX);
+        var side = capSide(c), r = capTravel(c);
+        var cx = c.x + c.w / 2 + a.x * r;
+        var cy = c.y + c.h / 2 - a.y * r;
         face(ctx, {x : Math.round(cx - side / 2), y : Math.round(cy - side / 2), w : side, h : side}, C_BUTTON, C_HI, C_LO);
     }
 
@@ -161,5 +165,5 @@ var rvTouchDraw = (function() {
         }
     }
 
-    return {control : control, ink : ink};
+    return {control : control, ink : ink, capTravel : capTravel};
 })();
