@@ -306,16 +306,19 @@ key, a mouse button or a gamepad button is pressed (see "Start screen"). On a ph
 tablet, where the page shows the on-screen gamepad (below), a missing WebHID is no
 warning and no stop: the phone's own motion sensors feed that gamepad, so it needs no WebHID.
 
-On a phone or tablet the page draws an on-screen gamepad over the console. A phone is a
-coarse pointer without hover, so a touch laptop and a computer get no pad. The groups come
-from the `show` list of `[touch_pad]` in the disc (see [disc.toml](#disctoml)). A stick
-takes its centre where the finger lands, and its cap is drawn under the finger and follows
-it up to the stick's travel; past that the value is clipped to the circle (the console
-applies the dead zone). A pressed plate sinks like a pressed button of the editor: an
-opaque dark fill and the label nudged by a pixel. A trackpad shows the finger while it
-touches, and a released L2 or R2 reads 0. The page scripts have their own checks, run with
-`node --test src/web/tests/` (the built-in `node:test`, no dependencies). On iOS the
-motion sensors ask for permission when the console starts on the first touch or key press.
+On a phone or tablet the page draws an on-screen gamepad over the console. The page takes
+itself for a phone when the main pointer is coarse without hover, or the browser calls
+itself mobile (userAgentData.mobile, or Android, iPhone, iPad, iPod or Mobi in the user
+agent), or it is an iPad with touch that sends a Macintosh user agent. A touch laptop and
+a computer with a desktop user agent get no pad. The groups come from the `show` list of
+`[touch_pad]` in the disc (see [disc.toml](#disctoml)). A stick takes its centre where the
+finger lands, and its cap is drawn under the finger and follows it up to the stick's
+travel; past that the value is clipped to the circle (the console applies the dead zone).
+A pressed plate sinks like a pressed button of the editor: an opaque dark fill and the
+label nudged by a pixel. A trackpad shows the finger while it touches, and a released L2
+or R2 reads 0. The page scripts have their own checks, run with
+`node --test src/web/tests/` (the built-in `node:test`, no dependencies). On iOS the motion
+sensors ask for permission when the console starts on the first touch or key press.
 Vibration works where the browser has `navigator.vibrate`; in practice these are Android
 browsers. The web build requires WebGL 2 (`-sMIN_WEBGL_VERSION=2`); a browser without it
 cannot create the canvas context.
