@@ -32,6 +32,33 @@ function recordingContext() {
 }
 
 const PARTS = [ 'rv_web_touchpad_draw.js', 'rv_web_touchpad_layout.js', 'rv_web_touchpad.js', 'rv_web_touchpad_input.js' ];
+// Context for the PARTS: stubbed matchMedia (env.matches, default true; env.matchMedia === null removes it) and navigator
+// (env.navigator, default an empty user agent), plus the given globals. Loads no script.
+function pageContext(globals, env) {
+    const context = vm.createContext({
+        console,
+        navigator : env.navigator || {userAgent : ''},
+        ...globals,
+    });
+    if (env.matchMedia !== null) {
+        context.matchMedia = () => ({matches : env.matches === undefined ? true : env.matches});
+    }
+    return context;
+}
+
+// Loads just the PARTS with the given env (see pageContext) and returns the context, to read Module.rvTouchpadWanted.
+function loadParts(env = {}) {
+    const none = () => {};
+    const context = pageContext({
+        Module : {canvas : {}},
+        document : {getElementById : () => null, addEventListener : none},
+        window : {addEventListener : none, screen : {}}
+    },
+                                env);
+    PARTS.forEach(f => run(context, f));
+    return context;
+}
+
 // SDL_GamepadAxis numbers the page sends.
 const AXIS = {
     LEFTX : 0,
@@ -44,7 +71,8 @@ const AXIS = {
 
 // Landscape scene as on a phone: buffer 1280x592, a 640x360 frame centred, frame_w 320, so scale 2 and a 640x296 pad
 // surface. groups: a bit mask of rvTouchLayout.GROUP names, default sticks|face|triggers|menu.
-function scene(groupNames = [ 'sticks', 'face', 'triggers', 'menu' ]) {
+// env: matches, navigator, matchMedia === null, see pageContext.
+function scene(groupNames = [ 'sticks', 'face', 'triggers', 'menu' ], env = {}) {
     const clock = {t : 1000, timers : [], next : 1};
     const handlers = {};
     const addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn); };
@@ -69,19 +97,18 @@ function scene(groupNames = [ 'sticks', 'face', 'triggers', 'menu' ]) {
         _rv_pctouchpad_axis : (a, v) => calls.axes.push({axis : a, value : v}),
         _rv_pctouchpad_trackpad : (pad, down, x, y) => calls.trackpad.push({pad, down : !!down, x, y}),
     };
-    const context = vm.createContext({
-        console,
+    const context = pageContext({
         Module,
         document : {getElementById : id => id === 'touchpad' ? canvas : null, addEventListener},
         window : {addEventListener, screen : {}},
-        matchMedia : () => ({matches : true}),
         Date : {now : () => clock.t},
         setTimeout : (fn, ms) => {
             clock.timers.push({id : clock.next, due : clock.t + ms, fn});
             return clock.next++;
         },
         clearTimeout : id => { clock.timers = clock.timers.filter(t => t.id !== id); },
-    });
+    },
+                                env);
     PARTS.forEach(f => run(context, f));
     Module.rvTouchpadLayout(320, 116, 640, 360, 1280, 592, 320);
     Module.rvTouchpadShow(groupNames.reduce((m, n) => m | context.rvTouchLayout.GROUP[n], 0));
@@ -129,6 +156,7 @@ function scene(groupNames = [ 'sticks', 'face', 'triggers', 'menu' ]) {
 module.exports = {
     AXIS,
     scene,
+    loadParts,
     load,
     run,
     recordingContext

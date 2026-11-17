@@ -5,9 +5,19 @@ var rvTouchpad = (function() {
     var CANVAS_ID = 'touchpad';
     // Phone or tablet: coarse main pointer without hover. Laptops with touch and desktops stay false.
     var PHONE_QUERY = '(pointer: coarse) and (hover: none)';
+    // Firefox for Android and Samsung or stylus browsers do not always report coarse/no-hover, so the user agent backs it up.
+    var MOBILE_UA = /Android|iPhone|iPad|iPod|Mobi/;
+    // Computed once. iPadOS sends a Macintosh UA, told by its touch points; a desktop UA with touch (a touch laptop) stays
+    // false.
+    function isPhone() {
+        var nav = typeof navigator === 'object' ? navigator : {}, ua = nav.userAgent || '';
+        return (typeof matchMedia === 'function' && matchMedia(PHONE_QUERY).matches) ||
+               (nav.userAgentData && nav.userAgentData.mobile === true) || MOBILE_UA.test(ua) ||
+               (ua.indexOf('Macintosh') >= 0 && nav.maxTouchPoints > 1);
+    }
     // Dataset key prefix for the labels data-label-<id> on the pad canvas; see labelOf.
     var LABEL_PREFIX = 'label';
-    Module.rvTouchpadWanted = matchMedia(PHONE_QUERY).matches;
+    Module.rvTouchpadWanted = !!isPhone();
 
     var shown = false, groups = 0, frame = null, outW = 0, outH = 0;
     // pressed: id -> bool. at: id -> {x, y} cap or finger point of a stick or trackpad. warned: ids already reported for a
