@@ -8,6 +8,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
+#include "rv_pconsole/platform/sdl3/rv_pctouchpad_axis.hpp"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -157,9 +158,12 @@ int touch_button_index(uint32_t mask, int button)
     return std::popcount(mask & ((1u << button) - 1));
 }
 
-// Full scale in SDL's Sint16 units; SDL's stick y grows down, the console's up.
-constexpr float RV_PCTOUCH_AXIS_MAX = static_cast<float>(SDL_JOYSTICK_AXIS_MAX);
-constexpr float RV_PCTOUCH_STICK_Y_SIGN = -1.0f;
+// rv_pctouch_axis_raw uses its own copies of SDL's axis numbers; they must match.
+static_assert(RV_PCTOUCH_AXIS_LEFTX == SDL_GAMEPAD_AXIS_LEFTX && RV_PCTOUCH_AXIS_LEFTY == SDL_GAMEPAD_AXIS_LEFTY &&
+        RV_PCTOUCH_AXIS_RIGHTX == SDL_GAMEPAD_AXIS_RIGHTX && RV_PCTOUCH_AXIS_RIGHTY == SDL_GAMEPAD_AXIS_RIGHTY &&
+        RV_PCTOUCH_AXIS_LEFT_TRIGGER == SDL_GAMEPAD_AXIS_LEFT_TRIGGER &&
+        RV_PCTOUCH_AXIS_RIGHT_TRIGGER == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER,
+    "RV_PCTOUCH_AXIS_* must match SDL_GAMEPAD_AXIS_*");
 // The page draws one touch point per trackpad, so each pad is driven with its first finger.
 constexpr int RV_PCTOUCH_FINGER = 0;
 #endif
@@ -267,17 +271,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE int rv_pctouchpad_axis(int axis, float value)
     if (live_touch_pad == nullptr) {
         return no_touch_pad();
     }
-    const bool trigger = axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;
-    const bool stick_y = axis == SDL_GAMEPAD_AXIS_LEFTY || axis == SDL_GAMEPAD_AXIS_RIGHTY;
     const bool known = axis >= SDL_GAMEPAD_AXIS_LEFTX && axis < SDL_GAMEPAD_AXIS_COUNT;
     if (!known || !std::isfinite(value)) {
         RV_LOG_WARN("pcplatform", "rv_pctouchpad_axis: axis {} value {} is not a pad axis", axis, value);
         return RV_ERR_INVAL;
     }
-    // Sticks are -1..1, triggers 0..1; values past the range are cut off at it.
-    const float clamped = std::clamp(value, trigger ? 0.0f : -1.0f, 1.0f);
-    const float sign = stick_y ? RV_PCTOUCH_STICK_Y_SIGN : 1.0f;
-    const auto raw = static_cast<Sint16>(std::lround(sign * clamped * RV_PCTOUCH_AXIS_MAX));
+    const Sint16 raw = rv_pctouch_axis_raw(axis, value);
     if (!SDL_SetJoystickVirtualAxis(live_touch_pad->joystick, axis, raw)) {
         RV_LOG_WARN("pcplatform", "SDL_SetJoystickVirtualAxis failed: {}", SDL_GetError());
         return RV_ERR_IO;
