@@ -42,11 +42,13 @@ var rvTouchDraw = (function() {
     var C_HI = '#7e8776';       // rv_theme_bevel_hi: light edge
     var C_LO = '#32392c';       // rv_theme_bevel_lo: shadow edge
     var C_TEXT = '#d8ded3';     // rv_theme_text: label
-    var C_BRIGHT = '#f1f2f0';   // rv_theme_text_bright: pressed label
+    var C_BRIGHT = '#f1f2f0';   // rv_theme_text_bright: finger marker
     var C_DISABLED = '#758666'; // rv_theme_text_disabled: field captions
 
     // Faces are a thin wash so the game shows through; edges and labels stay at half strength.
     var FACE_ALPHA = 0.10, LINE_ALPHA = 0.50;
+    // A pressed plate is opaque like a pressed editor button (rv_editor_button_face).
+    var SOLID_ALPHA = 1;
     // Bevel width in pad pixels (rv_theme_bevel_px); a pressed plate sinks, its label moves PRESS_SHIFT.
     var BEVEL_PX = 2, PRESS_SHIFT = 1;
     // Local values of the screen-pad look, not values from C++: 2x labels on plates this big that fit.
@@ -84,26 +86,31 @@ var rvTouchDraw = (function() {
     }
 
     // Lit on the top and left, shade on the bottom and right, BEVEL_PX pixels deep.
-    function bevel(ctx, x, y, w, h, lit, shade) {
+    function bevel(ctx, x, y, w, h, lit, shade, alpha) {
         for (var i = 0; i < BEVEL_PX; i++) {
-            paint(ctx, x + i, y + i, w - 2 * i, 1, lit, LINE_ALPHA);
-            paint(ctx, x + i, y + i, 1, h - 2 * i, lit, LINE_ALPHA);
-            paint(ctx, x + i, y + h - 1 - i, w - 2 * i, 1, shade, LINE_ALPHA);
-            paint(ctx, x + w - 1 - i, y + i, 1, h - 2 * i, shade, LINE_ALPHA);
+            paint(ctx, x + i, y + i, w - 2 * i, 1, lit, alpha);
+            paint(ctx, x + i, y + i, 1, h - 2 * i, lit, alpha);
+            paint(ctx, x + i, y + h - 1 - i, w - 2 * i, 1, shade, alpha);
+            paint(ctx, x + w - 1 - i, y + i, 1, h - 2 * i, shade, alpha);
         }
     }
-    function face(ctx, c, col, lit, shade) {
-        paint(ctx, c.x, c.y, c.w, c.h, col, FACE_ALPHA);
-        bevel(ctx, c.x, c.y, c.w, c.h, lit, shade);
+    function face(ctx, c, col, lit, shade, faceAlpha, lineAlpha) {
+        paint(ctx, c.x, c.y, c.w, c.h, col, faceAlpha === undefined ? FACE_ALPHA : faceAlpha);
+        bevel(ctx, c.x, c.y, c.w, c.h, lit, shade, lineAlpha === undefined ? LINE_ALPHA : lineAlpha);
     }
     function drawBtn(ctx, c, label, pressed) {
-        face(ctx, c, C_BUTTON, pressed ? C_LO : C_HI, pressed ? C_HI : C_LO);
+        if (pressed) {
+            paint(ctx, c.x, c.y, c.w, c.h, C_DARK, SOLID_ALPHA);
+            face(ctx, {x : c.x + 1, y : c.y + 1, w : c.w - 2, h : c.h - 2}, C_INSET, C_LO, C_HI, SOLID_ALPHA, SOLID_ALPHA);
+        } else {
+            face(ctx, c, C_BUTTON, C_HI, C_LO);
+        }
         var fits = ink(label, BIG_SCALE) + 2 * BUTTON_PAD_X <= c.w;
         var scale = (c.w >= BIG_PLATE_PX && c.h >= BIG_PLATE_PX && fits) ? BIG_SCALE : 1;
         var shift = pressed ? PRESS_SHIFT : 0;
         var x = c.x + Math.floor((c.w - ink(label, scale)) / 2) + shift;
         var y = c.y + Math.floor((c.h - INK_H * scale) / 2) + shift;
-        caption(ctx, x, y, label, pressed ? C_BRIGHT : C_TEXT, scale);
+        caption(ctx, x, y, label, C_TEXT, scale);
     }
 
     // A null at centres the cap; otherwise the cap moves to at, keeping CAP_GAP_PX from the field edge.
