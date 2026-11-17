@@ -43,8 +43,6 @@ inline constexpr const char *rv_pcboot_text_audio_found = "boot.audio_found";
 inline constexpr const char *rv_pcboot_text_audio_recommend = "boot.audio_recommend";
 inline constexpr const char *rv_pcboot_text_gamepads_found = "boot.gamepads_found";
 inline constexpr const char *rv_pcboot_text_gamepads_recommend = "boot.gamepads_recommend";
-inline constexpr const char *rv_pcboot_text_webhid_found = "boot.webhid_found";
-inline constexpr const char *rv_pcboot_text_webhid_recommend = "boot.webhid_recommend";
 inline constexpr const char *rv_pcboot_text_motion_found = "boot.motion_found";
 inline constexpr const char *rv_pcboot_text_motion_recommend = "boot.motion_recommend";
 inline constexpr const char *rv_pcboot_text_video_found = "boot.video_found";
@@ -57,8 +55,6 @@ inline constexpr const char *rv_pcboot_text_audio_found_short = "boot.audio_foun
 inline constexpr const char *rv_pcboot_text_audio_recommend_short = "boot.audio_recommend_short";
 inline constexpr const char *rv_pcboot_text_gamepads_found_short = "boot.gamepads_found_short";
 inline constexpr const char *rv_pcboot_text_gamepads_recommend_short = "boot.gamepads_recommend_short";
-inline constexpr const char *rv_pcboot_text_webhid_found_short = "boot.webhid_found_short";
-inline constexpr const char *rv_pcboot_text_webhid_recommend_short = "boot.webhid_recommend_short";
 inline constexpr const char *rv_pcboot_text_motion_found_short = "boot.motion_found_short";
 inline constexpr const char *rv_pcboot_text_motion_recommend_short = "boot.motion_recommend_short";
 inline constexpr const char *rv_pcboot_text_video_found_short = "boot.video_found_short";
@@ -90,12 +86,6 @@ inline constexpr rv_pcboot_refusal_row rv_pcboot_refusal_rows[] = {
         rv_pcboot_text_gamepads_recommend,
         rv_pcboot_text_gamepads_found_short,
         rv_pcboot_text_gamepads_recommend_short },
-    { rv_pcslot_cio,
-        rv_3dmppc::RV_PCPLATFORM_REFUSED_WEBHID,
-        rv_pcboot_text_webhid_found,
-        rv_pcboot_text_webhid_recommend,
-        rv_pcboot_text_webhid_found_short,
-        rv_pcboot_text_webhid_recommend_short },
     { rv_pcslot_cio,
         rv_3dmppc::RV_PCPLATFORM_REFUSED_PAD_MOTION,
         rv_pcboot_text_motion_found,
