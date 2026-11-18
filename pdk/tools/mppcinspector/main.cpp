@@ -5,9 +5,11 @@
 
 #include <getopt.h>
 
+#include <functional>
 #include <string>
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_progress/rv_progress.hpp"
 #include "rv_inspector_run.hpp"
 
 namespace
@@ -21,6 +23,17 @@ constexpr int k_exit_failed = 2;
 
 // Exactly one operand: the disc directory.
 constexpr int k_operand_count = 1;
+
+constexpr const char *k_usage_reason = "usage error";
+
+// A refused command line is still a protocol run: the plan, the message, one failed end line. --help prints none.
+int refuse_usage(const std::function<void()> &print_message)
+{
+    rv_pdklib::rv_progress_plan(rv_pdktools::k_inspector_tool, rv_pdktools::k_inspector_steps);
+    print_message();
+    rv_pdklib::rv_progress_end_failed(rv_pdktools::k_inspector_tool, k_usage_reason);
+    return k_exit_failed;
+}
 
 constexpr const char *k_short_options = "hr:";
 
@@ -45,32 +58,42 @@ int main(int argc, char **argv)
         case 'r': {
             // An empty path would silently mean no report; refuse it as a usage error.
             if (optarg[0] == '\0') {
-                rv_pdktools::rv_inspector_print_empty_report_error();
-                return k_exit_failed;
+                return refuse_usage([] {
+                    rv_pdktools::rv_inspector_print_empty_report_error();
+                });
             }
             options.report = optarg;
             break;
         }
         case '?':
         default: {
-            rv_pdktools::rv_inspector_print_usage(stderr);
-            return k_exit_failed;
+            return refuse_usage([] {
+                rv_pdktools::rv_inspector_print_usage(stderr);
+            });
         }
         }
     }
 
     // getopt left the operands from optind on.
     if (argc - optind != k_operand_count) {
-        rv_pdktools::rv_inspector_print_operand_error(argc - optind);
-        return k_exit_failed;
+        return refuse_usage([&] {
+            rv_pdktools::rv_inspector_print_operand_error(argc - optind);
+        });
     }
     options.disc = argv[optind];
 
-    bool has_error = false;
+    rv_pdklib::rv_progress_plan(rv_pdktools::k_inspector_tool, rv_pdktools::k_inspector_steps);
+    size_t errors = 0;
     std::string error;
-    if (rv_pdktools::rv_inspector_run(options, has_error, error) != RV_OK) {
+    if (rv_pdktools::rv_inspector_run(options, errors, error) != RV_OK) {
         rv_pdktools::rv_inspector_print_error(error);
+        rv_pdklib::rv_progress_end_failed(rv_pdktools::k_inspector_tool, error);
         return k_exit_failed;
     }
-    return has_error ? k_exit_findings : k_exit_clean;
+    if (errors > 0) {
+        rv_pdklib::rv_progress_end_failed(rv_pdktools::k_inspector_tool, std::to_string(errors) + " error(s)");
+        return k_exit_findings;
+    }
+    rv_pdklib::rv_progress_end_ok(rv_pdktools::k_inspector_tool);
+    return k_exit_clean;
 }

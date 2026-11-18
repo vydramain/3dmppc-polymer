@@ -7,6 +7,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_inspect/rv_inspect.hpp"
+#include "pdklib/rv_progress/rv_progress.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 #include "rv_inspector_disc.hpp"
 #include "rv_inspector_report.hpp"
@@ -41,7 +42,7 @@ constexpr std::string_view k_empty_report_error_text = "--report needs a non-emp
 
 } // namespace
 
-int rv_inspector_run(const rv_inspector_options &options, bool &has_error, std::string &error)
+int rv_inspector_run(const rv_inspector_options &options, size_t &errors, std::string &error)
 {
     if (!options.report.empty()) {
         const int old_rc = rv_inspector_report_clear(options.report, error);
@@ -51,7 +52,12 @@ int rv_inspector_run(const rv_inspector_options &options, bool &has_error, std::
     }
 
     std::vector<rv_pdklib::rv_inspect_finding> findings;
-    if (const int rc = rv_inspector_collect(options.disc, findings, error); rc != RV_OK) {
+    rv_pdklib::rv_progress_step(k_inspector_tool, 1, 2, k_inspector_steps[0], options.disc.string());
+    if (const int rc = rv_inspector_collect_disc(options.disc, findings, error); rc != RV_OK) {
+        return rc;
+    }
+    rv_pdklib::rv_progress_step(k_inspector_tool, 2, 2, k_inspector_steps[1], options.disc.string());
+    if (const int rc = rv_inspector_collect_scenes(options.disc, findings, error); rc != RV_OK) {
         return rc;
     }
 
@@ -65,7 +71,7 @@ int rv_inspector_run(const rv_inspector_options &options, bool &has_error, std::
         }
     }
 
-    has_error = rv_pdklib::rv_inspect_has_error(findings);
+    errors = rv_inspector_count_errors(findings);
     return RV_OK;
 }
 

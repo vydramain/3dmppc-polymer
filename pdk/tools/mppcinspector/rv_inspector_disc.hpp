@@ -34,12 +34,6 @@ inline constexpr const char *rv_disc_summary_format = "%zu error(s), %zu warning
 // Bracket labels of a finding line: "... [<rule>, key <key>]".
 inline constexpr std::string_view rv_disc_key_label = ", key ";
 
-// The rule tables in run order: the disc.toml rules, then the kit's.
-inline constexpr std::span<const rv_pdklib::rv_inspect_rule> rv_disc_rule_tables[] = {
-    rv_pdklib::rv_manifest_inspect_rules,
-    rv_pdkkit::rv_scene_inspect_rules,
-};
-
 // Absent (or a non-directory component) is RV_ERR_NOENT; any other failure to look at the path is RV_ERR_IO.
 inline int rv_disc_check_dir(const std::filesystem::path &disc, std::string &error)
 {
@@ -82,10 +76,10 @@ inline size_t rv_disc_count_severity(std::span<const rv_pdklib::rv_inspect_findi
 
 } // namespace detail
 
-// Replaces `findings` with the findings of `disc`: the directory is checked, then the rule tables run in order.
-// A bad directory returns RV_ERR_NOENT or RV_ERR_IO with `findings` empty. A failing rule returns its code with
-// `error` set and leaves in `findings` what the rules appended before the failure.
-inline int rv_inspector_collect(const std::filesystem::path &disc,
+// Step "disc": replaces `findings` with the findings of the disc directory and its disc.toml. A bad directory
+// returns RV_ERR_NOENT or RV_ERR_IO with `findings` empty. A failing rule returns its code with `error` set and
+// leaves in `findings` what the rules appended before the failure.
+inline int rv_inspector_collect_disc(const std::filesystem::path &disc,
     std::vector<rv_pdklib::rv_inspect_finding> &findings,
     std::string &error)
 {
@@ -93,12 +87,20 @@ inline int rv_inspector_collect(const std::filesystem::path &disc,
     if (const int rc = detail::rv_disc_check_dir(disc, error); rc != RV_OK) {
         return rc;
     }
-    for (const std::span<const rv_pdklib::rv_inspect_rule> table : detail::rv_disc_rule_tables) {
-        if (const int rc = rv_pdklib::rv_inspect_run(table, disc, findings, error); rc != RV_OK) {
-            return rc;
-        }
-    }
-    return RV_OK;
+    return rv_pdklib::rv_inspect_run(rv_pdklib::rv_manifest_inspect_rules, disc, findings, error);
+}
+
+// Step "scenes": appends the kit's scene findings to `findings`; failures as in rv_inspector_collect_disc.
+inline int rv_inspector_collect_scenes(const std::filesystem::path &disc,
+    std::vector<rv_pdklib::rv_inspect_finding> &findings,
+    std::string &error)
+{
+    return rv_pdklib::rv_inspect_run(rv_pdkkit::rv_scene_inspect_rules, disc, findings, error);
+}
+
+inline size_t rv_inspector_count_errors(std::span<const rv_pdklib::rv_inspect_finding> findings)
+{
+    return detail::rv_disc_count_severity(findings, rv_pdklib::rv_inspect_severity::error);
 }
 
 // One line per finding, to stdout.

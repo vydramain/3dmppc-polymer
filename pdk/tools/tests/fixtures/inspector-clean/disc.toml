@@ -1,0 +1,9 @@
+[disc]
+id = "inspector-fixture"
+title = "mppcinspector test fixture"
+
+[build]
+sources = ["src/*.cpp"]
+
+[assets]
+files = ["scenes/*.scene.toml"]

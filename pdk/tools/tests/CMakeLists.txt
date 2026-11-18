@@ -32,15 +32,19 @@ function(rv_pdktools_add_run_test)
       list(APPEND command "${part}")
     endif()
   endforeach()
+  # add_test would split a -D value at its semicolons; $<SEMICOLON> reaches rv_run_check.cmake as the list separator.
+  list(JOIN command "$<SEMICOLON>" command)
   set(defs "-DRV_CHECK_COMMAND=${command}")
   if(DEFINED RV_EXIT)
     list(APPEND defs "-DRV_CHECK_EXIT=${RV_EXIT}")
   endif()
   if(RV_MATCH)
-    list(APPEND defs "-DRV_CHECK_MATCH=${RV_MATCH}")
+    list(JOIN RV_MATCH "$<SEMICOLON>" match)
+    list(APPEND defs "-DRV_CHECK_MATCH=${match}")
   endif()
   if(RV_ABSENT)
-    list(APPEND defs "-DRV_CHECK_ABSENT=${RV_ABSENT}")
+    list(JOIN RV_ABSENT "$<SEMICOLON>" absent)
+    list(APPEND defs "-DRV_CHECK_ABSENT=${absent}")
   endif()
   if(RV_FIRST)
     list(APPEND defs "-DRV_CHECK_FIRST=${RV_FIRST}")
@@ -51,3 +55,29 @@ function(rv_pdktools_add_run_test)
   add_test(NAME ${RV_NAME}
     COMMAND ${CMAKE_COMMAND} ${defs} -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rv_run_check.cmake)
 endfunction()
+
+# mppcinspector's progress protocol: its findings and --report stay byte-identical to the golden files taken
+# before it spoke the protocol.
+foreach(disc IN ITEMS clean:0 broken:1)
+  string(REPLACE ":" ";" parts ${disc})
+  list(GET parts 0 name)
+  list(GET parts 1 code)
+  add_test(NAME inspector_protocol_${name}
+    COMMAND ${CMAKE_COMMAND}
+      -DRV_INSPECTOR=$<TARGET_FILE:mppcinspector>
+      -DRV_DISC=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/inspector-${name}
+      -DRV_REPORT=${CMAKE_CURRENT_BINARY_DIR}/inspector-${name}.report
+      -DRV_GOLDEN_OUT=${CMAKE_CURRENT_SOURCE_DIR}/golden/inspector-${name}.out
+      -DRV_GOLDEN_REPORT=${CMAKE_CURRENT_SOURCE_DIR}/golden/inspector-${name}.report
+      -DRV_EXIT=${code}
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/rv_inspector_check.cmake)
+endforeach()
+
+# A failed run (no such disc directory) is still a protocol run: the plan first, one failed end line last.
+add_test(NAME inspector_protocol_failed
+  COMMAND ${CMAKE_COMMAND}
+    -DRV_INSPECTOR=$<TARGET_FILE:mppcinspector>
+    -DRV_DISC=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/no-such-disc
+    -DRV_REPORT=${CMAKE_CURRENT_BINARY_DIR}/inspector-failed.report
+    -DRV_EXIT=2
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/rv_inspector_check.cmake)

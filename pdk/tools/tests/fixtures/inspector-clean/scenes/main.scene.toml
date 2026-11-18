@@ -1,0 +1,14 @@
+[scene]
+
+[[object]]
+id = "5ce00001"
+parent = ""
+
+[[component]]
+object = "5ce00001"
+name = "name"
+text = "root"
+
+[[component]]
+object = "5ce00001"
+name = "transform"
