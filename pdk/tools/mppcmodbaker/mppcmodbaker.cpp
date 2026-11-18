@@ -15,6 +15,7 @@
 #include "pdklib/rv_models/rv_mppcmod_gltf.hpp"
 #include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "pdklib/rv_models/rv_mppcmod_quant.hpp"
+#include "pdklib/rv_progress/rv_progress.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 namespace
@@ -40,6 +41,9 @@ constexpr int RV_MODBAKER_POSITIONAL_ARGS_REQUIRED = 2;
 constexpr std::string_view RV_MODBAKER_MODEL_EXT = ".mppcmod";
 // The PNGs sit beside the output as <stem>-<n>.png.
 constexpr std::string_view RV_MODBAKER_PNG_EXT = ".png";
+
+// The steps of a bake, in order: the plan and the [n/N] lines come from this one list.
+const std::vector<std::string> RV_MODBAKER_STEPS = { "read", "quantize", "write" };
 
 // What a failed step hands back to the CLI. `show_usage` is set by argument
 // parsing only; an empty message means the failure has already explained itself
@@ -78,6 +82,27 @@ int report(const modbaker_error &error)
         rv_pdklib::rv_fprintf(stderr, "%s: %s\n", RV_MODBAKER_PROGNAME, error.message.c_str());
     }
     return error.message.empty() ? RV_MODBAKER_EXIT_USAGE : RV_MODBAKER_EXIT_FAILURE;
+}
+
+// Set once the plan is out: from then on every way out, a throw included, owes an end line.
+bool plan_printed = false;
+
+// A failure once the plan is out: the protocol's end line, then the usual report.
+int fail_after_plan(const modbaker_error &error)
+{
+    const int code = report(error);
+    rv_pdklib::rv_progress_end_failed(RV_MODBAKER_PROGNAME, error.message);
+    return code;
+}
+
+// Prints step n of the list above as its stage starts.
+void print_step(int n, const std::string &detail)
+{
+    rv_pdklib::rv_progress_step(RV_MODBAKER_PROGNAME,
+        n,
+        static_cast<int>(RV_MODBAKER_STEPS.size()),
+        RV_MODBAKER_STEPS[n - 1],
+        detail);
 }
 
 // Fills `out` from argv. --help is not a failure: it sets out->help and succeeds.
@@ -162,34 +187,40 @@ int run(int argc, char **argv)
         return RV_MODBAKER_EXIT_SUCCESS;
     }
 
+    rv_pdklib::rv_progress_plan(RV_MODBAKER_PROGNAME, RV_MODBAKER_STEPS);
+    plan_printed = true;
+
     const std::string stem = output_stem(args.output);
     if (stem.empty()) {
         error.message = "output '" + args.output + "' has no name before .mppcmod to name its textures after";
-        return report(error);
+        return fail_after_plan(error);
     }
 
+    print_step(1, args.input);
     rv_pdklib::rv_mppcmod_q16_model model;
     std::vector<rv_pdklib::rv_mppcmod_gltf_image> images;
     std::string bake_error;
     if (rv_pdklib::rv_mppcmod_read_gltf(args.input, stem, model, images, bake_error) != RV_OK) {
         error.message = bake_error;
-        return report(error);
+        return fail_after_plan(error);
     }
+    print_step(2, std::to_string(model.vertices.size()) + " vertices");
     rv_pdklib::rv_mppcmod_int_model int_model;
     if (rv_pdklib::rv_mppcmod_quantize(model, int_model, bake_error) != RV_OK) {
         error.message = "'" + args.input + "' " + bake_error;
-        return report(error);
+        return fail_after_plan(error);
     }
+    print_step(3, args.output);
     std::vector<uint8_t> bytes;
     if (rv_pdklib::rv_mppcmod_int_write(int_model, &bytes, bake_error) != RV_OK) {
         error.message = "'" + args.input + "' " + bake_error;
-        return report(error);
+        return fail_after_plan(error);
     }
     if (write_pngs(args.output, images, error) != RV_OK) {
-        return report(error);
+        return fail_after_plan(error);
     }
     if (write_file(args.output, bytes, error) != RV_OK) {
-        return report(error);
+        return fail_after_plan(error);
     }
 
     std::printf("%s: %s -> %s (%zu parts, %zu vertices, %zu triangles, %zu PNG, vertex shift %d)\n",
@@ -201,6 +232,7 @@ int run(int argc, char **argv)
         model.triangles.size(),
         images.size(),
         static_cast<int>(int_model.shift));
+    rv_pdklib::rv_progress_end_ok(RV_MODBAKER_PROGNAME);
     return RV_MODBAKER_EXIT_SUCCESS;
 }
 
@@ -218,6 +250,9 @@ int main(int argc, char **argv)
         return run(argc, argv);
     } catch (const std::exception &e) {
         rv_pdklib::rv_fprintf(stderr, "%s: %s\n", RV_MODBAKER_PROGNAME, e.what());
+        if (plan_printed) {
+            rv_pdklib::rv_progress_end_failed(RV_MODBAKER_PROGNAME, e.what());
+        }
         return RV_MODBAKER_EXIT_FAILURE;
     }
 }

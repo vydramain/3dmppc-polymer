@@ -81,3 +81,53 @@ add_test(NAME inspector_protocol_failed
     -DRV_REPORT=${CMAKE_CURRENT_BINARY_DIR}/inspector-failed.report
     -DRV_EXIT=2
     -P ${CMAKE_CURRENT_SOURCE_DIR}/rv_inspector_check.cmake)
+
+# --- The bakers speak the progress protocol (stderr, after the summary line on stdout). ---
+# Good input: plan first, steps 1..N in order, last line [end] ok, exit 0, summary line kept.
+# Bad input: the old error line kept, last line [end] failed: <reason>, exit 1 as before.
+# Outputs go to this build dir.
+set(RV_BAKER_FIXTURES ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/bakers)
+set(RV_BAKER_OUT ${CMAKE_CURRENT_BINARY_DIR}/bakers-out)
+file(MAKE_DIRECTORY ${RV_BAKER_OUT})
+
+# rv_bakers_add_protocol_tests(<tool> GOOD <file> BAD <file> OUT <name> [ARGS <a>...]
+#                              SUMMARY <re> ERROR <re> STEPS <label>...)
+# STEPS are the plan's labels in order; ctest names are bakers_<tool>_good and bakers_<tool>_bad.
+function(rv_bakers_add_protocol_tests tool)
+  cmake_parse_arguments(RV "" "GOOD;BAD;OUT;SUMMARY;ERROR" "ARGS;STEPS" ${ARGN})
+  list(LENGTH RV_STEPS total)
+  set(plan "${tool}: \\[plan\\]")
+  set(steps "${plan}")
+  set(n 0)
+  foreach(label IN LISTS RV_STEPS)
+    math(EXPR n "${n} + 1")
+    string(APPEND plan " ${label}")
+    string(APPEND steps ".*${tool}: \\[${n}/${total}\\] ${label}")
+  endforeach()
+  list(GET RV_STEPS 0 first_label)
+  rv_pdktools_add_run_test(NAME bakers_${tool}_good
+    COMMAND ${tool} ${RV_BAKER_FIXTURES}/${RV_GOOD} ${RV_BAKER_OUT}/${RV_OUT} ${RV_ARGS}
+    EXIT 0
+    MATCH "${plan}" "${steps}" "${RV_SUMMARY}"
+    ABSENT "\\[[0-9]+/[0-9]+\\].*${tool}: \\[plan\\]" "\\[end\\] failed"
+    LAST "^${tool}: \\[end\\] ok$")
+  rv_pdktools_add_run_test(NAME bakers_${tool}_bad
+    COMMAND ${tool} ${RV_BAKER_FIXTURES}/${RV_BAD} ${RV_BAKER_OUT}/bad-${RV_OUT} ${RV_ARGS}
+    EXIT 1
+    MATCH "${plan}" "${tool}: \\[1/${total}\\] ${first_label}" "${RV_ERROR}"
+    ABSENT "\\[end\\] ok"
+    LAST "^${tool}: \\[end\\] failed: .+")
+endfunction()
+
+rv_bakers_add_protocol_tests(mppcmodbaker GOOD tri.gltf BAD garbage.gltf OUT tri.mppcmod
+  SUMMARY "mppcmodbaker: [^\n]*tri.gltf -> [^\n]*tri.mppcmod \\(1 parts, 3 vertices, 1 triangles"
+  ERROR "mppcmodbaker: '[^\n]*garbage.gltf' cannot be read as glTF 2.0"
+  STEPS read quantize write)
+rv_bakers_add_protocol_tests(mppcmusbaker GOOD tiny.wav BAD garbage.wav OUT tiny.pcm
+  SUMMARY "mppcmusbaker: [^\n]*tiny.wav -> [^\n]*tiny.pcm \\(64 samples, 128 bytes\\)"
+  ERROR "mppcmusbaker: '[^\n]*garbage.wav' is not a RIFF/WAVE file"
+  STEPS read write)
+rv_bakers_add_protocol_tests(mppctexbaker GOOD tiny.png BAD garbage.png OUT tiny.mppctex ARGS --format direct15
+  SUMMARY "mppctexbaker: [^\n]*tiny.png -> [^\n]*tiny.mppctex \\(2x2, direct15, 24 bytes\\)"
+  ERROR "mppctexbaker: cannot read '[^\n]*garbage.png'"
+  STEPS read encode write)
