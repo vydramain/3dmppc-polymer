@@ -315,6 +315,9 @@ void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &
 
 // Window > Terminal: the terminal in front, with the keyboard.
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell);
+// A build that did not start or failed: Problems in front with the keyboard, in the tile of the Output when it is
+// not in the layout yet (rv_editor_shell.cpp).
+void rv_editor_shell_focus_problems(rv_editor_shell &shell);
 // Window > Focus Next / Previous Pane: the next tile in reading order takes the keyboard.
 void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back);
 

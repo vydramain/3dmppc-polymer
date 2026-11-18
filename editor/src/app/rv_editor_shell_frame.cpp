@@ -135,7 +135,11 @@ void rv_editor_shell_publish_layout(rv_editor_shell &shell)
 // Run Configuration's list and form need room: the biggest tile takes it. Cannot fail.
 void rv_editor_shell_run_show_request(rv_editor_shell &shell)
 {
-    rv_editor_shell_show_pane(shell, shell.app.show_request, shell.app.show_request == rv_editor_pane_kind::run_config);
+    if (shell.app.show_request == rv_editor_pane_kind::problems) {
+        rv_editor_shell_focus_problems(shell);
+    } else {
+        rv_editor_shell_show_pane(shell, shell.app.show_request, shell.app.show_request == rv_editor_pane_kind::run_config);
+    }
     shell.app.show_request = rv_editor_pane_kind::empty;
 }
 

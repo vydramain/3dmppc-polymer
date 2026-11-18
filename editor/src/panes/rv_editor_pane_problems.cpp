@@ -54,6 +54,15 @@ std::vector<rv_editor_problem> rv_editor_gather_problems(const rv_editor_app &ap
 
 void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
 {
+    if (app.build_alert.kind != rv_editor_build_alert_kind::none) {
+        const bool refused = app.build_alert.kind == rv_editor_build_alert_kind::not_started;
+        rv_editor_ask_begin(rv_editor_text(refused ? "pane_problems.alert_not_started" : "pane_problems.alert_failed"), theme);
+        rv_editor_label(app.build_alert.reason.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+        if (rv_editor_button(rv_editor_text("pane_problems.alert_ok"), theme)) {
+            rv_editor_app_build_alert_clear(app);
+        }
+        rv_editor_ask_end();
+    }
     if (!app.project.open) {
         rv_editor_open_project_row(app, theme);
         return;

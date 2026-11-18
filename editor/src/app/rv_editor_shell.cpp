@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <utility>
 
 #include "imgui.h"
 
@@ -120,6 +121,41 @@ void rv_editor_shell_focus_terminal(rv_editor_shell &shell)
         shell.ws.focused_leaf = leaf;
     }
     shell.app.terminals[pane].focus_request = true;
+}
+
+void rv_editor_shell_focus_problems(rv_editor_shell &shell)
+{
+    rv_editor_workspace &ws = shell.ws;
+    // The leaf and pane id of the first tab of `kind` in the tree; leaf is rv_editor_tile_none when there is none.
+    const auto find = [&ws](rv_editor_pane_kind kind) {
+        for (uint32_t n = 0; n < ws.layout.nodes.size(); ++n) {
+            const rv_editor_tile_node &node = ws.layout.nodes[n];
+            if (node.kind != rv_editor_tile_kind::leaf) {
+                continue;
+            }
+            for (const rv_editor_pane_id tab : node.leaf.tabs) {
+                if (ws.panes.panes[tab].kind == kind) {
+                    return std::pair<uint32_t, rv_editor_pane_id>{ n, tab };
+                }
+            }
+        }
+        return std::pair<uint32_t, rv_editor_pane_id>{ rv_editor_tile_none, 0 };
+    };
+    rv_editor_pane_id pane = 0;
+    if (const auto at = find(rv_editor_pane_kind::problems); at.first != rv_editor_tile_none) {
+        pane = at.second;
+        (void)rv_editor_tile_activate(ws.layout, pane);
+    } else if (const auto out = find(rv_editor_pane_kind::output); out.first != rv_editor_tile_none) {
+        pane = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::problems);
+        rv_editor_tile_insert(ws.layout, out.first, pane, rv_editor_tile_dock::tab);
+        (void)rv_editor_tile_activate(ws.layout, pane);
+    } else {
+        pane = rv_editor_shell_show(ws, rv_editor_pane_kind::problems);
+    }
+    const uint32_t leaf = rv_editor_tile_find(ws.layout, pane);
+    if (leaf != rv_editor_tile_none) {
+        ws.focused_leaf = leaf;
+    }
 }
 
 void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back)
