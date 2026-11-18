@@ -93,6 +93,11 @@ public:
     {
         return job_.exit_status();
     }
+    // The progress lines of the current or last job as a tree.
+    const rv_editor_progress &progress() const
+    {
+        return job_.progress();
+    }
     // True once the burner's output was cut short of end of file.
     bool output_cut() const
     {

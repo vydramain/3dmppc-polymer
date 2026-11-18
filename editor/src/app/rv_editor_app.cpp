@@ -146,7 +146,7 @@ void rv_editor_app_build_alert_ended(rv_editor_app &app, rv_editor_build_state e
         return;
     }
     app.build_alert = { rv_editor_build_alert_kind::failed,
-        rv_editor_build_alert_reason(app.log, app.build_first_seq, exit_text) };
+        rv_editor_build_alert_reason(app.log, app.build_first_seq, exit_text, app.build.progress()) };
     app.show_request = rv_editor_pane_kind::problems;
 }
 

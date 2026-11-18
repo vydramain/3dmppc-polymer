@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "build/rv_editor_progress.hpp"
 #include "log/rv_editor_log.hpp"
 #include "platform/rv_editor_process.hpp"
 
@@ -68,10 +69,10 @@ public:
     {
         return err_last_line_;
     }
-    // The stderr bytes the last pump() read, for a reader that needs more than the last line.
-    const std::string &stderr_read() const
+    // The progress protocol in this run's stderr as a tree, updated by every pump() and finished when the job ends.
+    const rv_editor_progress &progress() const
     {
-        return err_read_;
+        return progress_;
     }
 
 private:
@@ -85,7 +86,9 @@ private:
     // so the job keeps its own line for the bytes still waiting for their '\n'.
     std::string err_line_;
     std::string err_last_line_;
-    std::string err_read_;
+    rv_editor_progress progress_;
+    // The stderr after its last line end: a line cut by a frame waits here for its rest.
+    std::string progress_tail_;
     std::chrono::steady_clock::time_point cancel_at_{};
     bool cancelled_ = false;
     bool ended_ = false;

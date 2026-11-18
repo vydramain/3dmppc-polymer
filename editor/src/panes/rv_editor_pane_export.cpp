@@ -16,7 +16,7 @@
 
 #include "build/rv_editor_export.hpp"
 #include "build/rv_editor_export_setup.hpp"
-#include "build/rv_editor_setup_progress.hpp"
+#include "build/rv_editor_progress.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -108,35 +108,29 @@ std::string rv_editor_export_state_line(const rv_editor_export &exporter, rv_edi
     }
 }
 
-// The text on the bar: "<file>: <pct>%" or "<file>: size unknown"; the bare text when the line named no file.
-std::string rv_editor_export_setup_overlay(const rv_editor_setup_progress &progress)
-{
-    const bool named = !progress.file.empty();
-    switch (progress.part) {
-    case rv_editor_setup_part::share:
-        return named ?
-            rv_editor_text_format("pane_export.setup_share_file", std::make_format_args(progress.file, progress.percent)) :
-            rv_editor_text_format("pane_export.setup_share", std::make_format_args(progress.percent));
-    case rv_editor_setup_part::size_unknown:
-        return named ? rv_editor_text_format("pane_export.setup_size_unknown_file", std::make_format_args(progress.file)) :
-                       std::string(rv_editor_text("pane_export.setup_size_unknown"));
-    default:
-        return {};
-    }
-}
-
 // The step line, then the bar filled by the overall share; an unknown size adds no fill and no percent.
-void rv_editor_export_setup_progress_draw(const rv_editor_setup_progress &progress, const rv_editor_theme &theme)
+void rv_editor_export_setup_progress_draw(const rv_editor_progress &progress, const rv_editor_theme &theme)
 {
-    // Before the first ladder line the total is not known: the bar waits empty under the starting text.
-    const std::string step = progress.total > 0 ?
-        rv_editor_text_format("pane_export.setup_step", std::make_format_args(progress.step, progress.total, progress.label)) :
+    // Before the first step line the total is not known: the bar waits empty under the starting text.
+    const rv_editor_run *run = progress.runs.empty() ? nullptr : &progress.runs.front();
+    const rv_editor_step *running = nullptr;
+    int shown = 0;
+    if (run != nullptr) {
+        for (std::size_t i = 0; i < run->steps.size(); ++i) {
+            if (run->steps[i].state == rv_editor_step_state::running) {
+                running = &run->steps[i];
+                shown = static_cast<int>(i) + 1;
+            }
+        }
+    }
+    const int total = run != nullptr ? static_cast<int>(run->steps.size()) : 0;
+    const std::string step = running != nullptr ?
+        rv_editor_text_format("pane_export.setup_step", std::make_format_args(shown, total, running->label)) :
         std::string(rv_editor_text("pane_export.setup_starting"));
     rv_editor_label(step.c_str(), rv_editor_label_kind::normal, theme);
-    const float fraction = static_cast<float>(rv_editor_setup_permille(progress)) / permille_scale;
-    const std::string overlay = rv_editor_export_setup_overlay(progress);
+    const float fraction = run != nullptr ? static_cast<float>(rv_editor_run_permille(*run)) / permille_scale : 0.0f;
     // An empty overlay draws no text; nullptr would make ImGui print the fraction as a percent.
-    ImGui::ProgressBar(fraction, ImVec2(bar_width, 0.0f), overlay.c_str());
+    ImGui::ProgressBar(fraction, ImVec2(bar_width, 0.0f), running != nullptr ? running->detail.c_str() : "");
 }
 
 // The failure reason under a failed state line: the burner's last stderr line, or the exit text when it printed none.
@@ -420,7 +414,7 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_label(form.error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
     if (rv_editor_export_setup_bar_due(exporter)) {
-        rv_editor_export_setup_progress_draw(exporter.setup_progress(), theme);
+        rv_editor_export_setup_progress_draw(exporter.progress(), theme);
     }
     const std::string &reason = exporter.failure_reason();
     if (!reason.empty()) {

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 
+#include "build/rv_editor_progress.hpp"
 #include "log/rv_editor_log.hpp"
 
 namespace rv_editor
@@ -20,8 +21,12 @@ struct rv_editor_build_alert {
     std::string reason;
 };
 
-// The reason a build job failed: the text of the last error-level line the burner printed in this job (build or
-// candidate lines with seq >= first_seq), else `exit_text`.
-std::string rv_editor_build_alert_reason(const rv_editor_log &log, uint64_t first_seq, const std::string &exit_text);
+// The reason a build job failed: the reason of a run in the job's progress tree that ended failed (the first one, the
+// burner's own), else the text of the last error-level line the burner printed in this job (build or candidate lines with
+// seq >= first_seq), else `exit_text`.
+std::string rv_editor_build_alert_reason(const rv_editor_log &log,
+    uint64_t first_seq,
+    const std::string &exit_text,
+    const rv_editor_progress &progress = {});
 
 } // namespace rv_editor

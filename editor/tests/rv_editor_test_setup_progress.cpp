@@ -1,4 +1,4 @@
-// The web setup's progress: every line of a stderr chunk is read, '\r' ends a line, and the bar is due from the first frame.
+// The web setup's bar is due from the first frame (the line parsing is in rv_editor_test_progress.cpp).
 
 #include <cstdio>
 #include <filesystem>
@@ -7,44 +7,12 @@
 #include <unistd.h>
 
 #include "build/rv_editor_export.hpp"
-#include "build/rv_editor_setup_progress.hpp"
 #include "pdk/rv_err.h"
 #include "platform/rv_editor_process.hpp"
 #include "project/rv_editor_project.hpp"
 #include "rv_editor_test.hpp"
 
 using namespace rv_editor;
-
-RV_EDITOR_TEST(rv_editor_test_setup_feed_text_reaches_last_step)
-{
-    const std::string chunk = "[3/7] fetch  emsdk.zip: 10%\r[3/7] fetch  emsdk.zip: 55%\n"
-                              "some log text\n"
-                              "[4/7] unpack\n"
-                              "[7/7] install  emscripten.tgz: 80%\r[7/7] install  emscripten.tgz: 90%\r";
-    rv_editor_setup_progress progress;
-    RV_EDITOR_CHECK(rv_editor_setup_feed_text(chunk, progress));
-    RV_EDITOR_CHECK(progress.step == 7);
-    RV_EDITOR_CHECK(progress.total == 7);
-    RV_EDITOR_CHECK(progress.label == "install");
-    RV_EDITOR_CHECK(progress.part == rv_editor_setup_part::share);
-    RV_EDITOR_CHECK(progress.percent == 90);
-}
-
-RV_EDITOR_TEST(rv_editor_test_setup_feed_text_cr_only_lines)
-{
-    rv_editor_setup_progress progress;
-    RV_EDITOR_CHECK(
-        rv_editor_setup_feed_text("[2/7] fetch  a.zip: 5%\r[2/7] fetch  a.zip: 30%\r[2/7] fetch  a.zip: 60%", progress));
-    RV_EDITOR_CHECK(progress.step == 2);
-    RV_EDITOR_CHECK(progress.percent == 60);
-}
-
-RV_EDITOR_TEST(rv_editor_test_setup_feed_text_no_ladder_line)
-{
-    rv_editor_setup_progress progress;
-    RV_EDITOR_CHECK(!rv_editor_setup_feed_text("just log text\r\nmore\n", progress));
-    RV_EDITOR_CHECK(progress.step == 0);
-}
 
 RV_EDITOR_TEST(rv_editor_test_setup_bar_due_from_first_frame)
 {
@@ -77,7 +45,6 @@ RV_EDITOR_TEST(rv_editor_test_setup_bar_due_from_first_frame)
     }
     RV_EDITOR_CHECK(started == RV_OK);
     RV_EDITOR_CHECK(exporter.busy());
-    RV_EDITOR_CHECK(exporter.setup_progress().total == 0); // no ladder line yet
     RV_EDITOR_CHECK(rv_editor_export_setup_bar_due(exporter));
 
     exporter.cancel(error);

@@ -103,6 +103,34 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_reason_counts_candidate_lines)
 
 // --- the editor did not start the build -----------------------------------------------------------------------
 
+RV_EDITOR_TEST(rv_editor_test_build_alert_reason_prefers_the_failed_run_reason_of_the_progress_tree)
+{
+    rv_editor_progress progress;
+    rv_editor_progress_feed(progress, "mppcburner: [plan] sources manifest");
+    rv_editor_progress_feed(progress, "mppcburner: [1/2] sources x");
+    rv_editor_progress_feed(progress, "mppcburner: [end] failed: sources have error findings");
+    rv_editor_log log;
+    const uint64_t first = log.revision() + 1;
+    log.add(src_build, lv_error, "error: a later line");
+    RV_EDITOR_CHECK(rv_editor_build_alert_reason(log, first, "exit code 1", progress) == "sources have error findings");
+}
+
+RV_EDITOR_TEST(rv_editor_test_build_alert_reason_without_a_failed_run_is_the_last_error_line)
+{
+    rv_editor_log log;
+    const uint64_t first = log.revision() + 1;
+    log.add(src_build, lv_error, "error: the last one");
+    RV_EDITOR_CHECK(rv_editor_build_alert_reason(log, first, "exit code 1", rv_editor_progress()) == "error: the last one");
+
+    rv_editor_progress interrupted;
+    rv_editor_progress_feed(interrupted, "mppcburner: [plan] sources manifest");
+    rv_editor_progress_feed(interrupted, "mppcburner: [1/2] sources x");
+    rv_editor_progress_finish(interrupted);
+    RV_EDITOR_CHECK(rv_editor_build_alert_reason(log, first, "exit code 1", interrupted) == "error: the last one");
+    rv_editor_log empty;
+    RV_EDITOR_CHECK(rv_editor_build_alert_reason(empty, 1, "exit code 9", interrupted) == "exit code 9");
+}
+
 RV_EDITOR_TEST(rv_editor_test_build_alert_refused_by_why_not_build)
 {
     load_texts();

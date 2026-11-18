@@ -223,7 +223,6 @@ int rv_editor_export::start(const rv_editor_project &project,
     runs_ = run;
     result_ = result_path;
     failure_reason_.clear();
-    setup_progress_ = rv_editor_setup_progress();
     label_ = std::string(export_label);
     setup_job_ = false;
     state_ = rv_editor_build_state::building;
@@ -260,8 +259,6 @@ int rv_editor_export::start_setup(const rv_editor_toolchain &tools, rv_editor_lo
     runs_ = run;
     result_.clear();
     failure_reason_.clear();
-    setup_progress_ = rv_editor_setup_progress();
-    setup_tail_.clear();
     label_ = std::string(web_setup_label);
     setup_job_ = true;
     state_ = rv_editor_build_state::building;
@@ -295,13 +292,6 @@ int rv_editor_export::update(rv_editor_log &log, std::string &error)
         return RV_OK;
     }
     const int rc = job_.pump(log, error);
-    if (setup_job_) {
-        // Every line of the frame counts, not only the last: the burner may print several between two frames.
-        setup_tail_ += job_.stderr_read();
-        const std::size_t cut = job_.ended() ? setup_tail_.size() : setup_tail_.find_last_of("\r\n") + 1;
-        rv_editor_setup_feed_text(setup_tail_.substr(0, cut), setup_progress_);
-        setup_tail_.erase(0, cut);
-    }
     if (!job_.ended()) {
         return rc;
     }
