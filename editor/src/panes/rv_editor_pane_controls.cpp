@@ -12,6 +12,7 @@
 #include "panes/rv_editor_panes.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_steps.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -301,7 +302,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
     rv_editor_flow(marks_w);
     (void)rv_editor_mark_tools(app, theme, ui, false);
 
-    const rv_editor_controls_message_text message = rv_editor_controls_message({ action == rv_editor_action_kind::force_stop,
+    rv_editor_controls_message_text message = rv_editor_controls_message({ action == rv_editor_action_kind::force_stop,
         s.hung(),
         s.uncertain(),
         detail,
@@ -309,6 +310,10 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
         offer_build_restart,
         !can_reload,
         plan.reason });
+    // A build's steps fill the line when nothing more urgent does.
+    if (message.brief.empty() && (app.build.busy() || app.build.state() == rv_editor_build_state::failed)) {
+        message.brief = rv_editor_steps_compact(app.build.progress());
+    }
 
     // Facts, message and the profile button share the second row. Facts and
     // message clip rather than wrap, so the row never splits; facts take at most
