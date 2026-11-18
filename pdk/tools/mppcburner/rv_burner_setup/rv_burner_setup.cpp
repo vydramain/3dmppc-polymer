@@ -378,7 +378,6 @@ int install_web()
         return dir_rc;
     }
 
-    // --- [1/7] check ---
     std::error_code ec;
     const bool installed = std::filesystem::exists(dir / k_ready_marker, ec);
     if (ec) {
@@ -402,7 +401,6 @@ int install_web()
     const std::string url = std::string(k_emsdk_url_prefix) + k_emsdk_version + k_emsdk_url_suffix;
     const download_guard download{ dir.string() + k_download_suffix };
 
-    // --- [2/7] download ---
     constexpr ladder_step download_step{ "download" };
     const std::string download_detail = url + ", the installer of the Emscripten compiler";
     rv_burner_print_step(download_step.label, download_detail);
@@ -411,7 +409,6 @@ int install_web()
         return rc;
     }
 
-    // --- [3/7] verify ---
     const std::string verify_detail =
         "sha256 " + std::string(k_emsdk_sha256) + ", a changed or replaced archive is rejected before it is unpacked or run";
     rv_burner_print_step("verify", verify_detail);
@@ -420,7 +417,6 @@ int install_web()
         return rc;
     }
 
-    // --- [4/7] unpack ---
     const std::string unpack_detail = "emsdk scripts into " + dir.string();
     rv_burner_print_step("unpack", unpack_detail);
     rc = unpack_archive(download.path, dir);
@@ -428,7 +424,6 @@ int install_web()
         return rc;
     }
 
-    // --- [5/7] install ---
     const std::string install_detail = "emsdk " + std::string(k_emsdk_version) +
         " downloads the Emscripten compiler (clang for wasm, Binaryen, Emscripten, Node.js) and makes it current;"
         " the install itself takes a long time";
@@ -439,7 +434,6 @@ int install_web()
         return rc;
     }
 
-    // --- [6/7] embuilder ---
     const std::string embuilder_detail = std::string("prebuild ") + k_embuilder_target +
         " libraries: embuilder compiles libc and libc++ for wasm ahead of time, so the first web burn does not wait"
         " for them; the prebuild itself takes a long time" +
@@ -450,7 +444,6 @@ int install_web()
         return rc;
     }
 
-    // --- [7/7] mark ---
     rc = write_ready_marker(dir);
     if (RV_OK != rc) {
         return rc;
