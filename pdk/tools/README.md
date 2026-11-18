@@ -36,6 +36,80 @@ Tools are named for the **act**, artifacts for the **thing**. `mppcdisc` is a
 disc, so no tool may be called that — otherwise every sentence in the
 documentation becomes ambiguous.
 
+## Progress protocol
+
+Every PDK tool prints its progress on **stderr**, one line per event, each line
+starting with the tool's name:
+
+```
+<tool>: [plan] <label> <label> ...        the steps this run will walk, once, first
+<tool>: [n/N] <label> <detail>            step n of N starts; the detail may hold spaces or be empty
+<tool>: [end] ok                          the run succeeded
+<tool>: [end] failed: <reason>            the run failed
+```
+
+The label is printed padded to 11 columns (`%-11s`) and holds no spaces, so the label ends at the first space and the detail starts after the run of spaces that follows it; the parser trims that run.
+
+A run prints one `[plan]` and exactly one `[end]` line, `ok` or `failed`. Any other
+output (findings, warnings, a child's text) is ordinary lines between them and is not
+part of the protocol.
+
+Nesting comes from the order of lines alone. A `[plan]` of another tool that
+arrives while a step is running opens a sub-run of that step, and it lasts until
+that tool's `[end]`. For example, `mppcburner build` runs `mppcinspector` as its
+first step, and the inspector finds an error:
+
+```
+mppcburner: [plan] sources manifest compile assets burn
+mppcburner: [1/5] sources     ./broken-scene
+mppcinspector: [plan] disc scenes
+mppcinspector: [1/2] disc        ./broken-scene
+mppcinspector: [2/2] scenes      ./broken-scene
+scenes/main.scene.toml:3: error: object 'b0000001' names an unknown parent 'ffffffff' [scene-parse]
+1 error(s), 0 warning(s)
+mppcinspector: [end] failed: 1 error(s)
+mppcburner: sources have error findings (listed above), so the build does not accept them
+mppcburner: [end] failed: sources have error findings (listed above), so the build does not accept them
+```
+
+(The findings and the summary line are the inspector's, on stdout; the burner prints
+its reason once as a plain line and once in its `[end]` line. The protocol lines are
+the ones with `[...]`.) The header
+[`pdk/lib/include/pdklib/rv_progress/rv_progress.hpp`](../lib/include/pdklib/rv_progress/rv_progress.hpp)
+prints the lines for every tool and parses them for the editor, so the format
+lives in one place.
+
+### Steps of each tool
+
+| Tool and command | Steps |
+| --- | --- |
+| `mppcburner build` | `sources manifest compile assets burn` (`compile` may report that it was skipped) |
+| `mppcburner setup web` | `check download verify unpack install embuilder mark` |
+| `mppcburner bake-texture` | `manifest texture` |
+| `mppcburner inspect` | `inspect` (its report stays on stdout) |
+| `mppcinspector` | `disc scenes`; the findings and `--report` are unchanged; `--help` prints no protocol, a refused command line prints the plan, its message and a `failed` end line |
+| `mppcmodbaker` | `read quantize write` |
+| `mppcmusbaker` | `read write` |
+| `mppctexbaker` | `read encode write`, see [`mppctexbaker/README.md`](mppctexbaker/README.md) |
+
+## Tests
+
+The tools have a test executable, `3dmppc-pdktools-tests`, and ctest cases that
+run the tools themselves. After the standalone build of the tools (the command
+at the top of this README, `cmake -S pdk/tools -B pdk/tools/build -G Ninja &&
+cmake --build pdk/tools/build`), run:
+
+```sh
+ctest --test-dir pdk/tools/build
+```
+
+In the development build (`-D3DMPPC_DEVTOOLS=ON`) the same project is built in
+`build-dev/sdk/pdktools`:
+
+```sh
+ctest --test-dir build-dev/sdk/pdktools
+```
+
 ## Where they sit
 
 ```

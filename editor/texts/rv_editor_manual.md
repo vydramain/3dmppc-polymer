@@ -36,11 +36,15 @@ To run the last build that succeeded with your current scripts and assets, choos
 
 To change how Run starts the game, choose Run > Run Configuration... Profiles are kept in the project folder. They hold the runtime, the working directory, Start Paused, Fixed Step, Reload On Save, Mute and the Memory card.
 
+While a build runs, the status bar and Runtime Controls show its steps in a compact strip, for example [v][v][>][ ][ ] compile: one bracket for each step and then the name of the running step. The mark in a bracket is v for done, > for running, a space for waiting, x for failed and ! for interrupted. The same strip is in the status bar after a build that failed.
+
 Every build goes to a new numbered directory. Run and Build and Restart start the game only if the burner ends with exit code 0. A running game keeps running while the next build is made.
 
 ## When a build is refused
 
 Before it builds, mppcburner runs mppcinspector on the disc. Without mppcinspector in the bakers' directory the editor does not start a build at all. If the inspector finds an error in the sources, the build is refused and nothing is compiled.
+
+A build that fails or is refused opens Problems in front, with its tile focused. At the top of Problems an area says Build did not start, when the build was refused before it began, or Build failed, with the reason and an OK button. The inspector's findings are below it. The area stays until you press OK or start the next build.
 
 To see what is wrong, open Problems. Every finding has the source inspector, a file, a line and a message that ends with the rule and the key in brackets. Problems also shows warnings, and it fills up again when you open the project, when you save a file and after every build.
 
@@ -86,7 +90,14 @@ Runtime Controls. A row of transport buttons, and to their right a field with on
 
 Debug layout. For playing and watching. Runtime Controls lie across the top, the full width. Below them the Game is as wide as its picture; on its right are Session, Inspector and Test Case as tabs, and below are Runtime Log and Findings. Session says what the run is and holds the marks you set with Runtime Controls: Mark, Capture, Report and Restart. The Session Toolchest is not part of Debug; to add it, choose Window > New Tile. Inspector reads the game's Lua values and lets you Pin them. Test Case lists the test cases of the project, with New Test Case beside them; a labelled field takes a note, and a line under it says where a result appears. In Findings, fill in Title, Steps, Expected and Actual and press Record Finding.
 
-Burn layout. For checking a disc before it ships. Release Controls lie across the top with large buttons: Build, Run, Player, Stop and Report. To their right two lines say "Candidate #N | Ready or Not ready | K/M checks" and name the checks that have not passed; the tooltip of the number shows the sha256 of the image. To make an image, press Build. To play exactly that image, press Run; to try it in the player, press Player. Below, on the left, Release Candidate and Export lie above Build Log and Playtest Log; Candidate Playtest is on the right, as wide as its picture. Candidate Playtest shows the size and state of the running image in two lines. Mark each check as you test: Build, Disc loads, Player, Launch, Input, Audio, Main scenario and Exit. When all pass, Approve or Reject the candidate. Export writes the disc, the player or a web page into a directory. It shows its state only while something runs and keeps no list of past exports. Install Web Support appears only for the Web kind when the support is not installed, and a progress bar shows the install.
+Burn layout. For checking a disc before it ships. Release Controls lie across the top with large buttons: Build, Run, Player, Stop and Report. To their right two lines say "Candidate #N | Ready or Not ready | K/M checks" and name the checks that have not passed; the tooltip of the number shows the sha256 of the image. To make an image, press Build. To play exactly that image, press Run; to try it in the player, press Player. Below, on the left, Release Candidate and Export lie above Build Log and Playtest Log; Candidate Playtest is on the right, as wide as its picture. The status of the Game and of Candidate Playtest lies over the top of the picture on a translucent backing, so the picture keeps its size. Mark each check as you test: Build, Disc loads, Player, Launch, Input, Audio, Main scenario and Exit. When all pass, Approve or Reject the candidate.
+
+Export. The tile has four framed blocks.
+
+- Kind. Three cards: Disc, one .mppcdisc file that a player runs; Bundle, a directory with the player and the disc, ready to copy and run; Web, a directory with a page that runs the game in a browser.
+- Web Tools. For the Web kind. It says Installed. or says that Emscripten is not installed, needed once per user (about 400 MB), and offers Install Web Support. The step strip shows the install.
+- Output. The destination directory. Each kind has its own default under the project, export/mppcdisc, export/bundle and export/web, and the tile remembers the path you typed for each kind until the project closes. An export replaces only an empty directory or one an earlier export made, which holds the mark file .mppcexport. It never replaces another directory, and it refuses the project itself or a directory that contains it; choose another path then. Export starts it and Cancel stops it.
+- Progress. While an export runs, the step strip shows its steps. At the end the result is DONE with the path, and the button Open Folder for Disc and Bundle or Open in Browser for Web; or it is FAILED with the step and the reason, and the button Show in Problems. Before the first export it says Nothing exported yet. Export keeps no list of past exports.
 
 ## Settings and tools
 

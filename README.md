@@ -785,6 +785,10 @@ and exits 0 when there is no error finding, 1 when there are errors (the build i
 refused) and 2 on a usage error or a failed run. The editor runs it too and shows the
 findings in Problems.
 
+Every PDK tool also prints its progress on stderr as one `<tool>: [plan] ...`
+line, `<tool>: [n/N] <step> <detail>` lines and one `<tool>: [end] ok` or
+`[end] failed: <reason>` line; `pdk/tools/README.md` has the steps of each tool.
+
 The burner refuses rather than shipping something broken: a texture larger than
 the console allows, assets that overflow the virtual VRAM, or two assets whose
 names collide once flattened. Every one of those is cheaper to hit on your desk
