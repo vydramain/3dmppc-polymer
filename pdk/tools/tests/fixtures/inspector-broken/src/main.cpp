@@ -1,1 +1,4 @@
-int disc_main() { return 0; }
+int disc_main()
+{
+    return 0;
+}

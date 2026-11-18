@@ -53,11 +53,6 @@ bool same_view(const rv_editor_game_view &a, const rv_editor_game_view &b)
     return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h && a.scale == b.scale && a.reduced == b.reduced;
 }
 
-ImU32 rgb(ImU32 col)
-{
-    return col & 0x00FFFFFFu;
-}
-
 } // namespace
 
 // AC13: the picture is placed from the full area height, so the text does not change its scale.
@@ -134,7 +129,8 @@ RV_EDITOR_TEST(rv_editor_test_game_status_overlay_draws_after_picture)
             dl->AddImage(ImTextureID(1), origin, ImVec2(300, 250));
             const int image_end = dl->VtxBuffer.Size;
             RV_EDITOR_CHECK(image_end == base + 4);
-            const auto o = rv_editor_game_status_overlay(dl, { "320x240  Fit 2.00x", "Stopped." }, k.kind, theme, origin, 280.0f);
+            const auto o =
+                rv_editor_game_status_overlay(dl, { "320x240  Fit 2.00x", "Stopped." }, k.kind, theme, origin, 280.0f);
             // 4 vertices of the backing rectangle follow the image, then the glyphs.
             RV_EDITOR_CHECK(dl->VtxBuffer.Size > image_end + 4);
             if (dl->VtxBuffer.Size <= image_end + 4) {
@@ -164,8 +160,12 @@ RV_EDITOR_TEST(rv_editor_test_game_click_rect_covers_text)
         const auto click = rv_editor_game_click_rect(origin, area);
         RV_EDITOR_CHECK(click.min.x == origin.x && click.min.y == origin.y);
         RV_EDITOR_CHECK(click.max.x == origin.x + area.x && click.max.y == origin.y + area.y);
-        const auto o =
-            rv_editor_game_status_overlay(ImGui::GetWindowDrawList(), narrow_rows, rv_editor_label_kind::normal, theme, origin, area.x);
+        const auto o = rv_editor_game_status_overlay(ImGui::GetWindowDrawList(),
+            narrow_rows,
+            rv_editor_label_kind::normal,
+            theme,
+            origin,
+            area.x);
         RV_EDITOR_CHECK(!o.rows.empty());
         RV_EDITOR_CHECK(o.backing.min.x >= click.min.x && o.backing.min.y >= click.min.y);
         RV_EDITOR_CHECK(o.backing.max.x <= click.max.x && o.backing.max.y <= click.max.y);
