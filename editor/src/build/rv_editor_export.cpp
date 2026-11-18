@@ -8,6 +8,8 @@
 
 #include <cctype>
 #include <cstddef>
+#include <format>
+#include <fstream>
 #include <iterator>
 #include <string>
 #include <string_view>
@@ -51,24 +53,42 @@ constexpr std::string_view web_setup_label = "web setup";
 constexpr std::string_view setup_command = "setup";
 constexpr std::string_view setup_tool_web = "web";
 
-// One export kind. The rows follow rv_editor_export_kind's order.
-struct rv_editor_export_row {
-    rv_editor_export_kind kind;
-    std::string_view target;
-    // -o is dest/<disc_id><output_suffix>; empty: -o is the destination directory itself.
-    std::string_view output_suffix;
-    // The result is dest/<result_name>; empty: the result is the output itself.
-    std::string_view result_name;
-    // A player is burnt with the firmware beside the burner's real binary (symlinks resolved), the file the
-    // burner packs; a missing one is refused before the burner starts.
-    bool needs_firmware;
+// One row per export kind, in rv_editor_export_kind order.
+constexpr rv_editor_export_kind_info export_rows[] = {
+    { rv_editor_export_kind::disc,
+        "mppcdisc",
+        false,
+        rv_editor_export_open_action::folder,
+        "export.disc_name",
+        "export.disc_description",
+        "disc",
+        disc_suffix,
+        "",
+        false },
+    { rv_editor_export_kind::player,
+        "bundle",
+        false,
+        rv_editor_export_open_action::folder,
+        "export.bundle_name",
+        "export.bundle_description",
+        "player",
+        "",
+        "",
+        true },
+    { rv_editor_export_kind::web,
+        "web",
+        true,
+        rv_editor_export_open_action::browser,
+        "export.web_name",
+        "export.web_description",
+        "web",
+        "",
+        web_index_name,
+        false },
 };
 
-constexpr rv_editor_export_row export_rows[] = {
-    { rv_editor_export_kind::disc, "disc", disc_suffix, "", false },
-    { rv_editor_export_kind::player, "player", "", "", true },
-    { rv_editor_export_kind::web, "web", "", web_index_name, false },
-};
+// The directory under the project root all exports go to.
+constexpr std::string_view export_dir_name = "export";
 
 // Every row sits at its kind's index, so export_rows[kind] is that kind's row.
 constexpr bool export_rows_in_kind_order()
@@ -128,7 +148,7 @@ int rv_editor_export::start(const rv_editor_project &project,
         error = rv_editor_text("export.no_project");
         return RV_ERR_INVAL;
     }
-    const rv_editor_export_row &row = export_rows[static_cast<std::size_t>(kind)];
+    const rv_editor_export_kind_info &row = export_rows[static_cast<std::size_t>(kind)];
     if (!tools.burner.problem.empty()) {
         error = tools.burner.problem;
         return RV_ERR_INVAL;
@@ -158,11 +178,27 @@ int rv_editor_export::start(const rv_editor_project &project,
     // relative to the root. The editor, the burner and the log then name the same directory.
     const std::filesystem::path abs_dest = (dest_dir.is_absolute() ? dest_dir : project.root / dest_dir).lexically_normal();
 
+    // An export empties a marked directory, so one that is or holds the project (or the home, or /) is never offered.
     std::error_code ec;
-    std::filesystem::create_directories(abs_dest, ec);
-    if (ec) {
-        error = abs_dest.string() + ": " + ec.message();
-        return RV_ERR_IO;
+    const std::filesystem::path real_root = std::filesystem::weakly_canonical(project.root, ec);
+    const std::filesystem::path under = real_root.lexically_relative(std::filesystem::weakly_canonical(abs_dest, ec));
+    if (!ec && !under.empty() && *under.begin() != "..") {
+        error = rv_editor_text("export.dest_holds_project");
+        return RV_ERR_INVAL;
+    }
+
+    const int prepared = rv_editor_export_prepare_dir(abs_dest, error);
+    if (prepared != RV_OK) {
+        return prepared;
+    }
+    // The mark is written before the burner runs: a failed export still leaves the directory ours to replace.
+    {
+        std::ofstream mark(abs_dest / std::string(rv_editor_export_mark_name));
+        if (!mark) {
+            const std::string name = abs_dest.string();
+            error = rv_editor_text_format("export.cannot_mark", std::make_format_args(name));
+            return RV_ERR_IO;
+        }
     }
     const std::filesystem::path output =
         row.output_suffix.empty() ? abs_dest : abs_dest / (project.disc_id + std::string(row.output_suffix));
@@ -314,6 +350,69 @@ int rv_editor_export::update(rv_editor_log &log, std::string &error)
         pid,
         run);
     return rc;
+}
+
+std::span<const rv_editor_export_kind_info> rv_editor_export_kinds()
+{
+    return export_rows;
+}
+
+std::filesystem::path rv_editor_export_default_dir(const std::filesystem::path &project_root, rv_editor_export_kind kind)
+{
+    return project_root / export_dir_name / export_rows[static_cast<std::size_t>(kind)].subdir;
+}
+
+std::string rv_editor_export_paths::get(const std::filesystem::path &project_root, rv_editor_export_kind kind) const
+{
+    const std::string &edited = edited_[static_cast<std::size_t>(kind)];
+    return edited.empty() ? rv_editor_export_default_dir(project_root, kind).string() : edited;
+}
+
+void rv_editor_export_paths::set(rv_editor_export_kind kind, const std::string &path)
+{
+    edited_[static_cast<std::size_t>(kind)] = path;
+}
+
+void rv_editor_export_paths::reset()
+{
+    edited_ = {};
+}
+
+int rv_editor_export_prepare_dir(const std::filesystem::path &dir, std::string &error)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    if (ec || !fs::is_directory(dir, ec)) {
+        error = dir.string() + ": " + (ec ? ec.message() : std::string(rv_editor_text("export.not_a_directory")));
+        return RV_ERR_IO;
+    }
+    const bool empty = fs::is_empty(dir, ec);
+    if (ec) {
+        error = dir.string() + ": " + ec.message();
+        return RV_ERR_IO;
+    }
+    if (empty) {
+        return RV_OK;
+    }
+    // Only a directory with the mark is ours to empty; anything else is the user's and stays untouched.
+    if (!fs::is_regular_file(fs::symlink_status(dir / std::string(rv_editor_export_mark_name), ec))) {
+        const std::string name = dir.string();
+        error = rv_editor_text_format("export.dir_not_empty", std::make_format_args(name));
+        return RV_ERR_INVAL;
+    }
+    for (const auto &entry : fs::directory_iterator(dir, ec)) {
+        fs::remove_all(entry.path(), ec);
+        if (ec) {
+            error = entry.path().string() + ": " + ec.message();
+            return RV_ERR_IO;
+        }
+    }
+    if (ec) {
+        error = dir.string() + ": " + ec.message();
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 bool rv_editor_export_setup_bar_due(const rv_editor_export &exporter)

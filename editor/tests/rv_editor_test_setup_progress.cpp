@@ -8,6 +8,7 @@
 
 #include "build/rv_editor_export.hpp"
 #include "build/rv_editor_setup_progress.hpp"
+#include "pdk/rv_err.h"
 #include "platform/rv_editor_process.hpp"
 #include "project/rv_editor_project.hpp"
 #include "rv_editor_test.hpp"
@@ -60,7 +61,9 @@ RV_EDITOR_TEST(rv_editor_test_setup_bar_due_from_first_frame)
     chmod(name, 0700);
 
     std::string guard_error;
-    RV_EDITOR_CHECK(rv_editor_guard_start(guard_error) == RV_OK); // as main() does before any job
+    // as main() does before any job; another test file may have started it already
+    const int guard_rc = rv_editor_guard_start(guard_error);
+    RV_EDITOR_CHECK(guard_rc == RV_OK || guard_rc == RV_ERR_BUSY);
 
     rv_editor_toolchain tools;
     tools.burner.path = name;

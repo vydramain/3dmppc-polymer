@@ -4,12 +4,10 @@
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
-#include <iterator>
 #include <string>
 
 #include <SDL3/SDL.h>
@@ -30,9 +28,6 @@ namespace rv_editor
 namespace
 {
 
-// The directory under the project root offered as the destination.
-constexpr const char *export_dir_name = "export";
-
 // The scheme that makes SDL_OpenURL open a local file in the desktop's browser.
 constexpr const char *file_uri_prefix = "file://";
 
@@ -50,10 +45,6 @@ constexpr float state_min_em = 14.0f;
 // Room in font widths the directory field needs beside the kind radios: its label and a short path.
 constexpr float dest_min_em = 20.0f;
 
-// Text keys of the kinds, in rv_editor_export_kind order.
-constexpr std::array kind_keys = { "pane_export.kind_disc", "pane_export.kind_player", "pane_export.kind_web" };
-static_assert(std::size(kind_keys) == static_cast<std::size_t>(rv_editor_export_kind::web) + 1);
-
 // The operation the form started last: the state line shows a setup, Open in Browser needs a web export.
 enum class rv_editor_export_op : uint8_t {
     none,
@@ -68,7 +59,8 @@ struct rv_editor_export_form {
     rv_editor_export_kind kind = rv_editor_export_kind::disc;
     rv_editor_export_op op = rv_editor_export_op::none;
     char dest[filesystem_path_field_size] = {};
-    std::string error; // why the last Export was refused, or why the default directory could not be offered
+    rv_editor_export_paths paths; // the destination of each kind, kept while the project stays open
+    std::string error;            // why the last Export was refused, or why the default directory could not be offered
 };
 
 rv_editor_export_form export_form_draft;
@@ -154,15 +146,41 @@ void rv_editor_export_reason(const std::string &reason, const rv_editor_theme &t
     rv_editor_label(text.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
 }
 
-void rv_editor_export_kinds(rv_editor_export_form &form, const rv_editor_theme &theme)
+// Puts the shown kind's remembered destination (by default <root>/export/<subdir>) into the field; a path too long for the
+// field is refused, not cut.
+void rv_editor_export_load_dest(rv_editor_export_form &form, const std::filesystem::path &root)
+{
+    const std::string dir = form.paths.get(root, form.kind);
+    const int written = std::snprintf(form.dest, sizeof(form.dest), "%s", dir.c_str());
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(form.dest)) {
+        form.dest[0] = '\0';
+        form.error = rv_editor_text("pane_export.dest_too_long");
+    }
+}
+
+// Offers the default directories once per project root.
+void rv_editor_export_prefill(rv_editor_export_form &form, const std::filesystem::path &root)
+{
+    if (form.filled_for == root) {
+        return;
+    }
+    form.filled_for = root;
+    form.op = rv_editor_export_op::none; // the last export is another project's: Open in Browser must not reach it
+    form.error.clear();
+    form.paths.reset();
+    rv_editor_export_load_dest(form, root);
+}
+
+void rv_editor_export_kind_radios(rv_editor_export_form &form, const std::filesystem::path &root, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
     rv_editor_label(rv_editor_text("pane_export.kind_label"), rv_editor_label_kind::normal, theme);
-    for (size_t i = 0; i < kind_keys.size(); ++i) {
-        const auto kind = static_cast<rv_editor_export_kind>(i);
+    for (const rv_editor_export_kind_info &info : rv_editor_export_kinds()) {
         ImGui::SameLine();
-        if (rv_editor_radio(rv_editor_text(kind_keys[i]), form.kind == kind, theme)) {
-            form.kind = kind;
+        if (rv_editor_radio(rv_editor_text(info.name_key), form.kind == info.kind, theme)) {
+            form.paths.set(form.kind, form.dest);
+            form.kind = info.kind;
+            rv_editor_export_load_dest(form, root);
         }
     }
 }
@@ -173,7 +191,9 @@ void rv_editor_export_dest(rv_editor_export_form &form, const rv_editor_theme &t
     rv_editor_label(rv_editor_text("pane_export.dest_label"), rv_editor_label_kind::normal, theme);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-1.0f);
-    rv_editor_text_field("##export_dest", form.dest, sizeof(form.dest), theme);
+    if (rv_editor_text_field("##export_dest", form.dest, sizeof(form.dest), theme)) {
+        form.paths.set(form.kind, form.dest);
+    }
     rv_editor_item_tooltip(rv_editor_text("pane_export.dest_tooltip"));
 }
 
@@ -256,23 +276,6 @@ void rv_editor_export_start(rv_editor_app &app, rv_editor_export_form &form)
     }
     form.op = form.kind == rv_editor_export_kind::web ? rv_editor_export_op::web_export : rv_editor_export_op::export_job;
     form.error.clear();
-}
-
-// Offers <root>/export once per project root; a path too long for the field is refused, not cut.
-void rv_editor_export_prefill(rv_editor_export_form &form, const std::filesystem::path &root)
-{
-    if (form.filled_for == root) {
-        return;
-    }
-    form.filled_for = root;
-    form.op = rv_editor_export_op::none; // the last export is another project's: Open in Browser must not reach it
-    form.error.clear();
-    const std::string dir = (root / export_dir_name).string();
-    const int written = std::snprintf(form.dest, sizeof(form.dest), "%s", dir.c_str());
-    if (written < 0 || static_cast<size_t>(written) >= sizeof(form.dest)) {
-        form.dest[0] = '\0';
-        form.error = rv_editor_text("pane_export.dest_too_long");
-    }
 }
 
 // Cancel is live only while the export runs and is not already being cancelled.
@@ -372,7 +375,7 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
     }
     rv_editor_export_form &form = export_form_draft;
     rv_editor_export_prefill(form, app.project.root);
-    rv_editor_export_kinds(form, theme);
+    rv_editor_export_kind_radios(form, app.project.root, theme);
     rv_editor_export_same_line_if_room(dest_min_em);
     rv_editor_export_dest(form, theme);
 
