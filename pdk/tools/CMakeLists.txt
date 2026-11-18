@@ -42,3 +42,6 @@ add_subdirectory(mppcmusbaker)
 add_subdirectory(mppcmodbaker)
 add_subdirectory(mppcburner)
 add_subdirectory(mppcinspector)
+
+enable_testing()
+add_subdirectory(tests)
