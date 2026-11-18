@@ -4,8 +4,8 @@
 #   -DRV_CHECK_EXIT=<code>          expected exit code, default 0
 #   -DRV_CHECK_MATCH=<re;re>        every regex must match stdout+stderr
 #   -DRV_CHECK_ABSENT=<re;re>       no regex may match
-#   -DRV_CHECK_FIRST=<re>           the first output line must match
-#   -DRV_CHECK_LAST=<re>            the last output line must match
+#   -DRV_CHECK_FIRST=<re>           the first stderr line must match (the progress protocol)
+#   -DRV_CHECK_LAST=<re>            the last stderr line must match
 
 if(NOT DEFINED RV_CHECK_EXIT)
   set(RV_CHECK_EXIT 0)
@@ -30,19 +30,20 @@ foreach(re IN LISTS RV_CHECK_ABSENT)
   endif()
 endforeach()
 
-string(REGEX REPLACE "\n+$" "" trimmed "${all}")
+# FIRST and LAST read stderr alone: stdout and stderr come back as separate strings, so their order is lost.
+string(REGEX REPLACE "\n+$" "" trimmed "${err}")
 string(REPLACE "\n" ";" lines "${trimmed}")
 list(LENGTH lines count)
 if(RV_CHECK_FIRST)
   list(GET lines 0 first)
   if(NOT first MATCHES "${RV_CHECK_FIRST}")
-    message(FATAL_ERROR "first line '${first}' does not match '${RV_CHECK_FIRST}'")
+    message(FATAL_ERROR "first stderr line '${first}' does not match '${RV_CHECK_FIRST}'\n${all}")
   endif()
 endif()
 if(RV_CHECK_LAST)
   math(EXPR at "${count} - 1")
   list(GET lines ${at} last)
   if(NOT last MATCHES "${RV_CHECK_LAST}")
-    message(FATAL_ERROR "last line '${last}' does not match '${RV_CHECK_LAST}'")
+    message(FATAL_ERROR "last stderr line '${last}' does not match '${RV_CHECK_LAST}'\n${all}")
   endif()
 endif()

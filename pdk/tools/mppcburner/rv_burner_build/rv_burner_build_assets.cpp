@@ -12,12 +12,6 @@
 #include "rv_burner_assets/rv_burner_plan.hpp"
 #include "rv_burner_print.hpp"
 
-namespace
-{
-// Build phases in order: the assets phase is step 3.
-constexpr int k_step_assets = 3;
-} // namespace
-
 namespace fs = std::filesystem;
 
 namespace rv_pdktools
@@ -170,8 +164,7 @@ int rv_burner_build_assets(const rv_burner_options &options,
 
     const char *scripts_wording =
         destination.kind == rv_burner_destination_kind::directory ? "lua (uncompiled)" : "lua -> .luac";
-    rv_burner_print_step(k_step_assets,
-        "assets",
+    rv_burner_print_step("assets",
         std::format("{} png -> .mppctex, {} wav/mp3 -> .pcm, {} {}, {} copied",
             plan.texture_count + plan.model_texture_count,
             plan.sound_count + plan.stream_count,

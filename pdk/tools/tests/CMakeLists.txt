@@ -4,7 +4,10 @@
 add_executable(3dmppc-pdktools-tests
   rv_pdktools_tests_main.cpp
   rv_pdktools_test_progress.cpp
+  rv_pdktools_test_burner_steps.cpp
 )
+# The burner's step lists, a header with no sources behind it.
+target_include_directories(3dmppc-pdktools-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../mppcburner)
 # The binary stays in this build dir, never in the bin/ the superbuild delivers, even when it sets
 # CMAKE_RUNTIME_OUTPUT_DIRECTORY.
 set_target_properties(3dmppc-pdktools-tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -20,8 +23,8 @@ add_test(NAME pdktools_unit COMMAND 3dmppc-pdktools-tests)
 # rv_pdktools_add_run_test(NAME <name> COMMAND <tool> [args...]
 #                          [EXIT <code>] [MATCH <re>...] [ABSENT <re>...] [FIRST <re>] [LAST <re>])
 # Registers a ctest that runs COMMAND (a target name is replaced by its file) and checks the exit code
-# (default 0) and the merged stdout+stderr: every MATCH regex found, no ABSENT regex found, the first
-# line matching FIRST, the last matching LAST.
+# (default 0) and the merged stdout+stderr: every MATCH regex found, no ABSENT regex found. FIRST and LAST
+# check the stderr lines only: the first stderr line must match FIRST, the last must match LAST.
 function(rv_pdktools_add_run_test)
   cmake_parse_arguments(RV "" "NAME;EXIT;FIRST;LAST" "COMMAND;MATCH;ABSENT" ${ARGN})
   set(command "")
@@ -131,3 +134,73 @@ rv_bakers_add_protocol_tests(mppctexbaker GOOD tiny.png BAD garbage.png OUT tiny
   SUMMARY "mppctexbaker: [^\n]*tiny.png -> [^\n]*tiny.mppctex \\(2x2, direct15, 24 bytes\\)"
   ERROR "mppctexbaker: cannot read '[^\n]*garbage.png'"
   STEPS read encode write)
+
+# --- running mppcburner on discs ---
+#
+# The burner finds the bakers and the inspector in one directory (--baker): the tools of this build, linked there.
+# The discs are copied into the build dir, as a run leaves a .mppcburn project in the disc directory.
+set(RV_TEST_TOOLS_DIR ${CMAKE_CURRENT_BINARY_DIR}/tools)
+set(RV_TEST_DISCS_DIR ${CMAKE_CURRENT_BINARY_DIR}/discs)
+set(RV_TEST_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/out)
+add_custom_target(pdktools_test_tools ALL
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${RV_TEST_TOOLS_DIR} ${RV_TEST_OUT_DIR}
+  COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE:mppcinspector> ${RV_TEST_TOOLS_DIR}/mppcinspector
+  COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE:mppcmodbaker> ${RV_TEST_TOOLS_DIR}/mppcmodbaker
+  COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE:mppcmusbaker> ${RV_TEST_TOOLS_DIR}/mppcmusbaker
+  COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE:mppctexbaker> ${RV_TEST_TOOLS_DIR}/mppctexbaker
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${RV_TEST_DISCS_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/mppcdiscs/example-lua-bare ${RV_TEST_DISCS_DIR}/example-lua-bare
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/broken-scene ${RV_TEST_DISCS_DIR}/broken-scene
+  VERBATIM)
+add_dependencies(pdktools_test_tools mppcinspector mppcmodbaker mppcmusbaker mppctexbaker)
+
+# A step line of the burner's own: "mppcburner: [n/5] label". The regexes below read the merged output.
+set(RV_BURNER_STEPS_5 "mppcburner: \\[1/5\\] sources.*mppcburner: \\[2/5\\] manifest.*mppcburner: \\[3/5\\] compile.*mppcburner: \\[4/5\\] assets.*mppcburner: \\[5/5\\] burn")
+
+rv_pdktools_add_run_test(NAME burner_build_disc_prints_plan_steps_and_one_end
+  COMMAND mppcburner build ${RV_TEST_DISCS_DIR}/example-lua-bare --target disc -o ${RV_TEST_OUT_DIR}/lua-bare.mppcdisc
+    --baker ${RV_TEST_TOOLS_DIR}
+  FIRST "^mppcburner: \\[plan\\] sources manifest compile assets burn$"
+  LAST "^mppcburner: \\[end\\] ok$"
+  MATCH "${RV_BURNER_STEPS_5}"
+  ABSENT "\\[1/4\\]" "mppcburner: \\[plan\\].*mppcburner: \\[plan\\]" "mppcburner: \\[end\\].*mppcburner: \\[end\\]")
+add_dependencies(pdktools_test_tools mppcburner)
+
+# Refused at the sources step: the inspector's findings are printed inside step 1 (its own protocol lines come with its
+# subtask); the exit code is the one the burner has always had for them (RV_ERR_INVAL, 255).
+rv_pdktools_add_run_test(NAME burner_build_broken_scene_fails_at_sources_with_one_end
+  COMMAND mppcburner build ${RV_TEST_DISCS_DIR}/broken-scene --target disc -o ${RV_TEST_OUT_DIR}/broken.mppcdisc
+    --baker ${RV_TEST_TOOLS_DIR}
+  EXIT 255
+  FIRST "^mppcburner: \\[plan\\] sources manifest compile assets burn$"
+  LAST "^mppcburner: \\[end\\] failed: .+"
+  MATCH "mppcburner: \\[1/5\\] sources.*scene-parse.*mppcburner: \\[end\\] failed"
+  ABSENT "mppcburner: \\[2/5\\]" "\\[1/4\\]" "mppcburner: \\[plan\\].*mppcburner: \\[plan\\]"
+          "mppcburner: \\[end\\].*mppcburner: \\[end\\]")
+
+# inspect reads the disc the build test above burns: that test sets up the fixture, inspect requires it.
+set_tests_properties(burner_build_disc_prints_plan_steps_and_one_end PROPERTIES FIXTURES_SETUP lua_bare_mppcdisc)
+
+rv_pdktools_add_run_test(NAME burner_inspect_prints_plan_step_and_one_end
+  COMMAND mppcburner inspect ${RV_TEST_OUT_DIR}/lua-bare.mppcdisc
+  FIRST "^mppcburner: \\[plan\\] inspect$"
+  LAST "^mppcburner: \\[end\\] ok$"
+  MATCH "mppcburner: \\[1/1\\] inspect")
+set_tests_properties(burner_inspect_prints_plan_step_and_one_end PROPERTIES FIXTURES_REQUIRED lua_bare_mppcdisc)
+
+# A missing file fails at the only step: the plan, one failed end line last; 251 is the exit code the burner gives it now.
+rv_pdktools_add_run_test(NAME burner_inspect_missing_file_fails_with_one_end
+  COMMAND mppcburner inspect ${RV_TEST_OUT_DIR}/no-such-file.mppcdisc
+  EXIT 251
+  FIRST "^mppcburner: \\[plan\\] inspect$"
+  LAST "^mppcburner: \\[end\\] failed: .+"
+  ABSENT "mppcburner: \\[end\\].*mppcburner: \\[end\\]")
+
+# bake-texture bakes the one PNG of a tiny disc: the plan, the manifest step, the texture step, one end line.
+rv_pdktools_add_run_test(NAME burner_bake_texture_prints_plan_steps_and_one_end
+  COMMAND mppcburner bake-texture ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/bake-texture-disc tex/dot.png
+    -o ${RV_TEST_OUT_DIR}/dot.mppctex --baker ${RV_TEST_TOOLS_DIR}
+  FIRST "^mppcburner: \\[plan\\] manifest texture$"
+  LAST "^mppcburner: \\[end\\] ok$"
+  MATCH "mppcburner: \\[1/2\\] manifest" "mppcburner: \\[2/2\\] texture"
+  ABSENT "mppcburner: \\[plan\\].*mppcburner: \\[plan\\]" "mppcburner: \\[end\\].*mppcburner: \\[end\\]")

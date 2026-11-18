@@ -11,20 +11,20 @@ namespace rv_pdktools
 
 // --- shared by both subcommands ---
 //
-// [1/4] manifest is the first step of `build` and the whole of what
+// [2/5] manifest is the first step of `build` and the whole of what
 // `bake-texture` needs before it can pick a texture, so both call this one
 // definition (rv_burner_build_runner.cpp) instead of loading disc.toml twice.
 int rv_burner_build_manifest(const std::filesystem::path &disc_dir, rv_pdklib::rv_manifest &manifest, std::string &error);
 
 // --- the burn pipeline ---
 //
-// One disc directory in, one .mppcdisc out, in four phases.
-// Before [1/4], a sources check refuses error findings, a missing mppcinspector, a bad --baker hint and an incomplete check.
+// One disc directory in, one .mppcdisc out, in five steps.
+// [1/5] sources is the check that refuses error findings, a missing mppcinspector, a bad --baker hint and an incomplete check.
 //
-//   [1/4] manifest  parse and validate disc.toml
-//   [2/4] compile   generate a CMake project and build it into disc.so
-//   [3/4] assets    plan the archive, bake textures, compile scripts
-//   [4/4] burn      write the image
+//   [2/5] manifest  parse and validate disc.toml
+//   [3/5] compile   generate a CMake project and build it into disc.so
+//   [4/5] assets    plan the archive, bake textures, compile scripts
+//   [5/5] burn      write the image
 //
 // Each phase lives in its own directory and knows nothing about the others; what
 // they share sits in rv_burner_common/. This function is the only place the
@@ -51,7 +51,7 @@ int rv_burner_build_run(const rv_burner_options &options);
 
 // --- one texture ---
 //
-// Bakes exactly one texture the way [3/4] assets of `build` would: same
+// Bakes exactly one texture the way [4/5] assets of `build` would: same
 // manifest load and validation, same [assets] texture selection, same mppctexbaker
 // invocation and budget check.
 
