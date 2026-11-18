@@ -134,6 +134,27 @@ std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app)
     return ids;
 }
 
+void rv_editor_app_build_alert_refused(rv_editor_app &app, const std::string &reason)
+{
+    app.build_alert = { rv_editor_build_alert_kind::not_started, reason };
+    app.show_request = rv_editor_pane_kind::problems;
+}
+
+void rv_editor_app_build_alert_ended(rv_editor_app &app, rv_editor_build_state ended, const std::string &exit_text)
+{
+    if (ended != rv_editor_build_state::failed) {
+        return;
+    }
+    app.build_alert = { rv_editor_build_alert_kind::failed,
+        rv_editor_build_alert_reason(app.log, app.build_first_seq, exit_text) };
+    app.show_request = rv_editor_pane_kind::problems;
+}
+
+void rv_editor_app_build_alert_clear(rv_editor_app &app)
+{
+    app.build_alert = {};
+}
+
 bool rv_editor_app_run_builds(const rv_editor_app &app)
 {
     return app.inputs_changed || app.build.dev_state() != rv_editor_build_state::succeeded || !app.build.last_success();
@@ -144,6 +165,7 @@ int rv_editor_app_build(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
@@ -158,6 +180,7 @@ int rv_editor_app_build_saved(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     std::string error;
@@ -168,19 +191,30 @@ int rv_editor_app_build_saved(rv_editor_app &app)
     const int err = app.build.start(app.project, app.tools, app.log, error);
     if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
+        rv_editor_app_build_alert_refused(app, error);
         return err;
     }
+    rv_editor_app_build_alert_clear(app);
     // The build goes on without its file log; the reason is already in the log.
     [[maybe_unused]] const int build_log_err = rv_editor_app_attach_build_log(app);
     app.inputs_changed = false;
     return RV_OK;
 }
 
+// A refusal that is the build's own reason also raises the build alert.
+static void rv_editor_app_run_refused(rv_editor_app &app, const char *why)
+{
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+    if (rv_editor_app_run_builds(app) && why == rv_editor_app_why_not_build(app)) {
+        rv_editor_app_build_alert_refused(app, why);
+    }
+}
+
 int rv_editor_app_run(rv_editor_app &app)
 {
     const char *why = rv_editor_app_why_not_run(app);
     if (why != nullptr) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+        rv_editor_app_run_refused(app, why);
         return RV_ERR_BUSY;
     }
     if (app.session.state() == rv_editor_run_state::paused) {
@@ -202,7 +236,7 @@ int rv_editor_app_run_saved(rv_editor_app &app)
 {
     const char *why = rv_editor_app_why_not_run(app);
     if (why != nullptr) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+        rv_editor_app_run_refused(app, why);
         return RV_ERR_BUSY;
     }
     app.restart_after_build = false;

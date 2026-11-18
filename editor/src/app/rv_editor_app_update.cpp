@@ -285,6 +285,7 @@ void rv_editor_app_update(rv_editor_app &app)
     const bool build_ended = was_busy && !app.build.busy();
     if (build_ended) {
         rv_editor_app_build_ended_note(app);
+        rv_editor_app_build_alert_ended(app, app.build.state(), rv_editor_exit_text(app.build.exit_status()));
         // The build may have changed what the inspector reports: look again, after the run that is under way.
         std::string inspect_error;
         if (app.inspect.request(app.project, app.tools, app.log, inspect_error) != RV_OK) {

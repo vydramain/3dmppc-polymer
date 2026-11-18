@@ -14,6 +14,7 @@
 #include "app/rv_editor_app_parts.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 #include "build/rv_editor_build.hpp"
+#include "build/rv_editor_build_alert.hpp"
 #include "build/rv_editor_build_map.hpp"
 #include "build/rv_editor_export.hpp"
 #include "files/rv_editor_files.hpp"
@@ -103,6 +104,8 @@ struct rv_editor_app {
     std::vector<std::string> marks;
     // The first log line of the latest build job, for its diagnostics.
     uint64_t build_first_seq = 0;
+    // Why the last build did not start or failed, for the ask area at the top of Problems; none otherwise.
+    rv_editor_build_alert build_alert;
     // What that job's lines name, re-read when the log changes; and when the job ended.
     std::vector<rv_editor_problem> problems;
     uint64_t problems_revision = 0;
@@ -220,6 +223,13 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target);
 // Why each action cannot run now, or nullptr when it can. The text
 // lives until the next change to `app`.
 const char *rv_editor_app_why_not_build(const rv_editor_app &app);
+// The editor did not start a build: the alert says "did not start" with `reason`, and Problems is asked for.
+void rv_editor_app_build_alert_refused(rv_editor_app &app, const std::string &reason);
+// A build job ended in `ended`: failed sets the alert (reason from the job's log, else `exit_text`) and asks for
+// Problems; cancelled and succeeded change nothing.
+void rv_editor_app_build_alert_ended(rv_editor_app &app, rv_editor_build_state ended, const std::string &exit_text);
+// A build starts: the alert goes away.
+void rv_editor_app_build_alert_clear(rv_editor_app &app);
 const char *rv_editor_app_why_not_run(const rv_editor_app &app);
 const char *rv_editor_app_why_not_run_last(const rv_editor_app &app);
 const char *rv_editor_app_why_not_pause(const rv_editor_app &app);

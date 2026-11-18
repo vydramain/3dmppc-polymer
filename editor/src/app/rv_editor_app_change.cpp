@@ -150,6 +150,7 @@ int rv_editor_app_build_restart(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
@@ -164,6 +165,7 @@ int rv_editor_app_build_restart_saved(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     const int err = rv_editor_app_build_saved(app);
