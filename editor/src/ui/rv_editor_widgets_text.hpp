@@ -9,12 +9,12 @@ namespace rv_editor
 // tooltips. Text is drawn by ImGui; the caller formats it first (rv_editor_text_format).
 
 enum class rv_editor_label_kind {
-    normal,  // theme.text
-    dim,     // theme.text_disabled
-    bright,  // theme.text_bright
-    info,    // theme.code_blue: information, the manual's subheadings
-    warning, // theme.warning
-    error,   // theme.error
+    normal,       // theme.text
+    dim,          // theme.text_disabled
+    bright,       // theme.text_bright
+    info,         // theme.code_blue: information, the manual's subheadings
+    warning,      // theme.warning
+    error,        // theme.error
     on_selection, // theme.dark: text on the brass fill of a selected row
 };
 
@@ -23,6 +23,9 @@ enum class rv_editor_label_layout {
     wrap,   // breaks at the window's edge
     bullet, // list item: a bullet, then wrapped text
 };
+
+// The 0xRRGGBB colour a label kind draws in.
+uint32_t rv_editor_label_colour(rv_editor_label_kind kind, const rv_editor_theme &theme);
 
 // A label in `kind`'s colour, laid out as `layout` says.
 void rv_editor_label(const char *text,

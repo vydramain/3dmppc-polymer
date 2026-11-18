@@ -156,8 +156,8 @@ enum class rv_editor_game_line {
     muted
 };
 
-// The status line (one, or two when narrow), then the picture area to the tile's bottom edge, dark, with the
-// frame placed as Game Scale says once a texture exists; empty otherwise. Every
+// The picture area to the tile's bottom edge, dark, with the frame placed as Game Scale says once a texture exists,
+// then the status rows (one, or two when narrow) over it on a translucent backing. Every
 // state routes through here so this-frame's area is the same shape regardless of
 // what the state has to show (game-steady).
 void rv_editor_game_picture(const rv_editor_ui_port &ui,
@@ -175,90 +175,64 @@ void rv_editor_game_picture(const rv_editor_ui_port &ui,
     static_assert(std::size(line_kinds) == static_cast<size_t>(rv_editor_game_line::muted) + 1,
         "one kind per status line colour, in enum order");
     const rv_editor_label_kind kind = line_kinds[static_cast<size_t>(line)];
-    ImVec2 area = ImGui::GetContentRegionAvail();
+    const ImVec2 area = ImGui::GetContentRegionAvail();
+    const ImVec2 p0 = ImGui::GetCursorScreenPos();
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    // The picture takes the whole area; the status text is drawn over it afterwards.
     rv_editor_game_view view{};
+    std::vector<std::string> rows{ status };
     if (have) {
-        // The scale in the text depends on the view, the view on the height left under the text: place with a
-        // one-line estimate, decide the row count from that text, and re-place for two rows if it needs them, so the
-        // drawn scale matches the drawn picture. The check after drawing is a safety net for wrapped rows.
-        const auto place = [&](float text_h) {
-            return rv_editor_game_place(static_cast<int>(rv_editor_game_w),
-                static_cast<int>(rv_editor_game_h),
-                area.x,
-                area.y - text_h,
-                mode);
-        };
-        const auto compose = [&] {
-            return rv_editor_game_status_compose(static_cast<int>(rv_editor_game_w),
-                static_cast<int>(rv_editor_game_h),
-                rv_editor_game_scale_text(mode, view),
-                status,
-                "");
-        };
-        const float line_h = ImGui::GetTextLineHeightWithSpacing();
-        view = place(line_h);
-        rv_editor_game_status_lines lines = compose();
-        std::vector<std::string> rows =
-            rv_editor_game_status_rows(lines, area.x, ImGui::CalcTextSize(rv_editor_game_status_joined(lines).c_str()).x);
-        if (rows.size() > 1) {
-            view = place(line_h * 2.0f);
-            lines = compose();
-            rows =
-                rv_editor_game_status_rows(lines, area.x, ImGui::CalcTextSize(rv_editor_game_status_joined(lines).c_str()).x);
-        }
-        rv_editor_game_status_draw(rows, kind, theme);
-        area = ImGui::GetContentRegionAvail();
-        if (view.h > area.y) {
-            view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
-                static_cast<int>(rv_editor_game_h),
-                area.x,
-                area.y,
-                mode);
-        }
-    } else {
-        rv_editor_game_status_draw({ status }, kind, theme);
-        area = ImGui::GetContentRegionAvail();
+        view = rv_editor_game_picture_view(static_cast<int>(rv_editor_game_w),
+            static_cast<int>(rv_editor_game_h),
+            area.x,
+            area.y,
+            mode);
+        const rv_editor_game_status_lines lines = rv_editor_game_status_compose(static_cast<int>(rv_editor_game_w),
+            static_cast<int>(rv_editor_game_h),
+            rv_editor_game_scale_text(mode, view),
+            status,
+            "");
+        rows = rv_editor_game_status_rows(lines, area.x, ImGui::CalcTextSize(rv_editor_game_status_joined(lines).c_str()).x);
     }
 
     // The whole area is dark, so what the frame leaves over is not the tile's olive.
-    const ImVec2 p0 = ImGui::GetCursorScreenPos();
-    ImDrawList *dl = ImGui::GetWindowDrawList();
     dl->AddRectFilled(p0, ImVec2(p0.x + area.x, p0.y + area.y), rv_editor_col(theme.code_base));
     if (area.x < 1.0f || area.y < 1.0f) {
         return;
     }
     // A click on the picture takes the keyboard; the frame loop sends the keys
     // (rv_editor_shell_game_input). Not every state has a game to send them to.
+    const rv_editor_game_rect click = rv_editor_game_click_rect(p0, area);
     if (clickable) {
-        if (ImGui::InvisibleButton("##game", area)) {
+        if (ImGui::InvisibleButton("##game", ImVec2(click.max.x - click.min.x, click.max.y - click.min.y))) {
             ui.requests.push_back({ .kind = rv_editor_ui_request_kind::capture_keyboard });
         }
     } else {
         ImGui::Dummy(area);
     }
-    if (!have) {
-        return;
+    if (have) {
+        const ImVec2 i0(p0.x + view.x, p0.y + view.y);
+        const ImVec2 i1(i0.x + view.w, i0.y + view.h);
+        // Centred views can overflow the area: clip them to the area; the frame sits outside the picture.
+        dl->PushClipRect(ImVec2(p0.x - frame_thickness_px, p0.y),
+            ImVec2(p0.x + area.x + frame_thickness_px, p0.y + area.y + frame_thickness_px),
+            true);
+        dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)),
+            i0,
+            i1,
+            ImVec2(0.0f, 0.0f),
+            ImVec2(1.0f, 1.0f),
+            line == rv_editor_game_line::warn ? warn_picture_tint : IM_COL32_WHITE);
+        if (ui.state.game_captured) {
+            dl->AddRect(ImVec2(i0.x - 1, i0.y - 1),
+                ImVec2(i1.x + 1, i1.y + 1),
+                rv_editor_col(theme.selection),
+                0.0f,
+                frame_thickness_px);
+        }
+        dl->PopClipRect();
     }
-    const ImVec2 i0(p0.x + view.x, p0.y + view.y);
-    const ImVec2 i1(i0.x + view.w, i0.y + view.h);
-    // Centred views can overflow the area: clip so they never cover the status lines; the frame sits outside the picture.
-    dl->PushClipRect(ImVec2(p0.x - frame_thickness_px, p0.y),
-        ImVec2(p0.x + area.x + frame_thickness_px, p0.y + area.y + frame_thickness_px),
-        true);
-    dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)),
-        i0,
-        i1,
-        ImVec2(0.0f, 0.0f),
-        ImVec2(1.0f, 1.0f),
-        line == rv_editor_game_line::warn ? warn_picture_tint : IM_COL32_WHITE);
-    if (ui.state.game_captured) {
-        dl->AddRect(ImVec2(i0.x - 1, i0.y - 1),
-            ImVec2(i1.x + 1, i1.y + 1),
-            rv_editor_col(theme.selection),
-            0.0f,
-            frame_thickness_px);
-    }
-    dl->PopClipRect();
+    rv_editor_game_status_overlay(dl, rows, kind, theme, p0, area.x);
 }
 
 // Appends " stale: session N, <state>" to status when a frame
