@@ -7,6 +7,7 @@
 #include "text/rv_editor_text.hpp"
 
 #include <cctype>
+#include <chrono>
 #include <cstddef>
 #include <format>
 #include <fstream>
@@ -221,6 +222,7 @@ int rv_editor_export::start(const rv_editor_project &project,
         return err;
     }
     runs_ = run;
+    started_at_ = std::chrono::steady_clock::now();
     result_ = result_path;
     failure_reason_.clear();
     label_ = std::string(export_label);
@@ -257,6 +259,7 @@ int rv_editor_export::start_setup(const rv_editor_toolchain &tools, rv_editor_lo
         return err;
     }
     runs_ = run;
+    started_at_ = std::chrono::steady_clock::now();
     result_.clear();
     failure_reason_.clear();
     label_ = std::string(web_setup_label);
@@ -307,6 +310,7 @@ int rv_editor_export::update(rv_editor_log &log, std::string &error)
     }
 
     state_ = rv_editor_export_end_state(job_);
+    ended_at_ = std::chrono::steady_clock::now();
     const std::string label = label_ + " #" + std::to_string(run);
     if (state_ == rv_editor_build_state::succeeded) {
         // A setup has no result path: it only reports that it is done.

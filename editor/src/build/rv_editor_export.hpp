@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -127,6 +128,17 @@ public:
     {
         return failure_reason_;
     }
+    // The number of the current or last run (an export or a web setup); 0 before the first one.
+    uint32_t run() const
+    {
+        return runs_;
+    }
+    // Whole seconds the current run has lasted, or the last one lasted.
+    int64_t seconds() const
+    {
+        const auto end = busy() ? std::chrono::steady_clock::now() : ended_at_;
+        return std::chrono::duration_cast<std::chrono::seconds>(end - started_at_).count();
+    }
     // The progress lines of the current or last run (an export or the web setup) as a tree; no runs before the first one.
     const rv_editor_progress &progress() const
     {
@@ -142,6 +154,8 @@ private:
     std::string label_;
     bool setup_job_ = false;
     uint32_t runs_ = 0;
+    std::chrono::steady_clock::time_point started_at_{};
+    std::chrono::steady_clock::time_point ended_at_{};
 };
 
 // True while the running job is the web setup, from its first frame: the bar shows before any ladder line came.
