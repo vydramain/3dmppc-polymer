@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <cstring>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -20,6 +22,10 @@ struct rv_editor_probe_entry {
     ImGuiID id = 0;
     std::string label; // the item's debug label (a window's name for a window), else empty
     float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    float text_w = 0, text_h = 0; // the size of the label's text without its "##" part
+    bool in_scroll = false;       // inside a window opened through rv_editor_scroll_begin
+    bool scroll_area = false;     // a window opened through rv_editor_scroll_begin
+    bool scrollbar = false;       // a window that shows a scroll bar
 };
 
 struct rv_editor_probe_record {
@@ -55,19 +61,40 @@ inline std::string rect(const rv_editor_probe_entry &e)
 
 struct sink final : rv_editor::rv_editor_item_sink {
     rv_editor_probe_record *record;
+    std::set<ImGuiID> areas; // windows opened through rv_editor_scroll_begin
     explicit sink(rv_editor_probe_record *r)
         : record(r)
     {
     }
     void item_add(ImGuiID id, ImVec2 min, ImVec2 max) override
     {
-        record->entries.push_back({ id, "", min.x, min.y, max.x, max.y });
+        // NewFrame opens ImGui's implicit "Debug" window while the hook is already on; it is not the pane.
+        if (std::strcmp(ImGui::GetCurrentContext()->CurrentWindow->Name, "Debug##Default") == 0) {
+            return;
+        }
+        rv_editor_probe_entry e{ id, "", min.x, min.y, max.x, max.y };
+        for (const ImGuiWindow *w = ImGui::GetCurrentContext()->CurrentWindow; w != nullptr; w = w->ParentWindow) {
+            e.in_scroll = e.in_scroll || areas.count(w->ID) != 0;
+        }
+        record->entries.push_back(e);
+    }
+    void scroll_area(ImGuiID window) override
+    {
+        areas.insert(window);
     }
     void item_info(ImGuiID id, const char *label) override
     {
         for (auto it = record->entries.rbegin(); it != record->entries.rend(); ++it) {
             if (it->id == id) {
                 it->label = label;
+                // A window's name is not drawn text; a title bar takes its name, so only items with a visible label count.
+                const ImGuiContext *g = ImGui::GetCurrentContext();
+                if (ImGui::FindWindowByID(id) == nullptr && g->CurrentWindow->MoveId != id) {
+                    const char *hidden = std::strstr(label, "##");
+                    const ImVec2 size = ImGui::CalcTextSize(label, hidden != nullptr ? hidden : nullptr);
+                    it->text_w = size.x;
+                    it->text_h = size.y;
+                }
                 return;
             }
         }
@@ -124,6 +151,12 @@ rv_editor_probe_record rv_editor_probe_draw(rv_editor_test_imgui &gui, float wid
         height);
     ImGui::GetCurrentContext()->TestEngineHookItems = false;
     rv_editor::rv_editor_item_sink_set(nullptr);
+    // The bars of this frame are known only after the window has ended.
+    for (auto &e : record.entries) {
+        const ImGuiWindow *w = ImGui::FindWindowByID(e.id);
+        e.scroll_area = sink.areas.count(e.id) != 0;
+        e.scrollbar = w != nullptr && (w->ScrollbarX || w->ScrollbarY);
+    }
     return record;
 }
 

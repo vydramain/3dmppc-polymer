@@ -12,9 +12,13 @@ struct rv_editor_item_sink {
     virtual ~rv_editor_item_sink() = default;
     virtual void item_add(ImGuiID id, ImVec2 min, ImVec2 max) = 0; // every submitted item and window
     virtual void item_info(ImGuiID id, const char *label) = 0;     // the label of an item that has one
+    virtual void scroll_area(ImGuiID window) = 0;                  // a window opened as an editor scroll area
 };
 
 // nullptr removes the sink.
 void rv_editor_item_sink_set(rv_editor_item_sink *sink);
+
+// Tells the sink, if any, that the current window is a scroll area.
+void rv_editor_item_scroll_area();
 
 } // namespace rv_editor

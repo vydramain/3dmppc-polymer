@@ -17,6 +17,13 @@ void rv_editor_item_sink_set(rv_editor_item_sink *sink)
     sink_in_use = sink;
 }
 
+void rv_editor_item_scroll_area()
+{
+    if (sink_in_use != nullptr) {
+        sink_in_use->scroll_area(ImGui::GetCurrentWindow()->ID);
+    }
+}
+
 } // namespace rv_editor
 
 void ImGuiTestEngineHook_ItemAdd(ImGuiContext *context, ImGuiID id, const ImRect &bb, const ImGuiLastItemData *)

@@ -8,6 +8,7 @@
 #include "imgui_internal.h"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
+#include "ui/rv_editor_item_hook.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -207,7 +208,10 @@ bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal, ImGuiC
         flags |= ImGuiWindowFlags_HorizontalScrollbar;
     }
     rv_editor_scroll_stack.push_back(f);
-    return ImGui::BeginChild("##scroll", ImVec2(std::max(1.0f, inner.x), std::max(1.0f, inner.y)), child_flags, flags);
+    const bool open =
+        ImGui::BeginChild("##scroll", ImVec2(std::max(1.0f, inner.x), std::max(1.0f, inner.y)), child_flags, flags);
+    rv_editor_item_scroll_area();
+    return open;
 }
 
 void rv_editor_scroll_end(const rv_editor_theme &theme)
