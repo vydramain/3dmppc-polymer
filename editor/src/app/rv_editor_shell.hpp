@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <map>
 #include <optional>
@@ -345,6 +346,15 @@ void rv_editor_shell_after_save(rv_editor_shell &shell);
 // A buffer's file as the project sees it: relative to the root when inside it,
 // "Untitled" without a name.
 std::string rv_editor_shell_buffer_label(const rv_editor_app &app, const std::string &name);
+// Saves `ids` (every modified buffer when empty). The outcome lands in
+// shell.save_failed, or shell.save_done when every file was written.
+void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &ids);
+// The scene first, as it saves at once; RV_OK on success or when already saved, RV_ERR_* on failure.
+int rv_editor_shell_save_scene(rv_editor_shell &shell);
+// Save As under a question or on its own: the path field, Save and Cancel.
+void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme &theme);
+// What did not save, and why; a Save As for each Untitled file among them.
+void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &theme, int lines);
 
 // A pane's title with its context (spec 6.1): what it shows, from which session,
 // build or candidate; nothing when the plain kind says it all.
