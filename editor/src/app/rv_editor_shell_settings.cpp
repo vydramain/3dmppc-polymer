@@ -74,7 +74,7 @@ void rv_editor_settings_load(rv_editor_shell &shell)
 void rv_editor_settings_label(const char *label, float label_w, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     if (label_w > 0.0f) {
         ImGui::SameLine(label_w);
     }
@@ -179,7 +179,10 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
     rv_editor_settings_status(checked ? *checked : tool, theme);
     if (checked) {
         ImGui::SameLine();
-        rv_editor_label(rv_editor_text("shell_settings.not_yet_applied"), rv_editor_label_kind::dim, theme);
+        rv_editor_label(rv_editor_text("shell_settings.not_yet_applied"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::line);
     }
     ImGui::SetCursorPosX(label_w);
     if (rv_editor_button(rv_editor_text("shell_settings.check_button"), theme)) {
@@ -204,7 +207,7 @@ void rv_editor_settings_pace(rv_editor_shell &shell, const rv_editor_theme &them
     if (shell.vsync_active || refused) {
         ImGui::SameLine();
         const char *note_key = refused ? "shell_settings.vsync_refused_note" : "shell_settings.fps_limit_note";
-        rv_editor_label(rv_editor_text(note_key), rv_editor_label_kind::dim, theme);
+        rv_editor_label(rv_editor_text(note_key), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
     }
     if (changed) {
         shell.pace_request = draft;
@@ -249,7 +252,10 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     }
     if (searching) {
         ImGui::SameLine();
-        rv_editor_label(rv_editor_text("shell_settings.searching_tools"), rv_editor_label_kind::dim, theme);
+        rv_editor_label(rv_editor_text("shell_settings.searching_tools"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::line);
     }
     rv_editor_separator();
     rv_editor_settings_pace(shell, theme);

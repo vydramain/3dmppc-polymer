@@ -210,7 +210,10 @@ void rv_editor_pane_code_body(rv_editor_app &app,
             rv_editor_shelf_begin("##swap", theme);
             if (swap->state == nvim_swap_state_recoverable) {
                 ImGui::AlignTextToFramePadding();
-                rv_editor_label(rv_editor_text("pane_code.swap_recovery_message"), rv_editor_label_kind::normal, theme);
+                rv_editor_label(rv_editor_text("pane_code.swap_recovery_message"),
+                    rv_editor_label_kind::normal,
+                    theme,
+                    rv_editor_label_layout::line);
                 ImGui::SameLine();
                 std::string name = buf->name;
                 if (rv_editor_button(rv_editor_text("pane_code.swap_recover_button"), theme)) {

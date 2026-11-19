@@ -36,7 +36,7 @@ void rv_editor_row(const char *label, const std::string &value, const rv_editor_
 {
     rv_editor_table_row();
     rv_editor_table_cell();
-    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     rv_editor_table_cell();
     rv_editor_label(value.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
 }
@@ -94,7 +94,7 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
     ImGui::PushID(static_cast<int>(id));
     rv_editor_table_row();
     rv_editor_table_cell();
-    rv_editor_label(check.name, rv_editor_label_kind::normal, theme);
+    rv_editor_label(check.name, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     rv_editor_item_tooltip((std::string(rv_editor_text("pane_candidate.passed_means")) + " " + check.passes_when).c_str());
     rv_editor_table_cell();
     const std::string state = valid ? rv_editor_check_state_name(check.state) :
@@ -105,7 +105,10 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
     }
     rv_editor_table_cell();
     if (!check.manual) {
-        rv_editor_label(rv_editor_text("pane_candidate.by_editor"), rv_editor_label_kind::normal, theme);
+        rv_editor_label(rv_editor_text("pane_candidate.by_editor"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::line);
         ImGui::PopID();
         return;
     }

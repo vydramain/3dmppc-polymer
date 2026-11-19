@@ -53,9 +53,9 @@ void rv_editor_search_list(rv_editor_app &app, const rv_editor_theme &theme)
             }
             rv_editor_table_cell();
             const std::string position = std::to_string(hit.line) + ":" + std::to_string(hit.column);
-            rv_editor_label(position.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_label(position.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
             rv_editor_table_cell();
-            rv_editor_label(hit.excerpt.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_table_cell_text(hit.excerpt.c_str(), theme);
             ImGui::PopID();
         }
     }

@@ -5,6 +5,7 @@
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_rows.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 
 namespace rv_editor
 {
@@ -36,12 +37,18 @@ rv_editor_list_result rv_editor_list_row(const char *id,
     }
     const int colours = rv_editor_row_push_colours(style.selected, style.dim, state, theme);
     ImGui::PushID(id);
-    const bool pressed = ImGui::Selectable(label, selected, flags, ImVec2(0.0f, style.height));
+    // A label wider than the row ends in "..." with its full text in a tooltip; "###" keeps the id steady as the cut moves.
+    const std::string shown =
+        rv_editor_ellipsize(label, ImGui::GetContentRegionAvail().x - ImGui::GetStyle().FramePadding.x * 2.0f);
+    const bool pressed = ImGui::Selectable((shown + "###row").c_str(), selected, flags, ImVec2(0.0f, style.height));
+    const bool cut = shown != label;
     ImGui::PopID();
     ImGui::PopStyleColor(colours);
     if (disabled) {
         ImGui::EndDisabled();
         ImGui::SetItemTooltip("%s", state.disabled);
+    } else if (cut) {
+        ImGui::SetItemTooltip("%s", label);
     }
 
     rv_editor_list_result result;

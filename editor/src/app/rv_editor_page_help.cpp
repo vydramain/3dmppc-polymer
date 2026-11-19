@@ -34,7 +34,10 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pane_header(rv_editor_text("page_help.title"), true, theme);
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(rv_editor_text("page_help.filter_label"), rv_editor_label_kind::normal, theme);
+    rv_editor_label(rv_editor_text("page_help.filter_label"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::line);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * filter_width_in_font_sizes);
     rv_editor_text_field("##filter", shell.help_filter, sizeof(shell.help_filter), theme);
@@ -83,13 +86,13 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
             last_group_text = group_text;
             rv_editor_table_row();
             rv_editor_table_cell();
-            rv_editor_label(group_text, rv_editor_label_kind::bright, theme);
+            rv_editor_label(group_text, rv_editor_label_kind::bright, theme, rv_editor_label_layout::line);
         }
         rv_editor_table_row();
         rv_editor_table_cell();
-        rv_editor_label(label_text, rv_editor_label_kind::normal, theme);
+        rv_editor_label(label_text, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
         rv_editor_table_cell();
-        rv_editor_label(keys_text, rv_editor_label_kind::normal, theme);
+        rv_editor_label(keys_text, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     }
     rv_editor_table_end();
 }

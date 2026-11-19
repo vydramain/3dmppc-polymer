@@ -39,7 +39,7 @@ constexpr const char *undo_name = "Name";
 void rv_editor_inspector_label(const char *label, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
 }

@@ -47,7 +47,7 @@ constexpr const char *file_indent = "  ";
 void rv_editor_new_label(const char *label, float label_w, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     ImGui::SameLine(label_w);
 }
 

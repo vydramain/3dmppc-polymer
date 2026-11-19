@@ -203,6 +203,11 @@ bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_ed
     return changed;
 }
 
+ImGuiInputTextFlags rv_editor_text_area_flags(const rv_editor_field &field)
+{
+    return ImGuiInputTextFlags_WordWrap | (field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None);
+}
+
 bool rv_editor_text_area(const char *label,
     char *buf,
     size_t size,
@@ -214,8 +219,7 @@ bool rv_editor_text_area(const char *label,
     const float width = ImGui::CalcItemWidth();
     const float height = ImGui::GetTextLineHeight() * lines + ImGui::GetStyle().FramePadding.y * frame_padding_sides;
     rv_editor_field_begin(theme, field);
-    const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
-    const bool changed = ImGui::InputTextMultiline(label, buf, size, ImVec2(width, height), flags);
+    const bool changed = ImGui::InputTextMultiline(label, buf, size, ImVec2(width, height), rv_editor_text_area_flags(field));
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max = ImGui::GetItemRectMax();
     const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), ImGui::IsItemActive());

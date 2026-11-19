@@ -247,7 +247,7 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
         }
         if (!why.empty()) {
             rv_editor_font_code_pop();
-            rv_editor_label(why.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_label(why.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
             ImGui::SameLine();
             if (rv_editor_button(rv_editor_text("pane_terminal.start_again"), theme)) {
                 view = {};
@@ -261,7 +261,10 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
         rv_editor_font_code_pop();
         rv_editor_ask_begin(rv_editor_text("pane_terminal.paste_dialog_title"), theme);
         ImGui::AlignTextToFramePadding();
-        rv_editor_label(rv_editor_text("pane_terminal.paste_lines_info"), rv_editor_label_kind::normal, theme);
+        rv_editor_label(rv_editor_text("pane_terminal.paste_lines_info"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::line);
         ImGui::SameLine();
         const bool paste = rv_editor_button(rv_editor_text("pane_terminal.paste"), theme);
         ImGui::SameLine();

@@ -149,7 +149,7 @@ void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme
     if (target == rv_editor_scene_action_target::pieces) {
         const size_t count = doc.picked_pieces.size();
         const std::string text = rv_editor_text_format("pane_hierarchy.target_pieces", std::make_format_args(name, count));
-        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme);
+        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
         ImGui::SameLine();
         rv_editor_hierarchy_command(app, ui, theme, clear_picks_command);
         return;

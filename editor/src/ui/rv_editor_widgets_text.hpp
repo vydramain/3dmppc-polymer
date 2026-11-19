@@ -31,7 +31,7 @@ uint32_t rv_editor_label_colour(rv_editor_label_kind kind, const rv_editor_theme
 void rv_editor_label(const char *text,
     rv_editor_label_kind kind,
     const rv_editor_theme &theme,
-    rv_editor_label_layout layout = rv_editor_label_layout::line);
+    rv_editor_label_layout layout = rv_editor_label_layout::wrap);
 
 // A section header: ImGui's SeparatorText, a rule with the title on it.
 void rv_editor_section(const char *title);

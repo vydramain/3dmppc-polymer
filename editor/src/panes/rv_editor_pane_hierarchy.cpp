@@ -159,7 +159,7 @@ void rv_editor_hierarchy_marks(const rv_editor_scene_object &o, const rv_editor_
         return;
     }
     ImGui::SameLine();
-    rv_editor_label(marks.c_str(), rv_editor_label_kind::dim, theme);
+    rv_editor_label(marks.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
 }
 
 // Context menu for a scene object: add children, duplicate, delete, reparent. Each item says why it cannot run.
@@ -239,7 +239,7 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
     if (drag && ImGui::BeginDragDropSource()) {
         ImGui::SetDragDropPayload(rv_editor_scene_payload, o.id.c_str(), o.id.size() + 1);
         const std::string move_label = rv_editor_text_format("pane_hierarchy.move_label", std::make_format_args(label));
-        rv_editor_label(move_label.c_str(), rv_editor_label_kind::normal, theme);
+        rv_editor_label(move_label.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
         ImGui::EndDragDropSource();
     }
     if (drag && ImGui::BeginDragDropTarget()) {

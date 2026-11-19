@@ -1,5 +1,10 @@
 #pragma once
 
+#include <string>
+
+#include "theme/rv_editor_theme.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
+
 namespace rv_editor
 {
 
@@ -44,5 +49,13 @@ void rv_editor_table_end();
 // column is clipped and the caller may skip drawing it.
 void rv_editor_table_row();
 bool rv_editor_table_cell();
+
+// `text` cut to fit `width` px on one line, ending in "..." when it was cut; whole when it fits.
+std::string rv_editor_ellipsize(const char *text, float width);
+
+// Cell text on one line: ellipsized to the column's remaining width, the full text in the item's tooltip.
+void rv_editor_table_cell_text(const char *text,
+    const rv_editor_theme &theme,
+    rv_editor_label_kind kind = rv_editor_label_kind::normal);
 
 } // namespace rv_editor

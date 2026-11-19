@@ -235,10 +235,10 @@ void rv_editor_start_list(rv_editor_shell &shell, const std::vector<rv_editor_re
         }
         rv_editor_start_chip(ImVec2(at.x, at.y + (row_h - chip_side) / center_divisor), row, theme);
         rv_editor_table_cell();
-        rv_editor_label(row.root.filename().c_str(), rv_editor_label_kind::bright, theme);
+        rv_editor_table_cell_text(row.root.filename().c_str(), theme, rv_editor_label_kind::bright);
         // Dark on the brass of a selected row, dim on the others.
         const rv_editor_label_kind parent_kind = selected ? rv_editor_label_kind::on_selection : rv_editor_label_kind::dim;
-        rv_editor_label(row.root.parent_path().c_str(), parent_kind, theme);
+        rv_editor_table_cell_text(row.root.parent_path().c_str(), theme, parent_kind);
         rv_editor_table_cell();
         const char *available = rv_editor_text("shell_start.status_available");
         const char *missing = rv_editor_text("shell_start.status_missing");
@@ -294,7 +294,7 @@ void rv_editor_start_catalog(rv_editor_shell &shell, const rv_editor_theme &them
         const std::string removed_filename = shell.recent_removed.filename().string();
         const std::string removed = rv_editor_text_format("shell_start.removed_text", std::make_format_args(removed_filename));
         ImGui::AlignTextToFramePadding();
-        rv_editor_label(removed.c_str(), rv_editor_label_kind::normal, theme);
+        rv_editor_label(removed.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
         ImGui::SameLine();
         if (rv_editor_button(rv_editor_text("shell_start.undo"), theme)) {
             rv_editor_recent_restore(shell.recent_removed, shell.recent_removed_at);

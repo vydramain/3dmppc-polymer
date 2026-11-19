@@ -152,10 +152,10 @@ void rv_editor_fields_remove(rv_editor_scene_doc &doc, size_t at, size_t index)
 void rv_editor_fields_label(const rv_editor_scene_field_row &row, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(row.name.c_str(), rv_editor_label_kind::normal, theme);
+    rv_editor_label(row.name.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     if (!row.type.empty()) {
         ImGui::SameLine();
-        rv_editor_label(row.type.c_str(), rv_editor_label_kind::dim, theme);
+        rv_editor_label(row.type.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
     }
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
 }

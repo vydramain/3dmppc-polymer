@@ -358,17 +358,15 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
                     ImGui::PushID(pin.c_str());
                     rv_editor_table_row();
                     rv_editor_table_cell();
-                    rv_editor_label(pin.c_str(), rv_editor_label_kind::normal, theme);
+                    rv_editor_table_cell_text(pin.c_str(), theme);
                     const auto it = s.answers().find(std::string(observe_verb_get) + pin);
                     rv_editor_table_cell();
-                    rv_editor_label(it == s.answers().end() ? rv_editor_text("pane_observe.not_read_yet") :
-                                                              rv_editor_value_text(it->second).c_str(),
-                        rv_editor_label_kind::normal,
+                    rv_editor_table_cell_text(it == s.answers().end() ? rv_editor_text("pane_observe.not_read_yet") :
+                                                                        rv_editor_value_text(it->second).c_str(),
                         theme);
                     rv_editor_table_cell();
-                    rv_editor_label(it == s.answers().end() ? rv_editor_text("pane_observe.dash") :
-                                                              rv_editor_updated_text(it->second, s).c_str(),
-                        rv_editor_label_kind::normal,
+                    rv_editor_table_cell_text(it == s.answers().end() ? rv_editor_text("pane_observe.dash") :
+                                                                        rv_editor_updated_text(it->second, s).c_str(),
                         theme);
                     rv_editor_table_cell();
                     const char *unpin_why = observe_busy_why(app);
@@ -437,12 +435,15 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
             ImGui::PushID(row.shown.c_str());
             rv_editor_table_row();
             rv_editor_table_cell();
-            rv_editor_label(row.shown.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_table_cell_text(row.shown.c_str(), theme);
             rv_editor_table_cell();
-            rv_editor_label(row.type.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_label(row.type.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
             rv_editor_table_cell();
             if (row.name.empty()) {
-                rv_editor_label(rv_editor_text("pane_observe.dash"), rv_editor_label_kind::normal, theme);
+                rv_editor_label(rv_editor_text("pane_observe.dash"),
+                    rv_editor_label_kind::normal,
+                    theme,
+                    rv_editor_label_layout::line);
             } else if (row.type == type_table) {
                 const char *open_why = observe_busy_why(app);
                 if (rv_editor_button(rv_editor_text("pane_observe.open"), theme, { rv_editor_look::live, open_why })) {

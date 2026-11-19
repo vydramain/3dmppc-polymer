@@ -203,10 +203,10 @@ void rv_editor_export_block_begin(const char *id, const char *title, const std::
         ImVec2(0.0f, 0.0f),
         ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
         ImGuiWindowFlags_NoScrollbar);
-    rv_editor_label(title, rv_editor_label_kind::bright, theme);
+    rv_editor_label(title, rv_editor_label_kind::bright, theme, rv_editor_label_layout::line);
     if (!right.empty()) {
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(right.c_str()).x + ImGui::GetCursorPosX());
-        rv_editor_label(right.c_str(), rv_editor_label_kind::dim, theme);
+        rv_editor_label(right.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
     }
     ImGui::Separator();
 }
@@ -309,7 +309,10 @@ void rv_editor_export_output_block(rv_editor_app &app,
     const rv_editor_export &exporter = app.exporter;
     rv_editor_export_block_begin("##export_block_output", rv_editor_text("pane_export.block_output"), {}, theme);
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(rv_editor_text("pane_export.dest_label"), rv_editor_label_kind::normal, theme);
+    rv_editor_label(rv_editor_text("pane_export.dest_label"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::line);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-1.0f);
     if (rv_editor_text_field("##export_dest", form.dest, sizeof(form.dest), theme)) {

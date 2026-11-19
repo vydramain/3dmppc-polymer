@@ -125,7 +125,7 @@ void rv_editor_run_path(const char *label,
     const char *display_label)
 {
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(display_label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(display_label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field((std::string("##") + label).c_str(), buf, size, theme);
@@ -219,7 +219,10 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
     }
     rv_editor_run_group(rv_editor_text("pane_run_config.session_group"), theme);
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(rv_editor_text("pane_run_config.name_label"), rv_editor_label_kind::normal, theme);
+    rv_editor_label(rv_editor_text("pane_run_config.name_label"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::line);
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##name", form.name, sizeof(form.name), theme);

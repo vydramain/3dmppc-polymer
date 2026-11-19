@@ -257,7 +257,10 @@ void rv_editor_asset_preview(const rv_editor_asset *a,
             }
             if (playing_this) {
                 ImGui::SameLine();
-                rv_editor_label(rv_editor_text("asset_preview.status_playing"), rv_editor_label_kind::dim, theme);
+                rv_editor_label(rv_editor_text("asset_preview.status_playing"),
+                    rv_editor_label_kind::dim,
+                    theme,
+                    rv_editor_label_layout::line);
             }
             if (rv_editor_sound_last_error.path == a->path && !rv_editor_sound_last_error.text.empty()) {
                 rv_editor_label(rv_editor_sound_last_error.text.c_str(),
@@ -295,7 +298,10 @@ void rv_editor_asset_preview(const rv_editor_asset *a,
                 rv_editor_label_layout::wrap);
         }
         if (!rv_editor_project_on_disc(project, a->rel) && rv_editor_asset_belongs_on_disc(a->rel)) {
-            rv_editor_label(rv_editor_text("asset_preview.not_in_disc_toml"), rv_editor_label_kind::normal, theme);
+            rv_editor_label(rv_editor_text("asset_preview.not_in_disc_toml"),
+                rv_editor_label_kind::normal,
+                theme,
+                rv_editor_label_layout::line);
             ImGui::SameLine();
             if (rv_editor_button(rv_editor_text("asset_preview.button_add_to_disc"), theme)) {
                 std::string error;

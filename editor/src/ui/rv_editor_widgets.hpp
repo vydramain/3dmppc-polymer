@@ -87,6 +87,8 @@ bool rv_editor_text_field(const char *label,
     size_t size,
     const rv_editor_theme &theme,
     const rv_editor_field &field = {});
+// The ImGui flags a text area is drawn with: read-only as the field says, and always word-wrapped.
+ImGuiInputTextFlags rv_editor_text_area_flags(const rv_editor_field &field);
 // A multi-line field `lines` text lines tall (plus its frame padding), as wide as the
 // item width; ImGui scrolls it. The markers sit on its first line.
 bool rv_editor_text_area(const char *label,

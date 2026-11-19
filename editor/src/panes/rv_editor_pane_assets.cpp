@@ -371,13 +371,16 @@ void rv_editor_pane_assets(rv_editor_app &app,
                 rv_editor_table_cell();
                 const char *kind_text =
                     entry == rv_editor_assets.map.end() ? entry_not_on_disc.data() : entry->second.kind.c_str();
-                rv_editor_label(kind_text, rv_editor_label_kind::normal, theme);
+                rv_editor_table_cell_text(kind_text, theme);
                 rv_editor_table_cell();
                 const char *disc_name = entry == rv_editor_assets.map.end() ? rv_editor_text("pane_assets.not_on_disc") :
                                                                               entry->second.name.c_str();
-                rv_editor_label(disc_name, rv_editor_label_kind::normal, theme);
+                rv_editor_table_cell_text(disc_name, theme);
                 rv_editor_table_cell();
-                rv_editor_label(std::to_string(a->size).c_str(), rv_editor_label_kind::normal, theme);
+                rv_editor_label(std::to_string(a->size).c_str(),
+                    rv_editor_label_kind::normal,
+                    theme,
+                    rv_editor_label_layout::line);
             }
             rv_editor_table_end();
         }

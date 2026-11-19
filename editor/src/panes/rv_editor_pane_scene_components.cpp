@@ -36,7 +36,7 @@ constexpr float fill_width = -1.0f;
 void rv_editor_components_label(const char *label, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(fill_width);
 }

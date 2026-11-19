@@ -160,7 +160,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             const auto kind = is_error ? rv_editor_status_kind::error : rv_editor_status_kind::warning;
             rv_editor_status(rv_editor_text(severity_id), kind, theme);
             rv_editor_table_cell();
-            rv_editor_label(p.source.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_table_cell_text(p.source.c_str(), theme);
             rv_editor_table_cell();
             std::error_code ec;
             const std::filesystem::path shown = std::filesystem::relative(p.file, app.project.root, ec);
@@ -178,7 +178,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             }
             rv_editor_table_cell();
             const std::string line_col = std::to_string(p.line) + ":" + std::to_string(p.column);
-            rv_editor_label(line_col.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_label(line_col.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
             rv_editor_table_cell();
             std::string message = p.message;
             const bool from_build = p.source == problem_source_build;

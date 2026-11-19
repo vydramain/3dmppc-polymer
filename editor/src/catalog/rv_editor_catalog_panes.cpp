@@ -163,9 +163,9 @@ void rv_editor_catalog_table(float height, const rv_editor_theme &t)
                 const rv_editor_label_kind cell_kind =
                     i == catalog_table_selected_row ? rv_editor_label_kind::on_selection : rv_editor_label_kind::normal;
                 rv_editor_table_cell();
-                rv_editor_label(rows[i][1], cell_kind, t);
+                rv_editor_label(rows[i][1], cell_kind, t, rv_editor_label_layout::line);
                 rv_editor_table_cell();
-                rv_editor_label(rows[i][2], cell_kind, t);
+                rv_editor_label(rows[i][2], cell_kind, t, rv_editor_label_layout::line);
             }
             rv_editor_table_end();
         }

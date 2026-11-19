@@ -32,7 +32,7 @@ void rv_editor_reserved_line(const char *id, const std::string &text, const std:
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::BeginChild(id, ImVec2(0.0f, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
     if (!text.empty()) {
-        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme);
+        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
@@ -67,7 +67,7 @@ void rv_editor_checks_content(const rv_editor_candidate &c, float width, const r
         }
     }
     const char *label = rv_editor_text("pane_candidate.not_passed_label");
-    rv_editor_label(label, rv_editor_label_kind::dim, theme);
+    rv_editor_label(label, rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const size_t count = open.size();
     float used = ImGui::CalcTextSize(label).x;
@@ -101,7 +101,7 @@ void rv_editor_checks_content(const rv_editor_candidate &c, float width, const r
         const std::string more = rv_editor_more_text(count - shown);
         ImGui::SameLine();
         ImGui::BeginGroup();
-        rv_editor_label(more.c_str(), rv_editor_label_kind::dim, theme);
+        rv_editor_label(more.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
         ImGui::EndGroup();
         rv_editor_item_tooltip(names.c_str());
     }

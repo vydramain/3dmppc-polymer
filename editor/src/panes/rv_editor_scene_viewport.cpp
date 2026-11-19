@@ -158,7 +158,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, top.y + (size.y - label_x.y) * half));
-    rv_editor_label(rot_x_label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(rot_x_label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     ImGui::SameLine();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##viewport",
@@ -177,7 +177,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, dolly_top.y + (size.y - label_d.y) * half));
-    rv_editor_label(dolly_label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(dolly_label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap));
     const float rot_y_turn = rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme, reset);
     (void)rv_editor_camera_orbit(cam, camera_carry, rot_y_turn * rv_editor_camera_rotation_sensitivity, 0.0);
@@ -187,7 +187,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, p0.y + size.y + gap + (wheel - label_y.y) * half));
-    rv_editor_label(rot_y_label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(rot_y_label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
     if (!v.valid) {
@@ -412,12 +412,15 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     const std::string status_line = mesh_error.empty() ?
         rv_editor_text_format("scene_viewport.status_line_format", std::make_format_args(buf, read_line)) :
         rv_editor_text_format("scene_viewport.mesh_placeholder_format", std::make_format_args(buf, read_line, error_str));
-    rv_editor_label(status_line.c_str(), rv_editor_label_kind::dim, theme);
+    rv_editor_label(status_line.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
     if (!read_tip.empty()) {
         rv_editor_item_tooltip(read_tip.c_str());
     }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset + line));
-    rv_editor_label(rv_editor_text("scene_viewport.example_meshes_title"), rv_editor_label_kind::dim, theme);
+    rv_editor_label(rv_editor_text("scene_viewport.example_meshes_title"),
+        rv_editor_label_kind::dim,
+        theme,
+        rv_editor_label_layout::line);
     if (ImGui::BeginItemTooltip()) {
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * text_wrap_width);
         ImGui::TextUnformatted(rv_editor_text("scene_viewport.example_meshes_tooltip"));
