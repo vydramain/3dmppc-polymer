@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <initializer_list>
 #include <map>
 #include <optional>
 #include <string>
@@ -72,6 +73,14 @@ bool rv_editor_checkbox(const char *label, bool *on, const rv_editor_theme &them
 // Widths a button and a check box with `label` take, for rv_editor_flow.
 float rv_editor_button_width(const char *label);
 float rv_editor_checkbox_width(const char *label);
+
+// The width of the widest of `labels` as a button: a button whose label changes keeps it.
+float rv_editor_button_width_for(std::initializer_list<const char *> labels);
+// A button showing `label`, as wide as the widest of `labels_for_width`.
+bool rv_editor_button_fixed(const char *label,
+    std::initializer_list<const char *> labels_for_width,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state = {});
 
 // Keeps the next item on the current row when `width` still fits in the window,
 // and starts a new row otherwise, so a row of controls wraps in a narrow pane

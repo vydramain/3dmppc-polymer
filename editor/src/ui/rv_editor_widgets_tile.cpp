@@ -111,7 +111,7 @@ float rv_editor_tile_medium_width(const rv_editor_tile &tile)
     const float pad = ImGui::GetStyle().FramePadding.x;
     const float code_w = ImGui::CalcTextSize(tile.code).x;
     const float label_w = ImGui::CalcTextSize(tile.label, rv_editor_label_end(tile.label)).x;
-    return pad * tile_medium_pad_mult + code_w + label_w;
+    return std::max(tile.min_width, pad * tile_medium_pad_mult + code_w + label_w);
 }
 
 bool rv_editor_tile_medium_draw(const rv_editor_tile &tile, const rv_editor_theme &theme, const rv_editor_state &state)

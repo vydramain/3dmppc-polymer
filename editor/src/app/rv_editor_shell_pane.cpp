@@ -17,8 +17,6 @@ namespace rv_editor
 namespace
 {
 
-// A control strip's width, in font sizes.
-constexpr int rv_editor_strip_width_em = 20;
 // A pane kind without a view says so; the title fills the {}.
 constexpr const char *no_view_text_id = "shell_pane.no_view";
 // Hierarchy and inspector edit a pdkkit scene; a bare disc runs none, so they say why instead.
@@ -77,8 +75,6 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     case rv_editor_pane_kind::controls:
     case rv_editor_pane_kind::release_controls:
     case rv_editor_pane_kind::toolchest: {
-        // Measured each frame: a strip's minimum is what it drew.
-        const float top = ImGui::GetCursorPosY();
         if (kind == rv_editor_pane_kind::controls) {
             rv_editor_pane_controls(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         } else if (kind == rv_editor_pane_kind::toolchest) {
@@ -86,8 +82,6 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         } else {
             rv_editor_pane_release_controls(shell.app, theme);
         }
-        const float tall = ImGui::GetCursorPosY() - top - ImGui::GetStyle().ItemSpacing.y;
-        shell.strips[pane] = { static_cast<int32_t>(ImGui::GetFontSize() * rv_editor_strip_width_em), rv_editor_px_ceil(tall) };
         return;
     }
     case rv_editor_pane_kind::runtime_log:

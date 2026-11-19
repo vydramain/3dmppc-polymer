@@ -33,4 +33,7 @@ std::string rv_editor_release_number_tooltip(const rv_editor_candidate &c);
 // fit `avail`, else medium, else small; the same choice as the transport bar.
 rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5], float facts_width, float avail);
 
+// The same by the width alone: the room the facts text takes is a constant, not the state's text.
+rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5], float avail);
+
 } // namespace rv_editor

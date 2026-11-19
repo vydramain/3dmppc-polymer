@@ -167,6 +167,18 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
             &out.build_restart };
     }
     const char *run_resume_label = rv_editor_text(state.resume ? "widgets_status.button_resume" : "widgets_status.button_run");
+    // Run/Resume and Reload/Restart swap labels: a medium tile keeps the wider of the two, so the
+    // size is chosen by the width alone and no state moves a button.
+    const auto widest = [](rv_editor_tile a, const rv_editor_tile &b) {
+        a.min_width = std::max(rv_editor_tile_width(a, rv_editor_tile_size::medium),
+            rv_editor_tile_width(b, rv_editor_tile_size::medium));
+        return a;
+    };
+    const rv_editor_tile run_tile{ rv_editor_text("widgets_status.button_run"), rv_editor_glyph::run };
+    const rv_editor_tile resume_tile{ rv_editor_text("widgets_status.button_resume"), rv_editor_glyph::run };
+    const rv_editor_tile reload_tile{ rv_editor_text("widgets_status.button_reload"), rv_editor_glyph::reload };
+    const rv_editor_tile restart_tile{ rv_editor_text("widgets_status.button_restart"), rv_editor_glyph::restart };
+    reload_slot.tile = widest(reload_slot.tile, state.build_restart ? reload_tile : restart_tile);
     const rv_editor_transport_button buttons[] = {
         { { rv_editor_text("widgets_status.button_build"),
               rv_editor_glyph::build,
@@ -175,11 +187,12 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
               rv_editor_text("widgets_status.shortcut_build") },
             state.build,
             &out.build },
-        { { run_resume_label,
-              rv_editor_glyph::run,
-              theme.code_green,
-              run_resume_label,
-              rv_editor_text("widgets_status.shortcut_run") },
+        { widest({ run_resume_label,
+                     rv_editor_glyph::run,
+                     theme.code_green,
+                     run_resume_label,
+                     rv_editor_text("widgets_status.shortcut_run") },
+              state.resume ? run_tile : resume_tile),
             state.run,
             &out.run },
         { { rv_editor_text("widgets_status.button_pause"),

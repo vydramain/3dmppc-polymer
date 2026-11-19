@@ -57,6 +57,9 @@ std::string rv_editor_release_number_tooltip(const rv_editor_candidate &c)
     return rv_editor_text_format("pane_candidate.candidate_sha256_tooltip", std::make_format_args(c.sha256));
 }
 
+// The text whose width the facts' room is, whatever the state says.
+constexpr const char *facts_room_text = "MMMMMMMMMMMMMMMMMMMM";
+
 rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5], float facts_width, float avail)
 {
     for (const rv_editor_tile_size size : release_sizes) {
@@ -69,6 +72,12 @@ rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5]
         }
     }
     return rv_editor_tile_size::small;
+}
+
+rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5], float avail)
+{
+    // The facts keep a constant room: the width of a facts line of twenty "M" is room enough to read it.
+    return rv_editor_release_tile_size(tiles, ImGui::CalcTextSize(facts_room_text).x, avail);
 }
 
 } // namespace rv_editor

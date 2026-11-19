@@ -206,7 +206,7 @@ struct rv_editor_shell {
     std::array<std::optional<rv_editor_tool>, settings_tools_count> settings_checks;
     int settings_browse = -1; // the field the browser is choosing for; -1: none
     rv_editor_browser settings_browser;
-    // What each strip of controls drew last frame: its minimum in the tree.
+    // Not written: a strip's minimum is its kind's (rv_editor_shell_set_minimum), not what it drew.
     std::map<rv_editor_pane_id, rv_editor_size> strips;
     // The UI state, and the requests the panes queued for rv_editor_shell_ui_apply.
     rv_editor_ui ui;
@@ -386,10 +386,8 @@ void rv_editor_shell_game_input(rv_editor_shell &shell);
 // rv_editor_pane_draw_fn for the window's workspace; `context` is the shell.
 void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_kind kind, const rv_editor_theme &theme);
 
-// shell.ws.minimums[pane]: `kind`'s minimum (rv_editor_shell_minimums.cpp), the
-// Game's own mode row and status line (`game_need`, measured by the pane itself
-// rather than the frame at 1x) when larger, a strip's measured height when that
-// is larger still; unset when every source gives none.
+// shell.ws.minimums[pane]: `kind`'s constant minimum (rv_editor_shell_minimums.cpp), never
+// what the pane drew or measured; unset when the kind has none. `game_need` is not read.
 void rv_editor_shell_set_minimum(rv_editor_shell &shell,
     rv_editor_pane_id pane,
     rv_editor_pane_kind kind,

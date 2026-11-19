@@ -4,6 +4,8 @@
 
 #include <string>
 
+#include "theme/rv_editor_theme.hpp"
+
 namespace rv_editor
 {
 
@@ -34,6 +36,10 @@ struct rv_editor_controls_message_text {
 };
 
 rv_editor_controls_message_text rv_editor_controls_message(const rv_editor_controls_message_input &in);
+
+// The width the action slot (Force Stop, Cancel Build, the reload badge) after the transport bar always
+// reserves: the widest of them, whatever the state, so the bar's tile size never depends on it.
+float rv_editor_controls_action_slot_width(const rv_editor_theme &theme);
 
 // The facts line of a live session; empty when not live or in the Debug preset.
 // Never names a target build, the run state or the last run.

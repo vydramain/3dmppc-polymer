@@ -173,8 +173,7 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     const rv_editor_release_facts facts = rv_editor_release_facts_make(shown, building);
 
     // One size for the whole strip, chosen before the first tile is drawn.
-    const rv_editor_tile_size size =
-        rv_editor_release_tile_size(tiles, ImGui::CalcTextSize(facts.first_line.c_str()).x, ImGui::GetContentRegionAvail().x);
+    const rv_editor_tile_size size = rv_editor_release_tile_size(tiles, ImGui::GetContentRegionAvail().x);
     const rv_editor_state build_state{ rv_editor_look::live, rv_editor_app_why_not_build(app) };
     if (rv_editor_tile_button(build_tile, size, theme, build_state)) {
         rv_editor_app_build_candidate(app);

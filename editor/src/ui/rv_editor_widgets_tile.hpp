@@ -27,6 +27,8 @@ struct rv_editor_tile {
     const char *name = nullptr;
     const char *shortcut = nullptr;
     bool selected = false;
+    // The least width of a medium tile: a tile whose label changes takes the widest one's.
+    float min_width = 0.0f;
 };
 
 // A tile of `size`, drawn in the current window; a disabled tile dims the code and

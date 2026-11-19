@@ -177,6 +177,19 @@ void rv_editor_reserved_line(const char *id,
 
 } // namespace
 
+float rv_editor_controls_action_slot_width(const rv_editor_theme &theme)
+{
+    float width = std::max(rv_editor_button_width(rv_editor_text("panes.force_stop_button")),
+        rv_editor_button_width(rv_editor_text("panes.cancel_build_button")));
+    for (const char *key :
+        { "panes.reload_accepted", "panes.reload_refused", "panes.reloading", "panes.reload_on_save", "panes.bake_failed" }) {
+        for (const auto kind : { rv_editor_status_kind::ok, rv_editor_status_kind::error, rv_editor_status_kind::active }) {
+            width = std::max(width, rv_editor_status_width(rv_editor_text(key), kind, theme));
+        }
+    }
+    return width;
+}
+
 void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     const rv_editor_session &s = app.session;
@@ -260,7 +273,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
     const float action_w = rv_editor_action_width(action, badge_label, badge_kind, theme);
     // The mark row follows the action; it too is part of what the bar leaves room for.
     const float marks_w = rv_editor_mark_tools_min_width(theme, false);
-    const float reserve = (action_w > 0.0f ? action_w + ImGui::GetStyle().ItemSpacing.x : 0.0f) + marks_w;
+    // The reserve is the slot's widest content, whatever shows in it, so the tile size follows the width alone.
+    const float reserve = rv_editor_controls_action_slot_width(theme) + ImGui::GetStyle().ItemSpacing.x + marks_w;
     const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme, reserve);
     if (clicked.build) {
         rv_editor_app_build(app);
