@@ -38,8 +38,14 @@ constexpr float wide_threshold_em = 30.0f;
 // Label column width in font size units.
 constexpr float label_width_em = 9.0f;
 
+// Form width below which the labels go over their fields, in font size units.
+constexpr float stacked_below_em = 30.0f;
+
 // Spacing between form and preview in font size units.
 constexpr float side_spacing_em = 2.0f;
+
+// What the Directory field drew last, for tests.
+rv_editor_path_probe dir_probe;
 
 // Indent of the file names under the creates path, so they read as its contents.
 constexpr const char *file_indent = "  ";
@@ -48,17 +54,22 @@ void rv_editor_new_label(const char *label, float label_w, const rv_editor_theme
 {
     ImGui::AlignTextToFramePadding();
     rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-    ImGui::SameLine(label_w);
+    if (label_w > 0.0f) {
+        ImGui::SameLine(label_w);
+    }
 }
 
-// The problem under the field it is about; an empty name or id only disables Create.
-void rv_editor_new_problem_row(bool shown, const std::string &problem, float label_w, const rv_editor_theme &theme)
+// The problem under the field it is about, in a line that is there without it; an empty name or id only disables
+// Create.
+void rv_editor_new_problem_row(const char *id,
+    bool shown,
+    const std::string &problem,
+    float label_w,
+    float width,
+    const rv_editor_theme &theme)
 {
-    if (!shown) {
-        return;
-    }
     ImGui::SetCursorPosX(label_w);
-    rv_editor_status(problem.c_str(), rv_editor_status_kind::error, theme);
+    rv_editor_message_line(id, shown ? problem.c_str() : "", 1, width, theme, nullptr, rv_editor_label_kind::error);
 }
 
 void rv_editor_new_copy(char *to, size_t size, const std::string &from)
@@ -111,16 +122,20 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
 
     rv_editor_pane_header(rv_editor_text("shell_start_new.title"), true, theme);
     const float font = ImGui::GetFontSize();
-    const float form_w = font * form_width_em;
-    const bool wide = ImGui::GetContentRegionAvail().x >= form_w + font * wide_threshold_em;
-    const float label_w = font * label_width_em;
+    const float avail = ImGui::GetContentRegionAvail().x;
+    const bool wide = avail >= font * (form_width_em + wide_threshold_em);
+    const float form_w = wide ? font * form_width_em : avail;
+    // A narrow tile puts each label over its field.
+    const bool stacked = form_w < font * stacked_below_em;
+    const float label_w = stacked ? 0.0f : font * label_width_em;
     const float field_w = form_w - label_w - font;
 
-    ImGui::BeginChild("##new_form", ImVec2(wide ? form_w : 0.0f, 0.0f), ImGuiChildFlags_AutoResizeY);
+    // A group, not a child: a child that sizes itself takes a frame to find its height.
+    ImGui::BeginGroup();
     rv_editor_new_label(rv_editor_text("shell_start_new.template"), label_w, theme);
     for (size_t i = 0; i < templates.size(); ++i) {
         if (i > 0) {
-            ImGui::SameLine();
+            rv_editor_flow(rv_editor_checkbox_width(templates[i].name.c_str()));
         }
         ImGui::PushID(static_cast<int>(i));
         if (rv_editor_radio(templates[i].name.c_str(), f.template_index == i, theme)) {
@@ -128,7 +143,6 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
         }
         ImGui::PopID();
     }
-    rv_editor_new_problem_row(beside(rv_editor_new_project_field::template_index), problem, label_w, theme);
 
     rv_editor_new_label(rv_editor_text("shell_start_new.name"), label_w, theme);
     ImGui::SetNextItemWidth(field_w);
@@ -143,15 +157,22 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
     if (rv_editor_text_field("##id", f.id, sizeof(f.id), theme, id_field)) {
         f.id_edited = true;
     }
-    rv_editor_new_problem_row(beside(rv_editor_new_project_field::disc_id), problem, label_w, theme);
+    rv_editor_new_problem_row("##id_problem",
+        beside(rv_editor_new_project_field::disc_id),
+        problem,
+        label_w,
+        form_w - label_w,
+        theme);
 
     rv_editor_new_label(rv_editor_text("shell_start_new.directory"), label_w, theme);
-    ImGui::SetNextItemWidth(
-        field_w - rv_editor_button_width(rv_editor_text("shell_start_new.browse")) - ImGui::GetStyle().ItemSpacing.x);
+    const float browse_w = rv_editor_button_width(rv_editor_text("shell_start_new.browse")) + ImGui::GetStyle().ItemSpacing.x;
+    ImGui::SetNextItemWidth(stacked ? field_w : field_w - browse_w);
     rv_editor_field dir_field;
     dir_field.invalid = beside(rv_editor_new_project_field::parent) ? problem.c_str() : nullptr;
-    rv_editor_text_field("##dir", f.dir, sizeof(f.dir), theme, dir_field);
-    ImGui::SameLine();
+    rv_editor_path_field("##dir", f.dir, sizeof(f.dir), "", theme, dir_field, &dir_probe);
+    if (!stacked) {
+        ImGui::SameLine();
+    }
     if (rv_editor_button(rv_editor_text("shell_start_new.browse"),
             theme,
             { rv_editor_look::live, f.browsing ? rv_editor_text("shell_start_new.browser_open") : nullptr })) {
@@ -162,12 +183,11 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
             f.dir);
         f.browsing = true;
     }
-    rv_editor_new_problem_row(beside(rv_editor_new_project_field::parent), problem, label_w, theme);
-    rv_editor_new_problem_row(beside(rv_editor_new_project_field::root), problem, label_w, theme);
+    const bool dir_problem = beside(rv_editor_new_project_field::parent) || beside(rv_editor_new_project_field::root) ||
+        beside(rv_editor_new_project_field::template_index);
+    rv_editor_new_problem_row("##dir_problem", dir_problem, problem, label_w, form_w - label_w, theme);
 
-    if (!f.error.empty()) {
-        rv_editor_status(f.error.c_str(), rv_editor_status_kind::error, theme);
-    }
+    rv_editor_message_line("##new_error", f.error.c_str(), 2, form_w, theme, nullptr, rv_editor_label_kind::error);
     ImGui::Spacing();
     if (rv_editor_button(rv_editor_text("shell_start_new.create_project"),
             theme,
@@ -178,11 +198,11 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
             rv_editor_shell_request_open(shell, created);
         }
     }
-    ImGui::SameLine();
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("shell_start_new.reset")));
     if (rv_editor_button(rv_editor_text("shell_start_new.reset"), theme)) {
         f = {};
     }
-    ImGui::EndChild();
+    ImGui::EndGroup();
 
     if (wide) {
         ImGui::SameLine(0.0f, font * side_spacing_em);
@@ -201,6 +221,11 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
         rv_editor_new_preview(p, templates, f.template_index, theme);
     }
     rv_editor_well_end();
+}
+
+const rv_editor_path_probe &rv_editor_page_new_project_dir_probe()
+{
+    return dir_probe;
 }
 
 } // namespace rv_editor

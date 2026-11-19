@@ -309,6 +309,8 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
 // The start screen's pages that are drawn in a tab too: New Project
 // (rv_editor_shell_start_new.cpp) and Open Project (rv_editor_shell_start.cpp).
 void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &theme);
+// What the Directory field drew last, for tests.
+const rv_editor_path_probe &rv_editor_page_new_project_dir_probe();
 void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // Window > Terminal: the terminal in front, with the keyboard.
@@ -370,6 +372,8 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
 void rv_editor_shell_review_tab(rv_editor_shell &shell);
 // File > Settings: the tool paths of settings.toml.
 void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &theme);
+// What the override path field of tool `i` drew last, for tests.
+const rv_editor_path_probe &rv_editor_page_settings_path_probe(size_t i);
 // Once a frame: an Apply asked for saves settings.toml and finds the tools again; a failed save goes to settings_error.
 void rv_editor_shell_settings_apply(rv_editor_shell &shell);
 // Sets vsync as shell.pace asks on shell.renderer and sets shell.vsync_active from what SDL reports.

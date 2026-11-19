@@ -32,6 +32,8 @@ constexpr const char *env_home = "HOME";    // home directory the browser starts
 constexpr std::string_view root_path = "/"; // fallback start directory when HOME is unset
 constexpr const char *dir_marker = "/";     // appended to directory names in the listing
 
+rv_editor_path_probe path_probe; // what the path field drew last, for tests
+
 void rv_editor_browser_go(rv_editor_browser &b, const std::filesystem::path &dir)
 {
     b.dir = dir;
@@ -142,7 +144,7 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_field path_field;
     path_field.invalid = b.error.empty() ? nullptr : b.error.c_str();
-    rv_editor_text_field("##path", b.path, sizeof(b.path), theme, path_field);
+    rv_editor_path_field("##path", b.path, sizeof(b.path), "", theme, path_field, &path_probe);
     // A typed path is followed once it names a directory.
     std::error_code ec;
     if (ImGui::IsItemDeactivatedAfterEdit() && std::filesystem::is_directory(b.path, ec)) {
@@ -184,8 +186,14 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
         usable                                      ? nullptr :
         b.pick == rv_editor_browse_pick::executable ? rv_editor_text("browser.select_executable") :
                                                       rv_editor_text("browser.select_directory");
-    const char *const shown = target.empty() ? rv_editor_text("browser.nothing_selected") : target.c_str();
-    rv_editor_label(shown, rv_editor_label_kind::normal, theme);
+    // The selected path on one line, its tail when it does not fit, the whole path in a tooltip.
+    const std::string whole = target.string();
+    const std::string shown = target.empty() ? rv_editor_text("browser.nothing_selected") :
+                                               rv_editor_path_tail(whole, ImGui::GetContentRegionAvail().x);
+    rv_editor_label(shown.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+    if (shown != whole && !target.empty() && ImGui::IsItemHovered()) {
+        rv_editor_tooltip(whole.c_str());
+    }
     if (rv_editor_button(b.action.c_str(), theme, { rv_editor_look::live, why })) {
         out = target;
         result = rv_editor_browse_result::picked;
@@ -196,6 +204,11 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
     }
     ImGui::PopID();
     return result;
+}
+
+const rv_editor_path_probe &rv_editor_browser_path_probe()
+{
+    return path_probe;
 }
 
 } // namespace rv_editor
