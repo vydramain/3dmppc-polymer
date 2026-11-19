@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <initializer_list>
+
 #include "imgui.h"
 #include "layout/rv_editor_tile.hpp"
 #include "theme/rv_editor_theme.hpp"
@@ -19,13 +21,27 @@ float rv_editor_tiled_box_block();
 // A shelf's width round a row of `items` px: its padding on both sides.
 float rv_editor_tiled_shelf_width(float items);
 
-// The tile minimum of a pane whose widest row is `content_w` wide and whose rows above the content area are `above_h`
-// high: the window's padding, the rows and the content area at its floor.
-rv_editor_size rv_editor_tiled_minimum(float content_w, float above_h);
+// The shortest frame of a content area that shows three rows of text whole, and of one that shows `rows` rows each
+// `pitch` high (a row and the spacing under it) whole.
+float rv_editor_tiled_floor();
+float rv_editor_tiled_rows_floor(float rows, float pitch);
 
-// The content area under the rows above, filling what is left but never under its floor: `content_w` wide and the
-// shortest height of a content area. Pair with rv_editor_tiled_area_end.
-bool rv_editor_tiled_area_begin(const char *id, float content_w, const rv_editor_theme &theme);
+// The pitch of a table row that holds a button: the frame, the cell's padding and the spacing.
+float rv_editor_tiled_table_pitch();
+
+// The tile minimum of a pane whose widest row is `content_w` wide and whose rows above the content areas are `above_h`
+// high: the window's padding, the rows and the content areas, each at its floor (`floors`, one per area top to bottom;
+// none: one area at rv_editor_tiled_floor), one spacing apart.
+rv_editor_size rv_editor_tiled_minimum(float content_w, float above_h, std::initializer_list<float> floors = {});
+
+// The content area under the rows above: `content_w` wide, `floors` the floors of this area and the ones still to come,
+// none: this is the only one. The room left over the floors is shared equally by those areas. `facts` opens it as a facts
+// list (rv_editor_facts_row). Pair with rv_editor_tiled_area_end.
+bool rv_editor_tiled_area_begin(const char *id,
+    float content_w,
+    const rv_editor_theme &theme,
+    std::initializer_list<float> floors = {},
+    bool facts = false);
 
 // Ends the area and registers its whole frame as one item, so a tile smaller than the minimum is seen to cut it.
 void rv_editor_tiled_area_end(const rv_editor_theme &theme);

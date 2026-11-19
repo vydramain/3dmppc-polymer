@@ -18,6 +18,7 @@
 
 #include "app/rv_editor_shell.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
 #include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
@@ -193,7 +194,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     const ImVec2 label_d = ImGui::CalcTextSize(dolly_label);
     const ImVec2 size(
         std::max(min_viewport_size, avail.x - wheel_width_spacing * wheel - label_x.x - label_d.x - gap_multiplier * gap),
-        std::max(rv_editor_content_min_height(), avail.y - wheel - gap));
+        std::max(rv_editor_tiled_floor(), avail.y - wheel - gap));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
     // The navigation calls in this function log their own refusal and leave the view as it was; the codes are dropped.

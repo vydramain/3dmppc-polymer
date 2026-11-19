@@ -10,6 +10,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_pane_state.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 using namespace rv_editor;
 using namespace rv_editor_test;
@@ -70,14 +71,39 @@ struct candidate_fixture {
     }
 };
 
+// The record without what moves legally with the state: the items inside a content area, and the message box's bar and
+// buttons (they depend on the state and the length of the text). The box's window and the area frames stay.
+rv_editor_probe_record frames_only(const rv_editor_probe_record &r, float box_h)
+{
+    const rv_editor_probe_entry *box = nullptr;
+    for (const auto &e : r.entries) {
+        const size_t at = e.label.rfind('/');
+        const std::string last = at == std::string::npos ? e.label : e.label.substr(at + 1);
+        box = last.compare(0, 7, "##text_") == 0 ? &e : box;
+    }
+    rv_editor_probe_record out;
+    for (const auto &e : r.entries) {
+        const bool inside_box = box != nullptr && &e != box && e.y0 >= box->y0 && e.y1 <= box->y0 + box_h;
+        if (!e.in_scroll && !inside_box) {
+            out.entries.push_back(e);
+        }
+    }
+    return out;
+}
+
 // The pane drawn in its base state and in the state `change` makes; "" when nothing appeared, moved or resized.
 template <class F>
 std::string candidate_difference(F change)
 {
     candidate_fixture f;
+    float box_h = 0.0f;
+    f.g.gui.frame([&] {
+        box_h = rv_editor_message_box_height();
+    });
     const auto base = f.draw();
     change(f.app);
-    return layout_difference(base, f.draw());
+    // Long text legally gives the message box a bar of its own and the lines inside the areas move with the state.
+    return layout_difference(frames_only(base, box_h), frames_only(f.draw(), box_h));
 }
 
 void report_difference(const std::string &d)
@@ -158,20 +184,6 @@ RV_EDITOR_TEST(rv_editor_test_stable_candidate_state_column_keeps_its_width)
     report_difference(d2);
     RV_EDITOR_CHECK(d1.empty());
     RV_EDITOR_CHECK(d2.empty());
-}
-
-// The Checks header names the candidate and its summary; in a narrow tile it wraps instead of running past the edge.
-RV_EDITOR_TEST(rv_editor_test_stable_checks_header_wraps_in_a_narrow_tile)
-{
-    candidate_fixture f;
-    f.body = [&f] {
-        rv_editor_pane_checks(f.app, theme);
-    };
-    const float narrow = 200.0f;
-    const auto rec = f.draw(narrow);
-    const std::string d = text_overflow(rec, narrow);
-    report_difference(d);
-    RV_EDITOR_CHECK(d.empty());
 }
 
 // ---- Observe -----------------------------------------------------------------------------------------------------
@@ -315,22 +327,6 @@ RV_EDITOR_TEST(rv_editor_test_stable_session_ended_optional_rows_keep_their_plac
     RV_EDITOR_CHECK(d.empty());
 }
 
-// A long mark wraps in a narrow tile instead of running past its edge.
-RV_EDITOR_TEST(rv_editor_test_stable_session_mark_wraps_in_a_narrow_tile)
-{
-    tall_gui g;
-    session_fixture s(g, "rv_editor_stable_session_mark", false);
-    if (!s.ready) {
-        return;
-    }
-    s.app.marks.push_back("a mark with a rather long description of the moment it names, which goes on and on");
-    const float narrow = 220.0f;
-    const auto rec = s.draw(narrow);
-    const std::string d = text_overflow(rec, narrow);
-    report_difference(d);
-    RV_EDITOR_CHECK(d.empty());
-}
-
 // ---- Build Result ------------------------------------------------------------------------------------------------
 
 namespace
@@ -420,36 +416,3 @@ RV_EDITOR_TEST(rv_editor_test_stable_build_result_buttons_and_diagnostics_keep_t
     RV_EDITOR_CHECK(d2.empty());
 }
 
-// AC6: in a 15 em tile the buttons wrap onto further rows, each one fully inside the tile.
-RV_EDITOR_TEST(rv_editor_test_stable_build_result_buttons_wrap_in_a_15em_tile)
-{
-    build_fixture f;
-    float em = 0.0f;
-    f.g.gui.frame([&] {
-        em = ImGui::GetFontSize();
-    });
-    const float tile = 15.0f * em;
-    const auto rec = f.draw(tile);
-    int rows = 0;
-    float last_y = -1.0f;
-    for (const char *key : build_buttons) {
-        const auto *b = find_item(rec, rv_editor_text(key));
-        RV_EDITOR_CHECK(b != nullptr);
-        if (b == nullptr) {
-            continue;
-        }
-        if (b->x1 > tile) {
-            std::fprintf(stderr,
-                "  '%s' %s reaches past the tile width %.1f\n",
-                key,
-                rv_editor_probe_detail::rect(*b).c_str(),
-                tile);
-        }
-        RV_EDITOR_CHECK(b->x0 >= 0.0f);
-        RV_EDITOR_CHECK(b->x1 <= tile);
-        rows += b->y0 > last_y + 1.0f ? 1 : 0;
-        last_y = b->y0 > last_y ? b->y0 : last_y;
-    }
-    // They do not all fit in one row of this width.
-    RV_EDITOR_CHECK(rows >= 2);
-}

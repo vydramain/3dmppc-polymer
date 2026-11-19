@@ -251,6 +251,7 @@ struct rv_editor_list_style {
     bool overlap = false;
     float height = 0.0f;
     bool whole = false;
+    bool by_id = false; // the row's label is its id alone, so an item list names it by the id
 };
 
 // What the row did. A frozen look or a disabled row reports nothing. Order: the second

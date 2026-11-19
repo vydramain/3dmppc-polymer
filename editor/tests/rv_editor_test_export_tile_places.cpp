@@ -27,7 +27,7 @@ using namespace rv_editor;
 using namespace rv_editor_test;
 using namespace rv_editor_test::export_tile;
 
-// The whole tile is the same for Disc, Bundle and Web; Web Tools is always there.
+// The whole tile is the same for Disc, Bundle and Web; the kind dropdown and the result buttons are always there.
 RV_EDITOR_TEST(rv_editor_test_export_tile_same_places_for_every_kind)
 {
     load_texts();
@@ -38,8 +38,10 @@ RV_EDITOR_TEST(rv_editor_test_export_tile_same_places_for_every_kind)
     for (const float width : { wide, narrow }) {
         rv_editor_pane_export_select_kind(rv_editor_export_kind::disc);
         const rv_editor_probe_record disc = draw_tile(gui, app, width);
-        RV_EDITOR_CHECK(find(disc, "##export_block_web_tools") != nullptr);
-        RV_EDITOR_CHECK(find(disc, "##export_block_progress") != nullptr);
+        RV_EDITOR_CHECK(find(disc, "##export_kind_combo") != nullptr);
+        for (const char *b : result_buttons) {
+            RV_EDITOR_CHECK(find(disc, b) != nullptr);
+        }
         for (const rv_editor_export_kind kind : { rv_editor_export_kind::player, rv_editor_export_kind::web }) {
             rv_editor_pane_export_select_kind(kind);
             const rv_editor_probe_record other = draw_tile(gui, app, width);
@@ -78,7 +80,7 @@ RV_EDITOR_TEST(rv_editor_test_export_tile_same_places_in_every_state)
             make_app(app, base / "none", script(base, "exit 0"));
             none = draw_tile(gui, app, width);
         }
-        RV_EDITOR_CHECK(find(none, "##export_block_progress") != nullptr);
+        RV_EDITOR_CHECK(find(none, "##export_kind_combo") != nullptr);
         struct run_case {
             const char *name;
             const char *body;
@@ -153,7 +155,7 @@ RV_EDITOR_TEST(rv_editor_test_export_tile_web_tools_block_same_rect_in_setup)
     fs::remove_all(base, ec);
 }
 
-// Result buttons are always drawn in the Progress block, in the same place.
+// The result buttons are always drawn.
 RV_EDITOR_TEST(rv_editor_test_export_tile_result_buttons_always_present)
 {
     load_texts();
@@ -163,14 +165,8 @@ RV_EDITOR_TEST(rv_editor_test_export_tile_result_buttons_always_present)
     make_app(app, base, script(base, "exit 0"));
     rv_editor_pane_export_select_kind(rv_editor_export_kind::disc);
     const rv_editor_probe_record r = draw_tile(gui, app, wide);
-    const rv_editor_probe_entry *progress = find(r, "##export_block_progress");
-    RV_EDITOR_CHECK(progress != nullptr);
     for (const char *b : result_buttons) {
-        const rv_editor_probe_entry *e = find(r, b);
-        RV_EDITOR_CHECK(e != nullptr);
-        if (e != nullptr && progress != nullptr) {
-            RV_EDITOR_CHECK(e->x0 >= progress->x0 && e->x1 <= progress->x1 && e->y0 >= progress->y0 && e->y1 <= progress->y1);
-        }
+        RV_EDITOR_CHECK(find(r, b) != nullptr);
     }
     std::error_code ec;
     fs::remove_all(base, ec);

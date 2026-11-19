@@ -175,6 +175,7 @@ rv_editor_table_row_result rv_editor_table_row_select(const char *id, bool selec
     style.span_columns = true;
     style.height = ImGui::GetFrameHeight(); // as tall as a button of the row, so a click beside one selects too
     style.overlap = true;                   // the buttons of the row's cells stay clickable
+    style.by_id = true;
     const rv_editor_list_result list = rv_editor_list_row(id, id, theme, style);
     table->InnerWindow->ParentWorkRect = parent;
     rv_editor_table_row_result result;

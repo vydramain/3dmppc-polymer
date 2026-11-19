@@ -124,7 +124,8 @@ rv_editor_record_result rv_editor_record_row(const char *id,
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     const float own_w = rv_editor_status_width(status, kind, theme);
     const float status_w = std::max(style.status_width, own_w);
-    const float row_h = 2.0f * ImGui::GetTextLineHeight() + gs.ItemSpacing.y;
+    // The selectable reaches half a spacing beyond its height on both sides: two lines and one spacing in all.
+    const float row_h = 2.0f * ImGui::GetTextLineHeight();
     const float margin = gs.FramePadding.x * pill_margin_paddings;
     const float text_w = std::max(ImGui::CalcTextSize(name).x, ImGui::CalcTextSize(path).x);
     const float need = text_w + gs.ItemSpacing.x + status_w + margin;

@@ -196,6 +196,7 @@ inline void write_script(const fs::path &path, const std::string &body)
 struct fake_console_options {
     bool with_disc = true;
     bool with_lua = true;
+    std::string disc_hex = "64697363"; // the disc name, hex encoded as the protocol sends it ("disc")
     uint32_t build_number = 1;
     const char *mode = "running"; // "paused": the session reads as paused
 };
@@ -209,7 +210,7 @@ inline bool start_fake_session(rv_editor::rv_editor_app &app, const fs::path &wh
     rv_editor::rv_editor_guard_start(guard_error); // once per process: another test may have started it
     const std::string proto = rv_editor::rv_editor_session::protocol_supported;
     const std::string status = "protocol=" + proto + " mode=" + o.mode + " " +
-        (o.with_disc ? "disc=64697363 disc_hash=abc " : "") +
+        (o.with_disc ? "disc=" + o.disc_hex + " disc_hash=abc " : "") +
         "pdk=1.0 medium=live entry_reloadable=1 entry_revision=1 entry_hash=h lua_used=10 lua_budget=" +
         (o.with_lua ? "1000" : "0");
     const fs::path script = where / "console.sh";

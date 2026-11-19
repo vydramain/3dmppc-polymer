@@ -161,6 +161,34 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
         const ui_font_scope scope;
         return rv_editor_inspector_minimum();
     }
+    case rv_editor_pane_kind::export_: {
+        const ui_font_scope scope;
+        return rv_editor_export_minimum();
+    }
+    case rv_editor_pane_kind::candidate: {
+        const ui_font_scope scope;
+        return rv_editor_candidate_minimum();
+    }
+    case rv_editor_pane_kind::checks: {
+        const ui_font_scope scope;
+        return rv_editor_checks_minimum();
+    }
+    case rv_editor_pane_kind::observe: {
+        const ui_font_scope scope;
+        return rv_editor_observe_minimum();
+    }
+    case rv_editor_pane_kind::session: {
+        const ui_font_scope scope;
+        return rv_editor_session_minimum();
+    }
+    case rv_editor_pane_kind::build_result: {
+        const ui_font_scope scope;
+        return rv_editor_build_result_minimum();
+    }
+    case rv_editor_pane_kind::empty: {
+        const ui_font_scope scope;
+        return rv_editor_empty_minimum();
+    }
     default:
         return { 0, 0 };
     }

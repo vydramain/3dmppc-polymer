@@ -72,6 +72,14 @@ rv_editor_size rv_editor_inspector_minimum();
 // The Toolchest's and Release Controls': one minimum per kind, taken from their elements.
 rv_editor_size rv_editor_toolchest_minimum();
 rv_editor_size rv_editor_release_controls_minimum();
+// The same for Export, Release Candidate, Checks, Observe, Session, Build Result and the empty pane.
+rv_editor_size rv_editor_export_minimum();
+rv_editor_size rv_editor_candidate_minimum();
+rv_editor_size rv_editor_checks_minimum();
+rv_editor_size rv_editor_observe_minimum();
+rv_editor_size rv_editor_session_minimum();
+rv_editor_size rv_editor_build_result_minimum();
+rv_editor_size rv_editor_empty_minimum();
 
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);

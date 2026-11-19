@@ -53,11 +53,6 @@ void rv_editor_export_show_problems(rv_editor_app &app);
 // The kind dropdown's items: the name of each row of the kinds table, in its order.
 std::vector<std::string> rv_editor_export_kind_items();
 
-// The wrapped height of a kind's description at `width`, and the tallest of them: the description area's constant height.
-// Call inside a frame.
-float rv_editor_export_description_wrapped_height(rv_editor_export_kind kind, float width);
-float rv_editor_export_description_height(float width);
-
 // What the disabled Web Tools block says for a kind that needs no tools; nullptr for a kind that does.
 const char *rv_editor_export_web_tools_disabled_text(rv_editor_export_kind kind);
 

@@ -39,6 +39,13 @@ bool rv_editor_pane_converted(rv_editor_pane_kind kind)
     case rv_editor_pane_kind::release_controls:
     case rv_editor_pane_kind::toolchest:
     case rv_editor_pane_kind::game:
+    case rv_editor_pane_kind::export_:
+    case rv_editor_pane_kind::candidate:
+    case rv_editor_pane_kind::checks:
+    case rv_editor_pane_kind::observe:
+    case rv_editor_pane_kind::session:
+    case rv_editor_pane_kind::build_result:
+    case rv_editor_pane_kind::empty:
         return true;
     default:
         return false;

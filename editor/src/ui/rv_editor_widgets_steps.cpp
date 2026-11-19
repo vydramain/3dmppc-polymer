@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <format>
 
+#include "imgui_internal.h" // an item added without taking room
+
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -99,6 +101,8 @@ rv_editor_steps_layout rv_editor_steps_draw(const rv_editor_run &run, const rv_e
     for (size_t i = 0; i < layout.cells.size(); ++i) {
         const rv_editor_step_cell &cell = layout.cells[i];
         draw->AddText(cell.min, rv_editor_step_colour(run.steps[i].state, theme), cell.text.c_str());
+        // The cell as an item of its own (its text is drawn, not submitted), so a layout check sees where it is.
+        ImGui::ItemAdd(ImRect(cell.min, cell.max), ImGui::GetID(static_cast<int>(i)), nullptr, ImGuiItemFlags_NoNav);
         // A separator follows a cell that a next one of the same row follows.
         if (i + 1 < layout.cells.size() && layout.cells[i + 1].min.y == cell.min.y) {
             const float x = cell.max.x + ImGui::GetStyle().ItemSpacing.x;

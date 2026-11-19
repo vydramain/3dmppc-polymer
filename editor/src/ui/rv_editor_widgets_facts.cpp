@@ -53,6 +53,9 @@ rv_editor_facts_row_result rv_editor_facts_row(const char *key, const char *valu
     rv_editor_table_cell_text(shown, theme);
     result.value_min = ImGui::GetItemRectMin();
     result.value_max = ImGui::GetItemRectMax();
+    // The value's whole rectangle as an item of its own, so a layout check sees how wide the text is however far it scrolls.
+    const ImRect cell(result.value_min, result.value_max);
+    ImGui::ItemAdd(cell, ImHashData(&cell.Min, sizeof(cell.Min), ImGui::GetID("##value")), nullptr, ImGuiItemFlags_NoNav);
     // The whole row, the free space beside a short value included, opens the menu; ImGui gives no item for that space.
     const ImVec2 row_min(result.key_min.x, std::min(result.key_min.y, result.value_min.y));
     const ImVec2 row_max(ImGui::GetCurrentWindow()->InnerRect.Max.x, std::max(result.key_max.y, result.value_max.y));

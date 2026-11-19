@@ -43,8 +43,10 @@ rv_editor_list_result rv_editor_list_row(const char *id,
     const float row_width = !style.whole ? 0.0f :
         style.span_columns               ? ImGui::GetCurrentWindow()->ParentWorkRect.GetWidth() :
                                            ImGui::GetContentRegionAvail().x;
-    const bool pressed =
-        ImGui::Selectable((std::string(label) + "###row").c_str(), selected, flags, ImVec2(row_width, style.height));
+    const bool pressed = ImGui::Selectable(style.by_id ? label : (std::string(label) + "###row").c_str(),
+        selected,
+        flags,
+        ImVec2(row_width, style.height));
     ImGui::PopID();
     ImGui::PopStyleColor(colours);
     if (disabled) {
