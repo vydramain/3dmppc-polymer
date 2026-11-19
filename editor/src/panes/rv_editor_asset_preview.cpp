@@ -14,8 +14,6 @@
 #include "pdk/rv_err.h"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_sound.hpp"
-#include "ui/rv_editor_widgets.hpp"
-#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -92,15 +90,6 @@ constexpr size_t wav_u32_field_bytes = 4;
 
 // Bits per byte for audio data conversion.
 constexpr int bits_per_byte = 8;
-
-// Layout decision threshold: content height (in text lines) below which to use side-by-side layout.
-constexpr float preview_side_by_side_threshold_lines = 7.0f;
-
-// Layout proportions: image width as fraction of available space in side-by-side layout.
-constexpr float preview_image_width_fraction = 0.5f;
-
-// Layout proportions: reserved height (in text lines) for header and footer in full-size layout.
-constexpr float preview_text_area_height_lines = 3.0f;
 
 // False for sources, scripts, disc.toml itself and scene files: none of these
 // belong in a disc's asset sections.
@@ -203,152 +192,94 @@ double rv_editor_asset_sound_seconds(const rv_editor_asset &a)
     return 0.0;
 }
 
-void rv_editor_asset_preview(const rv_editor_asset *a,
+rv_editor_asset_view rv_editor_asset_preview(const rv_editor_asset *a,
     const rv_editor_map_entry *entry,
     rv_editor_icon picture,
     double sound_seconds,
-    const rv_editor_theme &theme,
-    rv_editor_project &project)
+    const rv_editor_project &project)
 {
+    rv_editor_asset_view view;
     if (a == nullptr) {
-        rv_editor_label(rv_editor_text("asset_preview.no_asset_selected"),
-            rv_editor_label_kind::normal,
-            theme,
-            rv_editor_label_layout::wrap);
-        return;
+        view.text = rv_editor_text("asset_preview.no_asset_selected");
+        return view;
     }
     const std::string ext = a->path.extension().string();
-    const bool has_picture = ext == picture_extension && picture.id != ImTextureID{};
-
-    // Name and path: wraps to whatever width it is given.
-    const auto header = [&]() {
-        rv_editor_label(a->path.filename().string().c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        // The path keeps its tail; the whole of it is in the tooltip.
-        const std::string rel_tail = rv_editor_path_tail(a->rel, ImGui::GetContentRegionAvail().x);
-        rv_editor_label(rel_tail.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-        if (rel_tail != a->rel) {
-            rv_editor_item_tooltip(a->rel.c_str());
+    view.text = a->rel;
+    // What the file is.
+    if (ext == picture_extension) {
+        const std::string failed = rv_editor_text("asset_preview.picture_load_failed");
+        view.text += "\n" +
+            (picture.id != ImTextureID{} ?
+                    rv_editor_text_format("asset_preview.picture_size", std::make_format_args(picture.w, picture.h)) :
+                    failed);
+    } else if (ext == wav_extension || ext == pcm_extension) {
+        view.text += "\n" + rv_editor_text_format("asset_preview.sound_duration", std::make_format_args(sound_seconds));
+        view.buttons = { rv_editor_text("asset_preview.button_play"), rv_editor_text("asset_preview.button_stop") };
+        view.actions = { rv_editor_asset_action::play, rv_editor_asset_action::stop };
+        if (rv_editor_sound_playing() && rv_editor_sound_path() == a->path) {
+            view.text += ", " + std::string(rv_editor_text("asset_preview.status_playing"));
         }
-        rv_editor_separator();
-    };
-    // What the file is, and what the build map says it became on the disc.
-    const auto footer = [&]() {
-        if (ext == picture_extension) {
-            if (has_picture) {
-                const auto size_args = std::make_format_args(picture.w, picture.h);
-                const auto size_text = rv_editor_text_format("asset_preview.picture_size", size_args);
-                rv_editor_label(size_text.c_str(), rv_editor_label_kind::normal, theme);
-            } else {
-                rv_editor_label(rv_editor_text("asset_preview.picture_load_failed"), rv_editor_label_kind::normal, theme);
-            }
-        } else if (ext == wav_extension || ext == pcm_extension) {
-            const auto duration_args = std::make_format_args(sound_seconds);
-            const auto duration_text = rv_editor_text_format("asset_preview.sound_duration", duration_args);
-            rv_editor_label(duration_text.c_str(), rv_editor_label_kind::normal, theme);
-            const bool playing_this = rv_editor_sound_playing() && rv_editor_sound_path() == a->path;
-            if (rv_editor_button(rv_editor_text("asset_preview.button_play"), theme)) {
-                std::string error;
-                if (rv_editor_sound_play(a->path, error) == RV_OK) {
-                    rv_editor_sound_last_error = {};
-                } else {
-                    rv_editor_sound_last_error = { a->path, error };
-                }
-            }
-            ImGui::SameLine();
-            const rv_editor_state stop_state{ rv_editor_look::live,
-                playing_this ? nullptr : rv_editor_text("asset_preview.tooltip_nothing_playing") };
-            if (rv_editor_button(rv_editor_text("asset_preview.button_stop"), theme, stop_state)) {
-                rv_editor_sound_stop();
-            }
-            if (playing_this) {
-                ImGui::SameLine();
-                rv_editor_label(rv_editor_text("asset_preview.status_playing"),
-                    rv_editor_label_kind::dim,
-                    theme,
-                    rv_editor_label_layout::line);
-            }
-            if (rv_editor_sound_last_error.path == a->path && !rv_editor_sound_last_error.text.empty()) {
-                rv_editor_label(rv_editor_sound_last_error.text.c_str(),
-                    rv_editor_label_kind::normal,
-                    theme,
-                    rv_editor_label_layout::wrap);
-            }
-        } else {
-            const char *kind;
-            if (entry != nullptr) {
-                kind = entry->kind.c_str();
-            } else if (ext.empty()) {
-                kind = rv_editor_text("asset_preview.file_kind_fallback");
-            } else {
-                kind = ext.c_str() + 1;
-            }
-            const auto args = std::make_format_args(kind, a->size);
-            const auto text = rv_editor_text_format("asset_preview.file_info", args);
-            rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+        if (rv_editor_sound_last_error.path == a->path) {
+            view.text += ": " + rv_editor_sound_last_error.text;
         }
+    } else {
+        const char *kind;
         if (entry != nullptr) {
-            if (entry->parameter.empty()) {
-                const auto args = std::make_format_args(entry->name, entry->kind);
-                const auto text = rv_editor_text_format("asset_preview.on_disc", args);
-                rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-            } else {
-                const auto args = std::make_format_args(entry->name, entry->kind, entry->parameter);
-                const auto text = rv_editor_text_format("asset_preview.on_disc_with_parameter", args);
-                rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-            }
+            kind = entry->kind.c_str();
+        } else if (ext.empty()) {
+            kind = rv_editor_text("asset_preview.file_kind_fallback");
         } else {
-            rv_editor_label(rv_editor_text("asset_preview.not_on_disc_last_build"),
-                rv_editor_label_kind::normal,
-                theme,
-                rv_editor_label_layout::wrap);
+            kind = ext.c_str() + 1;
         }
-        if (!rv_editor_project_on_disc(project, a->rel) && rv_editor_asset_belongs_on_disc(a->rel)) {
-            rv_editor_label(rv_editor_text("asset_preview.not_in_disc_toml"),
-                rv_editor_label_kind::normal,
-                theme,
-                rv_editor_label_layout::line);
-            ImGui::SameLine();
-            if (rv_editor_button(rv_editor_text("asset_preview.button_add_to_disc"), theme)) {
-                std::string error;
-                if (rv_editor_project_put_on_disc(project, a->rel, error) == RV_OK) {
-                    rv_editor_add_last_error = {};
-                } else {
-                    rv_editor_add_last_error = { a->rel, error };
-                }
-            }
-            const auto tooltip_args = std::make_format_args(rv_editor_disc_assets_section);
-            const auto tooltip_text = rv_editor_text_format("asset_preview.tooltip_add_to_disc", tooltip_args);
-            rv_editor_item_tooltip(tooltip_text.c_str());
-            if (rv_editor_add_last_error.rel == a->rel && !rv_editor_add_last_error.text.empty()) {
-                rv_editor_label(rv_editor_add_last_error.text.c_str(),
-                    rv_editor_label_kind::normal,
-                    theme,
-                    rv_editor_label_layout::wrap);
-            }
+        view.text += "\n" + rv_editor_text_format("asset_preview.file_info", std::make_format_args(kind, a->size));
+    }
+    // What the build map says it became on the disc.
+    if (entry != nullptr) {
+        if (entry->parameter.empty()) {
+            view.text += ". " + rv_editor_text_format("asset_preview.on_disc", std::make_format_args(entry->name, entry->kind));
+        } else {
+            view.text += ". " +
+                rv_editor_text_format("asset_preview.on_disc_with_parameter",
+                    std::make_format_args(entry->name, entry->kind, entry->parameter));
         }
-    };
+    } else {
+        view.text += ". " + std::string(rv_editor_text("asset_preview.not_on_disc_last_build"));
+    }
+    if (!rv_editor_project_on_disc(project, a->rel) && rv_editor_asset_belongs_on_disc(a->rel)) {
+        view.text += " " + std::string(rv_editor_text("asset_preview.not_in_disc_toml"));
+        view.buttons.emplace_back(rv_editor_text("asset_preview.button_add_to_disc"));
+        view.actions.push_back(rv_editor_asset_action::add_to_disc);
+        if (rv_editor_add_last_error.rel == a->rel) {
+            view.text += ": " + rv_editor_add_last_error.text;
+        }
+    }
+    return view;
+}
 
-    if (!has_picture) {
-        header();
-        footer();
-        return;
+void rv_editor_asset_act(rv_editor_asset_action action, const rv_editor_asset &a, rv_editor_project &project)
+{
+    std::string error;
+    switch (action) {
+    case rv_editor_asset_action::play:
+        rv_editor_sound_last_error =
+            rv_editor_sound_play(a.path, error) == RV_OK ? rv_editor_sound_error{} : rv_editor_sound_error{ a.path, error };
+        break;
+    case rv_editor_asset_action::stop:
+        rv_editor_sound_stop();
+        break;
+    case rv_editor_asset_action::add_to_disc:
+        rv_editor_add_last_error = rv_editor_project_put_on_disc(project, a.rel, error) == RV_OK ?
+            rv_editor_add_error{} :
+            rv_editor_add_error{ a.rel, error };
+        break;
     }
-    const ImVec2 room = ImGui::GetContentRegionAvail();
-    const float line_h = ImGui::GetTextLineHeightWithSpacing();
-    if (room.y < line_h * preview_side_by_side_threshold_lines) {
-        // A short tile: the picture on the left, all the text beside it, not under it.
-        const float img_w = room.x * preview_image_width_fraction - ImGui::GetStyle().ItemSpacing.x;
-        ImGui::Image(picture.id, rv_editor_fit_picture(picture, img_w, room.y));
-        ImGui::SameLine();
-        ImGui::BeginGroup();
-        header();
-        footer();
-        ImGui::EndGroup();
-        return;
+}
+
+void rv_editor_asset_picture_show(rv_editor_icon picture, float max_width, float max_height)
+{
+    if (picture.id != ImTextureID{}) {
+        ImGui::Image(picture.id, rv_editor_fit_picture(picture, max_width, max_height));
     }
-    header();
-    ImGui::Image(picture.id, rv_editor_fit_picture(picture, room.x, room.y - line_h * preview_text_area_height_lines));
-    footer();
 }
 
 } // namespace rv_editor

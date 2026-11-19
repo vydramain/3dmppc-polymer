@@ -383,7 +383,7 @@ void rv_editor_export_say(rv_editor_app &app,
                                                                    rv_editor_label_kind::normal;
     }
     const char *setup_hint = buttons.empty() ? nullptr : rv_editor_text("pane_export.setup_tooltip");
-    if (rv_editor_message_box("##say", text, kind, buttons, theme, width, nullptr, setup_hint) == 0) {
+    if (rv_editor_message_box("##say", text, kind, buttons, theme, width, nullptr, nullptr, setup_hint) == 0) {
         rv_editor_export_setup(app, form);
     }
 }

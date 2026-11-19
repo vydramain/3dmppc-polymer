@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "layout/rv_editor_tile.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widget_item.hpp"
 
@@ -45,5 +46,8 @@ float rv_editor_tile_width(const rv_editor_tile &tile, rv_editor_tile_size size)
 
 // The side of a large tile for `font` at `size`, measured without a frame or a current font.
 float rv_editor_tile_large_side(ImFont *font, float size);
+
+// Whether a pane kind is built from the tiled UI templates: its tile body never scrolls.
+bool rv_editor_pane_converted(rv_editor_pane_kind kind);
 
 } // namespace rv_editor

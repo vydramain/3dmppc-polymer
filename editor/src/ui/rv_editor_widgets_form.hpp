@@ -39,6 +39,13 @@ bool rv_editor_form_row(const char *label,
     const rv_editor_theme &theme,
     const rv_editor_field &field = {});
 
+// A row whose field is the caller's (a path field, a checkbox, a text area): the label, then the cursor at the field
+// column with the next item's width set to the rest of the row. Draw one item after it, then call _end, which draws the
+// error line under it (reserved when `can_fail`) as rv_editor_form_row does. The row's `value` in the descs is what
+// the item shows, which the form's minimum keeps whole.
+void rv_editor_form_custom_begin(const char *label, const rv_editor_theme &theme);
+void rv_editor_form_custom_end(bool can_fail, const char *error, const rv_editor_theme &theme);
+
 // Moves to the button row at the bottom of the form (the same place whatever the errors); draw the buttons after it.
 void rv_editor_form_buttons_begin(const rv_editor_theme &theme);
 

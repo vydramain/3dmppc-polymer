@@ -1,5 +1,6 @@
-// Run Config and Project keep their blocks in place by state, wrap their labels and buttons, and show paths in full:
-// probe pairs (one width, two states), label/field rects and button rows in a narrow tile.
+// Run Config and Project keep their blocks in place by state and show paths in full: probe pairs (one width, two
+// states). (The label, checkbox and button-wrapping checks of Run Config moved to the S15 tests: the tile has a minimum
+// now and the form is the S6 form.)
 
 #include <unistd.h>
 
@@ -21,66 +22,6 @@
 using namespace rv_editor;
 using namespace rv_editor_test;
 using namespace rv_editor_test::panes_stable;
-
-// AC5: a label of 30 characters never covers its field, nor leaves the tile.
-RV_EDITOR_TEST(rv_editor_test_run_config_long_label_does_not_meet_its_field)
-{
-    const fs::path dir = make_dir("run_label");
-    const fs::path file = dir / "texts.toml";
-    std::ofstream(file) << "[pane_run_config]\nname_label = \"NameNameNameNameNameNameNameNa\"\n"
-                           "runtime_label = \"RuntimeRuntimeRuntimeRuntimeRu\"\n"
-                           "working_dir_label = \"WorkingWorkingWorkingWorkingWo\"\n"
-                           "memory_card_label = \"MemoryMemoryMemoryMemoryMemory\"\n";
-    std::string error;
-    RV_EDITOR_CHECK(rv_editor_text_load(file, error) == 0);
-    rv_editor_test_imgui gui;
-    rv_editor_app app;
-    run_open(app, dir);
-    run_draw(gui, app, width);
-    const rv_editor_probe_record r = run_draw(gui, app, width);
-    RV_EDITOR_CHECK(label_clear(gui, r, "##name", "NameNameNameNameNameNameNameNa").empty());
-    RV_EDITOR_CHECK(label_clear(gui, r, "##Runtime", "RuntimeRuntimeRuntimeRuntimeRu").empty());
-    RV_EDITOR_CHECK(label_clear(gui, r, "##Working dir", "WorkingWorkingWorkingWorkingWo").empty());
-    load_texts();
-    fs::remove_all(dir);
-}
-
-// AC5: the two checkboxes of the form do not overlap and stay in the tile.
-RV_EDITOR_TEST(rv_editor_test_run_config_checkboxes_stay_in_the_tile)
-{
-    load_texts();
-    rv_editor_test_imgui gui;
-    rv_editor_app app;
-    run_open(app, "/tmp");
-    run_draw(gui, app, width);
-    const rv_editor_probe_record r = run_draw(gui, app, width);
-    RV_EDITOR_CHECK(collisions(r, width).empty());
-}
-
-// AC6: Apply, Apply and Restart and Revert in a 15em tile wrap and are inside it.
-RV_EDITOR_TEST(rv_editor_test_run_config_buttons_wrap_in_a_narrow_tile)
-{
-    load_texts();
-    rv_editor_test_imgui gui;
-    rv_editor_app app;
-    run_open(app, "/tmp");
-    float em = 0.0f;
-    gui.frame([&] {
-        em = ImGui::GetFontSize();
-    });
-    const float narrow = em * 15.0f;
-    run_draw(gui, app, narrow);
-    const rv_editor_probe_record r = run_draw(gui, app, narrow);
-    for (const char *key :
-        { "pane_run_config.apply_label", "pane_run_config.apply_restart_label", "pane_run_config.revert_label" }) {
-        const rv_editor_probe_entry *e = find(r, rv_editor_text(key));
-        RV_EDITOR_CHECK(e != nullptr);
-        if (e != nullptr) {
-            RV_EDITOR_CHECK(e->x0 >= 0.0f);
-            RV_EDITOR_CHECK(e->x1 <= narrow);
-        }
-    }
-}
 
 // AC8: outside the project root the fields show the whole path.
 RV_EDITOR_TEST(rv_editor_test_run_config_paths_show_in_full)
@@ -117,14 +58,14 @@ RV_EDITOR_TEST(rv_editor_test_run_config_error_and_problem_keep_the_place)
     run_open(app, "/tmp");
     run_draw(gui, app, width);
     const rv_editor_probe_record clean = run_draw(gui, app, width);
-    const std::vector<std::string> anchors = { "##name", rv_editor_text("pane_run_config.apply_label") };
+    const std::vector<std::string> anchors = { "##Name", rv_editor_text("pane_run_config.apply_label") };
     app.run_config.error = "project.toml: " + long_words();
     const rv_editor_probe_record with_error = run_draw(gui, app, width);
-    RV_EDITOR_CHECK(stable(clean, with_error, anchors).empty());
+    RV_EDITOR_CHECK(stable(outside_areas(clean, anchors), outside_areas(with_error, anchors), anchors).empty());
     app.run_config.error.clear();
     app.run_config.profiles[0].runtime = "/nonexistent/" + std::string(80, 'r');
     const rv_editor_probe_record with_problem = run_draw(gui, app, width);
-    RV_EDITOR_CHECK(stable(clean, with_problem, anchors).empty());
+    RV_EDITOR_CHECK(stable(outside_areas(clean, anchors), outside_areas(with_problem, anchors), anchors).empty());
 }
 
 // --- Project ------------------------------------------------------------------------------------------------------

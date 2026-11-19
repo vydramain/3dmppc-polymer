@@ -208,6 +208,7 @@ bool rv_editor_scene_new_box(rv_editor_app &app, const rv_editor_theme &theme, c
         { rv_editor_text("shell_menu_scene.create_button"), rv_editor_text("shell_menu_scene.cancel_button") },
         theme,
         width,
+        nullptr,
         lead);
     if (pressed == 0 && disabled == nullptr) {
         std::string error;

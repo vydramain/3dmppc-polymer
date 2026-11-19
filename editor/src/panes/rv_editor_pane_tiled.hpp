@@ -36,12 +36,14 @@ rv_editor_size rv_editor_tiled_minimum(float content_w, float above_h, std::init
 
 // The content area under the rows above: `content_w` wide, `floors` the floors of this area and the ones still to come,
 // none: this is the only one. The room left over the floors is shared equally by those areas. `facts` opens it as a facts
-// list (rv_editor_facts_row). Pair with rv_editor_tiled_area_end.
+// list (rv_editor_facts_row). `height` > 0 takes that much at most instead of a share (never under the floor). Pair with
+// rv_editor_tiled_area_end.
 bool rv_editor_tiled_area_begin(const char *id,
     float content_w,
     const rv_editor_theme &theme,
     std::initializer_list<float> floors = {},
-    bool facts = false);
+    bool facts = false,
+    float height = 0.0f);
 
 // Ends the area and registers its whole frame as one item, so a tile smaller than the minimum is seen to cut it.
 void rv_editor_tiled_area_end(const rv_editor_theme &theme);

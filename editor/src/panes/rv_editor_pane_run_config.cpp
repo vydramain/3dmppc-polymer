@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <string_view>
@@ -13,10 +14,13 @@
 
 #include "imgui.h"
 
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
-#include "ui/rv_editor_widgets_table.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_form.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
@@ -24,16 +28,10 @@ namespace rv_editor
 namespace
 {
 
-// The widest share of the form a label column may take; a wider label goes above its field.
-constexpr float label_column_share = 0.5f;
-// Lines the profile error and the edited profile's problem reserve; the session note takes one.
-constexpr int message_lines = 2;
 // Multiline input box height in text lines.
-constexpr float multiline_box_lines = 3.5f;
-// Profile list width in em units.
-constexpr float profile_list_width_em = 12.0f;
-// Minimum well content area height in frame heights.
-constexpr float min_well_height_frames = 6.0f;
+constexpr float multiline_box_lines = 3.0f;
+// Characters of the narrowest field of the form.
+constexpr int min_field_chars = 16;
 
 // The Run Configuration form: the active profile as edited until Apply. Refilled when
 // run_config_revision moves, which a profile change in the app does.
@@ -52,44 +50,6 @@ struct rv_editor_run_form {
 };
 
 rv_editor_run_form run_form_draft;
-
-// The labels of the form's fields, for the width of the label column.
-std::array<const char *, 4> rv_editor_run_labels()
-{
-    return { rv_editor_text("pane_run_config.name_label"),
-        rv_editor_text("pane_run_config.runtime_label"),
-        rv_editor_text("pane_run_config.working_dir_label"),
-        rv_editor_text("pane_run_config.memory_card_label") };
-}
-
-// Where the fields start from the form's left edge: the widest label and a gap, or 0 when that is more than its share
-// of the form and the labels go above their fields.
-float rv_editor_run_column()
-{
-    float widest = 0.0f;
-    for (const char *label : rv_editor_run_labels()) {
-        widest = std::max(widest, ImGui::CalcTextSize(label).x);
-    }
-    const float column = widest + ImGui::GetStyle().ItemSpacing.x * 2.0f;
-    return column <= ImGui::GetContentRegionAvail().x * label_column_share ? column : 0.0f;
-}
-
-// A label in the label column, or above its field when `column` is 0; the field follows.
-void rv_editor_run_label(const char *text, float column, const rv_editor_theme &theme)
-{
-    if (column > 0.0f) {
-        ImGui::AlignTextToFramePadding();
-        rv_editor_label(text, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-        ImGui::SameLine(column);
-    } else {
-        // Above its field, cut to the form's width with the whole label in a tooltip.
-        const std::string shown = rv_editor_ellipsize(text, ImGui::GetContentRegionAvail().x);
-        rv_editor_label(shown.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-        if (shown != text) {
-            rv_editor_item_tooltip(text);
-        }
-    }
-}
 
 std::string rv_editor_run_lines(const std::vector<std::string> &items)
 {
@@ -145,35 +105,6 @@ rv_editor_run_profile rv_editor_run_form_profile(const rv_editor_run_form &f)
         f.reload_on_save };
 }
 
-// A group heading, in the console's own slot order: session-level fields first,
-// then one group per rv_pcslots slot that this page has a field for.
-void rv_editor_run_group(const char *display_label, const rv_editor_theme &theme)
-{
-    rv_editor_label(display_label, rv_editor_label_kind::bright, theme);
-    rv_editor_separator();
-}
-
-// A label, then the path field (relative to the project root when inside it) with what an empty one means as its
-// tooltip.
-void rv_editor_run_path(const char *label,
-    char *buf,
-    size_t size,
-    const char *empty_means_key,
-    const rv_editor_app &app,
-    float column,
-    const rv_editor_theme &theme,
-    const char *display_label)
-{
-    rv_editor_run_label(display_label, column, theme);
-    ImGui::SetNextItemWidth(-1.0f);
-    rv_editor_path_field((std::string("##") + label).c_str(), buf, size, app.project.root.string(), theme);
-    if (buf[0] == '\0') {
-        const auto empty_means = rv_editor_text(empty_means_key);
-        const auto tip = rv_editor_text_format("pane_run_config.empty_means", std::make_format_args(empty_means));
-        rv_editor_item_tooltip(tip.c_str());
-    }
-}
-
 // Any profile request waits: the list and the profile buttons wait with it.
 bool rv_editor_run_profile_pending(const rv_editor_app &app)
 {
@@ -196,26 +127,89 @@ rv_editor_pane_request rv_editor_run_request(rv_editor_pane_request_kind kind, c
     return request;
 }
 
-// The profiles as a list on the left, with New and Delete under it; choosing one
-// is itself applied: Run uses the one shown. The app makes each change.
-void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const rv_editor_theme &theme)
+// Why Apply and Restart waits, the first that holds: a restart already runs (it wins whatever
+// the profile says), a profile request waits, the profile has a problem, no session runs.
+const char *rv_editor_run_restart_why(const rv_editor_app &app, bool pending, const char *edit_why)
+{
+    if (rv_editor_app_request_pending(app, rv_editor_pane_request_kind::restart)) {
+        return rv_editor_text("app_why_not.restart_pending");
+    }
+    if (pending) {
+        return rv_editor_text("app_why_not.request_pending");
+    }
+    if (edit_why != nullptr) {
+        return edit_why;
+    }
+    return app.session.live() ? nullptr : rv_editor_text("pane_run_config.restart_disabled");
+}
+
+// The rows of the form: the label and what the field shows (a path from its root, or whole outside it), for the label column
+// and the width.
+struct rv_editor_run_rows {
+    std::string runtime, cwd, memcard;
+};
+
+std::vector<rv_editor_form_row_desc> rv_editor_run_descs(const rv_editor_run_form &form, const rv_editor_run_rows &paths)
+{
+    static const std::string sample(min_field_chars, '0');
+    return { { rv_editor_text("pane_run_config.name_label"), form.name, nullptr, false },
+        { rv_editor_text("pane_run_config.runtime_label"), paths.runtime.c_str(), nullptr, true },
+        { rv_editor_text("pane_run_config.working_dir_label"), paths.cwd.c_str(), nullptr, false },
+        { rv_editor_text("pane_run_config.memory_card_label"), paths.memcard.c_str(), nullptr, false },
+        { rv_editor_text("pane_run_config.start_paused_label"), "", nullptr, false },
+        { rv_editor_text("pane_run_config.fixed_step_label"), "", nullptr, false },
+        { rv_editor_text("pane_run_config.reload_on_save_label"), "", nullptr, false },
+        { rv_editor_text("pane_run_config.mute_label"), "", nullptr, false },
+        { rv_editor_text("pane_run_config.console_options_key"), sample.c_str(), nullptr, false },
+        { rv_editor_text("pane_run_config.environment_key"), sample.c_str(), nullptr, false } };
+}
+
+// A path field in the form: the path from the project root, whole, with what an empty one means as its tooltip.
+void rv_editor_run_path(const char *label,
+    char *buf,
+    size_t size,
+    const char *empty_means_key,
+    const rv_editor_app &app,
+    bool can_fail,
+    const rv_editor_theme &theme)
+{
+    rv_editor_form_custom_begin(label, theme);
+    rv_editor_path_field((std::string("##") + label).c_str(), buf, size, app.project.root.string(), theme);
+    if (buf[0] == '\0') {
+        const auto empty_means = rv_editor_text(empty_means_key);
+        const auto tip = rv_editor_text_format("pane_run_config.empty_means", std::make_format_args(empty_means));
+        rv_editor_item_tooltip(tip.c_str());
+    }
+    rv_editor_form_custom_end(can_fail, nullptr, theme);
+}
+
+void rv_editor_run_check(const char *label, const char *tooltip, bool *value, const rv_editor_theme &theme)
+{
+    rv_editor_form_custom_begin(label, theme);
+    rv_editor_checkbox("##check", value, theme);
+    if (tooltip != nullptr) {
+        rv_editor_item_tooltip(tooltip);
+    }
+    rv_editor_form_custom_end(false, nullptr, theme);
+}
+
+void rv_editor_run_area_text(const char *label, char *buf, size_t size, const rv_editor_theme &theme)
+{
+    rv_editor_form_custom_begin(label, theme);
+    (void)rv_editor_text_area("##text", buf, size, multiline_box_lines, theme);
+    rv_editor_form_custom_end(false, nullptr, theme);
+}
+
+// The profiles as rows; choosing one is itself applied: Run uses the one shown. The app makes each change.
+void rv_editor_run_profiles(rv_editor_app &app, const rv_editor_theme &theme)
 {
     const rv_editor_run_config &config = app.run_config;
-    const bool pending = rv_editor_run_profile_pending(app);
-    const char *why = pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
-    ImGui::BeginGroup();
-    const float side = ImGui::GetFrameHeight();
-    rv_editor_well_begin("##profiles", ImVec2(width, height - side - ImGui::GetStyle().ItemSpacing.y), theme);
+    const char *why = rv_editor_run_profile_pending(app) ? rv_editor_text("app_why_not.request_pending") : nullptr;
     for (size_t i = 0; i < config.profiles.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
-        const rv_editor_list_style style{ .selected = i == config.active, .span_columns = true };
-        const std::string &name = config.profiles[i].name;
-        const std::string shown = rv_editor_ellipsize(name.c_str(), std::max(1.0f, width - ImGui::GetFrameHeight() * 2.0f));
+        const rv_editor_list_style style{ .selected = i == config.active };
         const rv_editor_list_result row =
-            rv_editor_list_row("##profile", shown.c_str(), theme, style, { rv_editor_look::live, why });
-        if (shown != name) {
-            rv_editor_item_tooltip(name.c_str());
-        }
+            rv_editor_list_row("##profile", config.profiles[i].name.c_str(), theme, style, { rv_editor_look::live, why });
         if (row.clicked && i != config.active) {
             rv_editor_pane_request select = rv_editor_run_request(rv_editor_pane_request_kind::profile_select);
             select.choice = i;
@@ -223,7 +217,111 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
         }
         ImGui::PopID();
     }
-    rv_editor_well_end();
+}
+
+// The shown profile's fields, as edited until Apply.
+void rv_editor_run_fields(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    rv_editor_run_form &form = run_form_draft;
+    const std::string root = app.project.root.string();
+    const rv_editor_run_rows paths{ rv_editor_path_relative(form.runtime, root),
+        rv_editor_path_relative(form.cwd, root),
+        rv_editor_path_relative(form.memcard, root) };
+    rv_editor_form_begin(rv_editor_run_descs(form, paths), theme);
+    (void)rv_editor_form_row(rv_editor_text("pane_run_config.name_label"),
+        form.name,
+        sizeof(form.name),
+        nullptr,
+        false,
+        nullptr,
+        theme);
+    rv_editor_run_path(rv_editor_text("pane_run_config.runtime_label"),
+        form.runtime,
+        sizeof(form.runtime),
+        "pane_run_config.runtime_empty_tooltip",
+        app,
+        true,
+        theme);
+    rv_editor_run_path(rv_editor_text("pane_run_config.working_dir_label"),
+        form.cwd,
+        sizeof(form.cwd),
+        "pane_run_config.working_dir_empty_tooltip",
+        app,
+        false,
+        theme);
+    rv_editor_run_path(rv_editor_text("pane_run_config.memory_card_label"),
+        form.memcard,
+        sizeof(form.memcard),
+        "pane_run_config.memory_card_empty_tooltip",
+        app,
+        false,
+        theme);
+    rv_editor_run_check(rv_editor_text("pane_run_config.start_paused_label"),
+        rv_editor_text("pane_run_config.start_paused_tooltip"),
+        &form.paused,
+        theme);
+    rv_editor_run_check(rv_editor_text("pane_run_config.fixed_step_label"),
+        rv_editor_text("pane_run_config.fixed_step_tooltip"),
+        &form.fixed_step,
+        theme);
+    rv_editor_run_check(rv_editor_text("pane_run_config.reload_on_save_label"),
+        rv_editor_text("pane_run_config.reload_on_save_tooltip"),
+        &form.reload_on_save,
+        theme);
+    rv_editor_run_check(rv_editor_text("pane_run_config.mute_label"), nullptr, &form.mute, theme);
+    rv_editor_run_area_text(rv_editor_text("pane_run_config.console_options_key"), form.args, sizeof(form.args), theme);
+    rv_editor_item_tooltip(rv_editor_text("pane_run_config.console_options_label"));
+    rv_editor_run_area_text(rv_editor_text("pane_run_config.environment_key"), form.env, sizeof(form.env), theme);
+    rv_editor_item_tooltip(rv_editor_text("pane_run_config.environment_label"));
+    rv_editor_form_end();
+}
+
+// The row under the area: Apply, Apply and Restart and Revert, then a new profile and delete the shown one.
+float rv_editor_run_buttons_width()
+{
+    float width = 0.0f;
+    for (const char *key :
+        { "pane_run_config.apply_label", "pane_run_config.apply_restart_label", "pane_run_config.revert_label" }) {
+        width += rv_editor_button_width(rv_editor_text(key)) + ImGui::GetStyle().ItemSpacing.x;
+    }
+    return width + 2.0f * ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.x;
+}
+
+float rv_editor_run_content_width()
+{
+    return std::max(rv_editor_run_buttons_width(),
+        rv_editor_message_box_min_width({ { rv_editor_text("panes.open_project_box") } }));
+}
+
+void rv_editor_run_actions(rv_editor_app &app,
+    const rv_editor_run_profile &edited,
+    const std::string &problem,
+    const rv_editor_theme &theme)
+{
+    const rv_editor_run_config &config = app.run_config;
+    const bool pending = rv_editor_run_profile_pending(app);
+    const char *no_project = app.project.open ? nullptr : rv_editor_text("pane_files.no_project_open");
+    const char *edit_why = no_project != nullptr ? no_project :
+        problem.empty()                          ? nullptr :
+                                                   rv_editor_text("pane_run_config.apply_disabled");
+    const char *apply_why = no_project != nullptr ? no_project :
+        pending                                   ? rv_editor_text("app_why_not.request_pending") :
+                                                    edit_why;
+    const bool apply =
+        rv_editor_button(rv_editor_text("pane_run_config.apply_label"), theme, { rv_editor_look::live, apply_why });
+    rv_editor_item_tooltip(rv_editor_text("pane_run_config.apply_button_tooltip"));
+    ImGui::SameLine();
+    const char *restart_why = no_project != nullptr ? no_project : rv_editor_run_restart_why(app, pending, edit_why);
+    const bool restart =
+        rv_editor_button(rv_editor_text("pane_run_config.apply_restart_label"), theme, { rv_editor_look::live, restart_why });
+    rv_editor_item_tooltip(rv_editor_text("pane_run_config.apply_restart_tooltip"));
+    ImGui::SameLine();
+    if (rv_editor_button(rv_editor_text("pane_run_config.revert_label"), theme, { rv_editor_look::live, no_project }) &&
+        app.project.open) {
+        rv_editor_run_form_fill(run_form_draft, config.profiles[config.active]);
+    }
+    const char *why = no_project != nullptr ? no_project : pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
+    ImGui::SameLine();
     if (rv_editor_letter_button("##new",
             rv_editor_glyph::new_,
             theme.code_green,
@@ -245,115 +343,8 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
             { rv_editor_look::live, delete_why })) {
         (void)rv_editor_app_request(app, rv_editor_run_request(rv_editor_pane_request_kind::profile_delete));
     }
-    ImGui::EndGroup();
-}
-
-// The shown profile's fields, as edited until Apply.
-void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme &theme)
-{
-    rv_editor_run_form &form = run_form_draft;
-    rv_editor_well_begin("##fields", size, theme);
-    // The profile error and the session note have their places, empty when there is nothing to say.
-    const std::string err = app.run_config.error.empty() ?
-        std::string() :
-        rv_editor_text_format("pane_run_config.profile_error", std::make_format_args(app.run_config.error));
-    rv_editor_message_line("##profile_error", err.c_str(), message_lines, 0.0f, theme, nullptr, rv_editor_label_kind::error);
-    std::string note;
-    if (app.session.live()) {
-        const auto session_num = app.session.number();
-        note = rv_editor_text_format("pane_run_config.session_active", std::make_format_args(session_num));
-    }
-    rv_editor_message_line("##session_note", note.c_str(), 1, 0.0f, theme);
-    const float column = rv_editor_run_column();
-    rv_editor_run_group(rv_editor_text("pane_run_config.session_group"), theme);
-    rv_editor_run_label(rv_editor_text("pane_run_config.name_label"), column, theme);
-    ImGui::SetNextItemWidth(-1.0f);
-    rv_editor_text_field("##name", form.name, sizeof(form.name), theme);
-    rv_editor_run_path("Runtime",
-        form.runtime,
-        sizeof(form.runtime),
-        "pane_run_config.runtime_empty_tooltip",
-        app,
-        column,
-        theme,
-        rv_editor_text("pane_run_config.runtime_label"));
-    rv_editor_run_path("Working dir",
-        form.cwd,
-        sizeof(form.cwd),
-        "pane_run_config.working_dir_empty_tooltip",
-        app,
-        column,
-        theme,
-        rv_editor_text("pane_run_config.working_dir_label"));
-    rv_editor_checkbox(rv_editor_text("pane_run_config.start_paused_label"), &form.paused, theme);
-    rv_editor_item_tooltip(rv_editor_text("pane_run_config.start_paused_tooltip"));
-    rv_editor_flow(rv_editor_checkbox_width(rv_editor_text("pane_run_config.fixed_step_label")));
-    rv_editor_checkbox(rv_editor_text("pane_run_config.fixed_step_label"), &form.fixed_step, theme);
-    rv_editor_item_tooltip(rv_editor_text("pane_run_config.fixed_step_tooltip"));
-    rv_editor_flow(rv_editor_checkbox_width(rv_editor_text("pane_run_config.reload_on_save_label")));
-    rv_editor_checkbox(rv_editor_text("pane_run_config.reload_on_save_label"), &form.reload_on_save, theme);
-    rv_editor_item_tooltip(rv_editor_text("pane_run_config.reload_on_save_tooltip"));
-    rv_editor_label(rv_editor_text("pane_run_config.console_options_label"), rv_editor_label_kind::normal, theme);
-    ImGui::SetNextItemWidth(-1.0f);
-    rv_editor_text_area("##args", form.args, sizeof(form.args), multiline_box_lines, theme);
-    rv_editor_label(rv_editor_text("pane_run_config.environment_label"), rv_editor_label_kind::normal, theme);
-    ImGui::SetNextItemWidth(-1.0f);
-    rv_editor_text_area("##env", form.env, sizeof(form.env), multiline_box_lines, theme);
-
-    ImGui::Spacing();
-    rv_editor_run_group(rv_editor_text("pane_run_config.audio_group"), theme);
-    rv_editor_checkbox(rv_editor_text("pane_run_config.mute_label"), &form.mute, theme);
-
-    ImGui::Spacing();
-    rv_editor_run_group(rv_editor_text("pane_run_config.memory_card_group"), theme);
-    rv_editor_run_path("Memory card",
-        form.memcard,
-        sizeof(form.memcard),
-        "pane_run_config.memory_card_empty_tooltip",
-        app,
-        column,
-        theme,
-        rv_editor_text("pane_run_config.memory_card_label"));
-    rv_editor_well_end();
-}
-
-// Why Apply and Restart waits, the first that holds: a restart already runs (it wins whatever
-// the profile says), a profile request waits, the profile has a problem, no session runs.
-const char *rv_editor_run_restart_why(const rv_editor_app &app, bool pending, const char *edit_why)
-{
-    if (rv_editor_app_request_pending(app, rv_editor_pane_request_kind::restart)) {
-        return rv_editor_text("app_why_not.restart_pending");
-    }
-    if (pending) {
-        return rv_editor_text("app_why_not.request_pending");
-    }
-    if (edit_why != nullptr) {
-        return edit_why;
-    }
-    return app.session.live() ? nullptr : rv_editor_text("pane_run_config.restart_disabled");
-}
-
-// The problem of the edited profile, then Apply, Apply and Restart and Revert.
-void rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
-{
-    const rv_editor_run_config &config = app.run_config;
-    const rv_editor_run_profile edited = rv_editor_run_form_profile(run_form_draft);
-    const std::string problem = rv_editor_app_profile_problem(app, edited);
-    rv_editor_message_line("##problem", problem.c_str(), message_lines, 0.0f, theme, nullptr, rv_editor_label_kind::error);
-    const bool pending = rv_editor_run_profile_pending(app);
-    const char *edit_why = problem.empty() ? nullptr : rv_editor_text("pane_run_config.apply_disabled");
-    const char *apply_why = pending ? rv_editor_text("app_why_not.request_pending") : edit_why;
-    const bool apply =
-        rv_editor_button(rv_editor_text("pane_run_config.apply_label"), theme, { rv_editor_look::live, apply_why });
-    rv_editor_item_tooltip(rv_editor_text("pane_run_config.apply_button_tooltip"));
-    rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_run_config.apply_restart_label")));
-    const char *restart_why = rv_editor_run_restart_why(app, pending, edit_why);
-    const bool restart =
-        rv_editor_button(rv_editor_text("pane_run_config.apply_restart_label"), theme, { rv_editor_look::live, restart_why });
-    rv_editor_item_tooltip(rv_editor_text("pane_run_config.apply_restart_tooltip"));
-    rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_run_config.revert_label")));
-    if (rv_editor_button(rv_editor_text("pane_run_config.revert_label"), theme)) {
-        rv_editor_run_form_fill(run_form_draft, config.profiles[config.active]);
+    if (!app.project.open) {
+        return;
     }
     if (apply) {
         (void)rv_editor_app_request(app, rv_editor_run_request(rv_editor_pane_request_kind::profile_apply, edited));
@@ -363,63 +354,71 @@ void rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-// The list beside the fields (above them in a narrow tile) in `size`, each in a well of its own.
-void rv_editor_run_editor(rv_editor_app &app, ImVec2 size, const rv_editor_theme &theme)
+// The message box: the profile file's error, the edited profile's problem and the session's note, or nothing.
+void rv_editor_run_box(rv_editor_app &app, const std::string &problem, const rv_editor_theme &theme)
 {
-    rv_editor_run_config &config = app.run_config;
-    if (run_form_draft.loaded != app.run_config_revision) {
-        rv_editor_run_form_fill(run_form_draft, config.profiles[config.active]);
-        run_form_draft.loaded = app.run_config_revision;
-    }
-    const float list = ImGui::GetFontSize() * profile_list_width_em;
-    const float gap = ImGui::GetStyle().ItemSpacing.x;
-    if (size.x < list * 2.0f) {
-        // Narrow tile: the list above the form, not beside it, so the form keeps the tile's width.
-        const float list_height = std::min(ImGui::GetFrameHeightWithSpacing() * min_well_height_frames, size.y * 0.5f);
-        rv_editor_run_profiles(app, size.x, list_height, theme);
-        rv_editor_run_fields(app,
-            ImVec2(size.x, std::max(1.0f, size.y - list_height - ImGui::GetStyle().ItemSpacing.y)),
-            theme);
+    if (!app.project.open) {
+        if (rv_editor_message_box("##note",
+                rv_editor_text("panes.no_project_open_message"),
+                rv_editor_label_kind::normal,
+                { rv_editor_text("panes.open_project_box") },
+                theme,
+                rv_editor_run_content_width()) == 0) {
+            app.open_folder_request = true;
+        }
         return;
     }
-    rv_editor_run_profiles(app, list, size.y, theme);
-    ImGui::SameLine();
-    rv_editor_run_fields(app, ImVec2(std::max(1.0f, size.x - list - gap), size.y), theme);
-}
-
-// What the actions take: the problem's place and the rows the three buttons flow into at `width`.
-float rv_editor_run_actions_height(float width)
-{
-    const float gap = ImGui::GetStyle().ItemSpacing.x;
-    float row = 0.0f;
-    int rows = 1;
-    for (const char *key :
-        { "pane_run_config.apply_label", "pane_run_config.apply_restart_label", "pane_run_config.revert_label" }) {
-        const float w = rv_editor_button_width(rv_editor_text(key));
-        if (row > 0.0f && row + gap + w > width) {
-            ++rows;
-            row = 0.0f;
-        }
-        row += (row > 0.0f ? gap : 0.0f) + w;
+    std::string text;
+    if (!app.run_config.error.empty()) {
+        text = rv_editor_text_format("pane_run_config.profile_error", std::make_format_args(app.run_config.error));
     }
-    return ImGui::GetTextLineHeight() * message_lines + ImGui::GetFrameHeightWithSpacing() * rows +
-        ImGui::GetStyle().ItemSpacing.y;
+    if (!problem.empty()) {
+        text += (text.empty() ? "" : "\n") + problem;
+    }
+    if (text.empty() && app.session.live()) {
+        const auto session_num = app.session.number();
+        text = rv_editor_text_format("pane_run_config.session_active", std::make_format_args(session_num));
+    }
+    const bool error = !app.run_config.error.empty() || !problem.empty();
+    (void)rv_editor_message_box("##note",
+        text,
+        error ? rv_editor_label_kind::error : rv_editor_label_kind::normal,
+        {},
+        theme,
+        rv_editor_run_content_width());
 }
 
 } // namespace
 
+rv_editor_size rv_editor_run_config_minimum()
+{
+    rv_editor_size size = rv_editor_tiled_minimum(rv_editor_run_content_width(), rv_editor_tiled_box_block());
+    // The row of buttons under the area.
+    size.h += static_cast<int32_t>(std::ceil(ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y));
+    return size;
+}
+
 void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    if (!app.project.open) {
-        rv_editor_open_project_row(app, theme);
-        return;
+    rv_editor_run_config &config = app.run_config;
+    const bool have_profile = app.project.open && !config.profiles.empty();
+    if (have_profile && run_form_draft.loaded != app.run_config_revision) {
+        rv_editor_run_form_fill(run_form_draft, config.profiles[std::min(config.active, config.profiles.size() - 1)]);
+        run_form_draft.loaded = app.run_config_revision;
     }
-    const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const float actions = rv_editor_run_actions_height(avail.x);
-    // The two-column body takes what the region leaves above the actions row.
-    const float body_height = std::max(ImGui::GetFrameHeight() * min_well_height_frames, avail.y - actions);
-    rv_editor_run_editor(app, ImVec2(avail.x, body_height), theme);
-    rv_editor_run_actions(app, theme);
+    const rv_editor_run_profile edited = rv_editor_run_form_profile(run_form_draft);
+    const std::string problem = have_profile ? rv_editor_app_profile_problem(app, edited) : std::string();
+    rv_editor_run_box(app, problem, theme);
+    const float height = ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeight() - ImGui::GetStyle().ItemSpacing.y;
+    (void)rv_editor_tiled_area_begin("##run_area", rv_editor_run_content_width(), theme, {}, false, height);
+    if (have_profile) {
+        rv_editor_run_fields(app, theme);
+        rv_editor_run_profiles(app, theme);
+    } else {
+        rv_editor_content_empty_row(rv_editor_text("panes.no_project_open_message"), theme);
+    }
+    rv_editor_tiled_area_end(theme);
+    rv_editor_run_actions(app, edited, problem, theme);
 }
 
 } // namespace rv_editor

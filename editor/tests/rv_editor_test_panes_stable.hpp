@@ -107,6 +107,24 @@ stable(const rv_editor_probe_record &a, const rv_editor_probe_record &b, const s
     return "";
 }
 
+// The record without what is inside a content area, except the anchors: a value that scrolls there (a long path, an
+// error text) may change its own size, the frames, the buttons and the anchors around it stay.
+inline rv_editor_probe_record outside_areas(const rv_editor_probe_record &r, const std::vector<std::string> &anchors)
+{
+    rv_editor_probe_record out;
+    out.content_height = r.content_height;
+    for (const auto &e : r.entries) {
+        bool anchor = false;
+        for (const std::string &a : anchors) {
+            anchor = anchor || e.label.find(a) != std::string::npos;
+        }
+        if (!e.in_scroll || anchor) {
+            out.entries.push_back(e);
+        }
+    }
+    return out;
+}
+
 // "" when the field of a label of `text` is clear of it: beside it, past its text, or under it, at the form's left edge
 // (the label is text, which the probe does not record, so its width is measured).
 inline std::string

@@ -16,10 +16,11 @@ namespace rv_editor
 struct rv_editor_mode_card_spec {
     std::string title;
     std::string text;    // scrolls inside its own area on a Catppuccin background
-    std::function<void()> body; // when set, drawn inside that area in place of `text` (a form, a list)
     std::string message; // one line, a constant place; empty text still keeps the place
     rv_editor_label_kind message_kind = rv_editor_label_kind::error;
     std::vector<std::string> buttons; // one row, left to right
+    // Set: drawn inside the text area in place of `text` (a form, a list); last, so positional specs need not name it.
+    std::function<void()> body;
 };
 
 // The smallest size a card with these buttons draws whole: the title, 2 lines of text, the message line and the button

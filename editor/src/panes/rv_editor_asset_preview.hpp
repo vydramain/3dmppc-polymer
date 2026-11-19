@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 #include "build/rv_editor_build_map.hpp"
 #include "project/rv_editor_project.hpp"
@@ -28,21 +29,34 @@ struct rv_editor_asset {
 // again when the selection or the file's write time changes.
 double rv_editor_asset_sound_seconds(const rv_editor_asset &a);
 
-// The preview strip for the selected asset: its name and path, then what it
-// is - a PNG's picture and pixel size, a sound's duration with Play/Stop, or
-// another file's kind and size - and what the build map says it became on
-// the disc. A hint when `a` is null. Fills the current ImGui region (the
-// caller's child window). `picture` is the PNG's texture, already loaded by
-// the caller's cache; `sound_seconds` is the caller's cached result of
-// rv_editor_asset_sound_seconds. `project` is the open project: when `a` is
-// not covered by disc.toml and belongs in a disc section, an "Add to disc"
-// button offers to put it there.
-void rv_editor_asset_preview(const rv_editor_asset *a,
+// What a selected asset can be asked to do from the message box.
+enum class rv_editor_asset_action {
+    play,
+    stop,
+    add_to_disc
+};
+
+// What the preview says of the selected asset, for the message box: its path, what it is (a PNG's pixel size, a sound's
+// duration, another file's kind and size), what the build map says it became on the disc and the last error; and the
+// buttons that go with it (Play and Stop for a sound, Add to Disc when disc.toml does not cover it), each with its
+// action. A hint when `a` is null. `picture` is the PNG's texture, already loaded by the caller's cache;
+// `sound_seconds` is the caller's cached result of rv_editor_asset_sound_seconds.
+struct rv_editor_asset_view {
+    std::string text;
+    std::vector<std::string> buttons;
+    std::vector<rv_editor_asset_action> actions;
+};
+rv_editor_asset_view rv_editor_asset_preview(const rv_editor_asset *a,
     const rv_editor_map_entry *entry,
     rv_editor_icon picture,
     double sound_seconds,
-    const rv_editor_theme &theme,
-    rv_editor_project &project);
+    const rv_editor_project &project);
+
+// Does what a button of the view asked.
+void rv_editor_asset_act(rv_editor_asset_action action, const rv_editor_asset &a, rv_editor_project &project);
+
+// The picture at the largest scale that fits `max_width` x `max_height`; nothing for an empty icon.
+void rv_editor_asset_picture_show(rv_editor_icon picture, float max_width, float max_height);
 
 // The asset's picture: a PNG's texture, loaded once and cached, or an empty icon otherwise.
 rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_asset &a);

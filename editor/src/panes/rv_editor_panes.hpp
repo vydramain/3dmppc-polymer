@@ -80,6 +80,13 @@ rv_editor_size rv_editor_observe_minimum();
 rv_editor_size rv_editor_session_minimum();
 rv_editor_size rv_editor_build_result_minimum();
 rv_editor_size rv_editor_empty_minimum();
+// The same for Project, Files, Assets, Run Config, Findings and Test Case.
+rv_editor_size rv_editor_project_minimum();
+rv_editor_size rv_editor_files_minimum();
+rv_editor_size rv_editor_assets_minimum();
+rv_editor_size rv_editor_run_config_minimum();
+rv_editor_size rv_editor_findings_minimum();
+rv_editor_size rv_editor_test_case_minimum();
 
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);

@@ -86,7 +86,8 @@ bool rv_editor_tiled_area_begin(const char *id,
     float content_w,
     const rv_editor_theme &theme,
     std::initializer_list<float> floors,
-    bool facts)
+    bool facts,
+    float height)
 {
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const std::vector<float> all = rv_editor_tiled_floors(floors);
@@ -97,7 +98,8 @@ bool rv_editor_tiled_area_begin(const char *id,
     // The last area takes what is left; the ones above it a whole share, so the rounding goes to the last.
     const float extra = std::max(0.0f, avail.y - need);
     const float share = all.size() > 1 ? std::floor(extra / static_cast<float>(all.size())) : extra;
-    const ImVec2 size(std::max(avail.x, content_w), all[0] + share);
+    const float own = height > 0.0f ? std::max(std::min(height, avail.y), all[0]) : all[0] + share;
+    const ImVec2 size(std::max(avail.x, content_w), own);
     const ImVec2 at = ImGui::GetCursorScreenPos();
     rv_editor_tiled_frames.push_back({ ImRect(at, ImVec2(at.x + size.x, at.y + size.y)), ImGui::GetID(id), facts });
     if (facts) {

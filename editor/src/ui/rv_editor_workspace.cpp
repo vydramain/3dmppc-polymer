@@ -20,38 +20,6 @@ namespace rv_editor
 namespace
 {
 
-// The kinds built from the tiled UI templates (S13 on); each is listed as its pane is converted.
-bool rv_editor_pane_converted(rv_editor_pane_kind kind)
-{
-    switch (kind) {
-    case rv_editor_pane_kind::output:
-    case rv_editor_pane_kind::runtime_log:
-    case rv_editor_pane_kind::build_log:
-    case rv_editor_pane_kind::terminal:
-    case rv_editor_pane_kind::problems:
-    case rv_editor_pane_kind::search:
-    case rv_editor_pane_kind::code:
-    case rv_editor_pane_kind::review_changes:
-    case rv_editor_pane_kind::scene:
-    case rv_editor_pane_kind::hierarchy:
-    case rv_editor_pane_kind::inspector:
-    case rv_editor_pane_kind::controls:
-    case rv_editor_pane_kind::release_controls:
-    case rv_editor_pane_kind::toolchest:
-    case rv_editor_pane_kind::game:
-    case rv_editor_pane_kind::export_:
-    case rv_editor_pane_kind::candidate:
-    case rv_editor_pane_kind::checks:
-    case rv_editor_pane_kind::observe:
-    case rv_editor_pane_kind::session:
-    case rv_editor_pane_kind::build_result:
-    case rv_editor_pane_kind::empty:
-        return true;
-    default:
-        return false;
-    }
-}
-
 // Monospace glyph for measuring cell width in layout calculations.
 constexpr const char *grid_cell_width_probe = "M";
 

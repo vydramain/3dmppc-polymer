@@ -56,15 +56,21 @@ float rv_editor_message_box_height()
     return rv_editor_message_text_height() + ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeight();
 }
 
-float rv_editor_message_box_min_width(const std::vector<std::vector<std::string>> &button_rows)
+float rv_editor_message_box_min_width(const std::vector<std::vector<std::string>> &button_rows, int field_chars)
 {
     float widest = 0.0f;
     for (const auto &row : button_rows) {
         widest = std::max(widest, rv_editor_message_row_width(row));
     }
     // The text area's padding on both sides and its vertical bar come on top of the 30 characters.
-    return widest + min_chars * ImGui::CalcTextSize("0").x + std::floor(ImGui::GetStyle().ScrollbarSize) +
+    const float text = widest + min_chars * ImGui::CalcTextSize("0").x + std::floor(ImGui::GetStyle().ScrollbarSize) +
         padding_sides * ImGui::GetStyle().WindowPadding.x;
+    if (field_chars <= 0) {
+        return text;
+    }
+    const float field =
+        static_cast<float>(field_chars) * ImGui::CalcTextSize("0").x + padding_sides * ImGui::GetStyle().FramePadding.x;
+    return std::max(text, widest + ImGui::GetStyle().ItemSpacing.x + field);
 }
 
 void rv_editor_message_text(const char *id,
@@ -84,8 +90,10 @@ int rv_editor_message_box(const char *id,
     const std::vector<std::string> &buttons,
     const rv_editor_theme &theme,
     float min_width,
+    const rv_editor_message_box_field *field,
     const std::function<void(float)> &lead,
-    const char *button_tooltip)
+    const char *button_tooltip,
+    const std::vector<rv_editor_state> *button_states)
 {
     ImGui::PushID(id);
     const ImVec2 min = ImGui::GetCursorScreenPos();
@@ -96,18 +104,39 @@ int rv_editor_message_box(const char *id,
     const float row_y = ImGui::GetCursorScreenPos().y;
     const float row_h = ImGui::GetFrameHeight();
     int pressed = -1;
-    const float row_width = rv_editor_message_row_width(buttons);
-    if (lead) {
+    const float buttons_x = min.x + width - rv_editor_message_row_width(buttons);
+    float x = buttons_x;
+    if (field != nullptr) {
+        const float gap = buttons.empty() ? 0.0f : ImGui::GetStyle().ItemSpacing.x;
         ImGui::SetCursorScreenPos(ImVec2(min.x, row_y));
-        lead(width - row_width - (buttons.empty() ? 0.0f : ImGui::GetStyle().ItemSpacing.x));
+        ImGui::SetNextItemWidth(buttons_x - gap - min.x);
+        if (field->focus) {
+            ImGui::SetKeyboardFocusHere();
+        }
+        rv_editor_text_field("##field", field->buf, field->size, theme);
+        const ImVec2 at = ImGui::GetItemRectMin();
+        if (field->buf[0] == '\0' && field->hint != nullptr && !ImGui::IsItemActive()) {
+            const ImVec2 pad = ImGui::GetStyle().FramePadding;
+            ImGui::GetWindowDrawList()->AddText(ImVec2(at.x + pad.x, at.y + pad.y),
+                rv_editor_col(theme.text_disabled),
+                field->hint);
+        }
+        // A single-line field lets go of the keyboard on Enter.
+        if (!buttons.empty() && ImGui::IsItemDeactivatedAfterEdit() && ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
+            pressed = 0;
+        }
+    } else if (lead) {
+        ImGui::SetCursorScreenPos(ImVec2(min.x, row_y));
+        lead(buttons_x - min.x - (buttons.empty() ? 0.0f : ImGui::GetStyle().ItemSpacing.x));
     }
-    float x = min.x + width - row_width;
     for (int i = 0; i < static_cast<int>(buttons.size()); ++i) {
         ImGui::SetCursorScreenPos(ImVec2(x, row_y));
-        if (rv_editor_button(buttons[i].c_str(), theme)) {
+        const bool has_state = button_states != nullptr && static_cast<size_t>(i) < button_states->size();
+        const rv_editor_state state = has_state ? (*button_states)[static_cast<size_t>(i)] : rv_editor_state{};
+        if (rv_editor_button(buttons[i].c_str(), theme, state)) {
             pressed = i;
         }
-        if (button_tooltip != nullptr) {
+        if (button_tooltip != nullptr && state.disabled == nullptr) {
             rv_editor_item_tooltip(button_tooltip);
         }
         x += rv_editor_button_width(buttons[i].c_str()) + ImGui::GetStyle().ItemSpacing.x;

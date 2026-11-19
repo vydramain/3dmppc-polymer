@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_item_hook.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -63,13 +64,15 @@ int rv_editor_mode_card_begin(const char *id, const rv_editor_mode_card_spec &sp
     const float area_h = std::max(min_area_height(), ImGui::GetContentRegionAvail().y - footer_height());
     ImGui::PushStyleColor(ImGuiCol_ChildBg, rv_editor_col(theme.code_base));
     ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.code_text));
-    rv_editor_scroll_begin("##text", ImVec2(0, area_h), false, ImGuiChildFlags_AlwaysUseWindowPadding);
+    // ImGui's own bar, as in the message box: the text area keeps its rectangle whether the bar shows or not.
+    ImGui::BeginChild("##text", ImVec2(0, area_h), ImGuiChildFlags_AlwaysUseWindowPadding);
+    rv_editor_item_scroll_area();
     if (spec.body) {
         spec.body();
     } else {
         ImGui::TextWrapped("%s", spec.text.c_str());
     }
-    rv_editor_scroll_end(theme);
+    ImGui::EndChild();
     ImGui::PopStyleColor(2);
 
     if (spec.message.empty()) {

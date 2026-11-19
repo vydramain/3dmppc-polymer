@@ -3,6 +3,8 @@
 #include "ui/rv_editor_widgets_form.hpp"
 
 #include <algorithm>
+#include <map>
+#include <string>
 
 #include "imgui_internal.h"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -17,6 +19,7 @@ namespace
 struct form_state {
     float start_x = 0.0f;
     float field_x = 0.0f;
+    std::map<std::string, float> field_widths; // by label: what a custom row's item shows, whole
 };
 
 form_state &form()
@@ -73,6 +76,10 @@ void rv_editor_form_begin(const std::vector<rv_editor_form_row_desc> &rows, cons
 {
     form().start_x = ImGui::GetCursorPosX();
     form().field_x = form().start_x + label_column(rows);
+    form().field_widths.clear();
+    for (const auto &row : rows) {
+        form().field_widths[row.label] = field_text_width(row);
+    }
 }
 
 bool rv_editor_form_row(const char *label,
@@ -109,6 +116,29 @@ bool rv_editor_form_row(const char *label,
     }
     ImGui::PopID();
     return changed;
+}
+
+void rv_editor_form_custom_begin(const char *label, const rv_editor_theme &)
+{
+    ImGui::PushID(label);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(label, rv_editor_label_end(label));
+    ImGui::SameLine(form().field_x);
+    const auto it = form().field_widths.find(label);
+    ImGui::SetNextItemWidth(std::max(ImGui::GetContentRegionAvail().x, it == form().field_widths.end() ? 0.0f : it->second));
+}
+
+void rv_editor_form_custom_end(bool can_fail, const char *error, const rv_editor_theme &theme)
+{
+    if (can_fail) {
+        ImGui::SetCursorPosX(form().field_x);
+        if (error != nullptr) {
+            rv_editor_text_item(error, theme.error);
+        } else {
+            ImGui::Dummy(ImVec2(0.0f, ImGui::GetTextLineHeight()));
+        }
+    }
+    ImGui::PopID();
 }
 
 void rv_editor_form_buttons_begin(const rv_editor_theme &)
