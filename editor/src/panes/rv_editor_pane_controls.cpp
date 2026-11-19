@@ -172,16 +172,7 @@ void rv_editor_reserved_line(const char *id,
     const rv_editor_theme &theme,
     const std::string &full = {})
 {
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::BeginChild(id, ImVec2(width, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-    if (!text.empty()) {
-        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme);
-    }
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-    if (!text.empty() && ImGui::IsItemHovered()) {
-        rv_editor_tooltip((full.empty() ? text : full).c_str());
-    }
+    rv_editor_message_line(id, text.c_str(), 1, width, theme, full.c_str());
 }
 
 } // namespace

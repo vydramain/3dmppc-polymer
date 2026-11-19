@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
+#include <vector>
 
 #include "rv_editor_catppuccin_mocha.hpp"
 #include "text/rv_editor_text.hpp"
@@ -242,6 +244,126 @@ void rv_editor_ask_end()
 {
     ImGui::EndChild();
     ImGui::PopID();
+}
+
+namespace
+{
+
+// Open flags of the ask places and overlays being drawn, innermost last.
+std::vector<bool> &ask_open_stack()
+{
+    static std::vector<bool> stack;
+    return stack;
+}
+
+// The ask place's height: border, padding, the header, `lines` of text and a button row, with the spacing between.
+float ask_place_height(int lines)
+{
+    const ImGuiStyle &st = ImGui::GetStyle();
+    return 2.0f * (st.WindowPadding.y + st.ChildBorderSize) + 2.0f * ImGui::GetFrameHeight() +
+        static_cast<float>(std::max(lines, 1)) * ImGui::GetTextLineHeight() + 3.0f * st.ItemSpacing.y;
+}
+
+} // namespace
+
+void rv_editor_message_line(const char *id,
+    const char *text,
+    int lines,
+    float width,
+    const rv_editor_theme &theme,
+    const char *tip)
+{
+    const float w = width > 0.0f ? width : ImGui::GetContentRegionAvail().x;
+    const float room = static_cast<float>(std::max(lines, 1)) * ImGui::GetTextLineHeight();
+    const std::string whole = text != nullptr ? text : "";
+    std::string shown = whole;
+    // Longest prefix, cut at a character boundary, that wraps into `lines` lines with the dots; a binary search.
+    if (ImGui::CalcTextSize(whole.c_str(), nullptr, false, w).y > room) {
+        const auto fits = [&](size_t n) {
+            return ImGui::CalcTextSize((whole.substr(0, n) + "...").c_str(), nullptr, false, w).y <= room;
+        };
+        const auto boundary = [&](size_t n) {
+            while (n > 0 && (static_cast<unsigned char>(whole[n]) & 0xC0) == 0x80) {
+                --n;
+            }
+            return n;
+        };
+        size_t lo = 0;
+        size_t hi = whole.size();
+        while (lo < hi) {
+            const size_t mid = (lo + hi + 1) / 2;
+            if (fits(boundary(mid))) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        shown = whole.substr(0, boundary(lo)) + "...";
+    }
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::BeginChild(id, ImVec2(w, room), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
+    if (!shown.empty()) {
+        rv_editor_label(shown.c_str(), rv_editor_label_kind::normal, theme);
+    }
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+    const std::string full = tip != nullptr && *tip != '\0' ? tip : whole;
+    if (!whole.empty() && (shown != whole || full != whole) && ImGui::IsItemHovered()) {
+        rv_editor_tooltip(full.c_str());
+    }
+}
+
+bool rv_editor_ask_place_begin(const char *id, const char *title, int lines, bool open, const rv_editor_theme &theme)
+{
+    ask_open_stack().push_back(open);
+    ImGui::PushID(id);
+    const ImVec2 size(0.0f, ask_place_height(lines));
+    if (open) {
+        ImGui::BeginChild("##ask", size, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar);
+        rv_editor_pane_header(title, true, theme);
+    } else {
+        ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, size.y));
+    }
+    return open;
+}
+
+void rv_editor_ask_place_end()
+{
+    if (ask_open_stack().back()) {
+        ImGui::EndChild();
+    }
+    ask_open_stack().pop_back();
+    ImGui::PopID();
+}
+
+bool rv_editor_ask_overlay_begin(const char *id,
+    const char *title,
+    ImVec2 min,
+    ImVec2 max,
+    bool open,
+    const rv_editor_theme &theme)
+{
+    ask_open_stack().push_back(open);
+    if (open) {
+        ImGui::SetNextWindowPos(min);
+        ImGui::SetNextWindowSize(ImVec2(max.x - min.x, max.y - min.y));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+        ImGui::Begin(id,
+            nullptr,
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+                ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing);
+        ImGui::PopStyleVar();
+        rv_editor_pane_header(title, true, theme);
+    }
+    return open;
+}
+
+void rv_editor_ask_overlay_end()
+{
+    if (ask_open_stack().back()) {
+        ImGui::End();
+    }
+    ask_open_stack().pop_back();
 }
 
 void rv_editor_status_bar(const char *const fields[], int count, const rv_editor_theme &theme)

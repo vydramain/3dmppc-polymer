@@ -533,4 +533,31 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
 void rv_editor_ask_begin(const char *title, const rv_editor_theme &theme);
 void rv_editor_ask_end();
 
+// A message line: a constant place `lines` text lines high and `width` wide (0 = what remains of the row), empty when
+// `text` is empty, the same rect for any text. The text wraps inside; what needs more than `lines` lines ends with an
+// ellipsis and shows in full in a tooltip; a non-null `tip` differing from `text` is shown in that tooltip instead.
+void rv_editor_message_line(const char *id,
+    const char *text,
+    int lines,
+    float width,
+    const rv_editor_theme &theme,
+    const char *tip = nullptr);
+
+// An ask's place: a constant height for the ask's longest variant (`lines` of wrapped text under the header, plus a
+// button row). Closed (`open` false) it is empty space of that size and returns false; open it draws the ask inside
+// (title, then what the caller draws between the calls) and returns true. Always pair with rv_editor_ask_place_end.
+bool rv_editor_ask_place_begin(const char *id, const char *title, int lines, bool open, const rv_editor_theme &theme);
+void rv_editor_ask_place_end();
+
+// An ask drawn over the screen rectangle min..max, for the rare case where it covers no tools or information: it takes
+// no room in the layout, so items after it keep their rects. Closed it draws nothing and returns false. Always pair.
+// It floats above the panes, so the caller picks a rect that hides no tool or information.
+bool rv_editor_ask_overlay_begin(const char *id,
+    const char *title,
+    ImVec2 min,
+    ImVec2 max,
+    bool open,
+    const rv_editor_theme &theme);
+void rv_editor_ask_overlay_end();
+
 } // namespace rv_editor
