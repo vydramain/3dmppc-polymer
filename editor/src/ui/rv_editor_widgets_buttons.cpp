@@ -238,6 +238,13 @@ bool rv_editor_toggle(const char *label, bool *on, const rv_editor_theme &theme,
     return item.clicked;
 }
 
+bool rv_editor_card(const char *id, ImVec2 size, const rv_editor_theme &theme, bool selected, const rv_editor_state &state)
+{
+    const rv_editor_item item = rv_editor_item_add(id, size, state);
+    rv_editor_button_face(ImGui::GetWindowDrawList(), item, theme, false, selected);
+    return item.clicked;
+}
+
 bool rv_editor_checkbox(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const rv_editor_item item = rv_editor_item_add(label, rv_editor_marked_size(label), state);

@@ -3,6 +3,7 @@
 
 #include "imgui_internal.h" // the table's first-frame flag
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 
 namespace rv_editor
 {
@@ -86,6 +87,19 @@ void rv_editor_table_cell_text(const char *text, const rv_editor_theme &theme, r
     if (shown != text && ImGui::IsItemHovered()) {
         rv_editor_tooltip(text);
     }
+}
+
+rv_editor_table_row_result rv_editor_table_row_select(const char *id, bool selected, const rv_editor_theme &theme)
+{
+    rv_editor_list_style style;
+    style.selected = selected;
+    style.span_columns = true;
+    const rv_editor_list_result list = rv_editor_list_row(id, id, theme, style);
+    rv_editor_table_row_result result;
+    result.clicked = list.clicked;
+    // No key repeat: a held Enter acts once. A double click is the mouse's second press.
+    result.activated = list.double_clicked || (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter, false));
+    return result;
 }
 
 } // namespace rv_editor

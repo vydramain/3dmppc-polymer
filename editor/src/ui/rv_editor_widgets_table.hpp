@@ -58,4 +58,15 @@ void rv_editor_table_cell_text(const char *text,
     const rv_editor_theme &theme,
     rv_editor_label_kind kind = rv_editor_label_kind::normal);
 
+// What a selectable table row did: a single click anywhere on it selects; a double click or Enter
+// on the focused row is the row's main action.
+struct rv_editor_table_row_result {
+    bool clicked = false;
+    bool activated = false;
+};
+
+// The row's click area across every column, in the first cell, after rv_editor_table_row. `selected` fills it.
+// `id` is also the Selectable's label, so it must be a hidden one ("##row0"); draw the cells' content after it.
+rv_editor_table_row_result rv_editor_table_row_select(const char *id, bool selected, const rv_editor_theme &theme);
+
 } // namespace rv_editor
