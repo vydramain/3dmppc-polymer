@@ -576,12 +576,14 @@ void rv_editor_ask_end();
 // A message line: a constant place `lines` text lines high and `width` wide (0 = what remains of the row), empty when
 // `text` is empty, the same rect for any text. The text wraps inside; what needs more than `lines` lines ends with an
 // ellipsis and shows in full in a tooltip; a non-null `tip` differing from `text` is shown in that tooltip instead.
+// `kind` colours the text: error stays red, warning yellow.
 void rv_editor_message_line(const char *id,
     const char *text,
     int lines,
     float width,
     const rv_editor_theme &theme,
-    const char *tip = nullptr);
+    const char *tip = nullptr,
+    rv_editor_label_kind kind = rv_editor_label_kind::normal);
 
 // An ask's place: a constant height for the ask's longest variant (`lines` of wrapped text under the header, plus a
 // button row). Closed (`open` false) it is empty space of that size and returns false; open it draws the ask inside

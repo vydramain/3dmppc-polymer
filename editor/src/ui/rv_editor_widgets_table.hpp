@@ -20,6 +20,7 @@ enum class rv_editor_table_width {
 struct rv_editor_table_column {
     const char *name = ""; // header text; "" for a column with none
     rv_editor_table_width width = rv_editor_table_width::stretch;
+    float fixed_px = 0.0f; // a fixed column's width in px, whatever its cells hold; 0 = its widest cell or header
 };
 
 // How the table takes the width: stretch_prop shares the window's width among stretched

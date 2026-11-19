@@ -287,7 +287,8 @@ void rv_editor_message_line(const char *id,
     int lines,
     float width,
     const rv_editor_theme &theme,
-    const char *tip)
+    const char *tip,
+    rv_editor_label_kind kind)
 {
     const float w = width > 0.0f ? width : ImGui::GetContentRegionAvail().x;
     const float room = static_cast<float>(std::max(lines, 1)) * ImGui::GetTextLineHeight();
@@ -319,7 +320,7 @@ void rv_editor_message_line(const char *id,
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::BeginChild(id, ImVec2(w, room), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
     if (!shown.empty()) {
-        rv_editor_label(shown.c_str(), rv_editor_label_kind::normal, theme);
+        rv_editor_label(shown.c_str(), kind, theme);
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();

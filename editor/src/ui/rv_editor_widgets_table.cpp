@@ -21,7 +21,7 @@ bool rv_editor_table_begin(const char *id, const rv_editor_table_column *columns
     for (int i = 0; i < count; ++i) {
         const bool fixed = fit || columns[i].width == rv_editor_table_width::fixed;
         const ImGuiTableColumnFlags width = fixed ? ImGuiTableColumnFlags_WidthFixed : ImGuiTableColumnFlags_WidthStretch;
-        ImGui::TableSetupColumn(columns[i].name, width);
+        ImGui::TableSetupColumn(columns[i].name, width, fixed ? columns[i].fixed_px : 0.0f);
     }
     if (style.header) {
         ImGui::TableHeadersRow();
@@ -94,6 +94,8 @@ rv_editor_table_row_result rv_editor_table_row_select(const char *id, bool selec
     rv_editor_list_style style;
     style.selected = selected;
     style.span_columns = true;
+    style.height = ImGui::GetFrameHeight(); // as tall as a button of the row, so a click beside one selects too
+    style.overlap = true;                   // the buttons of the row's cells stay clickable
     const rv_editor_list_result list = rv_editor_list_row(id, id, theme, style);
     rv_editor_table_row_result result;
     result.clicked = list.clicked;

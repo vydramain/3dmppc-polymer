@@ -296,10 +296,12 @@ void rv_editor_path_row(const char *label, const std::string &path, const rv_edi
     ImGui::SameLine();
     const char *copy_label = rv_editor_text("widgets_fields.button_copy");
     const float room = ImGui::GetContentRegionAvail().x - rv_editor_button_width(copy_label) - ImGui::GetStyle().ItemSpacing.x;
+    const float text_x = ImGui::GetCursorPosX();
     const std::string shown = rv_editor_path_tail(path, room);
     ImGui::TextUnformatted(shown.c_str());
     ImGui::SetItemTooltip("%s", path.c_str());
-    ImGui::SameLine();
+    // Copy keeps its place at the row's right end, whatever the path's length.
+    ImGui::SameLine(text_x + room + ImGui::GetStyle().ItemSpacing.x);
     if (rv_editor_button(copy_label, theme)) {
         ImGui::SetClipboardText(path.c_str());
     }

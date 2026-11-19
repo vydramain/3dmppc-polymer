@@ -87,23 +87,32 @@ const char *rv_editor_why_not_pass(const rv_editor_app &app, const rv_editor_can
     return nullptr;
 }
 
-void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, const rv_editor_theme &theme)
+// The void suffix of a state whose result belongs to other bytes.
+constexpr const char *void_suffix = ", void: other bytes";
+
+void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, int &selected, const rv_editor_theme &theme)
 {
     rv_editor_check &check = c.checks[id];
     const bool valid = check.state == rv_editor_check_state::not_run || rv_editor_check_valid(c, check);
     ImGui::PushID(static_cast<int>(id));
     rv_editor_table_row();
     rv_editor_table_cell();
+    const rv_editor_table_row_result row = rv_editor_table_row_select("##check", selected == static_cast<int>(id), theme);
+    ImGui::SameLine(0.0f, 0.0f);
+    ImGui::AlignTextToFramePadding();
     rv_editor_label(check.name, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     rv_editor_item_tooltip((std::string(rv_editor_text("pane_candidate.passed_means")) + " " + check.passes_when).c_str());
     rv_editor_table_cell();
-    const std::string state = valid ? rv_editor_check_state_name(check.state) :
-                                      std::string(rv_editor_check_state_name(check.state)) + ", void: other bytes";
+    const std::string state =
+        valid ? rv_editor_check_state_name(check.state) : std::string(rv_editor_check_state_name(check.state)) + void_suffix;
     rv_editor_status(state.c_str(), rv_editor_check_lamp(c, check), theme);
     if (!check.at.empty()) {
         rv_editor_item_tooltip((check.note + "\nset " + check.at + ", on " + check.env).c_str());
     }
     rv_editor_table_cell();
+    if (row.clicked) {
+        selected = static_cast<int>(id);
+    }
     if (!check.manual) {
         rv_editor_label(rv_editor_text("pane_candidate.by_editor"),
             rv_editor_label_kind::normal,
@@ -116,7 +125,10 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
         app.tools.console.path.string() + (app.session.facts().pdk.empty() ? "" : ", PDK " + app.session.facts().pdk);
     const char *why_not_pass = rv_editor_why_not_pass(app, c, id);
     const char *why_not_any = c.bytes_changed ? rv_editor_text("pane_candidate.bytes_not_ones_built") : nullptr;
-    if (rv_editor_button(rv_editor_text("pane_candidate.pass_button"), theme, { rv_editor_look::live, why_not_pass })) {
+    // A double click or Enter on a check that is not set does what Pass does, when Pass is allowed.
+    const bool row_passes = row.activated && check.state == rv_editor_check_state::not_run && why_not_pass == nullptr;
+    if (rv_editor_button(rv_editor_text("pane_candidate.pass_button"), theme, { rv_editor_look::live, why_not_pass }) ||
+        row_passes) {
         rv_editor_check_set(c, id, rv_editor_check_state::passed, "seen by the operator: " + c.last_run_end, env);
     }
     rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_candidate.fail_button")));
@@ -144,17 +156,35 @@ void rv_editor_candidate_checks(rv_editor_app &app, rv_editor_candidate &c, cons
     const int check_count = static_cast<int>(c.checks.size());
     std::string help_text = rv_editor_text_format("pane_candidate.checks_help", std::make_format_args(check_count));
     rv_editor_label(help_text.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
+    // The state column is as wide as the widest state text, so no state moves what follows it.
+    std::string widest;
+    for (const auto state : { rv_editor_check_state::not_run,
+             rv_editor_check_state::running,
+             rv_editor_check_state::passed,
+             rv_editor_check_state::failed,
+             rv_editor_check_state::blocked,
+             rv_editor_check_state::skipped }) {
+        const std::string name = std::string(rv_editor_check_state_name(state)) + void_suffix;
+        widest = ImGui::CalcTextSize(name.c_str()).x > ImGui::CalcTextSize(widest.c_str()).x ? name : widest;
+    }
+    const float state_width =
+        rv_editor_status_width(widest.c_str(), rv_editor_status_kind::idle, theme) + ImGui::GetStyle().CellPadding.x * 2.0f;
     const rv_editor_table_column columns[] = {
         { rv_editor_text("pane_candidate.check_column"), rv_editor_table_width::fixed },
-        { rv_editor_text("pane_candidate.state_column"), rv_editor_table_width::fixed },
+        { rv_editor_text("pane_candidate.state_column"), rv_editor_table_width::fixed, state_width },
         { rv_editor_text("pane_candidate.result_column") },
     };
+    // The selected row is this pane's own state, kept in the window's storage.
+    ImGuiStorage *storage = ImGui::GetStateStorage();
+    const ImGuiID selected_key = ImGui::GetID("##selected_check");
+    int selected = storage->GetInt(selected_key, -1);
     if (rv_editor_table_begin("##checks", columns, checks_table_columns, { .row_bands = true, .header = true })) {
         for (size_t id = 0; id < c.checks.size(); ++id) {
-            rv_editor_check_row(app, c, id, theme);
+            rv_editor_check_row(app, c, id, selected, theme);
         }
         rv_editor_table_end();
     }
+    storage->SetInt(selected_key, selected);
 }
 
 } // namespace
@@ -211,7 +241,7 @@ void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme)
         const auto summary = rv_editor_checks_summary(c);
         std::string what =
             rv_editor_text_format("pane_candidate.candidate_header", std::make_format_args(candidate_number, summary));
-        rv_editor_label(what.c_str(), rv_editor_label_kind::normal, theme);
+        rv_editor_label(what.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         rv_editor_candidate_checks(app, c, theme);
     };
     body();
@@ -229,9 +259,8 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
     // sections, so the whole pane is one well.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
-        if (!r.last_failure.empty()) {
-            rv_editor_status(r.last_failure.c_str(), rv_editor_status_kind::error, theme);
-        }
+        // The status lines keep a place of their own, empty when there is nothing to say.
+        rv_editor_message_line("##failure", r.last_failure.c_str(), 2, 0.0f, theme, nullptr, rv_editor_label_kind::error);
         if (r.candidates.empty()) {
             rv_editor_label(rv_editor_text("pane_candidate.no_candidate_yet_candidate_pane"),
                 rv_editor_label_kind::normal,
@@ -265,12 +294,20 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             }
         }
         rv_editor_candidate &c = r.candidates[r.selected];
-        if (r.selected + 1 < r.candidates.size()) {
-            rv_editor_status(rv_editor_text("pane_candidate.newer_candidate"), rv_editor_status_kind::warning, theme);
-        }
-        if (c.bytes_changed) {
-            rv_editor_status(rv_editor_text("pane_candidate.bytes_changed"), rv_editor_status_kind::error, theme);
-        }
+        rv_editor_message_line("##newer",
+            r.selected + 1 < r.candidates.size() ? rv_editor_text("pane_candidate.newer_candidate") : "",
+            1,
+            0.0f,
+            theme,
+            nullptr,
+            rv_editor_label_kind::warning);
+        rv_editor_message_line("##bytes_changed",
+            c.bytes_changed ? rv_editor_text("pane_candidate.bytes_changed") : "",
+            1,
+            0.0f,
+            theme,
+            nullptr,
+            rv_editor_label_kind::error);
 
         const rv_editor_table_column identity_columns[identity_table_columns] = {};
         if (rv_editor_table_begin("##identity", identity_columns, identity_table_columns)) {
@@ -362,12 +399,10 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             c.operator_name.clear();
             c.dirty = true;
         }
-        if (!r.report.empty()) {
-            rv_editor_path_row(rv_editor_text("pane_candidate.report_row"), r.report, theme);
-        }
-        if (!r.error.empty()) {
-            rv_editor_status(r.error.c_str(), rv_editor_status_kind::error, theme);
-        }
+        rv_editor_path_row(rv_editor_text("pane_candidate.report_row"),
+            r.report.empty() ? rv_editor_text("pane_observe.dash") : r.report,
+            theme);
+        rv_editor_message_line("##error", r.error.c_str(), 2, 0.0f, theme, nullptr, rv_editor_label_kind::error);
     };
     body();
     rv_editor_well_end();

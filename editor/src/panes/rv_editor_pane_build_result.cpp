@@ -47,24 +47,27 @@ rv_editor_status_kind rv_editor_build_lamp(rv_editor_build_state state)
     }
 }
 
-// The process, its exit and whether output was cut, once a build job has ended.
+// The process, its exit and whether output was cut, once a build job has ended; "-" and a disabled Open Log before.
 void rv_editor_build_result_summary(rv_editor_app &app, const rv_editor_build &b, const rv_editor_theme &theme)
 {
-    std::string exit_line = rv_editor_exit_text(b.exit_status());
-    if (b.output_cut()) {
+    const bool done = !b.busy();
+    const char *dash = rv_editor_text("pane_observe.dash");
+    std::string exit_line = done ? rv_editor_exit_text(b.exit_status()) : std::string(dash);
+    if (done && b.output_cut()) {
         exit_line += rv_editor_text("pane_build_result.output_cut");
     }
     if (rv_editor_table_begin("##build_summary", summary_table_columns, summary_columns)) {
         const char *lbl_process = rv_editor_text("pane_build_result.summary_process");
         const auto pid = b.pid();
-        const auto process_text = rv_editor_text_format("pane_build_result.process_pid", std::make_format_args(pid));
+        const auto process_text =
+            done ? rv_editor_text_format("pane_build_result.process_pid", std::make_format_args(pid)) : std::string(dash);
         rv_editor_fact(lbl_process, process_text.c_str(), theme);
         const char *lbl_exit = rv_editor_text("pane_build_result.summary_exit");
         rv_editor_fact(lbl_exit, exit_line, theme);
         rv_editor_table_end();
     }
 
-    const std::string file = app.log_files.path_for(b.pid());
+    const std::string file = done ? app.log_files.path_for(b.pid()) : std::string();
     const char *log_key = b.image().empty() ? "pane_build_result.log_kept_no" : "pane_build_result.log_candidate";
     const char *no_log = rv_editor_text(log_key);
     const char *btn_text = rv_editor_text("pane_build_result.open_log_button");
@@ -85,6 +88,28 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
 
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
+        // The buttons come first, so no state of the job moves them.
+        const char *why_not = rv_editor_app_why_not_build(app);
+        if (rv_editor_button(rv_editor_text("pane_build_result.build_button"), theme, { rv_editor_look::live, why_not })) {
+            rv_editor_app_build(app);
+        }
+        rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_build_result.build_candidate_button")));
+        if (rv_editor_button(rv_editor_text("pane_build_result.build_candidate_button"),
+                theme,
+                { rv_editor_look::live, why_not })) {
+            rv_editor_app_build_candidate(app);
+        }
+        rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_build_result.cancel_button")));
+        const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
+        const bool cancelling = b.state() == rv_editor_build_state::cancelling;
+        const char *no_build_why =
+            b.state() == rv_editor_build_state::building ? nullptr : rv_editor_text("pane_build_result.no_build_running");
+        const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : no_build_why;
+        const char *cancel_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
+        if (rv_editor_button(rv_editor_text("pane_build_result.cancel_button"), theme, { rv_editor_look::live, cancel_why })) {
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
+        }
+
         if (b.state() == rv_editor_build_state::idle) {
             const char *nothing = rv_editor_text("pane_build_result.nothing_built");
             rv_editor_label(nothing, rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
@@ -99,30 +124,7 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
             }
             const std::string line = what + state_separator + rv_editor_build_state_name(b.state());
             rv_editor_status(line.c_str(), rv_editor_build_lamp(b.state()), theme);
-            if (!b.busy()) {
-                rv_editor_build_result_summary(app, b, theme);
-            }
-        }
-
-        const char *why_not = rv_editor_app_why_not_build(app);
-        if (rv_editor_button(rv_editor_text("pane_build_result.build_button"), theme, { rv_editor_look::live, why_not })) {
-            rv_editor_app_build(app);
-        }
-        ImGui::SameLine();
-        if (rv_editor_button(rv_editor_text("pane_build_result.build_candidate_button"),
-                theme,
-                { rv_editor_look::live, why_not })) {
-            rv_editor_app_build_candidate(app);
-        }
-        ImGui::SameLine();
-        const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
-        const bool cancelling = b.state() == rv_editor_build_state::cancelling;
-        const char *no_build_why =
-            b.state() == rv_editor_build_state::building ? nullptr : rv_editor_text("pane_build_result.no_build_running");
-        const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : no_build_why;
-        const char *cancel_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
-        if (rv_editor_button(rv_editor_text("pane_build_result.cancel_button"), theme, { rv_editor_look::live, cancel_why })) {
-            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
+            rv_editor_build_result_summary(app, b, theme);
         }
 
         // The job's own error and warning lines, newest job only; all of them stay in the Build Log.
@@ -145,11 +147,8 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
         const auto diag_text =
             rv_editor_text_format("pane_build_result.errors_warnings", std::make_format_args(errors, warnings));
         rv_editor_label(diag_text.c_str(), rv_editor_label_kind::normal, theme);
-        if (found.empty()) {
-            const char *status = rv_editor_text(b.busy() ? "pane_build_result.none_so_far" : "pane_build_result.none_full_log");
-            rv_editor_label(status, rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-            return;
-        }
+        const char *none = rv_editor_text(b.busy() ? "pane_build_result.none_so_far" : "pane_build_result.none_full_log");
+        rv_editor_message_line("##diag_none", found.empty() ? none : "", 2, 0.0f, theme);
         rv_editor_log_begin("##diag", ImVec2(0, 0), theme);
         for (const rv_editor_log_line *l : found) {
             rv_editor_log_row("",

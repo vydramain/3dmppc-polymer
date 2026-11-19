@@ -48,6 +48,16 @@ std::vector<const rv_editor_log_line *> rv_editor_session_stderr(const rv_editor
     return out;
 }
 
+// A fact whose value takes one line, ending in "..." with its full text in a tooltip, so a long value moves nothing.
+void rv_editor_fixed_fact(const char *label, const std::string &value, const rv_editor_theme &theme)
+{
+    rv_editor_table_row();
+    rv_editor_table_cell();
+    rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+    rv_editor_table_cell();
+    rv_editor_table_cell_text(value.c_str(), theme);
+}
+
 // The process, its exit, what was still waiting for an answer, the last
 // confirmed reply and its recent stderr, once a session has ended.
 void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, const rv_editor_theme &theme)
@@ -155,13 +165,16 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
             frame_value = rv_editor_text_format("pane_session.frame_last_reported_fmt", std::make_format_args(frame_num));
         }
         rv_editor_fact(rv_editor_text("pane_session.frame"), frame_value, theme);
-        if (!f.disc.empty()) {
-            const auto disc_text = rv_editor_text_format("pane_session.disc_pdk_format", std::make_format_args(f.disc, f.pdk));
-            rv_editor_fact(rv_editor_text("pane_session.disc"), disc_text, theme);
-        }
-        if (f.lua_budget > 0) {
+        // The optional rows are always there ("-" when absent), so what follows them keeps its place.
+        const std::string dash = rv_editor_text("pane_observe.dash");
+        const auto disc_text =
+            f.disc.empty() ? dash : rv_editor_text_format("pane_session.disc_pdk_format", std::make_format_args(f.disc, f.pdk));
+        rv_editor_fixed_fact(rv_editor_text("pane_session.disc"), disc_text, theme);
+        {
             std::string entry_text;
-            if (f.revision != f.first_revision) {
+            if (f.lua_budget <= 0) {
+                entry_text = dash;
+            } else if (f.revision != f.first_revision) {
                 entry_text = rv_editor_text_format("pane_session.entry_script_reloaded",
                     std::make_format_args(f.revision, f.first_revision));
             } else if (is_latest_build) {
@@ -170,20 +183,19 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
                 entry_text =
                     rv_editor_text_format("pane_session.entry_script_revision_only", std::make_format_args(f.revision));
             }
-            rv_editor_fact(rv_editor_text("pane_session.entry_script"), entry_text, theme);
+            rv_editor_fixed_fact(rv_editor_text("pane_session.entry_script"), entry_text, theme);
         }
-        if (!is_latest_build) {
-            const auto build_num = s.build_number();
-            const auto note_text =
-                rv_editor_text_format("pane_session.note_native_code_format", std::make_format_args(build_num));
-            rv_editor_fact(rv_editor_text("pane_session.note"), note_text, theme);
-        }
-        if (!s.reload_result().empty()) {
-            const auto reload_text = s.reload_ok() ?
-                rv_editor_text_format("pane_session.last_reload_applied", std::make_format_args(s.reload_result())) :
-                rv_editor_text_format("pane_session.last_reload_refused", std::make_format_args(s.reload_result()));
-            rv_editor_fact(rv_editor_text("pane_session.last_reload"), reload_text, theme);
-        }
+        const auto build_num = s.build_number();
+        const auto note_text = is_latest_build ?
+            dash :
+            rv_editor_text_format("pane_session.note_native_code_format", std::make_format_args(build_num));
+        rv_editor_fixed_fact(rv_editor_text("pane_session.note"), note_text, theme);
+        const auto reload_text = s.reload_result().empty() ?
+            dash :
+            s.reload_ok() ?
+            rv_editor_text_format("pane_session.last_reload_applied", std::make_format_args(s.reload_result())) :
+            rv_editor_text_format("pane_session.last_reload_refused", std::make_format_args(s.reload_result()));
+        rv_editor_fixed_fact(rv_editor_text("pane_session.last_reload"), reload_text, theme);
         const auto saved_count = app.findings.saved.size();
         const auto saved_text = rv_editor_text_format("pane_session.saved_format", std::make_format_args(saved_count));
         rv_editor_fact(rv_editor_text("pane_session.saved"), saved_text, theme);
@@ -192,9 +204,7 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         // Collapsed by default: the build path and the code hash, each with its own Copy.
         if (rv_editor_collapsing_section(rv_editor_text("pane_session.details"))) {
             rv_editor_path_row(rv_editor_text("pane_session.build_directory"), s.disc_dir().string(), theme);
-            if (!f.disc.empty()) {
-                rv_editor_path_row(rv_editor_text("pane_session.code_hash"), f.code_hash, theme);
-            }
+            rv_editor_path_row(rv_editor_text("pane_session.code_hash"), f.disc.empty() ? dash : f.code_hash, theme);
         }
 
         rv_editor_section(rv_editor_text("pane_session.marks"));
@@ -203,7 +213,7 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         }
         for (size_t i = 0; i < app.marks.size(); ++i) {
             const std::string mark_text = std::format("{}. {}", i + 1, app.marks[i]);
-            rv_editor_label(mark_text.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_label(mark_text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         }
     };
     body();
