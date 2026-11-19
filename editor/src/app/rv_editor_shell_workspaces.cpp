@@ -3,11 +3,14 @@
 #include "app/rv_editor_shell.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <numeric>
 #include <string>
 #include <system_error>
 
+#include "panes/rv_editor_pane_controls.hpp"
+#include "panes/rv_editor_release_facts.hpp"
 #include "pdk/rv_err.h"
 
 namespace rv_editor
@@ -123,7 +126,26 @@ int rv_editor_shell_grow_game(rv_editor_workspace &ws,
     return RV_ERR_NOENT;
 }
 
+// The transport strips (Runtime and Release Controls): their height follows the width they are drawn at.
+bool rv_editor_transport_kind(rv_editor_pane_kind kind)
+{
+    return kind == rv_editor_pane_kind::controls || kind == rv_editor_pane_kind::release_controls;
+}
+
+bool rv_editor_transport_leaf(const rv_editor_workspace &ws, uint32_t node)
+{
+    const rv_editor_tile_node &n = ws.layout.nodes[node];
+    if (n.kind != rv_editor_tile_kind::leaf || n.leaf.tabs.empty()) {
+        return false;
+    }
+    return std::all_of(n.leaf.tabs.begin(), n.leaf.tabs.end(), [&](rv_editor_pane_id pane) {
+        return rv_editor_transport_kind(ws.panes.panes[pane].kind);
+    });
+}
+
 // `node`'s size along `axis`, the largest of its tabs' minimums (ws.minimums): what a strip leaf needs and nothing more.
+// A transport strip's height is the one of its body at the width it was drawn at, plus the leaf's chrome (known once a
+// frame has drawn the tree, which is also when ImGui can measure).
 int32_t rv_editor_strip_min_along(const rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis)
 {
     rv_editor_size need{ 0, 0 };
@@ -132,6 +154,14 @@ int32_t rv_editor_strip_min_along(const rv_editor_workspace &ws, uint32_t node, 
         if (it != ws.minimums.end()) {
             need.w = std::max(need.w, it->second.w);
             need.h = std::max(need.h, it->second.h);
+        }
+        const rv_editor_pane_kind kind = ws.panes.panes[pane].kind;
+        if (axis == rv_editor_axis::y && rv_editor_transport_kind(kind) && ws.body_chrome.w > 0 && node < ws.rects.size() &&
+            ws.rects[node].w > ws.body_chrome.w) {
+            const float body = static_cast<float>(ws.rects[node].w - ws.body_chrome.w);
+            const float height =
+                kind == rv_editor_pane_kind::controls ? rv_editor_transport_height(body) : rv_editor_release_height(body);
+            need.h = std::max(need.h, static_cast<int32_t>(std::ceil(height)) + ws.body_chrome.h);
         }
     }
     return axis == rv_editor_axis::x ? need.w : need.h;
@@ -164,8 +194,9 @@ int32_t rv_editor_strip_like_min_along(const rv_editor_workspace &ws, uint32_t n
 // strip's exact minimum, the rest going to its sibling: no empty band under a
 // strip's rows. Skipped once the tree no longer fits its minimums
 // (rv_editor_tile_place_node then shrinks both children in proportion instead of
-// honoring any ratio).
-void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
+// honoring any ratio). `all` is false in a layout the user has touched: only the
+// transport strips are fitted there, and by height only: as their height follows their width, while the width is the user's.
+void rv_editor_shell_fit_strips(rv_editor_workspace &ws, bool all)
 {
     for (uint32_t i = 0; i < ws.layout.nodes.size(); ++i) {
         const rv_editor_tile_node &n = ws.layout.nodes[i];
@@ -178,6 +209,9 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
             continue; // neither, or both: nothing to fit against
         }
         const rv_editor_axis axis = n.split.axis;
+        if (!all && axis != rv_editor_axis::y) {
+            continue; // a strip's width beside a pane is the user's
+        }
         const rv_editor_rect &a = ws.rects[n.split.first];
         const rv_editor_rect &b = ws.rects[n.split.second];
         const int32_t total = (axis == rv_editor_axis::x ? a.w : a.h) + (axis == rv_editor_axis::x ? b.w : b.h);
@@ -185,6 +219,9 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
             continue;
         }
         const uint32_t strip = first_is_strip ? n.split.first : n.split.second;
+        if (!all && !rv_editor_transport_leaf(ws, strip)) {
+            continue;
+        }
         const int32_t need = rv_editor_strip_like_min_along(ws, strip, axis);
         const float ratio = first_is_strip ? static_cast<float>(need) / static_cast<float>(total) :
                                              1.0f - static_cast<float>(need) / static_cast<float>(total);
@@ -241,8 +278,8 @@ void rv_editor_shell_frame_start(rv_editor_shell &shell)
     // the last draw of this very tree. Independent of game_fit: a Game the user
     // stopped fitting leaves the strips fitting.
     const size_t slot = rv_editor_workspace_slot(shell.active);
-    if (shell.layout_untouched[slot] && !shell.ws.dragged && shell.ws.rects.size() == shell.ws.layout.nodes.size()) {
-        rv_editor_shell_fit_strips(shell.ws);
+    if (shell.ws.rects.size() == shell.ws.layout.nodes.size()) {
+        rv_editor_shell_fit_strips(shell.ws, shell.layout_untouched[slot] && !shell.ws.dragged);
     }
     rv_editor_shell_fit_game(shell);
 }

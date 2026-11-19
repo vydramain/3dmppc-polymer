@@ -53,8 +53,9 @@ int rv_editor_status_bar(const char *const fields[],
 // The bar's least width: the widest texts, the segments' paddings, the gaps and the window's side paddings.
 float rv_editor_status_bar_min_width(const char *const widest[], int count, const rv_editor_theme &theme);
 
-// Lamp and label; each kind has its own symbol as well as its own colour.
-void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme);
+// Lamp and label; each kind has its own symbol as well as its own colour. `frame_aligned` false draws it one text line high
+// instead of a frame high, for a row of text.
+void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme, bool frame_aligned = true);
 
 // Width rv_editor_status draws `label` in, mark included; reserve this ahead of a status
 // that follows something else on the same row.
@@ -107,9 +108,12 @@ struct rv_editor_transport_actions {
 rv_editor_transport_actions
 rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_theme &theme, float reserve = 0.0f);
 
-// The side of the transport buttons in a tile `width` wide: the large square from 640 px (scaled) that leaves `reserve`
-// to the right of the buttons, else a frame.
-float rv_editor_transport_side(float width, float reserve = 0.0f);
+// The side of the `count` transport buttons in a tile `width` wide: the large square from 640 px (scaled) that leaves
+// `reserve` to the right of the buttons, else a frame.
+float rv_editor_transport_side(float width, float reserve = 0.0f, int count = 6);
+
+// True from 640 px (scaled): the transport's buttons are large and labelled.
+bool rv_editor_transport_is_large(float width);
 
 // An area inside a pane that asks something without blocking anything else: a
 // bordered block under its own header; the caller draws the text and the buttons

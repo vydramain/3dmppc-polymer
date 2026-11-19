@@ -8,6 +8,8 @@
 #include "imgui.h"
 
 #include "text/rv_editor_text.hpp"
+#include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_status.hpp"
 
 namespace rv_editor
 {
@@ -78,6 +80,53 @@ rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5]
 {
     // The facts keep a constant room: the width of a facts line of twenty "M" is room enough to read it.
     return rv_editor_release_tile_size(tiles, ImGui::CalcTextSize(facts_room_text).x, avail);
+}
+
+float rv_editor_release_column_min_width()
+{
+    // Asked every frame; the answer changes only with the font or its size.
+    static const ImFont *cached_font = nullptr;
+    static float cached_size = 0.0f;
+    static float cached_width = 0.0f;
+    const ImFont *font = ImGui::GetIO().Fonts->Fonts[0];
+    if (font == cached_font && font->LegacySize == cached_size) {
+        return cached_width;
+    }
+    rv_editor_candidate longest; // the widest number: six digits
+    longest.number = 999999;
+    longest.checks = rv_editor_checks_make();
+    float facts = 0.0f;
+    for (const rv_editor_candidate *c :
+        { static_cast<const rv_editor_candidate *>(&longest), static_cast<const rv_editor_candidate *>(nullptr) }) {
+        for (const auto building : { rv_editor_release_building::none,
+                 rv_editor_release_building::candidate,
+                 rv_editor_release_building::development }) {
+            facts = std::max(facts, ImGui::CalcTextSize(rv_editor_release_facts_make(c, building).first_line.c_str()).x);
+        }
+    }
+    cached_font = font;
+    cached_size = font->LegacySize;
+    cached_width = std::max(facts,
+        rv_editor_button_width_for(
+            { rv_editor_text("pane_candidate.force_stop_button"), rv_editor_text("pane_candidate.cancel_build_button") }));
+    return cached_width;
+}
+
+float rv_editor_release_min_width()
+{
+    const ImGuiStyle &style = ImGui::GetStyle();
+    const float gap = style.ItemSpacing.x;
+    const float buttons = static_cast<float>(release_buttons) * ImGui::GetFrameHeight() + (release_buttons - 1) * gap;
+    // As Runtime Controls': the window's and the shelf's left padding, the squares, then the column to the tile's edge.
+    return style.WindowPadding.x + style.ItemInnerSpacing.x + buttons + gap + rv_editor_release_column_min_width();
+}
+
+float rv_editor_release_height(float width)
+{
+    const ImGuiStyle &style = ImGui::GetStyle();
+    const float side = rv_editor_transport_side(width, rv_editor_release_column_min_width(), release_buttons);
+    const float column = ImGui::GetFrameHeight() + style.ItemSpacing.y + ImGui::GetTextLineHeight();
+    return style.WindowPadding.y + 2.0f * style.ItemInnerSpacing.y + std::max(side, column) + style.ItemSpacing.y;
 }
 
 } // namespace rv_editor

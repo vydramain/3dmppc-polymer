@@ -407,6 +407,8 @@ struct rv_editor_workspace {
     // content size a pane needs (the Game's frame at 1x).
     std::map<rv_editor_pane_id, std::string> titles;
     std::map<rv_editor_pane_id, rv_editor_size> minimums;
+    // What a leaf adds around its body (the "##pane" window: frame, header, tab strip), as the last draw measured it.
+    rv_editor_size body_chrome{ 0, 0 };
     // Each node's rectangle at the last draw, by node index; a splitter was dragged.
     std::vector<rv_editor_rect> rects;
     bool dragged = false;

@@ -1,10 +1,10 @@
-// Release Controls strip: Build, Run, Run in Player, Stop and Export Report as tiles, then a
-// column of two lines: the shown candidate's facts, and one line of the checks not yet passed
-// followed by the Force Stop or Cancel Build action.
+// Release Controls strip: the transport template with five squares (Build, Run, Run in Player, Stop and Export Report), then
+// a column of two rows: the action slot (Force Stop or Cancel Build) and the message row with the facts and the open checks.
 
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -17,6 +17,7 @@
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_status.hpp"
 #include "ui/rv_editor_widgets_tile.hpp"
 
 namespace rv_editor
@@ -25,22 +26,6 @@ namespace rv_editor
 namespace
 {
 
-// One reserved single line, the rest of the row wide: `text` clips rather than wraps,
-// so this row never splits into two. Hovering shows it in full.
-void rv_editor_reserved_line(const char *id, const std::string &text, const std::string &tip, const rv_editor_theme &theme)
-{
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::BeginChild(id, ImVec2(0.0f, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-    if (!text.empty()) {
-        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-    }
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-    if (!text.empty() && ImGui::IsItemHovered()) {
-        rv_editor_tooltip(tip.c_str());
-    }
-}
-
 // Text of the "+N" chip: how many open checks the row has no room for.
 std::string rv_editor_more_text(size_t rest)
 {
@@ -48,16 +33,20 @@ std::string rv_editor_more_text(size_t rest)
     return rv_editor_text_format("pane_candidate.more_not_passed", std::make_format_args(count));
 }
 
-// The checks of `c` that do not count as Passed, as chips while each still fits `width`.
-// A "+N" chip takes the rest; its hover lists their names. Hovering a chip anywhere shows
-// its note (what was seen) or, without one, what a Passed claims.
+// The checks of `c` that do not count as Passed, after the facts on the row: chips while each still fits `width`, and
+// nothing at all when not even the first element does. A "+N" chip takes the rest; its hover lists their names. Hovering a
+// chip anywhere shows its note (what was seen) or, without one, what a Passed claims.
 void rv_editor_checks_content(const rv_editor_candidate &c, float width, const rv_editor_theme &theme)
 {
     const auto counts = [&c](const rv_editor_check &check) {
         return check.state == rv_editor_check_state::passed && rv_editor_check_valid(c, check);
     };
     if (std::all_of(c.checks.begin(), c.checks.end(), counts)) {
-        rv_editor_label(rv_editor_text("pane_candidate.all_checks_passed"), rv_editor_label_kind::dim, theme);
+        const char *all = rv_editor_text("pane_candidate.all_checks_passed");
+        if (ImGui::CalcTextSize(all).x <= width) {
+            ImGui::SameLine();
+            rv_editor_label(all, rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
+        }
         return;
     }
     std::vector<const rv_editor_check *> open;
@@ -67,10 +56,14 @@ void rv_editor_checks_content(const rv_editor_candidate &c, float width, const r
         }
     }
     const char *label = rv_editor_text("pane_candidate.not_passed_label");
+    float used = ImGui::CalcTextSize(label).x;
+    if (used > width) {
+        return;
+    }
+    ImGui::SameLine();
     rv_editor_label(label, rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const size_t count = open.size();
-    float used = ImGui::CalcTextSize(label).x;
     // Upper bound of the "+N" chip's width: its text at the full count is the widest it gets.
     const float more_room = gap + ImGui::CalcTextSize(rv_editor_more_text(count).c_str()).x;
     size_t shown = 0;
@@ -86,11 +79,11 @@ void rv_editor_checks_content(const rv_editor_candidate &c, float width, const r
         used += chip;
         ImGui::SameLine();
         ImGui::BeginGroup();
-        rv_editor_status(check.name, rv_editor_check_lamp(c, check), theme);
+        rv_editor_status(check.name, rv_editor_check_lamp(c, check), theme, false);
         ImGui::EndGroup();
         rv_editor_item_tooltip(check.note.empty() ? check.passes_when : check.note.c_str());
     }
-    if (shown < count) {
+    if (shown < count && used + more_room <= width) {
         std::string names;
         for (size_t i = shown; i < count; ++i) {
             if (!names.empty()) {
@@ -107,23 +100,36 @@ void rv_editor_checks_content(const rv_editor_candidate &c, float width, const r
     }
 }
 
-// Row two's checks part in one transparent child of `width`: nothing is drawn past the
-// edge, and the slot button follows the child on the row.
-void rv_editor_open_checks(const rv_editor_candidate *c, float width, const rv_editor_theme &theme)
+// The message row, a window of one size in every state that clips what it holds: the facts, then the open checks as chips
+// in what the facts leave. Hovering the facts shows the sha256.
+void rv_editor_release_message(const rv_editor_release_facts &facts,
+    const rv_editor_candidate *shown,
+    float width,
+    const rv_editor_theme &theme)
 {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::BeginChild("##checks",
-        ImVec2(std::max(width, 1.0f), ImGui::GetFrameHeight()),
+    ImGui::BeginChild("##message",
+        ImVec2(width, ImGui::GetTextLineHeight()),
         ImGuiChildFlags_None,
         ImGuiWindowFlags_NoScrollbar);
-    if (c != nullptr) {
-        rv_editor_checks_content(*c, width, theme);
+    rv_editor_label(facts.first_line.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+    const std::string tip = shown != nullptr ? rv_editor_release_number_tooltip(*shown) : facts.first_line;
+    rv_editor_item_tooltip(tip.c_str());
+    if (shown != nullptr && facts.second_line) {
+        const float gap = ImGui::GetStyle().ItemSpacing.x;
+        rv_editor_checks_content(*shown, width - ImGui::CalcTextSize(facts.first_line.c_str()).x - gap, theme);
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
 }
 
 } // namespace
+
+rv_editor_size rv_editor_release_controls_minimum()
+{
+    const float width = std::ceil(rv_editor_release_min_width());
+    return { static_cast<int32_t>(width), static_cast<int32_t>(std::ceil(rv_editor_release_height(width))) };
+}
 
 void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme)
 {
@@ -164,7 +170,6 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         rv_editor_glyph::export_,
         theme.code_blue,
         rv_editor_text("pane_candidate.export_report_tooltip") };
-    const rv_editor_tile tiles[] = { build_tile, run_tile, player_tile, stop_tile, report_tile };
 
     const bool has_candidate = !app.release.candidates.empty();
     const rv_editor_candidate *shown = has_candidate ? &app.release.candidates[app.release.selected] : nullptr;
@@ -174,25 +179,28 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     }
     const rv_editor_release_facts facts = rv_editor_release_facts_make(shown, building);
 
-    // One size for the whole strip, chosen before the first tile is drawn.
-    const rv_editor_tile_size size = rv_editor_release_tile_size(tiles, ImGui::GetContentRegionAvail().x);
-    const rv_editor_state build_state{ rv_editor_look::live, rv_editor_app_why_not_build(app) };
-    if (rv_editor_tile_button(build_tile, size, theme, build_state)) {
+    // One row of five squares whose size follows the window's width alone (as Runtime Controls'), so no state moves one.
+    const float width = ImGui::GetWindowWidth();
+    const rv_editor_tile_size size =
+        rv_editor_transport_is_large(width) ? rv_editor_tile_size::large : rv_editor_tile_size::small;
+    const float side = rv_editor_transport_side(width, rv_editor_release_column_min_width(), release_buttons);
+    const auto draw_tile = [&](rv_editor_tile tile, const char *why) {
+        tile.side = side;
+        return rv_editor_tile_button(tile, size, theme, { rv_editor_look::live, why });
+    };
+    if (draw_tile(build_tile, rv_editor_app_why_not_build(app))) {
         rv_editor_app_build_candidate(app);
     }
     ImGui::SameLine();
-    const rv_editor_state run_state{ rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) };
-    if (rv_editor_tile_button(run_tile, size, theme, run_state)) {
+    if (draw_tile(run_tile, rv_editor_app_why_not_run_candidate(app))) {
         rv_editor_app_run_candidate(app);
     }
     ImGui::SameLine();
-    const rv_editor_state player_state{ rv_editor_look::live, rv_editor_app_why_not_play(app) };
-    if (rv_editor_tile_button(player_tile, size, theme, player_state)) {
+    if (draw_tile(player_tile, rv_editor_app_why_not_play(app))) {
         rv_editor_app_play_candidate(app);
     }
     ImGui::SameLine();
-    const rv_editor_state stop_state{ rv_editor_look::live, stop_release_why };
-    if (rv_editor_tile_button(stop_tile, size, theme, stop_state)) {
+    if (draw_tile(stop_tile, stop_release_why)) {
         if (session_live) {
             (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::stop });
         }
@@ -201,18 +209,12 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         }
     }
     ImGui::SameLine();
-    const rv_editor_state report_state{ rv_editor_look::live, why_not_export };
-    if (rv_editor_tile_button(report_tile, size, theme, report_state)) {
+    if (draw_tile(report_tile, why_not_export)) {
         rv_editor_app_export_report(app);
     }
-    // Right of the tiles, one column of two lines. The facts take the rest of line one and
-    // clip, so a longer text cannot wrap it; the number's hover shows the sha256.
+    // Right of the squares, two rows: the action slot (always there, outside the message row), then the message row.
     ImGui::SameLine();
     ImGui::BeginGroup();
-    const std::string tip = shown != nullptr ? rv_editor_release_number_tooltip(*shown) : facts.first_line;
-    rv_editor_reserved_line("##facts", facts.first_line, tip, theme);
-
-    // Line two: the action is chosen first, its width reserved, then the checks fill the rest.
     // A hung runtime needs Force Stop first.
     const char *action_label = rv_editor_text("pane_candidate.cancel_build_button");
     const char *action_why = rv_editor_text("pane_candidate.no_build_to_cancel");
@@ -228,13 +230,13 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         action_kind = rv_editor_pane_request_kind::cancel_build;
         action_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
     }
-    const float gap = ImGui::GetStyle().ItemSpacing.x;
-    // The slot is always there at the width of its widest button, and the checks' area is the rest of the row.
     const std::initializer_list<const char *> action_labels = { rv_editor_text("pane_candidate.force_stop_button"),
         rv_editor_text("pane_candidate.cancel_build_button") };
-    const float action_room = rv_editor_button_width_for(action_labels) + gap;
-    rv_editor_open_checks(facts.second_line ? shown : nullptr, ImGui::GetContentRegionAvail().x - action_room, theme);
-    ImGui::SameLine();
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::BeginChild("##action",
+        ImVec2(rv_editor_button_width_for(action_labels), ImGui::GetFrameHeight()),
+        ImGuiChildFlags_None,
+        ImGuiWindowFlags_NoScrollbar);
     if (rv_editor_button_fixed(action_label, action_labels, theme, { rv_editor_look::live, action_why })) {
         (void)rv_editor_app_request(app, { action_kind });
     }
@@ -242,6 +244,13 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     if (action_why != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         rv_editor_tooltip(action_why);
     }
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+    // Never narrower than the longest facts: the tile's minimum is real.
+    rv_editor_release_message(facts,
+        shown,
+        std::max(rv_editor_release_column_min_width(), ImGui::GetContentRegionAvail().x),
+        theme);
     ImGui::EndGroup();
     rv_editor_shelf_end();
 }

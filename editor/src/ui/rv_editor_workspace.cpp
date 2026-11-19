@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "imgui.h"
+#include "imgui_internal.h"
 
 #include "pdk/rv_err.h"
 #include "text/rv_editor_text.hpp"
@@ -34,6 +35,10 @@ bool rv_editor_pane_converted(rv_editor_pane_kind kind)
     case rv_editor_pane_kind::scene:
     case rv_editor_pane_kind::hierarchy:
     case rv_editor_pane_kind::inspector:
+    case rv_editor_pane_kind::controls:
+    case rv_editor_pane_kind::release_controls:
+    case rv_editor_pane_kind::toolchest:
+    case rv_editor_pane_kind::game:
         return true;
     default:
         return false;
@@ -279,6 +284,12 @@ void draw_leaf(rv_editor_workspace &ws,
     const ImVec2 well_min = ImGui::GetWindowPos();
     const ImVec2 well_max(well_min.x + ImGui::GetWindowWidth(), well_min.y + ImGui::GetWindowHeight());
     rv_editor_draw_bevel(ImGui::GetWindowDrawList(), well_min, well_max, theme, rv_editor_bevel::sunken);
+    // What this leaf adds around its body: the same for every leaf drawn (a clipped one skips its header), as the strips' fit
+    // needs it.
+    if (!ImGui::GetCurrentWindow()->SkipItems) {
+        ws.body_chrome = { rect.w - static_cast<int32_t>(ImGui::GetWindowWidth()),
+            rect.h - static_cast<int32_t>(ImGui::GetWindowHeight()) };
+    }
     if (!leaf.tabs.empty()) {
         rv_editor_pane_id active_pane_id = leaf.tabs[leaf.active];
         draw_pane(context, active_pane_id, ws.panes.panes[active_pane_id].kind, theme);

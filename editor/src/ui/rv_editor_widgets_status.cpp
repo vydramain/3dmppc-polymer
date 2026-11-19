@@ -82,16 +82,18 @@ rv_editor_mark rv_editor_severity_mark(rv_editor_severity severity, const rv_edi
 
 } // namespace
 
-void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme)
+void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme, bool frame_aligned)
 {
     // Passive text, not a button face: a bracketed mark in the state's colour,
     // on a flat backing sized to the mark so it reads on any row background.
     const rv_editor_mark mark = rv_editor_status_mark(kind, theme);
-    ImGui::AlignTextToFramePadding();
+    if (frame_aligned) {
+        ImGui::AlignTextToFramePadding();
+    }
     // AlignTextToFramePadding offsets the glyph baseline by FramePadding.y from
     // the cursor; match that so the backing lands exactly under the mark.
     const ImVec2 pos = ImGui::GetCursorScreenPos();
-    const ImVec2 mark_min(pos.x, pos.y + ImGui::GetStyle().FramePadding.y);
+    const ImVec2 mark_min(pos.x, pos.y + (frame_aligned ? ImGui::GetStyle().FramePadding.y : 0.0f));
     const ImVec2 size = ImGui::CalcTextSize(mark.symbol);
     ImGui::GetWindowDrawList()->AddRectFilled(mark_min,
         ImVec2(mark_min.x + size.x, mark_min.y + size.y),
@@ -100,7 +102,9 @@ void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_ed
     ImGui::TextUnformatted(mark.symbol);
     ImGui::PopStyleColor();
     ImGui::SameLine();
-    ImGui::AlignTextToFramePadding();
+    if (frame_aligned) {
+        ImGui::AlignTextToFramePadding();
+    }
     ImGui::TextUnformatted(label); // one line, whole: a long status scrolls its content area
 }
 
@@ -227,7 +231,12 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
     return out;
 }
 
-float rv_editor_transport_side(float width, float reserve)
+bool rv_editor_transport_is_large(float width)
+{
+    return transport_is_large(width);
+}
+
+float rv_editor_transport_side(float width, float reserve, int count)
 {
     const float frame = ImGui::GetFrameHeight();
     if (!transport_is_large(width)) {
@@ -235,9 +244,11 @@ float rv_editor_transport_side(float width, float reserve)
     }
     const ImGuiStyle &style = ImGui::GetStyle();
     const float natural = rv_editor_tile_large_side(ImGui::GetIO().Fonts->Fonts[0], ImGui::GetIO().Fonts->Fonts[0]->LegacySize);
-    // The window's and the shelf's padding on both sides, and the gaps between the six squares and the column.
-    const float room = width - 2.0f * (style.WindowPadding.x + style.ItemInnerSpacing.x) - 6.0f * style.ItemSpacing.x - reserve;
-    return std::max(frame, std::min(natural, std::floor(room / 6.0f)));
+    // The window's and the shelf's padding on both sides, and the gaps between the squares and the column.
+    const float squares = static_cast<float>(count);
+    const float room =
+        width - 2.0f * (style.WindowPadding.x + style.ItemInnerSpacing.x) - squares * style.ItemSpacing.x - reserve;
+    return std::max(frame, std::min(natural, std::floor(room / squares)));
 }
 
 void rv_editor_ask_begin(const char *title, const rv_editor_theme &theme)

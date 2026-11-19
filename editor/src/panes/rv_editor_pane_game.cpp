@@ -340,7 +340,16 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         if (!s.live()) {
             ui.requests.push_back({ .kind = rv_editor_ui_request_kind::release_keyboard });
             if (!app.project.open) {
-                rv_editor_open_project_row(app, theme);
+                // One frame-high row, so the well's least height holds it.
+                ImGui::AlignTextToFramePadding();
+                rv_editor_label(rv_editor_text("panes.no_project_open_message"),
+                    rv_editor_label_kind::normal,
+                    theme,
+                    rv_editor_label_layout::line);
+                ImGui::SameLine();
+                if (rv_editor_button(rv_editor_text("panes.open_project_box"), theme)) {
+                    app.open_folder_request = true;
+                }
                 return;
             }
             if (app.release_view && app.release.player != nullptr) {

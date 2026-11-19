@@ -5,11 +5,15 @@
 #include <vector>
 
 #include "imgui.h"
+#include "layout/rv_editor_tile.hpp"
 #include "panes/rv_editor_game_fit.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
+
+// The one minimum of the Game tile, whatever its state. Call inside a frame or with the UI font current.
+rv_editor_size rv_editor_game_minimum();
 
 // Game / Candidate Playtest status in two lines so neither clips: size and scale, then the state with its stale note.
 struct rv_editor_game_status_lines {

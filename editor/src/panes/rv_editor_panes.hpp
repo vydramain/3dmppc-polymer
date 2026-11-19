@@ -69,6 +69,9 @@ rv_editor_size rv_editor_search_minimum();
 rv_editor_size rv_editor_scene_minimum();
 rv_editor_size rv_editor_hierarchy_minimum();
 rv_editor_size rv_editor_inspector_minimum();
+// The Toolchest's and Release Controls': one minimum per kind, taken from their elements.
+rv_editor_size rv_editor_toolchest_minimum();
+rv_editor_size rv_editor_release_controls_minimum();
 
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
@@ -267,6 +270,8 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui);
 void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// The widest of its two rows: four small tiles, or Snap, its step and Grid.
+float rv_editor_scene_tools_min_width();
 
 // The project's run profiles as a list beside a form: Apply, Apply and Restart.
 void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme);

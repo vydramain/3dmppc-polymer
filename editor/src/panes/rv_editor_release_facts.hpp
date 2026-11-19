@@ -36,4 +36,12 @@ rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5]
 // The same by the width alone: the room the facts text takes is a constant, not the state's text.
 rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5], float avail);
 
+// The strip's measures, taken with the UI font current. The five squares, the width the column right of them needs (the
+// action slot, or the longest facts a state shows, whichever is wider), the least width of the tile's body and its height at
+// a body `width` wide: the same in every state, and higher from 640 px, where the squares grow.
+inline constexpr int release_buttons = 5;
+float rv_editor_release_column_min_width();
+float rv_editor_release_min_width();
+float rv_editor_release_height(float width);
+
 } // namespace rv_editor

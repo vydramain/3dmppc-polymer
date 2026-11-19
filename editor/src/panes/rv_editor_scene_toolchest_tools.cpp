@@ -1,6 +1,7 @@
 // The Scene Toolchest's tools: the tool tiles, Snap with its step, and Grid.
 #include "panes/rv_editor_panes.hpp"
 
+#include <algorithm>
 #include <iterator>
 
 #include "imgui.h"
@@ -116,6 +117,17 @@ void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port
     if (changed) {
         ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
     }
+}
+
+float rv_editor_scene_tools_min_width()
+{
+    constexpr int tools = 4;
+    const float gap = ImGui::GetStyle().ItemSpacing.x;
+    const float tiles =
+        tools * rv_editor_tile_width({ .label = "##t", .code = "W" }, rv_editor_tile_size::small) + (tools - 1) * gap;
+    const float snap_row = rv_editor_checkbox_width(rv_editor_text("scene_tools.snap_label")) + gap +
+        ImGui::GetFontSize() * dropdown_width_factor + gap + rv_editor_checkbox_width(rv_editor_text("scene_tools.grid_label"));
+    return std::max(tiles, snap_row);
 }
 
 } // namespace rv_editor

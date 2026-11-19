@@ -26,21 +26,11 @@ namespace rv_editor
 namespace
 {
 
-// Minimum width in font sizes of a strip of controls.
-constexpr int strip_min_width_em = 20;
 // Minimum width in font sizes and height in frame heights of the Widget Catalog.
 constexpr float catalog_min_width_em = 20.0f;
 constexpr float catalog_min_height_frames = 8.0f;
 // The Code tile's row keeps room for the tabs' three buttons and one tab, in frame heights.
 constexpr float code_row_frames = 4.0f;
-
-// A shelf of `rows` height as the tile lays it out: its padding on both sides and the spacing the
-// tile's content ends with. The theme's pad is half the window padding the style gets from it.
-float shelf_height(float rows)
-{
-    const ImGuiStyle &style = ImGui::GetStyle();
-    return style.WindowPadding.y + rows + style.ItemSpacing.y;
-}
 
 // Pushes the UI font for a measure taken before the first frame or outside one.
 struct ui_font_scope {
@@ -110,9 +100,6 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
     const float fs = font->LegacySize;
     const ImGuiStyle &style = ImGui::GetStyle();
     const float fh = fs + 2.0f * style.FramePadding.y;
-    const float gap = style.ItemSpacing.y;
-    const float large = rv_editor_tile_large_side(font, fs);
-    const int32_t strip_w = static_cast<int32_t>(fs * strip_min_width_em);
     switch (kind) {
     // A strip is as tall as its tallest state at its minimum width, not as what it drew this frame. Controls: the
     // transport's own measures.
@@ -120,19 +107,18 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
         const float width = rv_editor_transport_min_width();
         return { static_cast<int32_t>(std::ceil(width)), static_cast<int32_t>(std::ceil(rv_editor_transport_height(width))) };
     }
-    case rv_editor_pane_kind::release_controls:
-        return { strip_w, static_cast<int32_t>(std::ceil(shelf_height(large))) };
-    // The scene tools' two rows, or the wrapped line of no scene when it is taller (the debug mark row is
-    // a frame and a text line, less than the scene tools).
-    case rv_editor_pane_kind::toolchest: {
-        const float wrap = strip_w - 2.0f * style.WindowPadding.x - style.WindowPadding.y;
-        const float no_scene = font->CalcTextSizeA(fs, FLT_MAX, wrap, rv_editor_text("pane_toolchest.no_scene")).y;
-        return { strip_w, static_cast<int32_t>(std::ceil(shelf_height(std::max(2.0f * fh + gap, no_scene)))) };
+    case rv_editor_pane_kind::release_controls: {
+        const ui_font_scope scope;
+        return rv_editor_release_controls_minimum();
     }
-    // The mode row's shelf, the well's padding around the picture and the status row over it.
-    case rv_editor_pane_kind::game:
-        return { static_cast<int32_t>(std::ceil(rv_editor_game_picture_min_width() + 2.0f * style.WindowPadding.x)),
-            static_cast<int32_t>(std::ceil(shelf_height(fh) + style.WindowPadding.y + (fs + gap))) };
+    case rv_editor_pane_kind::toolchest: {
+        const ui_font_scope scope;
+        return rv_editor_toolchest_minimum();
+    }
+    case rv_editor_pane_kind::game: {
+        const ui_font_scope scope;
+        return rv_editor_game_minimum();
+    }
     // The catalog scrolls as a whole, so any size shows it whole: room for the section tiles' headings and a few rows.
     case rv_editor_pane_kind::catalog:
         return { static_cast<int32_t>(fs * catalog_min_width_em), static_cast<int32_t>(fh * catalog_min_height_frames) };
