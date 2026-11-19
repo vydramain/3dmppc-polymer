@@ -26,6 +26,10 @@ constexpr float log_pane_min_width_em = 30.0f;
 // Minimum height in frame heights for log/output panes.
 constexpr float log_pane_min_height_frames = 6.0f;
 
+// Minimum width in font sizes and height in frame heights of the Widget Catalog.
+constexpr float catalog_min_width_em = 20.0f;
+constexpr float catalog_min_height_frames = 8.0f;
+
 // A shelf of `rows` height as the tile lays it out: its padding on both sides and the spacing the
 // tile's content ends with. The theme's pad is half the window padding the style gets from it.
 float shelf_height(float rows)
@@ -69,6 +73,9 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
     case rv_editor_pane_kind::game:
         return { static_cast<int32_t>(std::ceil(rv_editor_game_picture_min_width() + 2.0f * style.WindowPadding.x)),
             static_cast<int32_t>(std::ceil(shelf_height(fh) + style.WindowPadding.y + (fs + gap))) };
+    // The catalog scrolls as a whole, so any size shows it whole: room for the section tiles' headings and a few rows.
+    case rv_editor_pane_kind::catalog:
+        return { static_cast<int32_t>(fs * catalog_min_width_em), static_cast<int32_t>(fh * catalog_min_height_frames) };
     case rv_editor_pane_kind::output:
     case rv_editor_pane_kind::runtime_log:
     case rv_editor_pane_kind::build_log:

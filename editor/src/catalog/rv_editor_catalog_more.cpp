@@ -73,9 +73,6 @@ constexpr ImU32 game_frame_line_rgb = 0x00ffffffu;
 constexpr int checker_tone_count = 2;
 
 // Scroll region heights in frame heights
-constexpr float scroll_height_frames = 4.0f;
-constexpr float transport_strip_width_px = 220.0f;
-constexpr float transport_bar_height_frames = 3.2f;
 
 // Code display layout
 constexpr float code_tile_height_lines = 7.5f;
@@ -88,7 +85,6 @@ constexpr float code_cursor_width_px = 2.0f;
 constexpr float code_error_indicator_offset_px = 12.0f;
 constexpr int code_sample_cursor_row = 3;
 constexpr int code_sample_error_row = 5;
-constexpr int overflow_sample_rows = 12;
 constexpr int checkbox_snap_disabled_index = 2;
 constexpr int broken_cell_index = 4;
 
@@ -165,39 +161,6 @@ void rv_editor_catalog_keys(const rv_editor_theme &theme)
             d.radio = i;
         }
     }
-}
-
-void rv_editor_catalog_overflow(const rv_editor_theme &theme)
-{
-    // A scrolled region with the editor's own bars, both ways.
-    rv_editor_scroll_begin("##cat_scroll",
-        ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * scroll_height_frames),
-        true,
-        ImGuiChildFlags_Borders);
-    for (int i = 1; i <= overflow_sample_rows; ++i) {
-        const auto args = std::make_format_args(i, i, i, i, i);
-        const auto text = rv_editor_text_format("catalog_more.overflow_long_line", args);
-        ImGui::Text("%s", text.c_str());
-    }
-    rv_editor_scroll_end(theme);
-    // The transport in a narrow strip: the bar takes a smaller tile size, every button stays shown.
-    ImGui::TextWrapped("%s", rv_editor_text("catalog_more.overflow_transport_label"));
-    // The bar's smallest row is wider than a tile this narrow: the strip is not drawn there.
-    if (ImGui::GetContentRegionAvail().x < transport_strip_width_px) {
-        return;
-    }
-    ImGui::BeginChild("##cat_narrow",
-        ImVec2(transport_strip_width_px, ImGui::GetFrameHeight() * transport_bar_height_frames),
-        ImGuiChildFlags_Borders);
-    const rv_editor_transport_state state{ nullptr,
-        rv_editor_text("catalog_more.transport_already_running"),
-        nullptr,
-        rv_editor_text("catalog_more.transport_pause_first"),
-        nullptr,
-        nullptr,
-        false };
-    rv_editor_transport_bar(state, theme);
-    ImGui::EndChild();
 }
 
 void rv_editor_catalog_code(const rv_editor_theme &theme)

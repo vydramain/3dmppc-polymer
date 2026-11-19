@@ -1,5 +1,4 @@
-// Catalog section: menus, context menu, dialog, status indicators, log rows and
-// the transport bar.
+// Catalog section: menus, context menu and status indicators.
 
 #include "catalog/rv_editor_catalog.hpp"
 #include "text/rv_editor_text.hpp"
@@ -10,12 +9,6 @@ namespace rv_editor
 
 namespace
 {
-
-// Number of text lines to display in the log area
-constexpr float log_display_rows = 4.0f;
-
-// Multiplier for vertical padding in log display (applied to WindowPadding.y)
-constexpr float log_padding_y_multiplier = 2.0f;
 
 enum class rv_editor_status_view {
     compact,
@@ -131,20 +124,6 @@ void rv_editor_catalog_menus()
     }
 }
 
-// The area that asks inside a pane, as a question about unsaved files shows it:
-// the editor has no modal dialogs.
-void rv_editor_catalog_dialog(const rv_editor_theme &t)
-{
-    rv_editor_ask_begin(rv_editor_text("catalog_status.dialog_unsaved_title"), t);
-    ImGui::TextWrapped("%s", rv_editor_text("catalog_status.dialog_unsaved_message"));
-    rv_editor_button(rv_editor_text("catalog_status.dialog_button_save"), t);
-    rv_editor_flow(rv_editor_button_width(rv_editor_text("catalog_status.dialog_button_discard")));
-    rv_editor_button(rv_editor_text("catalog_status.dialog_button_discard"), t);
-    rv_editor_flow(rv_editor_button_width(rv_editor_text("catalog_status.dialog_button_keep_open")));
-    rv_editor_button(rv_editor_text("catalog_status.dialog_button_keep_open"), t);
-    rv_editor_ask_end();
-}
-
 void rv_editor_catalog_indicators(const rv_editor_theme &t)
 {
     const struct {
@@ -166,83 +145,16 @@ void rv_editor_catalog_indicators(const rv_editor_theme &t)
     }
 }
 
-void rv_editor_catalog_log(const rv_editor_theme &t)
-{
-    const float rows =
-        log_display_rows * ImGui::GetTextLineHeightWithSpacing() + log_padding_y_multiplier * ImGui::GetStyle().WindowPadding.y;
-    rv_editor_log_begin("##log", ImVec2(0.0f, rows), t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_1"),
-        rv_editor_text("catalog_status.log_source_burn"),
-        rv_editor_severity::info,
-        rv_editor_text("catalog_status.log_msg_build"),
-        t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_2"),
-        rv_editor_text("catalog_status.log_source_mppc"),
-        rv_editor_severity::info,
-        rv_editor_text("catalog_status.log_msg_runtime"),
-        t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_3"),
-        rv_editor_text("catalog_status.log_source_disc"),
-        rv_editor_severity::warning,
-        rv_editor_text("catalog_status.log_msg_missing_texture"),
-        t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_4"),
-        rv_editor_text("catalog_status.log_source_mppc"),
-        rv_editor_severity::error,
-        rv_editor_text("catalog_status.log_msg_error"),
-        t);
-    rv_editor_log_end(t);
-}
-
-void rv_editor_catalog_transport(const rv_editor_theme &t)
-{
-    // The bar never wraps: a tile narrower than its row of small buttons shows the status bar only.
-    if (ImGui::GetContentRegionAvail().x >= 6.0f * ImGui::GetFrameHeight() + 5.0f * ImGui::GetStyle().ItemSpacing.x) {
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_stopped"));
-        const char *transport_nothing = rv_editor_text("catalog_status.transport_nothing_running");
-        rv_editor_transport_bar(
-            { nullptr, nullptr, transport_nothing, transport_nothing, transport_nothing, transport_nothing },
-            t);
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_paused"));
-        // Run is also Resume, so a paused session can run again.
-        rv_editor_transport_bar(
-            { nullptr, nullptr, rv_editor_text("catalog_status.transport_already_paused"), nullptr, nullptr, nullptr },
-            t);
-    }
-    const char *const status_fields[] = { rv_editor_text("catalog_status.status_bar_ready"),
-        rv_editor_text("catalog_status.status_bar_runtime"),
-        rv_editor_text("catalog_status.status_bar_position") };
-    // A narrow tile shows the first fields that fit whole: the bar never cuts a text.
-    int shown = static_cast<int>(std::size(status_fields));
-    while (shown > 1 && rv_editor_status_bar_min_width(status_fields, shown, t) > ImGui::GetContentRegionAvail().x) {
-        --shown;
-    }
-    rv_editor_status_bar(status_fields, status_fields, shown, t);
-}
-
 } // namespace
 
-void rv_editor_catalog_menus_dialogs(const rv_editor_theme &theme)
+void rv_editor_catalog_menu_samples()
 {
     rv_editor_catalog_menus();
-    rv_editor_catalog_dialog(theme);
 }
 
 void rv_editor_catalog_lamps(const rv_editor_theme &theme)
 {
     rv_editor_catalog_indicators(theme);
-}
-
-void rv_editor_catalog_logs(const rv_editor_theme &theme)
-{
-    rv_editor_catalog_log(theme);
-}
-
-void rv_editor_catalog_transports(const rv_editor_theme &theme)
-{
-    rv_editor_catalog_transport(theme);
 }
 
 } // namespace rv_editor

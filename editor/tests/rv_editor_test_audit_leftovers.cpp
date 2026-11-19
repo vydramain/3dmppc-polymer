@@ -123,7 +123,7 @@ RV_EDITOR_TEST(rv_editor_test_single_tab_tile_draws_its_tab)
     RV_EDITOR_CHECK(size.x == one_size.x && size.y == one_size.y);
 }
 
-// 5: the catalog at 15em has no item past the tile's width (ImGui's Debug window is not the catalog's).
+// 5: the catalog at 15em has no item outside a scroll area past the tile's width (ImGui's Debug window is not the catalog's).
 RV_EDITOR_TEST(rv_editor_test_catalog_fits_a_narrow_tile)
 {
     load_texts();
@@ -143,7 +143,7 @@ RV_EDITOR_TEST(rv_editor_test_catalog_fits_a_narrow_tile)
             1500.0f);
         past = 0;
         for (const auto &e : r.entries) {
-            if (e.label.find("Debug") == std::string::npos && e.x1 > width + 0.5f) {
+            if (e.label.find("Debug") == std::string::npos && !e.in_scroll && e.x1 > width + 0.5f) {
                 ++past;
             }
         }

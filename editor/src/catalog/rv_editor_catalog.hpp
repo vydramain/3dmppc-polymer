@@ -18,19 +18,37 @@ void rv_editor_catalog_icon_set(const rv_editor_theme &theme);      // _theme: f
 void rv_editor_catalog_buttons(const rv_editor_theme &theme);       // _buttons
 void rv_editor_catalog_fields(const rv_editor_theme &theme);        // _fields
 void rv_editor_catalog_text_samples(const rv_editor_theme &theme);  // _fields: text components
-void rv_editor_catalog_headers(const rv_editor_theme &theme);       // _panes: headers, splitters, tiles
-void rv_editor_catalog_lists(const rv_editor_theme &theme);         // _panes: tree, list, table
-void rv_editor_catalog_tab_strips(const rv_editor_theme &theme);    // _panes: tabs
-void rv_editor_catalog_menus_dialogs(const rv_editor_theme &theme); // _status
+void rv_editor_catalog_headers(const rv_editor_theme &theme);       // _panes: headers, splitters, tile windows
+void rv_editor_catalog_menu_samples();                              // _status: menus, context menu
 void rv_editor_catalog_lamps(const rv_editor_theme &theme);         // _status: state lamps
-void rv_editor_catalog_logs(const rv_editor_theme &theme);          // _status: the log
-void rv_editor_catalog_transports(const rv_editor_theme &theme);    // _status: the transport
 void rv_editor_catalog_keys(const rv_editor_theme &theme);          // _more: checkboxes, diamonds, keys
-void rv_editor_catalog_overflow(const rv_editor_theme &theme);      // _more: scrollbars, narrow transport
 void rv_editor_catalog_code(const rv_editor_theme &theme);          // _more: code text
 void rv_editor_catalog_game(const rv_editor_theme &theme);          // _more: the game frame
 void rv_editor_catalog_cells(const rv_editor_theme &theme);         // _more: catalog cells, drop pocket
 void rv_editor_catalog_type(const rv_editor_theme &theme);          // _more: fonts, contrast, thumbwheel
+void rv_editor_catalog_tree_list(const rv_editor_theme &theme);     // _views: tree and list in every state
+void rv_editor_catalog_scroll(const rv_editor_theme &theme);        // _views: scrollbars both ways
+void rv_editor_catalog_log(const rv_editor_theme &theme);           // _views: log rows by severity
+
+// The template sections (R7-R17, in this order: tabs, shelf, list, records, message box, big ask, form, transport,
+// picture, facts, status bar). Each has a state switcher and two shows of the template: a tile at its minimum and a roomy one.
+int rv_editor_catalog_section_count();
+const char *rv_editor_catalog_section_name(int section);
+int rv_editor_catalog_state_count(int section);
+const char *rv_editor_catalog_state_name(int section, int state);
+int rv_editor_catalog_state(int section); // the state the switcher shows now
+void rv_editor_catalog_set_state(int section, int state);
+
+// The window size (padding included) of the template's tile at its minimum and of the roomy one. Call inside a frame.
+ImVec2 rv_editor_catalog_tile_min(int section, const rv_editor_theme &theme);
+ImVec2 rv_editor_catalog_tile_roomy(int section, const rv_editor_theme &theme);
+
+// Draws the template in `state` over the whole content region of the current window (sized as one of the tiles above).
+void rv_editor_catalog_tile_draw(int section, int state, const rv_editor_theme &theme);
+
+// The whole section: title, the state switcher (one item per state, labelled with its name) and the two tiles, each a
+// child window of exactly its tile size, drawn in the switcher's state.
+void rv_editor_catalog_section_draw(int section, const rv_editor_theme &theme);
 
 // Reserves a `size` item in the layout and returns its top-left corner.
 ImVec2 rv_editor_catalog_reserve(ImVec2 size);

@@ -18,6 +18,7 @@ namespace
 {
 
 int rv_editor_facts_rows = 0; // ids the rows apart even when two keys are equal
+bool rv_editor_facts_table_open = false; // false while the area is clipped away: no row is drawn then
 
 } // namespace
 
@@ -29,13 +30,17 @@ void rv_editor_facts_begin(const char *id, ImVec2 size, const rv_editor_theme &t
         { "", rv_editor_table_width::fixed, 0.0f, 0.0f, true },
         { "", rv_editor_table_width::fixed },
     };
-    rv_editor_table_begin("##facts", columns, 2, { false, false, false, rv_editor_table_sizing::fixed_fit });
+    rv_editor_facts_table_open =
+        rv_editor_table_begin("##facts", columns, 2, { false, false, false, rv_editor_table_sizing::fixed_fit });
 }
 
 rv_editor_facts_row_result rv_editor_facts_row(const char *key, const char *value, const rv_editor_theme &theme)
 {
     const char *shown = value != nullptr && value[0] != '\0' ? value : "-";
     rv_editor_facts_row_result result;
+    if (!rv_editor_facts_table_open) {
+        return result;
+    }
     ImGui::PushID(rv_editor_facts_rows++);
     rv_editor_table_row();
     rv_editor_table_cell();
@@ -66,7 +71,9 @@ rv_editor_facts_row_result rv_editor_facts_row(const char *key, const char *valu
 
 void rv_editor_facts_end(const rv_editor_theme &theme)
 {
-    rv_editor_table_end();
+    if (rv_editor_facts_table_open) {
+        rv_editor_table_end();
+    }
     rv_editor_content_end(theme);
 }
 

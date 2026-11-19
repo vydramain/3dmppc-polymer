@@ -24,7 +24,9 @@ float area_pad()
 
 float min_area_height()
 {
-    return min_text_lines * ImGui::GetTextLineHeight() + 2.0f * area_pad();
+    // A long text scrolls: the bar needs two arrows and a track as tall as a text line.
+    return std::max(min_text_lines * ImGui::GetTextLineHeight() + 2.0f * area_pad(),
+        2.0f * ImGui::GetStyle().ScrollbarSize + ImGui::GetTextLineHeight());
 }
 
 // Rows under the text area: the gap, the message line, the gap, the button row.
