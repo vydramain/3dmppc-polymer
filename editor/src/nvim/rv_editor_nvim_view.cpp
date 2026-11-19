@@ -20,6 +20,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_mode.hpp"
 
 namespace rv_editor
 {
@@ -50,7 +51,6 @@ constexpr int grid_ui_reserved_rows = 2;           // Rows reserved for status a
 constexpr const char *grid_cell_width_probe = "M"; // Glyph to measure monospace cell width.
 constexpr int status_line_text_offset_cells = 2;   // Horizontal offset for notes on status line.
 constexpr size_t min_tabs_for_close = 2;           // Minimum tabs required to allow closing one.
-constexpr float code_tab_text_width = 200.0f;      // A file tab's label is fitted to this width.
 
 } // namespace
 
@@ -90,53 +90,26 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
     }
 
     const std::string root = app.project.open ? app.project.root.string() : std::string();
-    std::vector<std::string> text;
-    std::vector<std::string> tips;
+    std::vector<rv_editor_code_tab_file> files;
     int active = -1;
     for (const std::string &name : tabs.names) {
         if (name == shown) {
-            active = static_cast<int>(text.size());
+            active = static_cast<int>(files.size());
         }
-        const rv_editor_code_text t = rv_editor_code_tab_text(name, root, held(name)->modified, code_tab_text_width);
-        text.push_back(t.shown + "##" + name);
-        tips.push_back(t.tooltip);
+        files.push_back({ name, held(name)->modified });
     }
     if (front != nullptr && shown.empty()) {
-        active = static_cast<int>(text.size());
-        text.push_back(rv_editor_code_tab_text("", root, front->modified, code_tab_text_width).shown);
-        tips.emplace_back();
+        active = static_cast<int>(files.size());
+        files.push_back({ std::string(), front->modified });
     }
-    if (text.empty()) {
+    if (files.empty()) {
         return;
-    }
-    std::vector<const char *> labels;
-    for (const std::string &t : text) {
-        labels.push_back(t.c_str());
     }
     ImGui::SameLine();
     const ImVec2 row_min = ImGui::GetCursorScreenPos();
     int picked = active;
-    rv_editor_tab_probe probe;
-    if (rv_editor_tab_strip("##files",
-            labels.data(),
-            static_cast<int>(labels.size()),
-            &picked,
-            theme,
-            {},
-            nullptr,
-            240.0f,
-            &probe) &&
-        picked < static_cast<int>(tabs.names.size())) {
+    if (rv_editor_code_tab_strip(files, root, &picked, theme) && picked < static_cast<int>(tabs.names.size())) {
         nvim.open(win, tabs.names[static_cast<size_t>(picked)], 0);
-    }
-    // The full path of the tab under the pointer (inside the visible part of the strip).
-    const ImVec2 mouse = ImGui::GetMousePos();
-    for (size_t i = 0; i < probe.tabs.size() && i < tips.size(); ++i) {
-        const auto &r = probe.tabs[i];
-        if (!tips[i].empty() && mouse.x >= std::max(r.x0, probe.strip_x0) && mouse.x < std::min(r.x1, probe.strip_x1) &&
-            mouse.y >= r.y0 && mouse.y < r.y1 && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows)) {
-            rv_editor_tooltip(tips[i].c_str());
-        }
     }
 
     // A right click on the tabs: Close Tab lets go of the file in front, which
@@ -165,45 +138,6 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
 }
 
 } // namespace
-
-rv_editor_code_text rv_editor_code_status_text(const std::string &name, const std::string &root, bool modified, float width)
-{
-    const std::string marker = modified ? rv_editor_text("pane_code.file_modified_marker") : "";
-    if (name.empty()) {
-        return { rv_editor_text("pane_code.untitled_document") + marker, "" };
-    }
-    return { rv_editor_path_tail(rv_editor_path_relative(name, root) + marker, width), name };
-}
-
-rv_editor_code_text rv_editor_code_tab_text(const std::string &name, const std::string &root, bool modified, float width)
-{
-    return rv_editor_code_status_text(name, root, modified, width);
-}
-
-rv_editor_swap_action rv_editor_code_swap_place(rv_editor_swap_view view, long long pid, const rv_editor_theme &theme)
-{
-    rv_editor_swap_action action;
-    if (view == rv_editor_swap_view::none) {
-        return action;
-    }
-    rv_editor_ask_begin(rv_editor_text("pane_code.swap_title"), theme);
-    if (view == rv_editor_swap_view::recoverable) {
-        rv_editor_label(rv_editor_text("pane_code.swap_recovery_message"),
-            rv_editor_label_kind::normal,
-            theme,
-            rv_editor_label_layout::wrap);
-        action.recover = rv_editor_button(rv_editor_text("pane_code.swap_recover_button"), theme);
-        rv_editor_item_tooltip(rv_editor_text("pane_code.swap_recover_button_tooltip"));
-        rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_code.swap_discard_button")));
-        action.discard = rv_editor_button(rv_editor_text("pane_code.swap_discard_button"), theme);
-        rv_editor_item_tooltip(rv_editor_text("pane_code.swap_discard_button_tooltip"));
-    } else {
-        const std::string msg = rv_editor_text_format("pane_code.readonly_process_editing", std::make_format_args(pid));
-        rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-    }
-    rv_editor_ask_end();
-    return action;
-}
 
 // Code is drawn in the code font (0004), the tile's buttons in the interface font.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
@@ -242,16 +176,7 @@ void rv_editor_pane_code_body(rv_editor_app &app,
             rv_editor_label_layout::wrap);
         return;
     }
-    if (!nvim.problem.empty()) {
-        rv_editor_label(nvim.problem.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        if (rv_editor_button(rv_editor_text("pane_code.start_nvim_again"), theme)) {
-            nvim.problem.clear();
-        }
-        return;
-    }
-    const int64_t win = nvim.window_for(pane);
-    const int32_t grid_id = nvim.screen().grid_of_window(win);
-    const rv_editor_nvim_grid *grid = nvim.screen().grid(grid_id);
+    const int64_t win = nvim.problem.empty() ? nvim.window_for(pane) : 0;
 
     // The tile's own row, in the interface font: Vim or the ordinary editor (the
     // switch F2 also makes), then the tile's files as tabs.
@@ -265,6 +190,21 @@ void rv_editor_pane_code_body(rv_editor_app &app,
     rv_editor_item_tooltip(rv_editor_text("pane_code.vim_mode_tooltip"));
     rv_editor_code_tab_row(app, pane, win, theme);
     rv_editor_shelf_end();
+    // A start that failed says so in a card under the shelf, and offers another.
+    if (!nvim.problem.empty()) {
+        rv_editor_mode_card_spec failed;
+        failed.title = rv_editor_text("pane_code.start_failed_title");
+        failed.text = nvim.problem;
+        failed.buttons = { rv_editor_text("pane_code.start_nvim_again") };
+        if (rv_editor_mode_card_begin("##nvim_failed", failed, theme) == 0) {
+            nvim.problem.clear();
+        }
+        rv_editor_mode_card_end();
+        rv_editor_font_code_push();
+        return;
+    }
+    const int32_t grid_id = nvim.screen().grid_of_window(win);
+    const rv_editor_nvim_grid *grid = nvim.screen().grid(grid_id);
     // Swap recovery takes the tile in place of the grid; nvim keeps its size meanwhile.
     rv_editor_swap_view swap_view = rv_editor_swap_view::none;
     long long swap_pid = 0;

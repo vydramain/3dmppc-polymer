@@ -53,8 +53,9 @@ ImVec2 rv_editor_mode_card_min_size(const std::vector<std::string> &buttons, con
 
 int rv_editor_mode_card_begin(const char *id, const rv_editor_mode_card_spec &spec, const rv_editor_theme &theme)
 {
+    // Never shorter than its own minimum: a tile at its minimum keeps the buttons in its bottom padding, not cut off.
     ImGui::BeginChild(id,
-        ImVec2(0, 0),
+        ImVec2(0, std::max(ImGui::GetContentRegionAvail().y, rv_editor_mode_card_min_size(spec.buttons, theme).y)),
         ImGuiChildFlags_None,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     rv_editor_label(spec.title.c_str(), rv_editor_label_kind::bright, theme, rv_editor_label_layout::line);
@@ -63,7 +64,11 @@ int rv_editor_mode_card_begin(const char *id, const rv_editor_mode_card_spec &sp
     ImGui::PushStyleColor(ImGuiCol_ChildBg, rv_editor_col(theme.code_base));
     ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.code_text));
     rv_editor_scroll_begin("##text", ImVec2(0, area_h), false, ImGuiChildFlags_AlwaysUseWindowPadding);
-    ImGui::TextWrapped("%s", spec.text.c_str());
+    if (spec.body) {
+        spec.body();
+    } else {
+        ImGui::TextWrapped("%s", spec.text.c_str());
+    }
     rv_editor_scroll_end(theme);
     ImGui::PopStyleColor(2);
 

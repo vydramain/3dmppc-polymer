@@ -29,6 +29,8 @@ bool rv_editor_pane_converted(rv_editor_pane_kind kind)
     case rv_editor_pane_kind::terminal:
     case rv_editor_pane_kind::problems:
     case rv_editor_pane_kind::search:
+    case rv_editor_pane_kind::code:
+    case rv_editor_pane_kind::review_changes:
         return true;
     default:
         return false;

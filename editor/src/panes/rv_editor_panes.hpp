@@ -70,15 +70,26 @@ rv_editor_size rv_editor_search_minimum();
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 
-// What a code tile's status line or a file tab shows for the buffer `name` (inside `root` it is relative), fitted to
-// `width`: a path that does not fit keeps its end after "...", the modified marker stays at the end; `tooltip` is the
-// full path ("" for an Untitled buffer).
+// What a code tile's status line or a file tab shows for the buffer `name`: the whole path (relative inside `root`), the
+// modified marker last, whatever `width` (unused: nothing is cut); `tooltip` is the full path ("" for an Untitled buffer).
 struct rv_editor_code_text {
     std::string shown;
     std::string tooltip;
 };
 rv_editor_code_text rv_editor_code_status_text(const std::string &name, const std::string &root, bool modified, float width);
 rv_editor_code_text rv_editor_code_tab_text(const std::string &name, const std::string &root, bool modified, float width);
+
+// The file tabs of a code tile as the tile-tab row: one tab per file (`name` is "" for an Untitled buffer), each tab's
+// label whole (relative to `root`, the modified marker last). Returns true when another tab was picked (*active).
+struct rv_editor_code_tab_file {
+    std::string name;
+    bool modified = false;
+};
+bool rv_editor_code_tab_strip(const std::vector<rv_editor_code_tab_file> &files,
+    const std::string &root,
+    int *active,
+    const rv_editor_theme &theme,
+    rv_editor_tab_probe *probe = nullptr);
 
 // The swap-recovery ask of a code tile: in place of its grid while the file has a swap file, nothing otherwise (a
 // message and the Recover and Discard buttons, wrapped to the tile's width).

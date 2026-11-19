@@ -377,10 +377,10 @@ std::string rv_editor_shell_buffer_label(const rv_editor_app &app, const std::st
 void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &ids);
 // The scene first, as it saves at once; RV_OK on success or when already saved, RV_ERR_* on failure.
 int rv_editor_shell_save_scene(rv_editor_shell &shell);
-// Save As under a question or on its own: the path field, Save and Cancel.
-void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme &theme);
-// What did not save, and why; a Save As for each Untitled file among them.
-void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &theme, int lines);
+// Save As under a question or on its own: a card over the tile with the path field in its text area, Save and Cancel.
+void rv_editor_shell_save_as_card(rv_editor_shell &shell, const rv_editor_theme &theme);
+// What did not save, and why, as lines of the area it is drawn in; a Save As for each Untitled file among them.
+void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // A pane's title with its context (spec 6.1): what it shows, from which session,
 // build or candidate; nothing when the plain kind says it all.
@@ -406,6 +406,8 @@ void rv_editor_shell_ask_save_as(rv_editor_shell &shell, const rv_editor_theme &
 // of its tile. False when nothing is asked and the tile shows its grid.
 bool rv_editor_shell_code_asks(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_theme &theme);
 void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme);
+// The widest row of Review Changes (its shelf at the widest verb, or its message box): what its minimum is as wide as.
+float rv_editor_review_content_width();
 // Once a frame: Review Changes is a tab while something waits on unsaved files and
 // goes when nothing does; Save As whose code tile has gone is dropped.
 void rv_editor_shell_review_tab(rv_editor_shell &shell);

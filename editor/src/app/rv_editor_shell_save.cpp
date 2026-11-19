@@ -15,6 +15,7 @@
 #include "app/rv_editor_shell.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_mode.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -24,10 +25,6 @@ namespace
 {
 
 using leave = rv_editor_shell::rv_editor_leave;
-
-// Places, in text lines: a message, what did not save, the bullet list of Review Changes.
-constexpr int message_lines = 2;
-constexpr int failure_lines = 3;
 
 // A buffer's file as the project sees it: relative to the root when inside it.
 std::string rv_editor_buffer_label(const rv_editor_app &app, const std::string &name)
@@ -105,47 +102,44 @@ void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &id
     });
 }
 
-// Save As under a question or on its own: the path field, Save and Cancel.
-void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme &theme)
+// Save As under a question or on its own: a card whose text area holds the path field and its error, with Save and
+// Cancel under it.
+void rv_editor_shell_save_as_card(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_app &app = shell.app;
-    rv_editor_label(rv_editor_text("shell_save.save_as_intro"),
-        rv_editor_label_kind::normal,
-        theme,
-        rv_editor_label_layout::wrap);
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-    rv_editor_path_field("##save_as",
-        shell.save_as_path,
-        sizeof(shell.save_as_path),
-        app.project.root.string(),
-        theme,
-        { {}, false, false, shell.save_as_error.empty() ? nullptr : shell.save_as_error.c_str() });
-    rv_editor_message_line("##save_as_error",
-        shell.save_as_error.c_str(),
-        message_lines,
-        0.0f,
-        theme,
-        nullptr,
-        rv_editor_label_kind::error);
-    const rv_editor_state busy = [&]() {
-        if (shell.saving) {
-            return rv_editor_state{ rv_editor_look::live, rv_editor_text("shell_save.waiting_for_nvim") };
+    rv_editor_mode_card_spec spec;
+    spec.title = rv_editor_text("shell_save.save_as_title");
+    spec.buttons = { rv_editor_text("shell_save.save_button"), rv_editor_text("shell_save.cancel_button") };
+    spec.message_kind = rv_editor_label_kind::dim;
+    if (shell.saving) {
+        spec.message = rv_editor_text("shell_save.waiting_for_nvim");
+    } else if (shell.save_as_path[0] == '\0') {
+        spec.message = rv_editor_text("shell_save.type_filename");
+    }
+    spec.body = [&shell, &app, &theme] {
+        rv_editor_label(rv_editor_text("shell_save.save_as_intro"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::wrap);
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        rv_editor_path_field("##save_as",
+            shell.save_as_path,
+            sizeof(shell.save_as_path),
+            app.project.root.string(),
+            theme,
+            { {}, false, false, shell.save_as_error.empty() ? nullptr : shell.save_as_error.c_str() });
+        if (!shell.save_as_error.empty()) {
+            rv_editor_label(shell.save_as_error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
         }
-        if (shell.save_as_path[0] == '\0') {
-            return rv_editor_state{ rv_editor_look::live, rv_editor_text("shell_save.type_filename") };
-        }
-        return rv_editor_state{};
-    }();
-    const std::string save_label = std::string(rv_editor_text("shell_save.save_button")) + "##save_as";
-    const bool save = rv_editor_button(save_label.c_str(), theme, busy);
-    rv_editor_flow(rv_editor_button_width(rv_editor_text("shell_save.cancel_button")));
-    const std::string cancel_label = std::string(rv_editor_text("shell_save.cancel_button")) + "##save_as";
-    if (rv_editor_button(cancel_label.c_str(), theme)) {
+    };
+    const int pressed = rv_editor_mode_card_begin("##save_as_card", spec, theme);
+    rv_editor_mode_card_end();
+    if (pressed == 1) {
         shell.save_as_buffer = 0;
         shell.save_as_error.clear();
         return;
     }
-    if (!save) {
+    if (pressed != 0 || shell.saving || shell.save_as_path[0] == '\0') {
         return;
     }
     std::filesystem::path path(shell.save_as_path);
@@ -176,18 +170,17 @@ void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme 
     });
 }
 
-// What did not save, and why; a Save As for each Untitled file among them.
-void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &theme, int lines)
+// What did not save, and why, as lines of the area it is drawn in; a Save As for each Untitled file among them.
+void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
-    // Two places whatever the state: the Saving / Not saved line and `lines` lines for the failures.
-    const char *head = shell.saving ? rv_editor_text("shell_save.saving") :
-        shell.save_failed.empty()   ? "" :
-                                      rv_editor_text("shell_save.not_saved_header");
-    rv_editor_message_line("##saving", head, 1, 0.0f, theme);
-    const ImGuiStyle &st = ImGui::GetStyle();
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::BeginChild("##failures", ImVec2(0.0f, static_cast<float>(lines) * ImGui::GetTextLineHeight() + st.ItemSpacing.y));
-    ImGui::PopStyleColor();
+    if (shell.saving) {
+        rv_editor_label(rv_editor_text("shell_save.saving"), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+    } else if (!shell.save_failed.empty()) {
+        rv_editor_label(rv_editor_text("shell_save.not_saved_header"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::wrap);
+    }
     for (size_t i = 0; i < shell.save_failed.size(); ++i) {
         const rv_editor_nvim_saved &f = shell.save_failed[i];
         std::string label;
@@ -210,7 +203,6 @@ void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &the
             ImGui::PopID();
         }
     }
-    ImGui::EndChild();
 }
 
 namespace
@@ -356,58 +348,52 @@ bool rv_editor_shell_may_quit(rv_editor_shell &shell)
     return false;
 }
 
-namespace
+// The Unsaved Changes ask: a card over the tile, the failures in its text area.
+void rv_editor_shell_ask_close(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
-
-// The Unsaved changes ask's content, between the ask's begin and end.
-void rv_editor_shell_ask_close_body(rv_editor_shell &shell, const rv_editor_theme &theme)
-{
+    if (shell.save_as_buffer != 0) {
+        rv_editor_shell_save_as_card(shell, theme);
+        return;
+    }
     rv_editor_app &app = shell.app;
-    const rv_editor_state busy = shell.saving ?
-        rv_editor_state{ rv_editor_look::live, rv_editor_text("shell_save.waiting_for_nvim") } :
-        rv_editor_state{};
     const int64_t win = app.nvim.window_for(shell.closing);
     const rv_editor_nvim_buffer *buf = app.nvim.buffer_in(win);
     const std::string name = buf == nullptr ? rv_editor_text("shell_save.this_file") : rv_editor_buffer_label(app, buf->name);
     const auto msg = rv_editor_text_format("shell_save.has_unsaved_changes", std::make_format_args(name));
-    rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-    if (shell.save_as_buffer != 0) {
-        rv_editor_shell_save_as_body(shell, theme);
-        return;
-    }
-    rv_editor_shell_failures(shell, theme, failure_lines);
-    const bool save = rv_editor_button(rv_editor_text("shell_save.save_button"), theme, busy);
-    rv_editor_flow(rv_editor_button_width(rv_editor_text("shell_save.discard_button")));
-    const bool discard = rv_editor_button(rv_editor_text("shell_save.discard_button"), theme, busy);
-    rv_editor_flow(rv_editor_button_width(rv_editor_text("shell_save.keep_open_button")));
-    const bool keep = rv_editor_button(rv_editor_text("shell_save.keep_open_button"), theme);
-    if (save && buf != nullptr) {
+    rv_editor_mode_card_spec spec;
+    spec.title = rv_editor_text("shell_save.unsaved_changes_title");
+    spec.buttons = { rv_editor_text("shell_save.save_button"),
+        rv_editor_text("shell_save.discard_button"),
+        rv_editor_text("shell_save.keep_open_button") };
+    spec.message_kind = rv_editor_label_kind::dim;
+    spec.message = shell.saving ? rv_editor_text("shell_save.waiting_for_nvim") : "";
+    spec.body = [&shell, &theme, &msg] {
+        rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+        // The place of the Saving / Not saved line is kept, so the text area has one content height whatever the state.
+        if (!shell.saving && shell.save_failed.empty()) {
+            ImGui::Dummy(ImVec2(0.0f, ImGui::GetTextLineHeight()));
+        }
+        rv_editor_shell_failures(shell, theme);
+    };
+    const int pressed = rv_editor_mode_card_begin("##unsaved_card", spec, theme);
+    rv_editor_mode_card_end();
+    // A save under way answers no other Save or Discard.
+    if (pressed == 0 && !shell.saving && buf != nullptr) {
         rv_editor_shell_save(shell, { buf->id });
     }
-    if (discard) {
+    if (pressed == 1 && !shell.saving) {
         app.nvim.discard(win);
         (void)rv_editor_tile_remove(shell.ws.layout, shell.closing);
     }
-    if (discard || keep) {
+    if ((pressed == 1 && !shell.saving) || pressed == 2) {
         shell.closing = rv_editor_tile_none;
         shell.save_failed.clear();
     }
 }
 
-} // namespace
-
-void rv_editor_shell_ask_close(rv_editor_shell &shell, const rv_editor_theme &theme)
-{
-    rv_editor_ask_begin(rv_editor_text("shell_save.unsaved_changes_title"), theme);
-    rv_editor_shell_ask_close_body(shell, theme);
-    rv_editor_ask_end();
-}
-
 void rv_editor_shell_ask_save_as(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
-    rv_editor_ask_begin(rv_editor_text("shell_save.save_as_title"), theme);
-    rv_editor_shell_save_as_body(shell, theme);
-    rv_editor_ask_end();
+    rv_editor_shell_save_as_card(shell, theme);
 }
 
 bool rv_editor_shell_code_asks(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_theme &theme)

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,7 @@ namespace rv_editor
 struct rv_editor_mode_card_spec {
     std::string title;
     std::string text;    // scrolls inside its own area on a Catppuccin background
+    std::function<void()> body; // when set, drawn inside that area in place of `text` (a form, a list)
     std::string message; // one line, a constant place; empty text still keeps the place
     rv_editor_label_kind message_kind = rv_editor_label_kind::error;
     std::vector<std::string> buttons; // one row, left to right
