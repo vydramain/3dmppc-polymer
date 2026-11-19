@@ -1,5 +1,5 @@
 // A path that does not fit shows its END with a leading "...": the tail function, the relative display, the path
-// field (tail unfocused, whole when focused, tooltip with the full path), the pane header and tab titles.
+// field (tail unfocused, whole when focused, tooltip with the full path), and the pane header.
 
 #include <string>
 
@@ -217,20 +217,4 @@ RV_EDITOR_TEST(rv_editor_test_pane_header_path_title_keeps_the_tail)
     RV_EDITOR_CHECK(shown.rfind("...", 0) == 0);
     RV_EDITOR_CHECK(ends_with(shown, "engine.cfg"));
     RV_EDITOR_CHECK(plain == "Short");
-}
-
-RV_EDITOR_TEST(rv_editor_test_tab_label_path_keeps_the_tail)
-{
-    load_texts();
-    rv_editor_test::rv_editor_test_imgui gui;
-    const std::string path = long_path();
-    std::string shown;
-    float width = 0.0f;
-    gui.frame([&] {
-        shown = rv_editor_tab_label_fit(path.c_str(), narrow);
-        width = ImGui::CalcTextSize(shown.c_str()).x;
-    });
-    RV_EDITOR_CHECK(shown.rfind("...", 0) == 0);
-    RV_EDITOR_CHECK(ends_with(shown, "engine.cfg"));
-    RV_EDITOR_CHECK(width <= narrow);
 }

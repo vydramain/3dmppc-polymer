@@ -179,7 +179,7 @@ int rv_editor_tile_toggle_maximize(rv_editor_layout &layout, uint32_t leaf);
 struct rv_editor_tile_metrics {
     int32_t bar;
     rv_editor_size chrome;
-    int32_t tabs; // the tab strip under a leaf of more than one pane
+    int32_t tabs; // the tab strip under a leaf of one pane or more
 };
 
 // Where one node lands. `overflow` marks a split whose children's minimums do not

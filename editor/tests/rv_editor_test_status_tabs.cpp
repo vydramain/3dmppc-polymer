@@ -1,6 +1,6 @@
 // Status bar segments keep their widths whatever the build or session says and clip long text with an ellipsis and a
 // tooltip; a tile's content does not move when a second tab appears; a tab strip wider than its tile scrolls with the
-// wheel and a scrollbar; a pane without a title clears the stale one.
+// wheel and has no scrollbar; a pane without a title clears the stale one.
 
 #include <string>
 #include <vector>
@@ -341,15 +341,16 @@ RV_EDITOR_TEST(rv_editor_test_tab_strip_wheel_up_stays_at_start)
     RV_EDITOR_CHECK(s.visible(0));
 }
 
-// A strip that does not fit has a scrollbar; one that fits has none.
-RV_EDITOR_TEST(rv_editor_test_tab_strip_scrollbar_only_when_overflowing)
+// AC4/R7: a strip has no scrollbar, whether its tabs fit or not (arrows and a list replace it).
+RV_EDITOR_TEST(rv_editor_test_tab_strip_never_has_a_scrollbar)
 {
     load_texts();
     rv_editor_test::rv_editor_test_imgui gui;
     strip_fixture many(tab_count);
     many.frame(gui);
     many.frame(gui);
-    RV_EDITOR_CHECK(many.probe.scrollbar);
+    RV_EDITOR_CHECK(many.probe.tabs.size() == static_cast<size_t>(tab_count));
+    RV_EDITOR_CHECK(!many.probe.scrollbar);
     strip_fixture few(2);
     few.frame(gui);
     few.frame(gui);

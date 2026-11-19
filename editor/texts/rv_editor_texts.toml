@@ -478,6 +478,11 @@ collapsing_body = "Shown while the section is open."
 item_tooltip_row = "Hover this line to see its tooltip"
 item_tooltip_text = "The tooltip of the line above."
 
+[widgets_tabs]
+prev = "Scroll the tabs left"
+next = "Scroll the tabs right"
+list = "List every tab"
+
 [widgets_fields]
 readonly_arrow = "Read-only"
 button_copy = "Copy"

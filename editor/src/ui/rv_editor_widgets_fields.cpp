@@ -358,11 +358,6 @@ std::string rv_editor_pane_header_title(const char *title, float width)
     return fit == end ? whole : std::string(title, fit) + rv_editor_text("widgets_fields.path_ellipsis");
 }
 
-std::string rv_editor_tab_label_fit(const char *label, float width)
-{
-    return rv_editor_pane_header_title(label, width);
-}
-
 namespace
 {
 // What every path field drew last, by the item id of its InputText.

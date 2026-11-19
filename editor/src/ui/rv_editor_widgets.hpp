@@ -158,7 +158,6 @@ std::string rv_editor_path_relative(const std::string &path, const std::string &
 
 // The text a pane header / a tab shows for `title` in `width`: a path-like title (has a '/') keeps its tail.
 std::string rv_editor_pane_header_title(const char *title, float width);
-std::string rv_editor_tab_label_fit(const char *label, float width);
 
 // What rv_editor_path_field drew last, for tests.
 struct rv_editor_path_probe {
@@ -276,13 +275,13 @@ rv_editor_list_result rv_editor_list_row(const char *id,
 // Tables are the editor's own (rv_editor_table_begin); the pane pieces below
 // are the ones ImGui has no public form of.
 
-// Slanted folder tabs, one per label: the front tab in brass, the rest
-// behind it. A label wider than `max_tab_width` is clipped (a path keeps its
-// tail) and shows whole in a tooltip. Returns true when a click moved *active.
+// Slanted folder tabs, one per label, each as wide as its whole label: the front tab in brass, the rest
+// behind it. `max_tab_width` is unused. Returns true when a click moved *active.
 // Non-null `pressed` gets the index of the tab the left button went down on
 // this frame, for a caller that tells a drag from a click without repeating
 // this layout.
-// A strip wider than its area scrolls: the mouse wheel over it and a scrollbar.
+// A strip wider than its area scrolls: the mouse wheel over it and `<` `>` buttons; `v` opens a list of every tab.
+// There is no scrollbar, and an active tab that changed is scrolled into view.
 // A non-null `probe` gets what the strip drew, for tests.
 struct rv_editor_tab_probe {
     struct rect {
@@ -292,9 +291,14 @@ struct rv_editor_tab_probe {
     float strip_x0 = 0, strip_x1 = 0; // the visible part of the strip
     float scroll_x = 0;
     bool scrollbar = false; // a horizontal scrollbar is drawn
+    float strip_y0 = 0, strip_y1 = 0; // the row of the strip
+    rect prev, next, list;            // the `<` `>` `v` buttons; all zero while the tabs fit
+    bool list_open = false;           // the list of every tab is open
+    std::vector<rect> list_items;     // its entries, in tab order, while it is open
+    std::vector<std::string> shown;   // the text drawn on each tab
 };
 
-// The height of the strip, scrollbar room included; a tile reserves it whether or not it has several tabs.
+// The height of the strip: one tab; a tile reserves it whether or not it has several tabs.
 float rv_editor_tab_strip_height();
 
 bool rv_editor_tab_strip(const char *id,
@@ -336,6 +340,9 @@ enum class rv_editor_header_action {
     close,
     maximize,
 };
+
+// The width a leaf needs for rv_editor_pane_header to show `title` whole between its X and M boxes.
+float rv_editor_pane_header_min_width(const char *title, const rv_editor_theme &theme);
 
 // Full-width pane title bar: stippled when active, dimmed when not. With
 // `controls` it carries a close box (X) on the left and a maximize box (M) on

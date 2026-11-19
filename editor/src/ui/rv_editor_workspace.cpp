@@ -383,6 +383,10 @@ int rv_editor_workspace_draw(rv_editor_workspace &ws,
         } else {
             pane_min[i] = { static_cast<int>(glyph.x * pane_min_width_em), static_cast<int>(frame_h * pane_min_height_frames) };
         }
+        // The leaf is at least as wide as its header shows this pane's title whole.
+        const float header_w =
+            rv_editor_pane_header_min_width(rv_editor_title_of(ws, static_cast<rv_editor_pane_id>(i)), theme);
+        pane_min[i].w = std::max(pane_min[i].w, static_cast<int>(std::ceil(header_w + 2.0f * bevel)) - m.chrome.w);
     }
 
     // A window smaller than the tree's minimum scrolls instead of squeezing tiles
