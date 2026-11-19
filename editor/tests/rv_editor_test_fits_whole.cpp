@@ -8,6 +8,7 @@
 #include "rv_editor_test_fits_whole.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_layout_probe.hpp"
+#include "rv_editor_test_s13.hpp"
 #include "rv_editor_test_stable_tiles.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -212,17 +213,17 @@ RV_EDITOR_TEST(rv_editor_test_check_pane_states_fails_one_pixel_under_the_minimu
     std::string error;
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
     rv_editor_test_imgui gui(true);
-    const auto kind = rv_editor_pane_kind::controls;
+    // Runtime Log at its minimum: one pixel less in width or height breaks a state (rv_editor_test_s13_fits).
+    const auto kind = rv_editor_pane_kind::runtime_log;
     const stable_tiles::minimum min = stable_tiles::pane_minimum(gui, kind);
     RV_EDITOR_CHECK(min.w > 0.0f && min.h > 0.0f);
-    rv_editor_shell shell;
-    const std::vector<std::function<void()>> states = { [] {}, [] {} };
-    const std::string narrow = rv_editor_check_pane_states(gui, shell, kind, states, { min.w - 1.0f, min.h });
+    rv_editor_test::s13::fixture f(gui, kind);
+    const std::string narrow = rv_editor_check_pane_states(gui, f.shell, kind, f.states, { min.w - 1.0f, min.h });
     if (narrow.empty()) {
         std::fprintf(stderr, "no violation at the minimum width minus 1 px\n");
     }
     RV_EDITOR_CHECK(!narrow.empty());
-    const std::string low = rv_editor_check_pane_states(gui, shell, kind, states, { min.w, min.h - 1.0f });
+    const std::string low = rv_editor_check_pane_states(gui, f.shell, kind, f.states, { min.w, min.h - 1.0f });
     if (low.empty()) {
         std::fprintf(stderr, "no violation at the minimum height minus 1 px\n");
     }

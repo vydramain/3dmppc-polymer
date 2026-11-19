@@ -67,30 +67,6 @@ RV_EDITOR_TEST(rv_editor_test_disabled_button_shows_its_reason_tooltip)
 }
 
 // 3: an ask place with `lines` text lines and a button row holds its content.
-RV_EDITOR_TEST(rv_editor_test_ask_place_fits_header_lines_and_button_row)
-{
-    for (int lines = 1; lines <= 6; ++lines) {
-        rv_editor_test_imgui gui;
-        const auto r = rv_editor_probe_draw(gui, 300.0f, [&](auto &p) {
-            if (rv_editor_ask_place_begin("ask", "Unsaved changes", lines, true, theme)) {
-                for (int i = 0; i < lines; ++i) {
-                    ImGui::TextUnformatted("a line of the ask");
-                }
-                ImGui::Button("Save");
-                p.item("Save");
-            }
-            rv_editor_ask_place_end();
-        });
-        const auto *place = find_part(r, "##ask");
-        const auto *save = find_part(r, "Save");
-        RV_EDITOR_CHECK(place != nullptr && save != nullptr);
-        if (place != nullptr && save != nullptr) {
-            RV_EDITOR_CHECK(save->y1 <= place->y1);
-        }
-    }
-}
-
-// 4: a tile with one tab draws it in the reserved row, and the content is the same as with two tabs.
 RV_EDITOR_TEST(rv_editor_test_single_tab_tile_draws_its_tab)
 {
     load_texts();

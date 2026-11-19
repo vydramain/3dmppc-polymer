@@ -108,24 +108,3 @@ RV_EDITOR_TEST(rv_editor_test_release_number_tooltip_unhashed_says_hashing)
     RV_EDITOR_CHECK(tip != "sha256 ");
     RV_EDITOR_CHECK(rv_editor_test_has(tip, "hashing"));
 }
-
-RV_EDITOR_TEST(rv_editor_test_release_tile_size_large_when_row_fits)
-{
-    rv_editor_test::rv_editor_test_imgui gui;
-    gui.frame([&] {
-        const rv_editor_tile tiles[5] = { { "Build", "B" },
-            { "Run", "R" },
-            { "Player", "P" },
-            { "Stop", "S" },
-            { "Report", "X" } };
-        const float facts = 120.0f;
-        float need = facts + ImGui::GetStyle().ItemSpacing.x * 5.0f;
-        for (const rv_editor_tile &t : tiles) {
-            need += rv_editor_tile_width(t, rv_editor_tile_size::large);
-        }
-        RV_EDITOR_CHECK(rv_editor_release_tile_size(tiles, facts, need) == rv_editor_tile_size::large);
-        RV_EDITOR_CHECK(rv_editor_release_tile_size(tiles, facts, need + 200.0f) == rv_editor_tile_size::large);
-        RV_EDITOR_CHECK(rv_editor_release_tile_size(tiles, facts, need - 1.0f) != rv_editor_tile_size::large);
-        RV_EDITOR_CHECK(rv_editor_release_tile_size(tiles, facts, 10.0f) == rv_editor_tile_size::small);
-    });
-}

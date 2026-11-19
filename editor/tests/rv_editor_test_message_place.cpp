@@ -1,5 +1,5 @@
-// The shared message line (a constant place for an error/warning/note line) and the ask place (a constant place for an
-// ask's longest variant, or an overlay): nothing after them appears, moves or resizes when the text or the ask changes.
+// The shared message line (a constant place for an error/warning/note line): nothing after it appears, moves or
+// resizes when the text changes.
 
 #include <string>
 
@@ -78,32 +78,6 @@ bool tooltip_over_line(const std::string &text)
     return tip != nullptr && tip->WasActive;
 }
 
-// The text line height of a fresh context (the contexts of draw_ask are gone when it returns).
-float line_height()
-{
-    rv_editor_test_imgui gui;
-    float h = 0.0f;
-    gui.frame([&] {
-        h = ImGui::GetTextLineHeight();
-    });
-    return h;
-}
-
-template <class F>
-rv_editor_probe_record draw_ask(bool open, F inside)
-{
-    rv_editor_test_imgui gui;
-    return rv_editor_probe_draw(gui, width, [&](auto &p) {
-        ImGui::TextUnformatted("before");
-        if (rv_editor_ask_place_begin("ask", "Unsaved changes", line_count, open, rv_editor_theme_olive)) {
-            inside(p);
-        }
-        rv_editor_ask_place_end();
-        ImGui::Button("after");
-        p.item("after");
-    });
-}
-
 } // namespace
 
 RV_EDITOR_TEST(rv_editor_test_message_line_same_rect_empty_short_long)
@@ -171,132 +145,4 @@ RV_EDITOR_TEST(rv_editor_test_message_line_fitting_text_has_no_tooltip)
 {
     RV_EDITOR_CHECK(!tooltip_over_line("Build failed"));
     RV_EDITOR_CHECK(!tooltip_over_line(""));
-}
-
-RV_EDITOR_TEST(rv_editor_test_ask_place_open_does_not_move_following_items)
-{
-    const auto closed = draw_ask(false, [](auto &) {});
-    const auto open = draw_ask(true, [](auto &p) {
-        ImGui::TextWrapped("Save the changes before closing?");
-        ImGui::Button("Save");
-        p.item("Save");
-    });
-    RV_EDITOR_CHECK(after_difference(closed, open).empty());
-}
-
-RV_EDITOR_TEST(rv_editor_test_ask_place_closed_is_empty_space_of_the_ask_size)
-{
-    const auto closed = draw_ask(false, [](auto &) {});
-    const auto *after = find(closed, "after");
-    RV_EDITOR_CHECK(after != nullptr);
-    if (after != nullptr) {
-        // "before" line + the place: the header, `line_count` text lines and a button row.
-        RV_EDITOR_CHECK(after->y0 >= (line_count + 3) * line_height());
-    }
-}
-
-RV_EDITOR_TEST(rv_editor_test_ask_place_longest_variant_fits_its_place)
-{
-    const std::string text = long_text();
-    const auto shorter = draw_ask(true, [](auto &p) {
-        ImGui::TextWrapped("Save?");
-        ImGui::Button("Save");
-        p.item("Save");
-    });
-    const auto longer = draw_ask(true, [&](auto &p) {
-        ImGui::TextWrapped("%s", text.c_str());
-        ImGui::Button("Save");
-        p.item("Save");
-    });
-    RV_EDITOR_CHECK(after_difference(shorter, longer).empty());
-}
-
-RV_EDITOR_TEST(rv_editor_test_ask_place_content_stays_inside_its_place)
-{
-    const auto open = draw_ask(true, [](auto &p) {
-        ImGui::TextWrapped("Save the changes before closing?");
-        ImGui::Button("Save");
-        p.item("Save");
-    });
-    const auto *save = find(open, "Save");
-    const auto *after = find(open, "after");
-    RV_EDITOR_CHECK(save != nullptr && after != nullptr);
-    if (save != nullptr && after != nullptr) {
-        RV_EDITOR_CHECK(save->y1 <= after->y0);
-    }
-}
-
-RV_EDITOR_TEST(rv_editor_test_ask_place_returns_its_open_state)
-{
-    rv_editor_test_imgui gui;
-    bool closed_result = true;
-    bool open_result = false;
-    rv_editor_probe_draw(gui, width, [&](auto &) {
-        closed_result = rv_editor_ask_place_begin("a", "T", 1, false, rv_editor_theme_olive);
-        rv_editor_ask_place_end();
-        open_result = rv_editor_ask_place_begin("b", "T", 1, true, rv_editor_theme_olive);
-        rv_editor_ask_place_end();
-    });
-    RV_EDITOR_CHECK(!closed_result);
-    RV_EDITOR_CHECK(open_result);
-}
-
-RV_EDITOR_TEST(rv_editor_test_ask_place_survives_a_resize)
-{
-    rv_editor_test_imgui gui;
-    const auto r = rv_editor_probe_resize(gui, width, width / 2.0f, [](auto &p) {
-        if (rv_editor_ask_place_begin("ask", "Unsaved changes", line_count, true, rv_editor_theme_olive)) {
-            ImGui::TextWrapped("Save the changes before closing?");
-            ImGui::Button("Save");
-            p.item("Save");
-        }
-        rv_editor_ask_place_end();
-        ImGui::Button("after");
-        p.item("after");
-    });
-    RV_EDITOR_CHECK(r.difference.empty());
-}
-
-RV_EDITOR_TEST(rv_editor_test_ask_overlay_does_not_move_following_items)
-{
-    auto draw = [](bool open) {
-        rv_editor_test_imgui gui;
-        return rv_editor_probe_draw(gui, width, [&](auto &p) {
-            ImGui::TextUnformatted("before");
-            if (rv_editor_ask_overlay_begin("ov",
-                    "New Scene",
-                    ImVec2(20, 100),
-                    ImVec2(280, 200),
-                    open,
-                    rv_editor_theme_olive)) {
-                ImGui::TextWrapped("Name the scene");
-                ImGui::Button("Create");
-                p.item("Create");
-            }
-            rv_editor_ask_overlay_end();
-            ImGui::Button("after");
-            p.item("after");
-        });
-    };
-    const auto closed = draw(false);
-    const auto open = draw(true);
-    RV_EDITOR_CHECK(after_difference(closed, open).empty());
-}
-
-RV_EDITOR_TEST(rv_editor_test_ask_overlay_draws_inside_the_given_rect)
-{
-    rv_editor_test_imgui gui;
-    const auto r = rv_editor_probe_draw(gui, width, [](auto &p) {
-        ImGui::TextUnformatted("before");
-        if (rv_editor_ask_overlay_begin("ov", "New Scene", ImVec2(20, 100), ImVec2(280, 200), true, rv_editor_theme_olive)) {
-            ImGui::Button("Create");
-            p.item("Create");
-        }
-        rv_editor_ask_overlay_end();
-    });
-    const auto *create = find(r, "Create");
-    RV_EDITOR_CHECK(create != nullptr);
-    if (create != nullptr) {
-        RV_EDITOR_CHECK(create->x0 >= 20 && create->y0 >= 100 && create->x1 <= 280 && create->y1 <= 200);
-    }
 }

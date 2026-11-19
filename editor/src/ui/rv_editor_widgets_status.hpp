@@ -115,12 +115,6 @@ float rv_editor_transport_side(float width, float reserve = 0.0f, int count = 6)
 // True from 640 px (scaled): the transport's buttons are large and labelled.
 bool rv_editor_transport_is_large(float width);
 
-// An area inside a pane that asks something without blocking anything else: a
-// bordered block under its own header; the caller draws the text and the buttons
-// between the two calls. Always pair them.
-void rv_editor_ask_begin(const char *title, const rv_editor_theme &theme);
-void rv_editor_ask_end();
-
 // A message line: a constant place `lines` text lines high and `width` wide (0 = what remains of the row), empty when
 // `text` is empty, the same rect for any text. The text wraps inside; what needs more than `lines` lines ends with an
 // ellipsis and shows in full in a tooltip; a non-null `tip` differing from `text` is shown in that tooltip instead.
@@ -132,23 +126,5 @@ void rv_editor_message_line(const char *id,
     const rv_editor_theme &theme,
     const char *tip = nullptr,
     rv_editor_label_kind kind = rv_editor_label_kind::normal);
-
-// An ask's place: a constant height for the ask's longest variant (`lines` of wrapped text under the header, plus a
-// button row). Open it draws the ask inside (title, then what the caller draws between the calls) and returns true.
-// Closed (`open` false) it is the same place unseen and untouchable and returns false: a caller that draws its content
-// anyway keeps every rect, one that has nothing to keep skips it. Always pair with rv_editor_ask_place_end.
-bool rv_editor_ask_place_begin(const char *id, const char *title, int lines, bool open, const rv_editor_theme &theme);
-void rv_editor_ask_place_end();
-
-// An ask drawn over the screen rectangle min..max, for the rare case where it covers no tools or information: it takes
-// no room in the layout, so items after it keep their rects. Closed it draws nothing and returns false. Always pair.
-// It floats above the panes, so the caller picks a rect that hides no tool or information.
-bool rv_editor_ask_overlay_begin(const char *id,
-    const char *title,
-    ImVec2 min,
-    ImVec2 max,
-    bool open,
-    const rv_editor_theme &theme);
-void rv_editor_ask_overlay_end();
 
 } // namespace rv_editor

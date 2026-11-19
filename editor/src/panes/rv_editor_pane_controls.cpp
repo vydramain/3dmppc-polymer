@@ -53,21 +53,6 @@ rv_editor_controls_message_text rv_editor_controls_message(const rv_editor_contr
     return {};
 }
 
-std::string rv_editor_facts_line(const rv_editor_facts_input &in)
-{
-    if (!in.live || in.debug_preset) {
-        return {};
-    }
-    std::string result = rv_editor_text_format("panes.facts_live", std::make_format_args(in.frame, in.session, in.build));
-    if (!in.has_lua) {
-        return result;
-    }
-    const bool reloaded = in.revision != in.first_revision;
-    return result +
-        rv_editor_text_format(reloaded ? "panes.script_revision_reloaded" : "panes.script_revision",
-            std::make_format_args(in.revision));
-}
-
 namespace
 {
 
@@ -170,7 +155,7 @@ float rv_editor_controls_action_slot_width(const rv_editor_theme &theme)
     return width;
 }
 
-void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &)
+void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
 {
     const rv_editor_session &s = app.session;
     if (!app.project.open) {

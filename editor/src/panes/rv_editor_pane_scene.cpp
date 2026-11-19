@@ -61,32 +61,6 @@ float rv_editor_scene_status_min_width()
 
 } // namespace
 
-void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
-{
-    const float row_width = ImGui::GetContentRegionAvail().x;
-    if (rv_editor_button(rv_editor_text("pane_scene.create_scene"), theme)) {
-        rv_editor_shell_new_scene_request(app);
-    }
-    rv_editor_item_tooltip(rv_editor_text("pane_scene.create_scene_tooltip"));
-    for (const std::filesystem::path &path : rv_editor_app_scene_files(app)) {
-        // A file name that does not fit a row of its own keeps its end (the full name is in the tooltip).
-        const std::string filename = path.filename().string();
-        const std::string full = rv_editor_text_format("pane_scene.open_file", std::make_format_args(filename));
-        const float chrome = rv_editor_button_width(full.c_str()) - ImGui::CalcTextSize(full.c_str()).x;
-        const float room = row_width - chrome - ImGui::CalcTextSize(full.c_str()).x + ImGui::CalcTextSize(filename.c_str()).x;
-        const std::string shown = rv_editor_path_tail(filename, room);
-        const std::string open_label =
-            rv_editor_text_format("pane_scene.open_file", std::make_format_args(shown)) + "##" + filename;
-        rv_editor_flow(rv_editor_button_width(open_label.substr(0, open_label.find("##")).c_str()));
-        if (rv_editor_button(open_label.c_str(), theme)) {
-            rv_editor_app_scene_open(app, path);
-        }
-        if (shown != filename) {
-            rv_editor_item_tooltip(filename.c_str());
-        }
-    }
-}
-
 float rv_editor_scene_content_width()
 {
     // The shelf and the viewport lay out in the window's inner width: both of its paddings, not only the one the minimum adds.

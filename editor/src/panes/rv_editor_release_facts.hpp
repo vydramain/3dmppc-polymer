@@ -29,13 +29,6 @@ rv_editor_release_facts rv_editor_release_facts_make(const rv_editor_candidate *
 // The hover text of the candidate number: the full sha256.
 std::string rv_editor_release_number_tooltip(const rv_editor_candidate &c);
 
-// Large tiles when the five with their gaps, the facts text of `facts_width` and the row
-// fit `avail`, else medium, else small; the same choice as the transport bar.
-rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5], float facts_width, float avail);
-
-// The same by the width alone: the room the facts text takes is a constant, not the state's text.
-rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5], float avail);
-
 // The strip's measures, taken with the UI font current. The five squares, the width the column right of them needs (the
 // action slot, or the longest facts a state shows, whichever is wider), the least width of the tile's body and its height at
 // a body `width` wide: the same in every state, and higher from 640 px, where the squares grow.

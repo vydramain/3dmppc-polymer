@@ -82,6 +82,9 @@ int rv_editor_app_profile_select(rv_editor_app &app, size_t index)
 
 int rv_editor_app_profile_add(rv_editor_app &app)
 {
+    if (!app.project.open) {
+        return RV_ERR_INVAL;
+    }
     const rv_editor_run_config before = app.run_config;
     rv_editor_run_profile copy = app.run_config.profiles[app.run_config.active];
     copy.name = rv_editor_app_profile_free_name(app);
@@ -96,6 +99,9 @@ int rv_editor_app_profile_add(rv_editor_app &app)
 
 int rv_editor_app_profile_delete(rv_editor_app &app)
 {
+    if (!app.project.open) {
+        return RV_ERR_INVAL;
+    }
     if (app.run_config.profiles.size() == 1) {
         const std::string text = rv_editor_text("pane_run_config.delete_last_profile");
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, text);
@@ -113,6 +119,9 @@ int rv_editor_app_profile_delete(rv_editor_app &app)
 
 int rv_editor_app_profile_apply(rv_editor_app &app, const rv_editor_run_profile &edited)
 {
+    if (!app.project.open) {
+        return RV_ERR_INVAL;
+    }
     const std::string problem = rv_editor_app_profile_problem(app, edited);
     if (!problem.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "profile not applied: " + problem);

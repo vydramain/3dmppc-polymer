@@ -110,36 +110,14 @@ RV_EDITOR_TEST(rv_editor_test_controls_no_last_run_in_any_message)
     }
 }
 
-RV_EDITOR_TEST(rv_editor_test_controls_facts_line)
-{
-    rv_editor_facts_input in;
-    // Not live: no Target, nothing at all.
-    RV_EDITOR_CHECK(rv_editor_facts_line(in).empty());
-    in.live = true;
-    in.frame = 12;
-    in.session = 3;
-    in.build = 7;
-    std::string s = rv_editor_facts_line(in);
-    RV_EDITOR_CHECK(s == "frame 12 | session #3 | build #7");
-    in.has_lua = true;
-    in.revision = 2;
-    in.first_revision = 2;
-    RV_EDITOR_CHECK(rv_editor_facts_line(in) == "frame 12 | session #3 | build #7 | script revision 2");
-    in.revision = 4;
-    RV_EDITOR_CHECK(rv_editor_facts_line(in) == "frame 12 | session #3 | build #7 | script revision 4 (reloaded)");
-    in.debug_preset = true;
-    RV_EDITOR_CHECK(rv_editor_facts_line(in).empty());
-    for (bool live : { false, true }) {
-        in.live = live;
-        in.debug_preset = false;
-        s = rv_editor_facts_line(in);
-        RV_EDITOR_CHECK(!has(s, "Target") && !has(s, "Last run"));
-    }
-}
-
 RV_EDITOR_TEST(rv_editor_test_controls_dead_texts_removed)
 {
-    for (const char *id : { "panes.target_build", "panes.target_nothing_built", "panes.last_run" }) {
+    for (const char *id : { "panes.target_build",
+             "panes.target_nothing_built",
+             "panes.last_run",
+             "panes.facts_live",
+             "panes.profile",
+             "panes.run_config_tooltip" }) {
         // An unknown id comes back as itself.
         RV_EDITOR_CHECK(std::string(rv_editor_text(id)) == id);
     }

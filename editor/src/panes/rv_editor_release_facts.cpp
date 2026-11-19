@@ -14,18 +14,6 @@
 namespace rv_editor
 {
 
-namespace
-{
-
-// Tile sizes tried, largest first: the first whose row fits wins, as in the transport bar.
-constexpr rv_editor_tile_size release_sizes[] = {
-    rv_editor_tile_size::large,
-    rv_editor_tile_size::medium,
-    rv_editor_tile_size::small,
-};
-
-} // namespace
-
 rv_editor_release_facts rv_editor_release_facts_make(const rv_editor_candidate *c, rv_editor_release_building building)
 {
     rv_editor_release_facts facts;
@@ -57,29 +45,6 @@ std::string rv_editor_release_number_tooltip(const rv_editor_candidate &c)
         return rv_editor_text("pane_candidate.candidate_sha256_pending");
     }
     return rv_editor_text_format("pane_candidate.candidate_sha256_tooltip", std::make_format_args(c.sha256));
-}
-
-// The text whose width the facts' room is, whatever the state says.
-constexpr const char *facts_room_text = "MMMMMMMMMMMMMMMMMMMM";
-
-rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5], float facts_width, float avail)
-{
-    for (const rv_editor_tile_size size : release_sizes) {
-        float width = facts_width + ImGui::GetStyle().ItemSpacing.x * static_cast<float>(std::size(tiles));
-        for (const rv_editor_tile &tile : tiles) {
-            width += rv_editor_tile_width(tile, size);
-        }
-        if (width <= avail) {
-            return size;
-        }
-    }
-    return rv_editor_tile_size::small;
-}
-
-rv_editor_tile_size rv_editor_release_tile_size(const rv_editor_tile (&tiles)[5], float avail)
-{
-    // The facts keep a constant room: the width of a facts line of twenty "M" is room enough to read it.
-    return rv_editor_release_tile_size(tiles, ImGui::CalcTextSize(facts_room_text).x, avail);
 }
 
 float rv_editor_release_column_min_width()

@@ -1,4 +1,4 @@
-// A widget that looks like a button, card, tile or row answers a click on its whole area: the four corners (2 px in)
+// A widget that looks like a button, tile or row answers a click on its whole area: the four corners (2 px in)
 // and the centre. A selectable table row: one click selects, double click or Enter acts.
 
 #include <functional>
@@ -75,38 +75,6 @@ bool last_rect(ImRect &rect)
 }
 
 } // namespace
-
-RV_EDITOR_TEST(rv_editor_test_click_area_card)
-{
-    const rv_editor_theme theme = rv_editor_theme_olive;
-    RV_EDITOR_CHECK(corner_hits([&](ImRect &r) {
-        const bool c = rv_editor_card("card", ImVec2(180, 60), theme);
-        last_rect(r);
-        return c;
-    }) == 5);
-}
-
-RV_EDITOR_TEST(rv_editor_test_click_area_card_selected)
-{
-    const rv_editor_theme theme = rv_editor_theme_olive;
-    RV_EDITOR_CHECK(corner_hits([&](ImRect &r) {
-        const bool c = rv_editor_card("card", ImVec2(180, 60), theme, true);
-        last_rect(r);
-        return c;
-    }) == 5);
-}
-
-RV_EDITOR_TEST(rv_editor_test_click_area_card_disabled_ignores_click)
-{
-    const rv_editor_theme theme = rv_editor_theme_olive;
-    rv_editor_state off;
-    off.disabled = "why";
-    RV_EDITOR_CHECK(corner_hits([&](ImRect &r) {
-        const bool c = rv_editor_card("card", ImVec2(180, 60), theme, false, off);
-        last_rect(r);
-        return c;
-    }) == 0);
-}
 
 // Guards: widgets that already answer on their whole area keep doing so.
 RV_EDITOR_TEST(rv_editor_test_click_area_button)

@@ -317,7 +317,7 @@ void rv_editor_run_actions(rv_editor_app &app,
     rv_editor_item_tooltip(rv_editor_text("pane_run_config.apply_restart_tooltip"));
     ImGui::SameLine();
     if (rv_editor_button(rv_editor_text("pane_run_config.revert_label"), theme, { rv_editor_look::live, no_project }) &&
-        app.project.open) {
+        app.project.open && !config.profiles.empty()) {
         rv_editor_run_form_fill(run_form_draft, config.profiles[config.active]);
     }
     const char *why = no_project != nullptr ? no_project : pending ? rv_editor_text("app_why_not.request_pending") : nullptr;

@@ -58,8 +58,8 @@ void rv_editor_fact(const char *label, const std::string &value, const rv_editor
 void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme)
 {
     rv_editor_label(rv_editor_text("panes.no_project_open_message"), rv_editor_label_kind::normal, theme);
-    rv_editor_flow(rv_editor_button_width(rv_editor_text("panes.open_project_button")));
-    if (rv_editor_button(rv_editor_text("panes.open_project_button"), theme)) {
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("panes.open_project_box")));
+    if (rv_editor_button(rv_editor_text("panes.open_project_box"), theme)) {
         app.open_folder_request = true;
     }
 }

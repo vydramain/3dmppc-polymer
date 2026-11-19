@@ -243,16 +243,11 @@ void draw_leaf(rv_editor_workspace &ws,
         ws.focus_request = rv_editor_tile_none;
         ImGui::SetNextWindowFocus();
     }
-    // A converted kind's body never scrolls: it is never smaller than its minimum, and its content area scrolls itself.
-    const bool converted = !leaf.tabs.empty() && rv_editor_pane_converted(ws.panes.panes[leaf.tabs[leaf.active]].kind);
-    if (converted) {
-        ImGui::BeginChild("##pane",
-            ImVec2(0, -tabs_h),
-            ImGuiChildFlags_AlwaysUseWindowPadding,
-            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    } else {
-        rv_editor_scroll_begin("##pane", ImVec2(0, -tabs_h), false, ImGuiChildFlags_AlwaysUseWindowPadding);
-    }
+    // The body never scrolls: it is never smaller than its minimum, and a pane's content area scrolls itself.
+    ImGui::BeginChild("##pane",
+        ImVec2(0, -tabs_h),
+        ImGuiChildFlags_AlwaysUseWindowPadding,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();
     // A sunken well inside the raised frame: the window's double edge. Drawn by
     // the content window itself, whose background would cover the parent's lines.
@@ -269,11 +264,7 @@ void draw_leaf(rv_editor_workspace &ws,
         rv_editor_pane_id active_pane_id = leaf.tabs[leaf.active];
         draw_pane(context, active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
     }
-    if (converted) {
-        ImGui::EndChild();
-    } else {
-        rv_editor_scroll_end(theme);
-    }
+    ImGui::EndChild();
     if (!leaf.tabs.empty()) {
         // Right under the well: EndChild leaves the cursor an item spacing lower,
         // which would push the tabs' bottom under the tile's frame.

@@ -122,7 +122,9 @@ int rv_editor_message_box(const char *id,
                 field->hint);
         }
         // A single-line field lets go of the keyboard on Enter.
-        if (!buttons.empty() && ImGui::IsItemDeactivatedAfterEdit() && ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
+        const bool first_active = button_states == nullptr || button_states->empty() || (*button_states)[0].disabled == nullptr;
+        if (!buttons.empty() && first_active && ImGui::IsItemDeactivatedAfterEdit() &&
+            ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
             pressed = 0;
         }
     } else if (lead) {

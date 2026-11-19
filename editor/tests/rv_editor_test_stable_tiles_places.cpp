@@ -203,10 +203,7 @@ RV_EDITOR_TEST(rv_editor_test_controls_has_no_profile_button_and_no_facts)
     auto &profiles = shell.app.run_config.profiles;
     profiles[shell.app.run_config.active].name = "a-profile-with-a-rather-long-name-that-does-not-fit";
     const minimum min = pane_minimum(gui, rv_editor_pane_kind::controls);
-    const std::string profile = rv_editor_text_format("panes.profile",
-        std::make_format_args(shell.app.run_config.profiles[shell.app.run_config.active].name));
     const auto r = draw_pane(gui, shell, rv_editor_pane_kind::controls, min.w);
-    RV_EDITOR_CHECK(entry(r, profile) == nullptr);
     RV_EDITOR_CHECK(entry(r, "##facts") == nullptr);
     for (const auto &e : r.entries) {
         RV_EDITOR_CHECK(e.label.find("a-profile-with-a-rather-long-name") == std::string::npos);

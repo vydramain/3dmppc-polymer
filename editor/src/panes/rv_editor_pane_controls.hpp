@@ -47,19 +47,4 @@ float rv_editor_transport_column_min_width();
 float rv_editor_transport_min_width();
 float rv_editor_transport_height(float width);
 
-// The facts line of a live session; empty when not live or in the Debug preset.
-// Never names a target build, the run state or the last run.
-struct rv_editor_facts_input {
-    bool live = false;
-    bool debug_preset = false;
-    int frame = 0;
-    int session = 0;
-    int build = 0;
-    bool has_lua = false; // the script revision is shown only then
-    int revision = 0;
-    int first_revision = 0;
-};
-
-std::string rv_editor_facts_line(const rv_editor_facts_input &in);
-
 } // namespace rv_editor

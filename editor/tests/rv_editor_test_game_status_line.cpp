@@ -46,8 +46,6 @@ RV_EDITOR_TEST(rv_editor_test_game_status_stale_session_text)
 namespace
 {
 
-const std::vector<std::string> narrow_rows{ "320x240  Fit 2.00x", "Stopped. stale: session 3, Exited with a long state" };
-
 bool same_view(const rv_editor_game_view &a, const rv_editor_game_view &b)
 {
     return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h && a.scale == b.scale && a.reduced == b.reduced;
@@ -72,116 +70,14 @@ RV_EDITOR_TEST(rv_editor_test_game_picture_view_uses_full_height)
     });
 }
 
-// AC15, AC16: rows follow each other without overlap, the backing is exactly as tall as all of them, and from the
-// picture's least width up the status takes one or two lines.
-RV_EDITOR_TEST(rv_editor_test_game_status_overlay_backing_is_as_tall_as_rows)
-{
-    std::string error;
-    RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
-    rv_editor_test::rv_editor_test_imgui gui;
-    const rv_editor_theme theme = rv_editor_theme_olive;
-    gui.frame([&] {
-        ImDrawList *dl = ImGui::GetWindowDrawList();
-        const ImVec2 origin(10.0f, 20.0f);
-        const float least = rv_editor_game_picture_min_width();
-        RV_EDITOR_CHECK(least > 0.0f);
-        const std::string longest = rv_editor_game_status_joined(rv_editor_game_status_compose(320,
-            240,
-            "Integer: 0.50x, below 1x to fit",
-            rv_editor_text("pane_game.stopped_rebuilds"),
-            ""));
-        for (const float width : { least, least + 1.0f, 2.0f * least }) {
-            const std::vector<std::vector<std::string>> cases{ { "Stopped." },
-                { "320x240  Fit 2.00x", "Stopped." },
-                { longest } };
-            for (const auto &rows : cases) {
-                const auto o = rv_editor_game_status_overlay(dl, rows, rv_editor_label_kind::normal, theme, origin, width);
-                RV_EDITOR_CHECK(o.rows.size() == rows.size());
-                if (o.rows.size() != rows.size()) {
-                    continue;
-                }
-                float total = 0.0f;
-                for (size_t i = 0; i < rows.size(); i++) {
-                    const float h = ImGui::CalcTextSize(rows[i].c_str(), nullptr, false, width).y;
-                    RV_EDITOR_CHECK(o.rows[i].max.y - o.rows[i].min.y == h);
-                    total += h;
-                    if (i > 0) {
-                        RV_EDITOR_CHECK(o.rows[i - 1].max.y <= o.rows[i].min.y);
-                    }
-                }
-                RV_EDITOR_CHECK(o.backing.min.x == origin.x && o.backing.min.y == origin.y);
-                RV_EDITOR_CHECK(o.backing.max.x == origin.x + width);
-                RV_EDITOR_CHECK(o.backing.max.y - o.backing.min.y == total);
-                RV_EDITOR_CHECK(o.rows.front().min.y >= o.backing.min.y && o.rows.back().max.y == o.backing.max.y);
-                // The band is one or two lines, never a tall block over the picture.
-                RV_EDITOR_CHECK(total <= 2.0f * ImGui::GetTextLineHeight() + 0.01f);
-            }
-        }
-    });
-}
-
-// AC14, AC15: the picture goes first, then a translucent theme-colour backing, then the text in the kind's colour.
-RV_EDITOR_TEST(rv_editor_test_game_status_overlay_draws_after_picture)
-{
-    rv_editor_test::rv_editor_test_imgui gui;
-    const rv_editor_theme theme = rv_editor_theme_olive;
-    struct kind_case {
-        rv_editor_label_kind kind;
-        uint32_t colour;
-    };
-    const kind_case kinds[] = { { rv_editor_label_kind::normal, theme.text },
-        { rv_editor_label_kind::warning, theme.warning },
-        { rv_editor_label_kind::dim, theme.text_disabled } };
-    for (const auto &k : kinds) {
-        gui.frame([&] {
-            ImDrawList *dl = ImGui::GetWindowDrawList();
-            const ImVec2 origin(10.0f, 20.0f);
-            const int base = dl->VtxBuffer.Size;
-            dl->AddImage(ImTextureID(1), origin, ImVec2(300, 250));
-            const int image_end = dl->VtxBuffer.Size;
-            RV_EDITOR_CHECK(image_end == base + 4);
-            const auto o =
-                rv_editor_game_status_overlay(dl, { "320x240  Fit 2.00x", "Stopped." }, k.kind, theme, origin, 280.0f);
-            // 4 vertices of the backing rectangle follow the image, then the glyphs.
-            RV_EDITOR_CHECK(dl->VtxBuffer.Size > image_end + 4);
-            if (dl->VtxBuffer.Size <= image_end + 4) {
-                return;
-            }
-            for (int i = image_end; i < image_end + 4; i++) {
-                const ImDrawVert &v = dl->VtxBuffer[i];
-                const ImU32 alpha = v.col >> IM_COL32_A_SHIFT;
-                RV_EDITOR_CHECK(alpha > 0 && alpha < 255);
-                RV_EDITOR_CHECK(v.pos.x == o.backing.min.x || v.pos.x == o.backing.max.x);
-                RV_EDITOR_CHECK(v.pos.y == o.backing.min.y || v.pos.y == o.backing.max.y);
-            }
-            for (int i = image_end + 4; i < dl->VtxBuffer.Size; i++) {
-                RV_EDITOR_CHECK(dl->VtxBuffer[i].col == rv_editor_col(k.colour));
-            }
-        });
-    }
-}
-
 // AC16: a click anywhere over the picture, where the text lies too, hits the click area.
 RV_EDITOR_TEST(rv_editor_test_game_click_rect_covers_text)
 {
     rv_editor_test::rv_editor_test_imgui gui;
-    const rv_editor_theme theme = rv_editor_theme_olive;
     gui.frame([&] {
         const ImVec2 origin(10.0f, 20.0f), area(300.0f, 200.0f);
         const auto click = rv_editor_game_click_rect(origin, area);
         RV_EDITOR_CHECK(click.min.x == origin.x && click.min.y == origin.y);
         RV_EDITOR_CHECK(click.max.x == origin.x + area.x && click.max.y == origin.y + area.y);
-        const auto o = rv_editor_game_status_overlay(ImGui::GetWindowDrawList(),
-            narrow_rows,
-            rv_editor_label_kind::normal,
-            theme,
-            origin,
-            area.x);
-        RV_EDITOR_CHECK(!o.rows.empty());
-        RV_EDITOR_CHECK(o.backing.min.x >= click.min.x && o.backing.min.y >= click.min.y);
-        RV_EDITOR_CHECK(o.backing.max.x <= click.max.x && o.backing.max.y <= click.max.y);
-        for (const auto &r : o.rows) {
-            RV_EDITOR_CHECK(r.min.y >= click.min.y && r.max.y <= click.max.y);
-        }
     });
 }

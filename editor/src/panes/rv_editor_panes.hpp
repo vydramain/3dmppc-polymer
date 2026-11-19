@@ -37,7 +37,7 @@ void rv_editor_fact(const char *label, const std::string &value, const rv_editor
 
 // Build, Run/Resume, Pause, Step, Stop and the session's state on one row that
 // wraps when narrow; Open Project without a project.
-void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme);
 
 // "No project is open." and an Open Project button, for a pane's empty state.
 void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme);
@@ -208,7 +208,6 @@ void rv_editor_pane_scene(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui);
-void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
 // The box of a scene pane with no scene: Open Project when there is no project, else `text` and Create Scene; the least
 // width it needs, and the project's scenes as rows that open on a click (rv_editor_pane_scene_none.cpp).
 void rv_editor_scene_none_box(rv_editor_app &app,

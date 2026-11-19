@@ -149,36 +149,6 @@ RV_EDITOR_TEST(rv_editor_test_transport_bar_run_and_resume_take_one_width)
     }
 }
 
-RV_EDITOR_TEST(rv_editor_test_release_tile_size_by_width_alone)
-{
-    rv_editor_test_imgui gui;
-    gui.frame([&] {
-        const rv_editor_tile tiles[5] = { { "Build", "B" },
-            { "Run", "R" },
-            { "Player", "P" },
-            { "Stop", "S" },
-            { "Report", "X" } };
-        RV_EDITOR_CHECK(rv_editor_release_tile_size(tiles, 4000.0f) == rv_editor_tile_size::large);
-        RV_EDITOR_CHECK(rv_editor_release_tile_size(tiles, 10.0f) == rv_editor_tile_size::small);
-        // Narrower never gives a larger tile.
-        int last = 0;
-        for (float avail = 4000.0f; avail >= 0.0f; avail -= 10.0f) {
-            const int size = static_cast<int>(rv_editor_release_tile_size(tiles, avail));
-            RV_EDITOR_CHECK(size >= last);
-            last = size;
-        }
-        // Large is reached at one fixed width, whatever the state's text: it does not move with the facts.
-        float need = 0.0f;
-        for (float avail = 0.0f; avail <= 4000.0f; avail += 1.0f) {
-            if (rv_editor_release_tile_size(tiles, avail) == rv_editor_tile_size::large) {
-                need = avail;
-                break;
-            }
-        }
-        RV_EDITOR_CHECK(need > 0.0f);
-    });
-}
-
 // The minimum of a strip is the pane kind's, not what a state made it draw.
 RV_EDITOR_TEST(rv_editor_test_strip_minimum_does_not_follow_the_drawn_height)
 {

@@ -251,13 +251,6 @@ bool rv_editor_toggle(const char *label, bool *on, const rv_editor_theme &theme,
     return item.clicked;
 }
 
-bool rv_editor_card(const char *id, ImVec2 size, const rv_editor_theme &theme, bool selected, const rv_editor_state &state)
-{
-    const rv_editor_item item = rv_editor_item_add(id, size, state);
-    rv_editor_button_face(ImGui::GetWindowDrawList(), item, theme, false, selected);
-    return item.clicked;
-}
-
 bool rv_editor_checkbox(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const rv_editor_item item = rv_editor_item_add(label, rv_editor_marked_size(label), state);
@@ -307,11 +300,6 @@ float rv_editor_button_width_for(std::initializer_list<const char *> labels)
         width = std::max(width, rv_editor_button_width(label));
     }
     return width;
-}
-
-bool rv_editor_button_clipped(const char *label, float max_width, const rv_editor_theme &theme, const rv_editor_state &state)
-{
-    return rv_editor_button_of_width(label, std::min(rv_editor_button_width(label), max_width), theme, state);
 }
 
 bool rv_editor_button_fixed(const char *label,

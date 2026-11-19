@@ -37,22 +37,6 @@ struct rv_editor_game_rect {
     ImVec2 min, max;
 };
 
-// Where the status rows landed: the translucent backing and one rectangle per input row (a wrapped row is as tall as
-// all its lines). Rows follow each other from the backing's top; the backing is exactly as tall as all of them.
-struct rv_editor_game_overlay {
-    rv_editor_game_rect backing;
-    std::vector<rv_editor_game_rect> rows;
-};
-
-// Draws into dl, over whatever dl already holds: first the backing (a theme colour with alpha below 1) from origin,
-// width wide, then the rows in kind's colour wrapped at width. Draws nothing else and moves no ImGui cursor.
-rv_editor_game_overlay rv_editor_game_status_overlay(ImDrawList *dl,
-    const std::vector<std::string> &rows,
-    rv_editor_label_kind kind,
-    const rv_editor_theme &theme,
-    ImVec2 origin,
-    float width);
-
 // Where the frame goes: from the whole picture area, the status text takes no height from it.
 rv_editor_game_view
 rv_editor_game_picture_view(int frame_w, int frame_h, float area_w, float area_h, rv_editor_game_scale mode);

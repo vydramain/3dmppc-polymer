@@ -251,41 +251,6 @@ float rv_editor_transport_side(float width, float reserve, int count)
     return std::max(frame, std::min(natural, std::floor(room / squares)));
 }
 
-void rv_editor_ask_begin(const char *title, const rv_editor_theme &theme)
-{
-    ImGui::PushID(title);
-    ImGui::BeginChild("##ask", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY);
-    rv_editor_pane_header(title, true, theme);
-}
-
-void rv_editor_ask_end()
-{
-    ImGui::EndChild();
-    ImGui::PopID();
-}
-
-namespace
-{
-
-// Open flags of the ask places and overlays being drawn, innermost last.
-std::vector<bool> &ask_open_stack()
-{
-    static std::vector<bool> stack;
-    return stack;
-}
-
-// The ask place's height: border, padding, the header, `lines` of text and a button row, with the spacing between.
-float ask_place_height(int lines)
-{
-    const ImGuiStyle &st = ImGui::GetStyle();
-    const float rows = static_cast<float>(std::max(lines, 1));
-    // The header, each line and the button row are items: a gap after every one but the last.
-    return 2.0f * (st.WindowPadding.y + st.ChildBorderSize) + 2.0f * ImGui::GetFrameHeight() +
-        rows * ImGui::GetTextLineHeight() + (rows + 1.0f) * st.ItemSpacing.y;
-}
-
-} // namespace
-
 void rv_editor_message_line(const char *id,
     const char *text,
     int lines,
@@ -332,76 +297,6 @@ void rv_editor_message_line(const char *id,
     if (!whole.empty() && (shown != whole || full != whole) && ImGui::IsItemHovered()) {
         rv_editor_tooltip(full.c_str());
     }
-}
-
-bool rv_editor_ask_place_begin(const char *id, const char *title, int lines, bool open, const rv_editor_theme &theme)
-{
-    ask_open_stack().push_back(open);
-    ImGui::PushID(id);
-    const ImVec2 size(0.0f, ask_place_height(lines));
-    if (open) {
-        ImGui::BeginChild("##ask", size, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar);
-    } else {
-        // Closed it is the same place unseen and untouchable, so what a caller draws in it anyway keeps its rects:
-        // the content goes to a draw channel that is dropped at the end.
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-        ImGui::BeginDisabled();
-        ImGui::BeginChild("##ask", size, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs);
-        ImGui::GetWindowDrawList()->ChannelsSplit(2);
-        ImGui::GetWindowDrawList()->ChannelsSetCurrent(1);
-    }
-    rv_editor_pane_header(title, true, theme);
-    return open;
-}
-
-void rv_editor_ask_place_end()
-{
-    if (!ask_open_stack().back()) {
-        ImDrawList *dl = ImGui::GetWindowDrawList();
-        dl->ChannelsSetCurrent(0);
-        // shortcut: uses ImDrawListSplitter internals, recheck on an ImGui update
-        dl->_Splitter._Channels[1]._CmdBuffer.resize(0);
-        dl->_Splitter._Channels[1]._IdxBuffer.resize(0);
-        dl->ChannelsMerge();
-    }
-    ImGui::EndChild();
-    if (!ask_open_stack().back()) {
-        ImGui::EndDisabled();
-        ImGui::PopStyleColor(2);
-    }
-    ask_open_stack().pop_back();
-    ImGui::PopID();
-}
-
-bool rv_editor_ask_overlay_begin(const char *id,
-    const char *title,
-    ImVec2 min,
-    ImVec2 max,
-    bool open,
-    const rv_editor_theme &theme)
-{
-    ask_open_stack().push_back(open);
-    if (open) {
-        ImGui::SetNextWindowPos(min);
-        ImGui::SetNextWindowSize(ImVec2(max.x - min.x, max.y - min.y));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-        ImGui::Begin(id,
-            nullptr,
-            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-                ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing);
-        ImGui::PopStyleVar();
-        rv_editor_pane_header(title, true, theme);
-    }
-    return open;
-}
-
-void rv_editor_ask_overlay_end()
-{
-    if (ask_open_stack().back()) {
-        ImGui::End();
-    }
-    ask_open_stack().pop_back();
 }
 
 namespace
