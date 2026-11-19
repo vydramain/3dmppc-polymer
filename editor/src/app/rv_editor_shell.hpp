@@ -366,6 +366,9 @@ bool rv_editor_shell_may_quit(rv_editor_shell &shell);
 // Review Changes as a tab while quitting, opening, building or running waits.
 void rv_editor_shell_ask_close(rv_editor_shell &shell, const rv_editor_theme &theme);
 void rv_editor_shell_ask_save_as(rv_editor_shell &shell, const rv_editor_theme &theme);
+// What a code tile asks instead of its grid (nvim keeps its size): the Unsaved Changes ask of the closing tile, Save As
+// of its tile. False when nothing is asked and the tile shows its grid.
+bool rv_editor_shell_code_asks(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_theme &theme);
 void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme);
 // Once a frame: Review Changes is a tab while something waits on unsaved files and
 // goes when nothing does; Save As whose code tile has gone is dropped.

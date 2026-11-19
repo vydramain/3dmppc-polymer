@@ -105,14 +105,10 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         rv_editor_pane_files(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::code:
-        // A question about this tile's file sits over its text, not over the window.
-        if (pane == shell.closing) {
-            rv_editor_shell_ask_close(shell, theme);
-        } else if (pane == shell.save_as_pane && shell.save_as_buffer != 0 &&
-            shell.leaving == rv_editor_shell::rv_editor_leave::none) {
-            rv_editor_shell_ask_save_as(shell, theme);
+        // A question about this tile's file takes the tile in place of its text, not the window.
+        if (!rv_editor_shell_code_asks(shell, pane, theme)) {
+            rv_editor_pane_code(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         }
-        rv_editor_pane_code(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::review_changes:
         rv_editor_page_review(shell, theme);

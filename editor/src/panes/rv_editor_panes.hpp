@@ -60,6 +60,29 @@ void rv_editor_output_controls(rv_editor_app &app,
 
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+
+// What a code tile's status line or a file tab shows for the buffer `name` (inside `root` it is relative), fitted to
+// `width`: a path that does not fit keeps its end after "...", the modified marker stays at the end; `tooltip` is the
+// full path ("" for an Untitled buffer).
+struct rv_editor_code_text {
+    std::string shown;
+    std::string tooltip;
+};
+rv_editor_code_text rv_editor_code_status_text(const std::string &name, const std::string &root, bool modified, float width);
+rv_editor_code_text rv_editor_code_tab_text(const std::string &name, const std::string &root, bool modified, float width);
+
+// The swap-recovery ask of a code tile: in place of its grid while the file has a swap file, nothing otherwise (a
+// message and the Recover and Discard buttons, wrapped to the tile's width).
+enum class rv_editor_swap_view {
+    none,
+    recoverable,
+    in_use
+};
+struct rv_editor_swap_action {
+    bool recover = false;
+    bool discard = false;
+};
+rv_editor_swap_action rv_editor_code_swap_place(rv_editor_swap_view view, long long pid, const rv_editor_theme &theme);
 // This frame's keyboard as nvim keys.
 std::string rv_editor_nvim_keys();
 
