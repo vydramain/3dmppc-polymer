@@ -6,8 +6,10 @@
 #include <vector>
 
 #include "imgui.h"
+#include "imgui_internal.h" // an item added without taking room
 
 #include "rv_editor_manual_default.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
@@ -86,7 +88,20 @@ const std::vector<block> &rv_editor_manual_blocks()
     return blocks;
 }
 
+// The content area is at least this wide, in font sizes.
+constexpr float area_min_em = 20.0f;
+
+float rv_editor_manual_content_width()
+{
+    return ImGui::GetFontSize() * area_min_em;
+}
+
 } // anonymous namespace
+
+rv_editor_size rv_editor_manual_minimum()
+{
+    return rv_editor_tiled_minimum(rv_editor_manual_content_width(), 0.0f);
+}
 
 void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
@@ -94,24 +109,34 @@ void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme)
 
     const auto &blocks = rv_editor_manual_blocks();
 
-    rv_editor_pane_header(rv_editor_text("manual.title"), true, theme);
-    rv_editor_well_begin("##manual", ImVec2(0.0f, 0.0f), theme);
+    (void)rv_editor_tiled_area_begin("##manual_area", rv_editor_manual_content_width(), theme);
     for (const auto &block : blocks) {
+        // The text of a block is an item of the layout too (a rectangle with an id, nothing to click).
+        const auto known = [&] {
+            ImGui::ItemAdd(ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax()),
+                ImGui::GetID(&block),
+                nullptr,
+                ImGuiItemFlags_NoNav);
+        };
         switch (block.kind) {
         case block_kind::heading: {
             rv_editor_label(block.text.c_str(), rv_editor_label_kind::bright, theme);
+            known();
             break;
         }
         case block_kind::subheading: {
             rv_editor_label(block.text.c_str(), rv_editor_label_kind::info, theme);
+            known();
             break;
         }
         case block_kind::bullet: {
             rv_editor_label(block.text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
+            known();
             break;
         }
         case block_kind::paragraph: {
             rv_editor_label(block.text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+            known();
             break;
         }
         case block_kind::spacing: {
@@ -120,7 +145,7 @@ void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme)
         }
         }
     }
-    rv_editor_well_end();
+    rv_editor_tiled_area_end(theme);
 }
 
 } // namespace rv_editor

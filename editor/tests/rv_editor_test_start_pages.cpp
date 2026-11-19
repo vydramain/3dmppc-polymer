@@ -1,6 +1,7 @@
-// The start pages and Settings, Help and the Manual in a tile: path fields show the path's tail, forms adapt to the
+// The start pages and Settings, Help and the Manual in a tile: path fields show the path whole, forms adapt to the
 // tile's width, and nothing appears or moves by state (a problem or an error line, the inline browser, a note).
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <filesystem>
@@ -11,6 +12,8 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_layout_probe.hpp"
+#include "rv_editor_test_s13.hpp"
+#include "rv_editor_test_stable_tiles.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -87,11 +90,11 @@ const rv_editor_probe_entry *find(const rv_editor_probe_record &r, const std::st
     return nullptr;
 }
 
-// "" when every item ends inside `width`, else the first that does not.
+// "" when every item outside the scroll areas ends inside `width`, else the first that does not.
 std::string inside(const rv_editor_probe_record &r, float width)
 {
     for (const auto &e : r.entries) {
-        if (e.x1 > width + 0.5f) {
+        if (!e.in_scroll && e.x1 > width + 0.5f) {
             return rv_editor_probe_detail::name(e) + " " + rv_editor_probe_detail::rect(e) + " reaches past " +
                 std::to_string(width);
         }
@@ -119,13 +122,14 @@ rv_editor_probe_record draw(rv_editor_test_imgui &gui, float width, F page)
     return r;
 }
 
-float narrow_width(rv_editor_test_imgui &gui)
+// The narrowest a tile of `kind` is: its minimum, or the old narrow width when the kind has no minimum of its own yet.
+float narrow_width(rv_editor_test_imgui &gui, rv_editor_pane_kind kind)
 {
     float narrow = 0.0f;
     gui.frame([&] {
         narrow = ImGui::GetFontSize() * narrow_em;
     });
-    return narrow;
+    return std::max(narrow, stable_tiles::pane_minimum(gui, kind).w);
 }
 
 // --- New Project ---------------------------------------------------------------------------------------------------
@@ -168,6 +172,20 @@ RV_EDITOR_TEST(rv_editor_test_start_new_directory_shows_the_whole_path)
     RV_EDITOR_CHECK(probe.tooltip == path);
 }
 
+// The record without what is inside a content area and the area's scroll window: a wide description gives the scroll window
+// a bar and a new height, which is not a form item moving.
+rv_editor_probe_record outside_areas(const rv_editor_probe_record &r)
+{
+    rv_editor_probe_record out = r;
+    out.entries.clear();
+    for (const auto &e : r.entries) {
+        if (!e.in_scroll && !s13::is_area_scroll(e)) {
+            out.entries.push_back(e);
+        }
+    }
+    return out;
+}
+
 RV_EDITOR_TEST(rv_editor_test_start_new_problem_does_not_move_the_buttons)
 {
     load_texts();
@@ -179,7 +197,7 @@ RV_EDITOR_TEST(rv_editor_test_start_new_problem_does_not_move_the_buttons)
     new_problem(shell, dir);
     const auto with = new_draw(gui, shell, 500);
     // Create, Reset and Browse are items of the form: none moves, appears or resizes.
-    RV_EDITOR_CHECK(rv_editor_probe_compare(without, with).empty());
+    RV_EDITOR_CHECK(rv_editor_probe_compare(outside_areas(without), outside_areas(with)).empty());
 }
 
 RV_EDITOR_TEST(rv_editor_test_start_new_error_does_not_move_the_buttons)
@@ -191,7 +209,7 @@ RV_EDITOR_TEST(rv_editor_test_start_new_error_does_not_move_the_buttons)
     const auto without = new_draw(gui, shell, 500);
     shell.start.error = long_text();
     const auto with = new_draw(gui, shell, 500);
-    RV_EDITOR_CHECK(rv_editor_probe_compare(without, with).empty());
+    RV_EDITOR_CHECK(rv_editor_probe_compare(outside_areas(without), outside_areas(with)).empty());
 }
 
 RV_EDITOR_TEST(rv_editor_test_start_new_form_fits_a_narrow_tile)
@@ -201,7 +219,7 @@ RV_EDITOR_TEST(rv_editor_test_start_new_form_fits_a_narrow_tile)
     rv_editor_shell shell;
     new_problem(shell, fs::temp_directory_path());
     shell.start.error = long_text();
-    const float narrow = narrow_width(gui);
+    const float narrow = narrow_width(gui, rv_editor_pane_kind::new_project);
     RV_EDITOR_CHECK(inside(new_draw(gui, shell, narrow), narrow).empty());
 }
 
@@ -236,7 +254,7 @@ RV_EDITOR_TEST(rv_editor_test_start_open_long_path_stays_inside_a_narrow_tile)
         rv_editor_browse_pick::directory,
         dir);
     shell.open_browser.selected = dir; // the browser shows the selected path under the list
-    const float narrow = narrow_width(gui);
+    const float narrow = narrow_width(gui, rv_editor_pane_kind::open_project);
     const auto r = draw(gui, narrow, [&] {
         rv_editor_page_open_project(shell, theme);
     });
@@ -371,7 +389,7 @@ RV_EDITOR_TEST(rv_editor_test_start_settings_fits_a_narrow_tile_in_every_state)
     load_texts();
     rv_editor_test_imgui gui;
     rv_editor_shell shell;
-    const float narrow = narrow_width(gui);
+    const float narrow = narrow_width(gui, rv_editor_pane_kind::settings);
     settings_draw(gui, shell, narrow);
     shell.settings_error = long_text();
     shell.settings_apply_request = true;
@@ -387,7 +405,7 @@ RV_EDITOR_TEST(rv_editor_test_start_help_filter_fits_a_narrow_tile)
     load_texts();
     rv_editor_test_imgui gui;
     rv_editor_shell shell;
-    const float narrow = narrow_width(gui);
+    const float narrow = narrow_width(gui, rv_editor_pane_kind::help);
     const auto r = draw(gui, narrow, [&] {
         rv_editor_page_help(shell, theme);
     });
@@ -429,7 +447,7 @@ RV_EDITOR_TEST(rv_editor_test_start_manual_stays_inside_a_narrow_tile)
     load_texts();
     rv_editor_test_imgui gui;
     rv_editor_shell shell;
-    const float narrow = 120.0f;
+    const float narrow = std::max(120.0f, stable_tiles::pane_minimum(gui, rv_editor_pane_kind::manual).w);
     const auto r = draw(gui, narrow, [&] {
         rv_editor_page_manual(shell, theme);
     });

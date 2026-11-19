@@ -46,6 +46,10 @@ bool rv_editor_form_row(const char *label,
 void rv_editor_form_custom_begin(const char *label, const rv_editor_theme &theme);
 void rv_editor_form_custom_end(bool can_fail, const char *error, const rv_editor_theme &theme);
 
+// Where the fields of the open form start, in window coordinates: a page's own row (a path with a button, radio
+// buttons) puts its field there, SameLine(rv_editor_form_field_x()) after its label, and is a frame high.
+float rv_editor_form_field_x();
+
 // Moves to the button row at the bottom of the form (the same place whatever the errors); draw the buttons after it.
 void rv_editor_form_buttons_begin(const rv_editor_theme &theme);
 

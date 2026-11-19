@@ -340,6 +340,19 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
 const rv_editor_path_probe &rv_editor_page_new_project_dir_probe();
 void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &theme);
 
+// The Recent Projects page of the start screen (records with a status, the selected project's card) and the least tile
+// it draws whole in every state.
+void rv_editor_page_recent(rv_editor_shell &shell, const rv_editor_theme &theme);
+rv_editor_size rv_editor_recent_minimum();
+
+// The least tile each of the other pages of the start screen draws whole in every state. Call inside a frame or with the
+// UI font pushed.
+rv_editor_size rv_editor_new_project_minimum();
+rv_editor_size rv_editor_open_project_minimum();
+rv_editor_size rv_editor_settings_minimum();
+rv_editor_size rv_editor_help_minimum();
+rv_editor_size rv_editor_manual_minimum();
+
 // Window > Terminal: the terminal in front, with the keyboard.
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell);
 // A build that did not start or failed: Problems in front with the keyboard, in the tile of the Output when it is

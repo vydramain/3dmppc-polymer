@@ -124,8 +124,8 @@ rv_editor_record_result rv_editor_record_row(const char *id,
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     const float own_w = rv_editor_status_width(status, kind, theme);
     const float status_w = std::max(style.status_width, own_w);
-    // The selectable reaches half a spacing beyond its height on both sides: two lines and one spacing in all.
-    const float row_h = 2.0f * ImGui::GetTextLineHeight();
+    // Two lines and the spacing between them, with no padding of its own: the row is as high as its text.
+    const float row_h = 2.0f * ImGui::GetTextLineHeight() + gs.ItemSpacing.y;
     const float margin = gs.FramePadding.x * pill_margin_paddings;
     const float text_w = std::max(ImGui::CalcTextSize(name).x, ImGui::CalcTextSize(path).x);
     const float need = text_w + gs.ItemSpacing.x + status_w + margin;
@@ -133,7 +133,7 @@ rv_editor_record_result rv_editor_record_row(const char *id,
 
     rv_editor_record_result result;
     ImGui::PushID(id);
-    result.clicked = ImGui::Selectable("##row", style.selected, ImGuiSelectableFlags_None, ImVec2(0.0f, row_h));
+    result.clicked = ImGui::Selectable("##row", style.selected, ImGuiSelectableFlags_NoPadWithHalfSpacing, ImVec2(0.0f, row_h));
     result.double_clicked = ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
     result.right_clicked = ImGui::IsItemClicked(ImGuiMouseButton_Right);
     result.row_min = ImGui::GetItemRectMin();
@@ -152,6 +152,16 @@ rv_editor_record_result rv_editor_record_row(const char *id,
     ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.code_subtext));
     ImGui::TextUnformatted(path);
     ImGui::PopStyleColor();
+    // The row's parts as items of the layout; a text under the pill is cut at it, as the eye reads it.
+    const float line = ImGui::GetTextLineHeight();
+    const float next = pos.y + line + gs.ItemSpacing.y;
+    const float limit = std::max(pos.x + 1.0f, pill_x - gs.ItemSpacing.x);
+    const auto part = [&](const char *key, float x0, float y0, float x1) {
+        ImGui::ItemAdd(ImRect(x0, y0, x1, y0 + line), ImGui::GetID(key), nullptr, ImGuiItemFlags_NoNav);
+    };
+    part("##name", pos.x, pos.y, std::min(pos.x + ImGui::CalcTextSize(name).x, limit));
+    part("##path", pos.x, next, std::min(pos.x + ImGui::CalcTextSize(path).x, limit));
+    part("##status", pill_x, pos.y, pill_x + status_w);
     ImGui::PopID();
     return result;
 }

@@ -141,6 +141,11 @@ void rv_editor_form_custom_end(bool can_fail, const char *error, const rv_editor
     ImGui::PopID();
 }
 
+float rv_editor_form_field_x()
+{
+    return form().field_x;
+}
+
 void rv_editor_form_buttons_begin(const rv_editor_theme &)
 {
     ImGui::Spacing();

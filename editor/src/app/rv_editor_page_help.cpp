@@ -8,7 +8,10 @@
 
 #include "imgui.h"
 
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
+#include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
 
 namespace rv_editor
 {
@@ -17,6 +20,9 @@ namespace
 {
 
 constexpr float filter_width_in_font_sizes = 30.0f;
+// The filter field is at least this wide, and the content area under it, in font sizes.
+constexpr float filter_min_em = 12.0f;
+constexpr float area_min_em = 20.0f;
 constexpr int help_table_columns = 2;
 
 // Command and keys columns: no headers, each as wide as its widest row.
@@ -28,11 +34,22 @@ constexpr rv_editor_table_column help_columns[help_table_columns] = {
 // Row bands, columns fitted to their contents, as the page always drew them.
 constexpr rv_editor_table_style help_table_style{ .row_bands = true, .sizing = rv_editor_table_sizing::fixed_fit };
 
+float rv_editor_help_content_width()
+{
+    const float row = ImGui::CalcTextSize(rv_editor_text("page_help.filter_label")).x + ImGui::GetStyle().ItemSpacing.x +
+        ImGui::GetFontSize() * filter_min_em;
+    return std::max(row, ImGui::GetFontSize() * area_min_em);
+}
+
 } // namespace
+
+rv_editor_size rv_editor_help_minimum()
+{
+    return rv_editor_tiled_minimum(rv_editor_help_content_width(), ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y);
+}
 
 void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
-    rv_editor_pane_header(rv_editor_text("page_help.title"), true, theme);
     ImGui::AlignTextToFramePadding();
     rv_editor_label(rv_editor_text("page_help.filter_label"),
         rv_editor_label_kind::normal,
@@ -75,32 +92,37 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
     for (const auto &r : rows) {
         any = any || holds(rv_editor_text(r.label_id)) || holds(rv_editor_text(r.keys_id));
     }
-    // A line under the filter that is there with or without the words, so the table never moves.
-    rv_editor_message_line("##no_match", any ? "" : rv_editor_text("page_help.no_match"), 1, 0.0f, theme);
-    if (!rv_editor_table_begin("##keys", help_columns, help_table_columns, help_table_style)) {
-        return;
-    }
-    const char *last_group_text = nullptr;
-    for (const auto &r : rows) {
-        const char *label_text = rv_editor_text(r.label_id);
-        const char *keys_text = rv_editor_text(r.keys_id);
-        if (!holds(label_text) && !holds(keys_text)) {
-            continue;
-        }
-        const char *group_text = rv_editor_text(r.group_id);
-        if (last_group_text == nullptr || std::string_view(last_group_text) != group_text) {
-            last_group_text = group_text;
+    (void)rv_editor_tiled_area_begin("##keys_area", rv_editor_help_content_width(), theme);
+    if (rv_editor_table_begin("##keys", help_columns, help_table_columns, help_table_style)) {
+        // No match: the area stays, with a line that says so.
+        if (!any) {
             rv_editor_table_row();
             rv_editor_table_cell();
-            rv_editor_label(group_text, rv_editor_label_kind::bright, theme, rv_editor_label_layout::line);
+            rv_editor_content_empty_row(rv_editor_text("page_help.no_match"), theme);
         }
-        rv_editor_table_row();
-        rv_editor_table_cell();
-        rv_editor_table_cell_text(label_text, theme);
-        rv_editor_table_cell();
-        rv_editor_table_cell_text(keys_text, theme);
+        const char *last_group_text = nullptr;
+        for (const auto &r : rows) {
+            const char *label_text = rv_editor_text(r.label_id);
+            const char *keys_text = rv_editor_text(r.keys_id);
+            if (!holds(label_text) && !holds(keys_text)) {
+                continue;
+            }
+            const char *group_text = rv_editor_text(r.group_id);
+            if (last_group_text == nullptr || std::string_view(last_group_text) != group_text) {
+                last_group_text = group_text;
+                rv_editor_table_row();
+                rv_editor_table_cell();
+                rv_editor_text_item(group_text, theme.text_bright);
+            }
+            rv_editor_table_row();
+            rv_editor_table_cell();
+            rv_editor_text_item(label_text);
+            rv_editor_table_cell();
+            rv_editor_text_item(keys_text);
+        }
+        rv_editor_table_end();
     }
-    rv_editor_table_end();
+    rv_editor_tiled_area_end(theme);
 }
 
 } // namespace rv_editor

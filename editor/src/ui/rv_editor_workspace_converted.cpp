@@ -37,6 +37,11 @@ bool rv_editor_pane_converted(rv_editor_pane_kind kind)
     case rv_editor_pane_kind::run_config:
     case rv_editor_pane_kind::findings:
     case rv_editor_pane_kind::test_case:
+    case rv_editor_pane_kind::new_project:
+    case rv_editor_pane_kind::open_project:
+    case rv_editor_pane_kind::settings:
+    case rv_editor_pane_kind::help:
+    case rv_editor_pane_kind::manual:
         return true;
     default:
         return false;
