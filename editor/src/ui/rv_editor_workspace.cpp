@@ -237,7 +237,7 @@ void draw_leaf(rv_editor_workspace &ws,
     // The content keeps the theme's padding off the frame, like every catalog pane.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(theme.pad_px * s, theme.pad_px * s));
     const bool tabbed = leaf.tabs.size() > 1;
-    const float tabs_h = tabbed ? ImGui::GetFrameHeight() : 0.0f;
+    const float tabs_h = rv_editor_tab_strip_height(); // reserved with one tab too
     // Every pane draws straight into this window, so its focus is the pane's.
     if (ws.focus_request == node) {
         ws.focus_request = rv_editor_tile_none;

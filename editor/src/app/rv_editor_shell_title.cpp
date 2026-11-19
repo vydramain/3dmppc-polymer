@@ -163,7 +163,9 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
         break;
     }
 
-    if (!title.empty()) {
+    if (title.empty()) {
+        shell.ws.titles.erase(pane);
+    } else {
         shell.ws.titles[pane] = title;
     }
 }

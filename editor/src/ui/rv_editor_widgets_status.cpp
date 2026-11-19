@@ -11,6 +11,7 @@
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 #include "ui/rv_editor_widgets_tile.hpp"
 
 namespace rv_editor
@@ -23,6 +24,8 @@ namespace
 constexpr int log_style_pushed_count = 2;
 // Gap between status fields in scaled pixels.
 constexpr int status_bar_gap_px = 2;
+// The share of the bar each field after the first takes; the build field fits its longest text at 1280 px.
+constexpr float status_bar_field_share = 0.26f;
 // Theme pads added to each status field's text width.
 constexpr float status_bar_field_pads = 4.0f;
 // Theme pads from a field's left edge to its text.
@@ -379,7 +382,7 @@ void rv_editor_ask_overlay_end()
     ask_open_stack().pop_back();
 }
 
-void rv_editor_status_bar(const char *const fields[], int count, const rv_editor_theme &theme)
+void rv_editor_status_bar(const char *const fields[], int count, const rv_editor_theme &theme, rv_editor_status_probe *probe)
 {
     if (count <= 0) {
         return;
@@ -387,25 +390,31 @@ void rv_editor_status_bar(const char *const fields[], int count, const rv_editor
     const float h = ImGui::GetFrameHeight();
     const float pad = static_cast<float>(theme.pad_px * theme.scale);
     const float gap = static_cast<float>(status_bar_gap_px * theme.scale);
-    float rest = 0.0f;
-    for (int i = 1; i < count; ++i) {
-        rest += ImGui::CalcTextSize(fields[i]).x + pad * status_bar_field_pads + gap;
-    }
-
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const float width = ImGui::GetContentRegionAvail().x;
+    // Every field but the first takes a fixed share of the bar, the first the rest: the edges never follow the texts.
+    const float share = std::floor(width * status_bar_field_share);
+    const float first = std::max(width - static_cast<float>(count - 1) * (share + gap), pad * status_bar_field_pads);
     ImDrawList *dl = ImGui::GetWindowDrawList();
     float x = origin.x;
     for (int i = 0; i < count; ++i) {
-        const ImVec2 text = ImGui::CalcTextSize(fields[i]);
         const float field_pad = pad * status_bar_field_pads;
-        const float w = i == 0 ? std::max(width - rest, field_pad) : text.x + field_pad;
+        const float w = i == 0 ? first : share;
         const ImVec2 min(x, origin.y);
         const ImVec2 max(x + w, origin.y + h);
         rv_editor_draw_panel(dl, min, max, theme, theme.window, rv_editor_bevel::sunken);
+        const std::string shown = rv_editor_ellipsize(fields[i], std::max(0.0f, w - field_pad));
+        const ImVec2 text = ImGui::CalcTextSize(shown.c_str());
         const float text_x = std::floor(min.x + pad * status_bar_text_inset_pads);
         const float text_y = std::floor((min.y + max.y - text.y) / half_divisor);
-        dl->AddText(ImVec2(text_x, text_y), rv_editor_col(theme.text), fields[i]);
+        dl->AddText(ImVec2(text_x, text_y), rv_editor_col(theme.text), shown.c_str());
+        const bool clipped = shown != fields[i];
+        if (clipped && ImGui::IsMouseHoveringRect(min, max)) {
+            ImGui::SetTooltip("%s", fields[i]);
+        }
+        if (probe != nullptr) {
+            probe->segments.push_back({ min.x, max.x, shown, clipped ? fields[i] : "" });
+        }
         x = max.x + gap;
     }
     ImGui::Dummy(ImVec2(width, h));

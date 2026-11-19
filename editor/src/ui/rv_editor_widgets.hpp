@@ -5,6 +5,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "layout/rv_editor_tile.hpp"
 #include "ui/rv_editor_draw.hpp"
@@ -270,6 +271,21 @@ rv_editor_list_result rv_editor_list_row(const char *id,
 // Non-null `pressed` gets the index of the tab the left button went down on
 // this frame, for a caller that tells a drag from a click without repeating
 // this layout.
+// A strip wider than its area scrolls: the mouse wheel over it and a scrollbar.
+// A non-null `probe` gets what the strip drew, for tests.
+struct rv_editor_tab_probe {
+    struct rect {
+        float x0 = 0, y0 = 0, x1 = 0, y1 = 0; // screen pixels
+    };
+    std::vector<rect> tabs;           // every tab, scrolled out of view or not
+    float strip_x0 = 0, strip_x1 = 0; // the visible part of the strip
+    float scroll_x = 0;
+    bool scrollbar = false; // a horizontal scrollbar is drawn
+};
+
+// The height of the strip, scrollbar room included; a tile reserves it whether or not it has several tabs.
+float rv_editor_tab_strip_height();
+
 bool rv_editor_tab_strip(const char *id,
     const char *const labels[],
     int count,
@@ -277,7 +293,8 @@ bool rv_editor_tab_strip(const char *id,
     const rv_editor_theme &theme,
     const rv_editor_state &state = {},
     int *pressed = nullptr,
-    float max_tab_width = 240.0f);
+    float max_tab_width = 240.0f,
+    rv_editor_tab_probe *probe = nullptr);
 
 // A scrolling area with Motif scrollbars instead of ImGui's: arrow boxes
 // at both ends, a sunken trough, a raised thumb with a grip. A bar appears once
@@ -481,7 +498,21 @@ enum class rv_editor_severity {
 
 // Status bar: one sunken field per text, left to right; the first field takes
 // the width the others leave.
-void rv_editor_status_bar(const char *const fields[], int count, const rv_editor_theme &theme);
+// What rv_editor_status_bar drew, for tests. The segments' widths depend on the bar's width and the field count only,
+// never on the texts; a text that does not fit is ellipsized and `tooltip` holds it whole (else empty).
+struct rv_editor_status_probe {
+    struct segment {
+        float x0 = 0, x1 = 0;
+        std::string shown;
+        std::string tooltip;
+    };
+    std::vector<segment> segments;
+};
+
+void rv_editor_status_bar(const char *const fields[],
+    int count,
+    const rv_editor_theme &theme,
+    rv_editor_status_probe *probe = nullptr);
 
 // Lamp and label; each kind has its own symbol as well as its own colour.
 void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme);

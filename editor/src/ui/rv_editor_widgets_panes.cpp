@@ -4,6 +4,7 @@
 #include <cmath>
 #include <string>
 
+#include "imgui_internal.h" // whether the strip shows its scrollbar
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -60,6 +61,8 @@ constexpr float tab_slant_height_divisor = 2.0f;
 constexpr float tab_pad_count = 4.0f;
 // Halves the free space to center text in its box.
 constexpr float text_center_divisor = 2.0f;
+// How many tab heights one wheel notch scrolls the strip.
+constexpr float tab_wheel_step_heights = 3.0f;
 // Theme pads kept free right of the title patch for the boxes.
 constexpr float title_reserve_pads = 3.0f;
 // Theme pads around the title text in its dark patch.
@@ -138,9 +141,24 @@ bool rv_editor_tab_strip(const char *id,
     const rv_editor_theme &theme,
     const rv_editor_state &state,
     int *pressed,
-    float max_tab_width)
+    float max_tab_width,
+    rv_editor_tab_probe *probe)
 {
     const float h = ImGui::GetFrameHeight();
+    // The strip is a child as high as a tab plus the scrollbar, so its height holds whether the bar shows or not.
+    ImGui::BeginChild(id,
+        ImVec2(0.0f, rv_editor_tab_strip_height()),
+        ImGuiChildFlags_None,
+        ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground);
+    if (ImGui::IsWindowHovered() && ImGui::GetIO().MouseWheel != 0.0f) {
+        ImGui::SetScrollX(ImGui::GetScrollX() - ImGui::GetIO().MouseWheel * h * tab_wheel_step_heights);
+    }
+    if (probe != nullptr) {
+        probe->strip_x0 = ImGui::GetWindowPos().x;
+        probe->strip_x1 = probe->strip_x0 + ImGui::GetWindowWidth();
+        probe->scroll_x = ImGui::GetScrollX();
+        probe->scrollbar = ImGui::GetCurrentWindow()->ScrollbarX;
+    }
     const float pad = static_cast<float>(theme.pad_px * theme.scale);
     const float slant = std::floor(h / tab_slant_height_divisor);
     ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -177,6 +195,9 @@ bool rv_editor_tab_strip(const char *id,
         if (!front && item.hovered && !item.disabled) {
             fill = theme.bevel_hi;
         }
+        if (probe != nullptr) {
+            probe->tabs.push_back({ item.min.x, item.min.y, item.max.x, item.max.y });
+        }
         rv_editor_draw_tab(dl, item.min, item.max, slant, theme, fill, !down);
 
         const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
@@ -189,7 +210,13 @@ bool rv_editor_tab_strip(const char *id,
         }
     }
     ImGui::PopID();
+    ImGui::EndChild();
     return changed;
+}
+
+float rv_editor_tab_strip_height()
+{
+    return ImGui::GetFrameHeight() + ImGui::GetStyle().ScrollbarSize;
 }
 
 rv_editor_header_action rv_editor_pane_header(const char *title,
