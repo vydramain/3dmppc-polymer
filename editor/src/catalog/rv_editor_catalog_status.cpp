@@ -196,17 +196,21 @@ void rv_editor_catalog_log(const rv_editor_theme &t)
 
 void rv_editor_catalog_transport(const rv_editor_theme &t)
 {
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_stopped"));
-    const char *transport_nothing = rv_editor_text("catalog_status.transport_nothing_running");
-    rv_editor_transport_bar({ nullptr, nullptr, transport_nothing, transport_nothing, transport_nothing, transport_nothing },
-        t);
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_paused"));
-    // Run is also Resume, so a paused session can run again.
-    rv_editor_transport_bar(
-        { nullptr, nullptr, rv_editor_text("catalog_status.transport_already_paused"), nullptr, nullptr, nullptr },
-        t);
+    // The bar never wraps: a tile narrower than its row of small buttons shows the status bar only.
+    if (ImGui::GetContentRegionAvail().x >= 6.0f * ImGui::GetFrameHeight() + 5.0f * ImGui::GetStyle().ItemSpacing.x) {
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_stopped"));
+        const char *transport_nothing = rv_editor_text("catalog_status.transport_nothing_running");
+        rv_editor_transport_bar(
+            { nullptr, nullptr, transport_nothing, transport_nothing, transport_nothing, transport_nothing },
+            t);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_paused"));
+        // Run is also Resume, so a paused session can run again.
+        rv_editor_transport_bar(
+            { nullptr, nullptr, rv_editor_text("catalog_status.transport_already_paused"), nullptr, nullptr, nullptr },
+            t);
+    }
     const char *const status_fields[] = { rv_editor_text("catalog_status.status_bar_ready"),
         rv_editor_text("catalog_status.status_bar_runtime"),
         rv_editor_text("catalog_status.status_bar_position") };

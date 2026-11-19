@@ -29,6 +29,8 @@ struct rv_editor_tile {
     bool selected = false;
     // The least width of a medium tile: a tile whose label changes takes the widest one's.
     float min_width = 0.0f;
+    // A large tile's side when it must be smaller than the natural one; 0 is the natural side.
+    float side = 0.0f;
 };
 
 // A tile of `size`, drawn in the current window; a disabled tile dims the code and

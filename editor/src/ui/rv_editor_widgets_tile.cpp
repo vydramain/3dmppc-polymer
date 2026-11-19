@@ -54,9 +54,10 @@ rv_editor_item rv_editor_tile_add(const rv_editor_tile &tile, ImVec2 size, const
 
 // One square for every transport button: a six-letter label with padding, or
 // the letter over a line of text, whichever is larger.
-float rv_editor_tile_large_width(const rv_editor_tile &)
+float rv_editor_tile_large_width(const rv_editor_tile &tile)
 {
-    return rv_editor_tile_large_side(ImGui::GetFont(), ImGui::GetFontSize());
+    const float natural = rv_editor_tile_large_side(ImGui::GetFont(), ImGui::GetFontSize());
+    return tile.side > 0.0f ? std::min(natural, tile.side) : natural;
 }
 
 bool rv_editor_tile_large_draw(const rv_editor_tile &tile, const rv_editor_theme &theme, const rv_editor_state &state)
@@ -143,7 +144,9 @@ float rv_editor_tile_small_width(const rv_editor_tile &)
 bool rv_editor_tile_small_draw(const rv_editor_tile &tile, const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const std::string tip = rv_editor_tile_tip(tile);
-    const rv_editor_item item = rv_editor_letter_add(tile.label, tip.c_str(), state);
+    // The letter is the whole face: the label stays only as the id.
+    const std::string id = std::string("##") + tile.label;
+    const rv_editor_item item = rv_editor_letter_add(id.c_str(), tip.c_str(), state);
     const bool down = item.held && item.hovered;
     rv_editor_letter_draw(item, tile.code, tile.color, theme, down, tile.selected);
     return item.clicked;

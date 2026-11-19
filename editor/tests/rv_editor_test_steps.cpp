@@ -38,19 +38,19 @@ RV_EDITOR_TEST(rv_editor_test_steps_compact_running)
 {
     const auto p =
         feed({ plan5, "mppcburner: [1/5] sources a", "mppcburner: [2/5] manifest b", "mppcburner: [3/5] compile c" });
-    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)) == "[v][v][>][ ][ ] compile");
+    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)) == "step 3/5: compile");
 }
 
-RV_EDITOR_TEST(rv_editor_test_steps_compact_plan_only_has_no_label)
+RV_EDITOR_TEST(rv_editor_test_steps_compact_plan_only_names_no_step)
 {
     const auto p = feed({ plan5 });
-    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)) == "[ ][ ][ ][ ][ ]");
+    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)).empty());
 }
 
 RV_EDITOR_TEST(rv_editor_test_steps_compact_all_done)
 {
     const auto p = feed({ "mppcburner: [plan] a b", "mppcburner: [1/2] a", "mppcburner: [2/2] b", "mppcburner: [end] ok" });
-    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)) == "[v][v]");
+    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)).empty());
 }
 
 RV_EDITOR_TEST(rv_editor_test_steps_compact_failed_names_failed_step)
@@ -59,20 +59,30 @@ RV_EDITOR_TEST(rv_editor_test_steps_compact_failed_names_failed_step)
         { plan5, "mppcburner: [1/5] sources a", "mppcburner: [2/5] manifest b", "mppcburner: [end] failed: manifest is bad" });
     const auto &run = p.runs.at(0);
     RV_EDITOR_CHECK(run.steps.at(1).state == rv_editor_step_state::failed); // the parser marks it, not this widget
-    RV_EDITOR_CHECK(rv_editor_steps_compact(run) == "[v][x][ ][ ][ ] manifest");
+    RV_EDITOR_CHECK(rv_editor_steps_compact(run) == "step 2/5: manifest");
 }
 
 RV_EDITOR_TEST(rv_editor_test_steps_compact_interrupted)
 {
     auto p = feed({ plan5, "mppcburner: [1/5] sources a", "mppcburner: [2/5] manifest b" });
     rv_editor_progress_finish(p);
-    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)) == "[v][!][ ][ ][ ] manifest");
+    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)) == "step 2/5: manifest");
 }
 
-RV_EDITOR_TEST(rv_editor_test_steps_compact_no_plan_cells_from_n)
+RV_EDITOR_TEST(rv_editor_test_steps_compact_no_plan_counts_from_n)
 {
     const auto p = feed({ "mppcburner: [1/3] sources a" });
-    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)) == "[>][ ][ ] sources");
+    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)) == "step 1/3: sources");
+}
+
+// The compact text is a bounded template (R5): `step n/N: name`, n and N up to 99, the name up to 16 characters (the
+// progress protocol rejects longer), so chrome can reserve its width.
+RV_EDITOR_TEST(rv_editor_test_steps_compact_fits_the_template_at_its_limits)
+{
+    const std::string name(16, 'x');
+    const auto p = feed({ ("mppcburner: [99/99] " + name + " detail").c_str() });
+    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)) == "step 99/99: " + name);
+    RV_EDITOR_CHECK(rv_editor_steps_compact(p.runs.at(0)).size() <= std::string("step 99/99: ").size() + 16);
 }
 
 RV_EDITOR_TEST(rv_editor_test_steps_compact_empty)
@@ -89,7 +99,7 @@ RV_EDITOR_TEST(rv_editor_test_steps_compact_job_takes_latest_run)
         "mppcburner: [plan] x y z",
         "mppcburner: [2/3] y" });
     RV_EDITOR_CHECK(p.runs.size() == 2);
-    RV_EDITOR_CHECK(rv_editor_steps_compact(p) == "[v][>][ ] y");
+    RV_EDITOR_CHECK(rv_editor_steps_compact(p) == "step 2/3: y");
 }
 
 RV_EDITOR_TEST(rv_editor_test_steps_layout_one_cell_per_step)

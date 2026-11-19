@@ -1,4 +1,4 @@
-// Runtime Controls: the transport bar, its action slot and the message and facts row.
+// Runtime Controls: the transport bar, its action slot and the message row.
 
 #include "panes/rv_editor_pane_controls.hpp"
 
@@ -70,10 +70,6 @@ std::string rv_editor_facts_line(const rv_editor_facts_input &in)
 
 namespace
 {
-
-// Share of the second row's room the facts may take at most. The message keeps the
-// rest: it can carry a request or a failure, so it must never shrink to nothing.
-constexpr float facts_room_share = 0.5f;
 
 // What the action slot after the state name offers; Cancel Build is the one it falls back to, disabled when no build runs.
 enum class rv_editor_action_kind {
@@ -174,7 +170,7 @@ float rv_editor_controls_action_slot_width(const rv_editor_theme &theme)
     return width;
 }
 
-void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
+void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &)
 {
     const rv_editor_session &s = app.session;
     if (!app.project.open) {
@@ -249,16 +245,10 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
         }
     }
 
-    // The action slot follows the transport buttons on the bar's row. Its width is the
-    // reserve before the bar draws: the bar picks a smaller tile size so its buttons
-    // and this tail fit on the row when the window is wide enough; otherwise the
-    // smallest size is drawn and the row's end clips.
+    // The action slot and the mark note follow the transport buttons on the bar's one row; the tile's minimum
+    // width (rv_editor_transport_min_width) holds them all.
     const rv_editor_action_kind action = rv_editor_action_for(s, app.build.busy(), !badge_label.empty());
-    // The mark row follows the action; it too is part of what the bar leaves room for.
-    const float marks_w = rv_editor_mark_tools_min_width(theme, false);
-    // The reserve is the slot's widest content, whatever shows in it, so the tile size follows the width alone.
-    const float reserve = rv_editor_controls_action_slot_width(theme) + ImGui::GetStyle().ItemSpacing.x + marks_w;
-    const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme, reserve);
+    const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme, rv_editor_transport_column_min_width());
     if (clicked.build) {
         rv_editor_app_build(app);
     }
@@ -280,18 +270,24 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
     if (clicked.build_restart) {
         rv_editor_app_build_restart(app);
     }
-    // The action slot shares the bar's row; the bar's reserve is what keeps it there. It is always drawn, at the
-    // one width, in a clipping area, so what it holds never moves the items after it.
+    // The right column beside the tiles has two rows: the action slot with the mark note, then the message row. The
+    // slot is always drawn, at the one width, in a clipping area, so what it holds never moves the items after it.
     const float slot_w = rv_editor_controls_action_slot_width(theme);
-    rv_editor_flow(slot_w);
+    ImGui::SameLine();
+    ImGui::BeginGroup();
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::BeginChild("##action", ImVec2(slot_w, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
     rv_editor_action_draw(app, action, badge_label, badge_kind, theme);
     ImGui::EndChild();
     ImGui::PopStyleColor();
-    // The mark row fills what remains of the row, or moves to the next one when its minimum does not fit.
-    rv_editor_flow(marks_w);
-    (void)rv_editor_mark_tools(app, theme, ui, false);
+    ImGui::SameLine();
+    // The note fills the column's first row. With small buttons the column is never narrower than its least width, so
+    // the strip's minimum is real; with large ones the column takes what the 640 px row leaves it.
+    const bool small_buttons =
+        rv_editor_transport_side(ImGui::GetWindowWidth(), rv_editor_transport_column_min_width()) <= ImGui::GetFrameHeight();
+    const float note_floor = small_buttons ? rv_editor_transport_column_min_width() - slot_w - ImGui::GetStyle().ItemSpacing.x :
+                                             rv_editor_mark_note_min_width();
+    rv_editor_mark_note(app, theme, std::max(note_floor, ImGui::GetContentRegionAvail().x));
 
     rv_editor_controls_message_text message = rv_editor_controls_message({ action == rv_editor_action_kind::force_stop,
         s.hung(),
@@ -306,43 +302,10 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
         message.brief = rv_editor_steps_compact(app.build.progress());
     }
 
-    // Facts, message and the profile button share the second row. Facts and
-    // message clip rather than wrap, so the row never splits; facts take at most
-    // their share, the message takes what is left.
-    const bool debug_preset = app.preset == rv_editor_layout_preset::debug;
-    const std::string facts = rv_editor_facts_line({ s.live(),
-        debug_preset,
-        static_cast<int>(s.frame()),
-        static_cast<int>(s.number()),
-        static_cast<int>(s.build_number()),
-        s.facts().lua_budget > 0,
-        static_cast<int>(s.facts().revision),
-        static_cast<int>(s.facts().first_revision) });
-    // The facts' place is as wide as their longest text, whatever digits show, so the message never changes width.
-    const std::string widest_facts = rv_editor_facts_line({ true, false, 999999, 99, 99, true, 9999, 0 });
-    const bool show_facts = !debug_preset;
-    const std::string profile_name = app.run_config.profiles[app.run_config.active].name;
-    const std::string profile = rv_editor_text_format("panes.profile", std::make_format_args(profile_name));
-    const float spacing = ImGui::GetStyle().ItemSpacing.x;
-    // The profile button never takes more than a third of the row: a long name clips with its full text in the tooltip.
-    const float profile_w = std::min(rv_editor_button_width(profile.c_str()), ImGui::GetContentRegionAvail().x / 3.0f);
-    const float room = ImGui::GetContentRegionAvail().x - profile_w - spacing;
-    const float facts_text_w = show_facts ? ImGui::CalcTextSize(widest_facts.c_str()).x : 0.0f;
-    const float facts_w = std::max(1.0f, std::min(facts_text_w, facts_room_share * room));
-    const float facts_gap = show_facts ? facts_w + spacing : 0.0f;
-    const float message_w = std::max(1.0f, room - facts_gap);
-    if (show_facts) {
-        rv_editor_reserved_line("##facts", facts, facts_w, theme);
-        ImGui::SameLine();
-    }
+    // The second row is the message alone, never narrower than the longest message; the facts and the profile live elsewhere.
+    const float message_w = std::max(rv_editor_transport_column_min_width(), ImGui::GetContentRegionAvail().x);
     rv_editor_reserved_line("##message", message.brief, message_w, theme, message.full);
-    ImGui::SameLine();
-    if (rv_editor_button_clipped(profile.c_str(), profile_w, theme)) {
-        app.show_request = rv_editor_pane_kind::run_config;
-    }
-    const bool clipped = profile_w < rv_editor_button_width(profile.c_str());
-    rv_editor_item_tooltip(clipped ? (std::string(rv_editor_text("panes.run_config_tooltip")) + "\n" + profile).c_str() :
-                                     rv_editor_text("panes.run_config_tooltip"));
+    ImGui::EndGroup();
     rv_editor_shelf_end();
 }
 

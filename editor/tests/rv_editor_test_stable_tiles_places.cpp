@@ -190,8 +190,9 @@ RV_EDITOR_TEST(rv_editor_test_controls_cancel_build_exists_in_every_state_in_one
     }
 }
 
-// The profile button stays inside the pane at the narrowest widths a tile may take.
-RV_EDITOR_TEST(rv_editor_test_controls_profile_button_stays_inside_the_pane)
+// Runtime Controls is the transport alone: the profile is chosen in Run Config and the facts line is gone from this
+// strip (the approved transport pattern), so neither the profile button nor the facts line is drawn here.
+RV_EDITOR_TEST(rv_editor_test_controls_has_no_profile_button_and_no_facts)
 {
     std::string error;
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
@@ -205,13 +206,10 @@ RV_EDITOR_TEST(rv_editor_test_controls_profile_button_stays_inside_the_pane)
     const std::string profile = rv_editor_text_format("panes.profile",
         std::make_format_args(shell.app.run_config.profiles[shell.app.run_config.active].name));
     const auto r = draw_pane(gui, shell, rv_editor_pane_kind::controls, min.w);
-    const auto *button = entry(r, profile);
-    RV_EDITOR_CHECK(button != nullptr);
-    if (button != nullptr) {
-        if (button->x1 > min.w) {
-            std::fprintf(stderr, "  profile button ends at %.1f, pane is %.1f wide\n", button->x1, min.w);
-        }
-        RV_EDITOR_CHECK(button->x1 <= min.w);
+    RV_EDITOR_CHECK(entry(r, profile) == nullptr);
+    RV_EDITOR_CHECK(entry(r, "##facts") == nullptr);
+    for (const auto &e : r.entries) {
+        RV_EDITOR_CHECK(e.label.find("a-profile-with-a-rather-long-name") == std::string::npos);
     }
 }
 

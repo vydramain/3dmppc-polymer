@@ -31,12 +31,16 @@ constexpr float status_bar_field_pads = 4.0f;
 constexpr float status_bar_text_inset_pads = 2.0f;
 // Divisor for centering by halving.
 constexpr float half_divisor = 2.0f;
-// Tile sizes the transport bar tries, largest first: the first whose row fits the window wins.
-constexpr rv_editor_tile_size transport_sizes[] = {
-    rv_editor_tile_size::large,
-    rv_editor_tile_size::medium,
-    rv_editor_tile_size::small,
-};
+// The window width, before scale, from which the transport buttons are large and carry labels.
+constexpr float transport_labels_from_px = 640.0f;
+
+// The scale is the style's inner spacing over the theme's unscaled pad, as the style is built from the theme: the
+// width functions have no theme.
+bool transport_is_large(float width)
+{
+    const float scale = ImGui::GetStyle().ItemInnerSpacing.x / static_cast<float>(rv_editor_theme_olive.pad_px);
+    return width >= transport_labels_from_px * scale;
+}
 
 // Every state has a symbol as well as a colour, so none is told by colour alone.
 struct rv_editor_mark {
@@ -169,18 +173,6 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
             &out.build_restart };
     }
     const char *run_resume_label = rv_editor_text(state.resume ? "widgets_status.button_resume" : "widgets_status.button_run");
-    // Run/Resume and Reload/Restart swap labels: a medium tile keeps the wider of the two, so the
-    // size is chosen by the width alone and no state moves a button.
-    const auto widest = [](rv_editor_tile a, const rv_editor_tile &b) {
-        a.min_width = std::max(rv_editor_tile_width(a, rv_editor_tile_size::medium),
-            rv_editor_tile_width(b, rv_editor_tile_size::medium));
-        return a;
-    };
-    const rv_editor_tile run_tile{ rv_editor_text("widgets_status.button_run"), rv_editor_glyph::run };
-    const rv_editor_tile resume_tile{ rv_editor_text("widgets_status.button_resume"), rv_editor_glyph::run };
-    const rv_editor_tile reload_tile{ rv_editor_text("widgets_status.button_reload"), rv_editor_glyph::reload };
-    const rv_editor_tile restart_tile{ rv_editor_text("widgets_status.button_restart"), rv_editor_glyph::restart };
-    reload_slot.tile = widest(reload_slot.tile, state.build_restart ? reload_tile : restart_tile);
     const rv_editor_transport_button buttons[] = {
         { { rv_editor_text("widgets_status.button_build"),
               rv_editor_glyph::build,
@@ -189,12 +181,11 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
               rv_editor_text("widgets_status.shortcut_build") },
             state.build,
             &out.build },
-        { widest({ run_resume_label,
-                     rv_editor_glyph::run,
-                     theme.code_green,
-                     run_resume_label,
-                     rv_editor_text("widgets_status.shortcut_run") },
-              state.resume ? run_tile : resume_tile),
+        { { run_resume_label,
+              rv_editor_glyph::run,
+              theme.code_green,
+              run_resume_label,
+              rv_editor_text("widgets_status.shortcut_run") },
             state.run,
             &out.run },
         { { rv_editor_text("widgets_status.button_pause"),
@@ -220,33 +211,33 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
             &out.stop },
         reload_slot,
     };
-    // Reload/Restart is always shown, disabled when it cannot act. The bar wraps only when no size fits
-    // and never hides a button: it takes the largest size whose row,
-    // with `reserve` after it, fits the window; if none fits, small is drawn and the
-    // buttons that do not fit wrap to a second row.
-    const float gap = ImGui::GetStyle().ItemSpacing.x;
-    const float tail = reserve > 0.0f ? gap + reserve : 0.0f; // room what follows the bar needs
-    const float avail = ImGui::GetContentRegionAvail().x;
-    rv_editor_tile_size size = rv_editor_tile_size::small;
-    for (const rv_editor_tile_size candidate : transport_sizes) {
-        float row = 0.0f;
-        for (size_t i = 0; i < std::size(buttons); ++i) {
-            row += (i == 0 ? 0.0f : gap) + rv_editor_tile_width(buttons[i].tile, candidate);
-        }
-        if (row + tail <= avail) {
-            size = candidate;
-            break;
-        }
-    }
+    // One row, never wrapped: the size follows the window width alone, so no state moves a button.
+    const rv_editor_tile_size size =
+        transport_is_large(ImGui::GetWindowWidth()) ? rv_editor_tile_size::large : rv_editor_tile_size::small;
+    const float side = rv_editor_transport_side(ImGui::GetWindowWidth(), reserve);
     for (size_t i = 0; i < std::size(buttons); ++i) {
+        auto tile = buttons[i].tile;
+        tile.side = side;
         const auto &b = buttons[i];
         if (i > 0) {
-            // A row that fits is one row; when even small does not, the rest goes below instead of past the edge.
-            rv_editor_flow(rv_editor_tile_width(b.tile, size));
+            ImGui::SameLine();
         }
-        *b.clicked = rv_editor_tile_button(b.tile, size, theme, { rv_editor_look::live, b.disabled });
+        *b.clicked = rv_editor_tile_button(tile, size, theme, { rv_editor_look::live, b.disabled });
     }
     return out;
+}
+
+float rv_editor_transport_side(float width, float reserve)
+{
+    const float frame = ImGui::GetFrameHeight();
+    if (!transport_is_large(width)) {
+        return frame;
+    }
+    const ImGuiStyle &style = ImGui::GetStyle();
+    const float natural = rv_editor_tile_large_side(ImGui::GetIO().Fonts->Fonts[0], ImGui::GetIO().Fonts->Fonts[0]->LegacySize);
+    // The window's and the shelf's padding on both sides, and the gaps between the six squares and the column.
+    const float room = width - 2.0f * (style.WindowPadding.x + style.ItemInnerSpacing.x) - 6.0f * style.ItemSpacing.x - reserve;
+    return std::max(frame, std::min(natural, std::floor(room / 6.0f)));
 }
 
 void rv_editor_ask_begin(const char *title, const rv_editor_theme &theme)

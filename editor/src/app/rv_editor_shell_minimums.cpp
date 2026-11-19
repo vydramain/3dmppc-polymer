@@ -9,6 +9,7 @@
 
 #include "imgui.h"
 #include "panes/rv_editor_game_status.hpp"
+#include "panes/rv_editor_pane_controls.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets_tile.hpp"
 
@@ -49,11 +50,12 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
     const float large = rv_editor_tile_large_side(font, fs);
     const int32_t strip_w = static_cast<int32_t>(fs * strip_min_width_em);
     switch (kind) {
-    // A strip is as tall as its tallest state at its minimum width, not as what it drew this frame. Controls: at
-    // that width the buttons are small tiles and the transport row, the action slot, the mark row and the
-    // message row with the profile button each take a row of their own.
-    case rv_editor_pane_kind::controls:
-        return { strip_w, static_cast<int32_t>(std::ceil(shelf_height(4.0f * fh + 3.0f * gap))) };
+    // A strip is as tall as its tallest state at its minimum width, not as what it drew this frame. Controls: the
+    // transport's own measures.
+    case rv_editor_pane_kind::controls: {
+        const float width = rv_editor_transport_min_width();
+        return { static_cast<int32_t>(std::ceil(width)), static_cast<int32_t>(std::ceil(rv_editor_transport_height(width))) };
+    }
     case rv_editor_pane_kind::release_controls:
         return { strip_w, static_cast<int32_t>(std::ceil(shelf_height(large))) };
     // The scene tools' two rows, or the wrapped line of no scene when it is taller (the debug mark row is

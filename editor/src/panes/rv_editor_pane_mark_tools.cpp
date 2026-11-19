@@ -83,11 +83,13 @@ float rv_editor_mark_tools_min_width(const rv_editor_theme &theme, bool with_res
     return rv_editor_mark_field_min_width() + rv_editor_small_tiles_width(rv_editor_make_mark_tiles(theme), with_restart);
 }
 
-std::vector<rv_editor_tile_rect>
-rv_editor_mark_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui, bool with_restart)
+float rv_editor_mark_note_min_width()
 {
-    rv_editor_session &s = app.session;
-    const char *no_session = s.live() ? nullptr : rv_editor_text("pane_toolchest.no_session");
+    return rv_editor_mark_field_min_width();
+}
+
+void rv_editor_mark_note(rv_editor_app &app, const rv_editor_theme &theme, float width)
+{
     const bool mark_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::add_mark);
     const bool mark_done = mark_count_at_send != no_mark_sent && !mark_pending;
     // A refused mark (the app logged why) leaves the draft for another try.
@@ -97,6 +99,26 @@ rv_editor_mark_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_
     if (mark_done) {
         mark_count_at_send = no_mark_sent;
     }
+    ImGui::SetNextItemWidth(width);
+    rv_editor_text_field("##mark_note", mark_draft, sizeof(mark_draft), theme, { {}, mark_pending });
+    if (mark_draft[0] == '\0' && !ImGui::IsItemActive()) {
+        const ImVec2 min = ImGui::GetItemRectMin();
+        const ImVec2 pad = ImGui::GetStyle().FramePadding;
+        // Clipped to the field, so a narrow field never spills the hint over the tiles.
+        ImGui::PushClipRect(min, ImGui::GetItemRectMax(), true);
+        ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + pad.x, min.y + pad.y),
+            ImGui::GetColorU32(ImGuiCol_TextDisabled),
+            rv_editor_text("pane_toolchest.mark_placeholder"));
+        ImGui::PopClipRect();
+    }
+}
+
+std::vector<rv_editor_tile_rect>
+rv_editor_mark_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui, bool with_restart)
+{
+    rv_editor_session &s = app.session;
+    const char *no_session = s.live() ? nullptr : rv_editor_text("pane_toolchest.no_session");
+    const bool mark_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::add_mark);
     const char *mark_why = mark_pending ? rv_editor_text("app_why_not.request_pending") : no_session;
     const bool capture_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::capture_frame);
     const char *capture_why = capture_pending ? rv_editor_text("app_why_not.request_pending") : no_session;
@@ -110,20 +132,10 @@ rv_editor_mark_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_
     const rv_editor_mark_tiles tiles = rv_editor_make_mark_tiles(theme);
 
     // The field takes what is left of the row after the small tiles and their gaps, but not less than its hint.
-    const float field_w = std::max(rv_editor_mark_field_min_width(),
-        ImGui::GetContentRegionAvail().x - rv_editor_small_tiles_width(tiles, with_restart));
-    ImGui::SetNextItemWidth(field_w);
-    rv_editor_text_field("##mark_note", mark_draft, sizeof(mark_draft), theme, { {}, mark_pending });
-    if (mark_draft[0] == '\0' && !ImGui::IsItemActive()) {
-        const ImVec2 min = ImGui::GetItemRectMin();
-        const ImVec2 pad = ImGui::GetStyle().FramePadding;
-        // Clipped to the field, so a narrow field never spills the hint over the tiles.
-        ImGui::PushClipRect(min, ImGui::GetItemRectMax(), true);
-        ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + pad.x, min.y + pad.y),
-            ImGui::GetColorU32(ImGuiCol_TextDisabled),
-            rv_editor_text("pane_toolchest.mark_placeholder"));
-        ImGui::PopClipRect();
-    }
+    rv_editor_mark_note(app,
+        theme,
+        std::max(rv_editor_mark_field_min_width(),
+            ImGui::GetContentRegionAvail().x - rv_editor_small_tiles_width(tiles, with_restart)));
     std::vector<rv_editor_tile_rect> rects;
     const auto track = [&rects] {
         const ImVec2 min = ImGui::GetItemRectMin();

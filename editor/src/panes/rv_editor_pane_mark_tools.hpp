@@ -26,6 +26,10 @@ struct rv_editor_tile_rect {
 std::vector<rv_editor_tile_rect>
 rv_editor_mark_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui, bool with_restart);
 
+// The row's note field alone, `width` wide, with the one draft the row shares; its least width is its hint's.
+void rv_editor_mark_note(rv_editor_app &app, const rv_editor_theme &theme, float width);
+float rv_editor_mark_note_min_width();
+
 // The narrowest the row can be drawn: a 10em field and the small tiles with their gaps.
 float rv_editor_mark_tools_min_width(const rv_editor_theme &theme, bool with_restart);
 

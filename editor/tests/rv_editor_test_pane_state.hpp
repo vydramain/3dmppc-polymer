@@ -197,6 +197,7 @@ struct fake_console_options {
     bool with_disc = true;
     bool with_lua = true;
     uint32_t build_number = 1;
+    const char *mode = "running"; // "paused": the session reads as paused
 };
 
 // Starts a session of `app` on a stand-in console and waits until it is connected; false when it did not.
@@ -207,7 +208,8 @@ inline bool start_fake_session(rv_editor::rv_editor_app &app, const fs::path &wh
     std::string guard_error;
     rv_editor::rv_editor_guard_start(guard_error); // once per process: another test may have started it
     const std::string proto = rv_editor::rv_editor_session::protocol_supported;
-    const std::string status = "protocol=" + proto + " mode=running " + (o.with_disc ? "disc=64697363 disc_hash=abc " : "") +
+    const std::string status = "protocol=" + proto + " mode=" + o.mode + " " +
+        (o.with_disc ? "disc=64697363 disc_hash=abc " : "") +
         "pdk=1.0 medium=live entry_reloadable=1 entry_revision=1 entry_hash=h lua_used=10 lua_budget=" +
         (o.with_lua ? "1000" : "0");
     const fs::path script = where / "console.sh";

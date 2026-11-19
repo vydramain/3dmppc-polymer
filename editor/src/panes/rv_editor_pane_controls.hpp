@@ -41,6 +41,12 @@ rv_editor_controls_message_text rv_editor_controls_message(const rv_editor_contr
 // reserves: the widest of them, whatever the state, so the bar's tile size never depends on it.
 float rv_editor_controls_action_slot_width(const rv_editor_theme &theme);
 
+// The least width of the Runtime Controls strip (six small buttons, then the right column: the action slot with the mark
+// note, or the longest message, whichever is wider) and its height at a tile `width` wide. Both measure with the current font.
+float rv_editor_transport_column_min_width();
+float rv_editor_transport_min_width();
+float rv_editor_transport_height(float width);
+
 // The facts line of a live session; empty when not live or in the Debug preset.
 // Never names a target build, the run state or the last run.
 struct rv_editor_facts_input {

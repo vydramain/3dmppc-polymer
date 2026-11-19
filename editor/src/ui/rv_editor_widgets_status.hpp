@@ -101,10 +101,15 @@ struct rv_editor_transport_actions {
     bool build_restart;
 };
 
-// `reserve`: width of what is drawn right after the bar on the same row (e.g. a status);
-// the bar takes the largest tile size that leaves that room, so every button stays shown.
+// One row of six buttons that never wraps: large squares with labels when the window is wide, else small ones; the
+// size follows the window width alone. `reserve` is the width the caller's column to the right of the buttons needs: from
+// 640 px the squares shrink to leave it, never past their natural side.
 rv_editor_transport_actions
 rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_theme &theme, float reserve = 0.0f);
+
+// The side of the transport buttons in a tile `width` wide: the large square from 640 px (scaled) that leaves `reserve`
+// to the right of the buttons, else a frame.
+float rv_editor_transport_side(float width, float reserve = 0.0f);
 
 // An area inside a pane that asks something without blocking anything else: a
 // bordered block under its own header; the caller draws the text and the buttons

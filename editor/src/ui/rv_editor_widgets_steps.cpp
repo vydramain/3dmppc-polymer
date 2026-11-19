@@ -51,20 +51,14 @@ char rv_editor_step_mark(rv_editor_step_state state)
 
 std::string rv_editor_steps_compact(const rv_editor_run &run)
 {
-    std::string result;
-    const rv_editor_step *named = nullptr;
-    for (const rv_editor_step &step : run.steps) {
-        result += std::format("[{}]", rv_editor_step_mark(step.state));
-        const bool active = step.state == rv_editor_step_state::running || step.state == rv_editor_step_state::failed ||
-            step.state == rv_editor_step_state::interrupted;
-        if (active && named == nullptr) {
-            named = &step;
+    for (size_t i = 0; i < run.steps.size(); ++i) {
+        const rv_editor_step &step = run.steps[i];
+        if (step.state == rv_editor_step_state::running || step.state == rv_editor_step_state::failed ||
+            step.state == rv_editor_step_state::interrupted) {
+            return std::format("step {}/{}: {}", i + 1, run.steps.size(), step.label);
         }
     }
-    if (named != nullptr) {
-        result += " " + named->label;
-    }
-    return result;
+    return {};
 }
 
 std::string rv_editor_steps_compact(const rv_editor_progress &progress)
