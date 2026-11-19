@@ -118,10 +118,9 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         rv_editor_page_review(shell, theme);
         return;
     case rv_editor_pane_kind::terminal:
-        if (pane == shell.closing_terminal) {
-            rv_editor_shell_ask_terminal(shell, theme);
-        }
+        shell.app.terminals[pane].ending = pane == shell.closing_terminal;
         rv_editor_pane_terminal(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
+        rv_editor_shell_terminal_answered(shell, pane);
         return;
     case rv_editor_pane_kind::game:
         rv_editor_pane_game(shell.app, shell.renderer, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });

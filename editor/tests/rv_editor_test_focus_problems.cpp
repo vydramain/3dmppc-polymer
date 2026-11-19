@@ -154,10 +154,13 @@ RV_EDITOR_TEST(rv_editor_test_focus_problems_keeps_existing_tab)
 namespace
 {
 
-// The ask child's window for `title`, found by the name ImGui gives it inside the test window.
-ImGuiWindow *ask_window(const char *title)
+// The build alert's ask place has a constant id, so its child window is there whether the alert is open or closed.
+constexpr const char *build_alert_place_id = "##build_alert";
+
+// The ask child's window inside the test window, found by the name ImGui gives it under the place's id.
+ImGuiWindow *ask_window()
 {
-    ImGui::PushID(title);
+    ImGui::PushID(build_alert_place_id);
     const ImGuiID id = ImGui::GetID("##ask");
     ImGui::PopID();
     char name[128];
@@ -170,21 +173,44 @@ void open_app(rv_editor_app &app)
     app.project.open = true;
 }
 
-// Draws Problems for one frame; returns the ask window's draw size (vertices) and rect, or 0 when there is no ask.
-int draw_problems(rv_editor_test::rv_editor_test_imgui &gui, rv_editor_app &app, const char *title, ImRect *rect = nullptr)
+// The index count of the draw commands the window and its child windows (the reason's among them) submitted this frame.
+// Commands only: a closed place's content goes to a dropped channel, its vertices may stay in the buffer.
+int drawn_indices(const ImGuiWindow *w)
 {
-    const rv_editor_theme theme = rv_editor_theme_olive;
-    int vertices = 0;
-    gui.frame([&]() {
-        rv_editor_pane_problems(app, theme);
-        if (ImGuiWindow *w = ask_window(title)) {
-            vertices = w->DrawList->VtxBuffer.Size;
-            if (rect) {
-                *rect = w->Rect();
+    int n = 0;
+    for (const ImGuiWindow *x : ImGui::GetCurrentContext()->Windows) {
+        for (const ImGuiWindow *p = x; p != nullptr; p = p->ParentWindow) {
+            if (p == w) {
+                for (const ImDrawCmd &cmd : x->DrawList->CmdBuffer) {
+                    n += static_cast<int>(cmd.ElemCount);
+                }
+                break;
             }
         }
+    }
+    return n;
+}
+
+// What one frame of Problems left in the ask place.
+struct ask_draw {
+    bool exists = false; // the place's window was submitted, open or closed
+    int drawn = 0;       // what the place draws this frame: nothing while closed
+    ImRect rect;
+};
+
+ask_draw draw_problems(rv_editor_test::rv_editor_test_imgui &gui, rv_editor_app &app)
+{
+    const rv_editor_theme theme = rv_editor_theme_olive;
+    ask_draw out;
+    gui.frame([&]() {
+        rv_editor_pane_problems(app, theme);
+        if (ImGuiWindow *w = ask_window()) {
+            out.exists = true;
+            out.drawn = drawn_indices(w);
+            out.rect = w->Rect();
+        }
     });
-    return vertices;
+    return out;
 }
 
 } // namespace
@@ -196,8 +222,8 @@ RV_EDITOR_TEST(rv_editor_test_problems_ask_not_started)
     rv_editor_app app;
     open_app(app);
     app.build_alert = { rv_editor_build_alert_kind::not_started, "no toolchain" };
-    ImRect r;
-    RV_EDITOR_CHECK(draw_problems(gui, app, "Build did not start", &r) > 0);
+    const ask_draw ask = draw_problems(gui, app);
+    RV_EDITOR_CHECK(ask.exists && ask.drawn > 0);
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::not_started); // drawing alone does not clear
 }
 
@@ -208,9 +234,11 @@ RV_EDITOR_TEST(rv_editor_test_problems_ask_failed)
     rv_editor_app app;
     open_app(app);
     app.build_alert = { rv_editor_build_alert_kind::failed, "compile error" };
-    RV_EDITOR_CHECK(draw_problems(gui, app, "Build failed") > 0);
-    // It is the other kind's title that is not drawn.
-    RV_EDITOR_CHECK(draw_problems(gui, app, "Build did not start") == 0);
+    const ask_draw failed = draw_problems(gui, app);
+    RV_EDITOR_CHECK(failed.exists && failed.drawn > 0);
+    // The title follows the kind: the same reason under a refused build draws differently.
+    app.build_alert.kind = rv_editor_build_alert_kind::not_started;
+    RV_EDITOR_CHECK(draw_problems(gui, app).drawn != failed.drawn);
 }
 
 RV_EDITOR_TEST(rv_editor_test_problems_no_ask_without_alert)
@@ -219,8 +247,9 @@ RV_EDITOR_TEST(rv_editor_test_problems_no_ask_without_alert)
     rv_editor_test::rv_editor_test_imgui gui;
     rv_editor_app app;
     open_app(app);
-    RV_EDITOR_CHECK(draw_problems(gui, app, "Build failed") == 0);
-    RV_EDITOR_CHECK(draw_problems(gui, app, "Build did not start") == 0);
+    const ask_draw ask = draw_problems(gui, app);
+    RV_EDITOR_CHECK(ask.exists);     // the place is always there
+    RV_EDITOR_CHECK(ask.drawn == 0); // closed: nothing is drawn
 }
 
 // The reason is drawn: a longer one puts more glyphs in the ask.
@@ -231,31 +260,15 @@ RV_EDITOR_TEST(rv_editor_test_problems_ask_draws_reason)
     rv_editor_app app;
     open_app(app);
     app.build_alert = { rv_editor_build_alert_kind::failed, "ab" };
-    const int shorter = draw_problems(gui, app, "Build failed");
+    const int shorter = draw_problems(gui, app).drawn;
     app.build_alert.reason = "ab cd ef gh ij kl";
-    const int longer = draw_problems(gui, app, "Build failed");
+    const int longer = draw_problems(gui, app).drawn;
     RV_EDITOR_CHECK(shorter > 0);
     RV_EDITOR_CHECK(longer > shorter);
 }
 
-// True when the ask window was submitted in the frame just drawn; `rect` gets its current rectangle.
-bool draw_ask_active(rv_editor_test::rv_editor_test_imgui &gui, rv_editor_app &app, ImRect *rect = nullptr)
-{
-    const rv_editor_theme theme = rv_editor_theme_olive;
-    bool active = false;
-    gui.frame([&]() {
-        rv_editor_pane_problems(app, theme);
-        ImGuiWindow *w = ask_window("Build failed");
-        active = w && w->LastFrameActive == ImGui::GetFrameCount();
-        if (active && rect) {
-            *rect = w->Rect();
-        }
-    });
-    return active;
-}
-
 // OK clears the alert: once the ask has its size, a click somewhere on its rectangle lands on the button, and the
-// pane stops submitting the ask the next frame.
+// place is closed from the next frame on: it draws nothing.
 RV_EDITOR_TEST(rv_editor_test_problems_ask_ok_clears_alert)
 {
     load_texts();
@@ -263,22 +276,25 @@ RV_EDITOR_TEST(rv_editor_test_problems_ask_ok_clears_alert)
     rv_editor_app app;
     open_app(app);
     app.build_alert = { rv_editor_build_alert_kind::failed, "compile error" };
-    ImRect r;
+    ask_draw ask;
     for (int i = 0; i < 4; ++i) {
-        RV_EDITOR_CHECK(draw_ask_active(gui, app, &r));
+        ask = draw_problems(gui, app);
+        RV_EDITOR_CHECK(ask.drawn > 0);
     }
+    const ImRect r = ask.rect;
     ImGuiIO &io = ImGui::GetIO();
     for (float y = r.Min.y + 2; y < r.Max.y && app.build_alert.kind != rv_editor_build_alert_kind::none; y += 4) {
         for (float x = r.Min.x + 2; x < r.Max.x && app.build_alert.kind != rv_editor_build_alert_kind::none; x += 6) {
             io.AddMousePosEvent(x, y);
-            draw_ask_active(gui, app);
+            draw_problems(gui, app);
             io.AddMouseButtonEvent(0, true);
-            draw_ask_active(gui, app);
+            draw_problems(gui, app);
             io.AddMouseButtonEvent(0, false);
-            draw_ask_active(gui, app);
+            draw_problems(gui, app);
         }
     }
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::none);
-    draw_ask_active(gui, app);
-    RV_EDITOR_CHECK(!draw_ask_active(gui, app));
+    const ask_draw closed = draw_problems(gui, app);
+    RV_EDITOR_CHECK(closed.exists);
+    RV_EDITOR_CHECK(closed.drawn == 0);
 }

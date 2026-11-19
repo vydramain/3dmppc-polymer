@@ -337,17 +337,34 @@ bool rv_editor_ask_place_begin(const char *id, const char *title, int lines, boo
     const ImVec2 size(0.0f, ask_place_height(lines));
     if (open) {
         ImGui::BeginChild("##ask", size, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar);
-        rv_editor_pane_header(title, true, theme);
     } else {
-        ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, size.y));
+        // Closed it is the same place unseen and untouchable, so what a caller draws in it anyway keeps its rects:
+        // the content goes to a draw channel that is dropped at the end.
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::BeginDisabled();
+        ImGui::BeginChild("##ask", size, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs);
+        ImGui::GetWindowDrawList()->ChannelsSplit(2);
+        ImGui::GetWindowDrawList()->ChannelsSetCurrent(1);
     }
+    rv_editor_pane_header(title, true, theme);
     return open;
 }
 
 void rv_editor_ask_place_end()
 {
-    if (ask_open_stack().back()) {
-        ImGui::EndChild();
+    if (!ask_open_stack().back()) {
+        ImDrawList *dl = ImGui::GetWindowDrawList();
+        dl->ChannelsSetCurrent(0);
+        // shortcut: uses ImDrawListSplitter internals, recheck on an ImGui update
+        dl->_Splitter._Channels[1]._CmdBuffer.resize(0);
+        dl->_Splitter._Channels[1]._IdxBuffer.resize(0);
+        dl->ChannelsMerge();
+    }
+    ImGui::EndChild();
+    if (!ask_open_stack().back()) {
+        ImGui::EndDisabled();
+        ImGui::PopStyleColor(2);
     }
     ask_open_stack().pop_back();
     ImGui::PopID();

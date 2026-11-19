@@ -302,6 +302,11 @@ bool rv_editor_shell_close_pane(void *context, rv_editor_pane_id pane)
     rv_editor_shell &shell = *static_cast<rv_editor_shell *>(context);
     if (shell.ws.panes.panes[pane].kind == rv_editor_pane_kind::terminal) {
         const auto it = shell.app.terminals.find(pane);
+        if (it != shell.app.terminals.end() && it->second.end_answer == rv_editor_terminal_end_answer::end) {
+            it->second.end_answer = rv_editor_terminal_end_answer::none;
+            shell.closing_terminal = rv_editor_tile_none;
+            return true;
+        }
         if (it != shell.app.terminals.end() && it->second.term != nullptr && it->second.term->running()) {
             shell.closing_terminal = pane;
             return false;

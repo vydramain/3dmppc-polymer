@@ -320,7 +320,7 @@ void rv_editor_shell_focus_problems(rv_editor_shell &shell);
 void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back);
 
 // A live shell's tile closes only after this question; drawn after the workspace.
-void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme &theme);
+void rv_editor_shell_terminal_answered(rv_editor_shell &shell, rv_editor_pane_id pane);
 
 // A new tile of `kind` beside the focused tile (or the first), half and half.
 void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind);

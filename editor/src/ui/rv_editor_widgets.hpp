@@ -591,8 +591,9 @@ void rv_editor_message_line(const char *id,
     rv_editor_label_kind kind = rv_editor_label_kind::normal);
 
 // An ask's place: a constant height for the ask's longest variant (`lines` of wrapped text under the header, plus a
-// button row). Closed (`open` false) it is empty space of that size and returns false; open it draws the ask inside
-// (title, then what the caller draws between the calls) and returns true. Always pair with rv_editor_ask_place_end.
+// button row). Open it draws the ask inside (title, then what the caller draws between the calls) and returns true.
+// Closed (`open` false) it is the same place unseen and untouchable and returns false: a caller that draws its content
+// anyway keeps every rect, one that has nothing to keep skips it. Always pair with rv_editor_ask_place_end.
 bool rv_editor_ask_place_begin(const char *id, const char *title, int lines, bool open, const rv_editor_theme &theme);
 void rv_editor_ask_place_end();
 

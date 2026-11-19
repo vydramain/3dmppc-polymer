@@ -478,22 +478,21 @@ void rv_editor_shell_new_file(rv_editor_shell &shell)
     rv_editor_menu_code_keys(shell, code_keys_new_buffer);
 }
 
-void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme &theme)
+void rv_editor_shell_terminal_answered(rv_editor_shell &shell, rv_editor_pane_id pane)
 {
-    rv_editor_ask_begin(rv_editor_text("shell_menu.ask_terminal_title"), theme);
-    rv_editor_label(rv_editor_text("shell_menu.ask_terminal_message"),
-        rv_editor_label_kind::normal,
-        theme,
-        rv_editor_label_layout::wrap);
-    if (rv_editor_button(rv_editor_text("shell_menu.ask_terminal_end"), theme)) {
-        (void)rv_editor_tile_remove(shell.ws.layout, shell.closing_terminal);
-        shell.closing_terminal = rv_editor_tile_none;
+    rv_editor_terminal_view &view = shell.app.terminals[pane];
+    if (!view.ending || view.end_answer == rv_editor_terminal_end_answer::none) {
+        return;
     }
-    ImGui::SameLine();
-    if (rv_editor_button(rv_editor_text("shell_menu.ask_terminal_keep"), theme)) {
-        shell.closing_terminal = rv_editor_tile_none;
+    if (view.end_answer == rv_editor_terminal_end_answer::end) {
+        // The layout is being drawn: the close waits for the workspace's own apply, which asks the shell again and
+        // finds the answer.
+        shell.ws.pending.what = rv_editor_tile_action::op::close;
+        shell.ws.pending.pane = pane;
+        return;
     }
-    rv_editor_ask_end();
+    view.end_answer = rv_editor_terminal_end_answer::none;
+    shell.closing_terminal = rv_editor_tile_none;
 }
 
 } // namespace rv_editor

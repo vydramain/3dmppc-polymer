@@ -21,7 +21,7 @@ bool rv_editor_table_begin(const char *id, const rv_editor_table_column *columns
     for (int i = 0; i < count; ++i) {
         const bool fixed = fit || columns[i].width == rv_editor_table_width::fixed;
         const ImGuiTableColumnFlags width = fixed ? ImGuiTableColumnFlags_WidthFixed : ImGuiTableColumnFlags_WidthStretch;
-        ImGui::TableSetupColumn(columns[i].name, width, fixed ? columns[i].fixed_px : 0.0f);
+        ImGui::TableSetupColumn(columns[i].name, width, fixed ? columns[i].fixed_px : columns[i].weight);
     }
     if (style.header) {
         ImGui::TableHeadersRow();

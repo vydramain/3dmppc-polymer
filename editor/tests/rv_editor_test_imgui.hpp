@@ -3,20 +3,33 @@
 
 #pragma once
 
+#include "font/rv_editor_font.hpp"
 #include "imgui.h"
 
 namespace rv_editor_test
 {
 
 struct rv_editor_test_imgui {
-    rv_editor_test_imgui()
+    // `with_fonts`: the editor's own fonts, which panes drawing in the code font need. The font setup keeps its fonts in
+    // globals, so they are added once, to one atlas that every such context shares (a second add would remove the
+    // fonts of an atlas that is gone).
+    explicit rv_editor_test_imgui(bool with_fonts = false)
     {
-        ImGui::CreateContext();
+        ImGui::CreateContext(with_fonts ? &shared_font_atlas() : nullptr);
         ImGuiIO &io = ImGui::GetIO();
         io.DisplaySize = ImVec2(800, 600);
         io.IniFilename = nullptr;
-        io.Fonts->AddFontDefault();
+        if (!with_fonts) {
+            io.Fonts->AddFontDefault();
+        }
         io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures; // 1.92: the atlas builds itself in NewFrame
+    }
+    static ImFontAtlas &shared_font_atlas()
+    {
+        static ImFontAtlas atlas;
+        static const int added = rv_editor::rv_editor_fonts_add(atlas, 1.0f);
+        (void)added;
+        return atlas;
     }
     ~rv_editor_test_imgui()
     {

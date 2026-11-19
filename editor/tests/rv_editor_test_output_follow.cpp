@@ -24,13 +24,6 @@ constexpr int prefill_lines = 100;
 constexpr int warmup_frames = 4;
 constexpr int checked_frames = 10;
 
-// The pane draws its header in the editor's interface font, which the headless context does not have. The font
-// setup keeps its fonts in globals, so it is done once per context and every scenario below shares the one context.
-void load_fonts()
-{
-    RV_EDITOR_CHECK(rv_editor_fonts_add(*ImGui::GetIO().Fonts, 1.0f) == RV_OK);
-}
-
 // The deepest scroll child inside the pane's well: the one that holds the lines.
 const ImGuiWindow *lines_child()
 {
@@ -109,8 +102,7 @@ RV_EDITOR_TEST(rv_editor_test_output_follow)
 {
     std::string error;
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
-    rv_editor_test::rv_editor_test_imgui gui;
-    load_fonts();
+    rv_editor_test::rv_editor_test_imgui gui(true);
     RV_EDITOR_CHECK(frames_off_bottom(gui, 1, true) == 0);
     RV_EDITOR_CHECK(frames_off_bottom(gui, 1, false) == 0);
     RV_EDITOR_CHECK(frames_off_bottom(gui, 3, true) == 0);

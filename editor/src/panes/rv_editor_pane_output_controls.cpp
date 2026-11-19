@@ -4,6 +4,7 @@
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <string>
 
@@ -13,6 +14,7 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 
 namespace rv_editor
 {
@@ -21,7 +23,7 @@ namespace
 {
 
 // Dropdown menu label separator before ImGui ID.
-constexpr std::string_view dropdown_id_marker = "   ##";
+constexpr std::string_view dropdown_id_marker = "   ###";
 
 // Tail buttons: Follow, Wrap, Copy, Export, Clear View (5 items).
 constexpr size_t tail_buttons_count = 5;
@@ -104,17 +106,33 @@ std::vector<rv_editor_output_run> rv_editor_output_runs(const rv_editor_log &log
     return runs;
 }
 
-bool rv_editor_output_drop(const std::string &label, const rv_editor_theme &theme)
+// A drop button of one width whatever it says: as wide as the widest of `widest`; a text that does not fit ends in
+// "..." with the whole of it in a tooltip. The id marker keeps the button's id steady as the text changes.
+bool rv_editor_output_drop(const std::string &text,
+    const char *id,
+    const std::array<std::string, 3> &widest,
+    const rv_editor_theme &theme)
 {
-    const bool clicked = rv_editor_button(label.c_str(), theme);
+    const std::array<std::string, 3> w = { rv_editor_output_drop_label(widest[0], id),
+        rv_editor_output_drop_label(widest[1], id),
+        rv_editor_output_drop_label(widest[2], id) };
+    const float side = ImGui::GetFrameHeight();
+    const float room = rv_editor_button_width_for({ w[0].c_str(), w[1].c_str(), w[2].c_str() }) -
+        ImGui::GetStyle().FramePadding.x * 2.0f - side;
+    const std::string fitted = rv_editor_ellipsize(text.c_str(), room);
+    const std::string label = rv_editor_output_drop_label(fitted, id);
+    const bool clicked = rv_editor_button_fixed(label.c_str(), { w[0].c_str(), w[1].c_str(), w[2].c_str() }, theme);
+    const bool hovered = ImGui::IsItemHovered();
     const ImVec2 max = ImGui::GetItemRectMax();
-    const float side = ImGui::GetItemRectSize().y;
     rv_editor_draw_arrow(ImGui::GetWindowDrawList(),
         ImVec2(max.x - side, ImGui::GetItemRectMin().y),
         max,
         theme,
         ImGuiDir_Down,
         theme.text);
+    if (hovered && fitted != text) {
+        rv_editor_tooltip(text.c_str());
+    }
     return clicked;
 }
 
@@ -136,9 +154,13 @@ void rv_editor_output_controls(rv_editor_app &app,
         view.picked_from = view.picked_to = 0;
     };
 
+    const std::string source_prefix = rv_editor_text("pane_output_controls.dropdown_source");
     const std::string source_label = view.run_pid != 0 ? view.run_label : rv_editor_output_sources(view, false);
-    const std::string source_drop = std::string(rv_editor_text("pane_output_controls.dropdown_source")) + source_label;
-    if (rv_editor_output_drop(rv_editor_output_drop_label(source_drop, "sources"), theme)) {
+    const std::string source_drop = source_prefix + source_label;
+    const std::array<std::string, 3> source_widest = { source_prefix + rv_editor_text("pane_output.sources_all_protocol"),
+        source_prefix + rv_editor_text("pane_output.sources_all_protocol"),
+        source_prefix + rv_editor_text("pane_output.sources_none") };
+    if (rv_editor_output_drop(source_drop, "sources", source_widest, theme)) {
         ImGui::OpenPopup("##sources_menu");
     }
     if (rv_editor_popup_begin("##sources_menu")) {
@@ -175,10 +197,12 @@ void rv_editor_output_controls(rv_editor_app &app,
     }
     ImGui::SameLine();
 
-    const std::string level = rv_editor_output_drop_label(std::string(rv_editor_text("pane_output_controls.dropdown_level")) +
-            rv_editor_output_level_filter(view.level),
-        "level");
-    if (rv_editor_output_drop(level, theme)) {
+    const std::string level_prefix = rv_editor_text("pane_output_controls.dropdown_level");
+    const std::string level = level_prefix + rv_editor_output_level_filter(view.level);
+    const std::array<std::string, 3> level_widest = { level_prefix + rv_editor_text("pane_output_controls.level_all"),
+        level_prefix + rv_editor_text("pane_output_controls.level_warnings"),
+        level_prefix + rv_editor_text("pane_output_controls.level_errors") };
+    if (rv_editor_output_drop(level, "level", level_widest, theme)) {
         ImGui::OpenPopup("##level_menu");
     }
     if (rv_editor_popup_begin("##level_menu")) {
