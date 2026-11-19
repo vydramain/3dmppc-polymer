@@ -1,5 +1,5 @@
-// Long variable text wraps to its area and reads in full; a table cell that does not fit shows an ellipsis and its
-// full text in a tooltip.
+// Long variable text wraps to its area and reads in full; a status and a table cell stay on one line and keep their
+// whole text, the area scrolls instead.
 
 #include <string>
 
@@ -45,17 +45,19 @@ ImRect draw_in_area(rv_editor_test::rv_editor_test_imgui &gui, float width, floa
 
 } // namespace
 
-RV_EDITOR_TEST(rv_editor_test_wrap_status_wraps_inside_area)
+RV_EDITOR_TEST(rv_editor_test_wrap_status_long_stays_one_line_whole)
 {
     rv_editor_test::rv_editor_test_imgui gui;
     const rv_editor_theme theme = rv_editor_theme_olive;
     const std::string msg = long_message();
     float left = 0.0f;
+    float text_w = 0.0f;
     const ImRect r = draw_in_area(gui, area_width, &left, [&] {
+        text_w = ImGui::CalcTextSize(msg.c_str()).x;
         rv_editor_status(msg.c_str(), rv_editor_status_kind::error, theme);
     });
-    RV_EDITOR_CHECK(r.GetHeight() > ImGui::GetFontSize() * 2.5f);
-    RV_EDITOR_CHECK(r.Max.x <= left + area_width);
+    RV_EDITOR_CHECK(r.GetHeight() < ImGui::GetFontSize() * 2.0f);
+    RV_EDITOR_CHECK(r.GetWidth() >= text_w - 1.0f); // past the area: its content area scrolls
 }
 
 RV_EDITOR_TEST(rv_editor_test_wrap_status_short_stays_one_line)
@@ -114,13 +116,15 @@ RV_EDITOR_TEST(rv_editor_test_wrap_ellipsize)
     });
 }
 
-RV_EDITOR_TEST(rv_editor_test_wrap_cell_text_clips_and_tooltips)
+RV_EDITOR_TEST(rv_editor_test_wrap_cell_text_keeps_the_whole_text_on_one_line)
 {
     rv_editor_test::rv_editor_test_imgui gui;
     const rv_editor_theme theme = rv_editor_theme_olive;
     const std::string text = long_message();
     ImRect cell;
+    float text_w = 0.0f;
     auto draw = [&] {
+        text_w = ImGui::CalcTextSize(text.c_str()).x;
         const rv_editor_table_column cols[2] = { { "a", rv_editor_table_width::fixed },
             { "b", rv_editor_table_width::stretch } };
         if (rv_editor_table_begin("t", cols, 2)) {
@@ -134,14 +138,9 @@ RV_EDITOR_TEST(rv_editor_test_wrap_cell_text_clips_and_tooltips)
         }
     };
     gui.frame(draw);
+    gui.frame(draw);
     RV_EDITOR_CHECK(cell.GetHeight() < ImGui::GetFontSize() * 2.0f);
-    RV_EDITOR_CHECK(cell.Max.x <= 400.0f);
-    // Hover it: the full text is in the tooltip window.
-    ImGui::GetIO().MousePos = cell.GetCenter();
-    gui.frame(draw);
-    gui.frame(draw);
-    const ImGuiWindow *tip = ImGui::FindWindowByName("##Tooltip_00");
-    RV_EDITOR_CHECK(tip != nullptr && tip->WasActive);
+    RV_EDITOR_CHECK(cell.GetWidth() >= text_w - 1.0f); // whole, wider than the 400 px window: the area scrolls
 }
 
 RV_EDITOR_TEST(rv_editor_test_wrap_text_area_flags)

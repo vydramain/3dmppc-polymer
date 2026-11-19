@@ -28,6 +28,7 @@ struct rv_editor_scroll_frame {
     bool show_v;
     bool show_h;
     float bar;
+    float content_prev; // the content width of the last frame
 };
 
 // Multiplier: arrow scrolling step is text line height scaled by three.
@@ -187,6 +188,7 @@ bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal, ImGuiC
     // makes one bar's width summon the other bar and the two blink in turn.
     const float cw = store.GetFloat(f.content_w, 0.0f);
     const float ch = store.GetFloat(f.content_h, 0.0f);
+    f.content_prev = cw;
     const float aw = f.max.x - f.min.x;
     const float ah = f.max.y - f.min.y;
     const bool h0 = horizontal && cw > aw + scrollbar_visibility_epsilon;
@@ -212,6 +214,11 @@ bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal, ImGuiC
         ImGui::BeginChild("##scroll", ImVec2(std::max(1.0f, inner.x), std::max(1.0f, inner.y)), child_flags, flags);
     rv_editor_item_scroll_area();
     return open;
+}
+
+float rv_editor_scroll_content_width()
+{
+    return rv_editor_scroll_stack.back().content_prev;
 }
 
 void rv_editor_scroll_end(const rv_editor_theme &theme)

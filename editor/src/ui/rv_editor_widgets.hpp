@@ -327,6 +327,8 @@ bool rv_editor_scroll_begin(const char *id,
     bool horizontal = false,
     ImGuiChildFlags child_flags = ImGuiChildFlags_None);
 void rv_editor_scroll_end(const rv_editor_theme &theme);
+// The innermost open area's content width as of the last frame (0 before the first).
+float rv_editor_scroll_content_width();
 
 // Draggable bar between two panes. rv_editor_axis::x: a vertical bar `length`
 // tall that moves along X. Keeps *a >= min_a and *b >= min_b; returns true on change.

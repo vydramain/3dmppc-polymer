@@ -98,7 +98,7 @@ void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_ed
     ImGui::PopStyleColor();
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
-    ImGui::TextWrapped("%s", label);
+    ImGui::TextUnformatted(label); // one line, whole: a long status scrolls its content area
 }
 
 float rv_editor_status_width(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme)

@@ -55,7 +55,12 @@ void rv_editor_fixed_fact(const char *label, const std::string &value, const rv_
     rv_editor_table_cell();
     rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     rv_editor_table_cell();
-    rv_editor_table_cell_text(value.c_str(), theme);
+    // Cut here, not in rv_editor_table_cell_text (which keeps its text whole): the pane is not on content areas yet.
+    const std::string shown = rv_editor_ellipsize(value.c_str(), ImGui::GetContentRegionAvail().x);
+    rv_editor_label(shown.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+    if (shown != value && ImGui::IsItemHovered()) {
+        rv_editor_tooltip(value.c_str());
+    }
 }
 
 // The process, its exit, what was still waiting for an answer, the last

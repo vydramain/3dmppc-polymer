@@ -23,6 +23,9 @@ struct rv_editor_table_column {
     float fixed_px = 0.0f; // a fixed column's width in px, whatever its cells hold; 0 = its widest cell or header
     // A stretch column's share of the room; 0 sizes it by its first cells, which moves it with the content.
     float weight = 0.0f;
+    // A pinned column stays at that edge of the visible area while the table scrolls sideways (status, keys).
+    bool pinned_left = false;
+    bool pinned_right = false;
 };
 
 // How the table takes the width: stretch_prop shares the window's width among stretched
