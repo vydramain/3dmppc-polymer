@@ -8,6 +8,8 @@
 // Every tool prints through this header and the editor reads through it, so the format lives in one place.
 #pragma once
 
+#include <cassert>
+#include <cstddef>
 #include <cstdio>
 #include <string>
 #include <string_view>
@@ -17,6 +19,9 @@
 
 namespace rv_pdklib
 {
+
+// The longest step name (plan label or step label); a longer one makes the line foreign. Tool code keeps names within it.
+inline constexpr std::size_t rv_progress_step_name_max = 16;
 
 enum class rv_progress_kind {
     plan,
@@ -42,6 +47,7 @@ inline void rv_progress_plan(const std::string &tool, const std::vector<std::str
 {
     std::string joined;
     for (const std::string &label : labels) {
+        assert(label.size() <= rv_progress_step_name_max); // a name in the tool's code, so a programmer's error
         joined += ' ' + label;
     }
     rv_fprintf(out, "%s: [plan]%s\n", tool.c_str(), joined.c_str());
@@ -54,6 +60,7 @@ inline void rv_progress_step(const std::string &tool,
     const std::string &detail,
     std::FILE *out = stderr)
 {
+    assert(label.size() <= rv_progress_step_name_max); // a name in the tool's code, so a programmer's error
     rv_fprintf(out, "%s: [%d/%d] %-11s %s\n", tool.c_str(), n, total, label.c_str(), detail.c_str());
 }
 
@@ -123,6 +130,9 @@ inline bool rv_progress_parse_line(std::string_view line, rv_progress_line &resu
         while (!rest.empty()) {
             std::size_t end = rest.find(' ');
             parsed.labels.emplace_back(rest.substr(0, end));
+            if (parsed.labels.back().size() > rv_progress_step_name_max) {
+                return false;
+            }
             rest = skip_spaces(end == std::string_view::npos ? std::string_view() : rest.substr(end));
         }
     } else if (tag == "end") {
@@ -143,6 +153,9 @@ inline bool rv_progress_parse_line(std::string_view line, rv_progress_line &resu
         parsed.kind = rv_progress_kind::step;
         std::size_t end = rest.find(' ');
         parsed.label = std::string(rest.substr(0, end));
+        if (parsed.label.size() > rv_progress_step_name_max) {
+            return false;
+        }
         if (end != std::string_view::npos) {
             parsed.detail = std::string(skip_spaces(rest.substr(end)));
         }

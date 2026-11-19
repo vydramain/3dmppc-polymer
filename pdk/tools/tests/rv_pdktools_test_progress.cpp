@@ -191,3 +191,25 @@ RV_PDKTOOLS_TEST(progress_parse_accepts_padded_label_of_old_ladder)
     RV_PDKTOOLS_CHECK(line.label == "manifest");
     RV_PDKTOOLS_CHECK(line.detail == "disc.toml");
 }
+
+RV_PDKTOOLS_TEST(progress_plan_step_name_limit_is_sixteen)
+{
+    // A name of 16 characters is a step name the protocol accepts; one of 17 makes the whole plan line foreign.
+    rv_progress_line line;
+    std::string name16(16, 'n');
+    std::string name17(17, 'n');
+    RV_PDKTOOLS_CHECK(parses("mppcburner: [plan] sources " + name16 + " burn", line));
+    RV_PDKTOOLS_CHECK(line.labels.size() == 3 && line.labels[1] == name16);
+    RV_PDKTOOLS_CHECK(!parses("mppcburner: [plan] sources " + name17 + " burn", line));
+}
+
+RV_PDKTOOLS_TEST(progress_step_name_limit_is_sixteen)
+{
+    // A step with a 16-character name parses; a step with a 17-character name is not a protocol line.
+    rv_progress_line line;
+    std::string name16(16, 'n');
+    std::string name17(17, 'n');
+    RV_PDKTOOLS_CHECK(parses("mppcburner: [1/5] " + name16 + " ./squid-maid", line));
+    RV_PDKTOOLS_CHECK(line.kind == rv_progress_kind::step && line.label == name16);
+    RV_PDKTOOLS_CHECK(!parses("mppcburner: [1/5] " + name17 + " ./squid-maid", line));
+}
