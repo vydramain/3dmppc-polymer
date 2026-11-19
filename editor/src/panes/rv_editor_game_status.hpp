@@ -53,6 +53,9 @@ rv_editor_game_overlay rv_editor_game_status_overlay(ImDrawList *dl,
 rv_editor_game_view
 rv_editor_game_picture_view(int frame_w, int frame_h, float area_w, float area_h, rv_editor_game_scale mode);
 
+// The least picture width at which the longest status (size and scale, state, stale note) wraps into two lines.
+float rv_editor_game_picture_min_width();
+
 // The click area of the picture: the whole picture area from origin, text included.
 rv_editor_game_rect rv_editor_game_click_rect(ImVec2 origin, ImVec2 area);
 

@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "imgui.h"
+#include "panes/rv_editor_game_status.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets_tile.hpp"
 
@@ -64,7 +65,8 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
     }
     // The mode row's shelf, the well's padding around the picture and the status row over it.
     case rv_editor_pane_kind::game:
-        return { 0, static_cast<int32_t>(std::ceil(shelf_height(fh) + style.WindowPadding.y + (fs + gap))) };
+        return { static_cast<int32_t>(std::ceil(rv_editor_game_picture_min_width() + 2.0f * style.WindowPadding.x)),
+            static_cast<int32_t>(std::ceil(shelf_height(fh) + style.WindowPadding.y + (fs + gap))) };
     case rv_editor_pane_kind::output:
     case rv_editor_pane_kind::runtime_log:
     case rv_editor_pane_kind::build_log:

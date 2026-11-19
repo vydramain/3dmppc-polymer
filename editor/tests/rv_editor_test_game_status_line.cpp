@@ -72,16 +72,28 @@ RV_EDITOR_TEST(rv_editor_test_game_picture_view_uses_full_height)
     });
 }
 
-// AC15: rows follow each other without overlap and the backing is exactly as tall as all of them.
+// AC15, AC16: rows follow each other without overlap, the backing is exactly as tall as all of them, and from the
+// picture's least width up the status takes one or two lines.
 RV_EDITOR_TEST(rv_editor_test_game_status_overlay_backing_is_as_tall_as_rows)
 {
+    std::string error;
+    RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
     rv_editor_test::rv_editor_test_imgui gui;
     const rv_editor_theme theme = rv_editor_theme_olive;
     gui.frame([&] {
         ImDrawList *dl = ImGui::GetWindowDrawList();
         const ImVec2 origin(10.0f, 20.0f);
-        for (const float width : { 70.0f, 120.0f, 400.0f }) {
-            const std::vector<std::vector<std::string>> cases{ { "Stopped." }, narrow_rows };
+        const float least = rv_editor_game_picture_min_width();
+        RV_EDITOR_CHECK(least > 0.0f);
+        const std::string longest = rv_editor_game_status_joined(rv_editor_game_status_compose(320,
+            240,
+            "Integer: 0.50x, below 1x to fit",
+            rv_editor_text("pane_game.stopped_rebuilds"),
+            ""));
+        for (const float width : { least, least + 1.0f, 2.0f * least }) {
+            const std::vector<std::vector<std::string>> cases{ { "Stopped." },
+                { "320x240  Fit 2.00x", "Stopped." },
+                { longest } };
             for (const auto &rows : cases) {
                 const auto o = rv_editor_game_status_overlay(dl, rows, rv_editor_label_kind::normal, theme, origin, width);
                 RV_EDITOR_CHECK(o.rows.size() == rows.size());
@@ -101,11 +113,10 @@ RV_EDITOR_TEST(rv_editor_test_game_status_overlay_backing_is_as_tall_as_rows)
                 RV_EDITOR_CHECK(o.backing.max.x == origin.x + width);
                 RV_EDITOR_CHECK(o.backing.max.y - o.backing.min.y == total);
                 RV_EDITOR_CHECK(o.rows.front().min.y >= o.backing.min.y && o.rows.back().max.y == o.backing.max.y);
+                // The band is one or two lines, never a tall block over the picture.
+                RV_EDITOR_CHECK(total <= 2.0f * ImGui::GetTextLineHeight() + 0.01f);
             }
         }
-        // A narrow width wraps the long row over several lines, and the backing grows with it.
-        const auto o = rv_editor_game_status_overlay(dl, narrow_rows, rv_editor_label_kind::normal, theme, origin, 70.0f);
-        RV_EDITOR_CHECK(o.backing.max.y - o.backing.min.y > 3.0f * ImGui::GetTextLineHeight());
     });
 }
 

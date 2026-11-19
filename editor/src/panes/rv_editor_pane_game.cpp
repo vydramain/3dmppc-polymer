@@ -19,6 +19,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_picture.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -184,19 +185,18 @@ void rv_editor_game_picture(const rv_editor_ui_port &ui,
     ImDrawList *dl = ImGui::GetWindowDrawList();
     // The picture takes the whole area; the status text is drawn over it afterwards.
     rv_editor_game_view view{};
-    std::vector<std::string> rows{ status };
+    std::string text = status;
     if (have) {
         view = rv_editor_game_picture_view(static_cast<int>(rv_editor_game_w),
             static_cast<int>(rv_editor_game_h),
             area.x,
             area.y,
             mode);
-        const rv_editor_game_status_lines lines = rv_editor_game_status_compose(static_cast<int>(rv_editor_game_w),
+        text = rv_editor_game_status_joined(rv_editor_game_status_compose(static_cast<int>(rv_editor_game_w),
             static_cast<int>(rv_editor_game_h),
             rv_editor_game_scale_text(mode, view),
             status,
-            "");
-        rows = rv_editor_game_status_rows(lines, area.x, ImGui::CalcTextSize(rv_editor_game_status_joined(lines).c_str()).x);
+            ""));
     }
 
     // The whole area is dark, so what the frame leaves over is not the tile's olive.
@@ -236,7 +236,7 @@ void rv_editor_game_picture(const rv_editor_ui_port &ui,
         }
         dl->PopClipRect();
     }
-    rv_editor_game_status_overlay(dl, rows, kind, theme, p0, area.x);
+    rv_editor_picture_overlay(text, kind, theme, { p0, ImVec2(p0.x + area.x, p0.y + area.y) });
 }
 
 // Appends " stale: session N, <state>" to status when a frame
