@@ -238,6 +238,7 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     if (rv_editor_button_fixed(action_label, action_labels, theme, { rv_editor_look::live, action_why })) {
         (void)rv_editor_app_request(app, { action_kind });
     }
+    // The reason shows at once, not after the hover delay: it is why the slot is greyed.
     if (action_why != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         rv_editor_tooltip(action_why);
     }

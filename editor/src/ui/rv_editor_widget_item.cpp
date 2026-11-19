@@ -34,7 +34,9 @@ rv_editor_item rv_editor_item_add(const char *id, ImVec2 size, const rv_editor_s
     item.focused = !item.disabled && ImGui::IsItemFocused();
     if (item.disabled) {
         ImGui::EndDisabled();
-        ImGui::SetItemTooltip("%s", state.disabled);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("%s", state.disabled);
+        }
     }
 
     switch (state.look) {

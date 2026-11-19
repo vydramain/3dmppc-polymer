@@ -4,6 +4,7 @@
 #include "app/rv_editor_shell.hpp"
 
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 
 #include "imgui.h"
@@ -38,11 +39,13 @@ float shelf_height(float rows)
 // minimum (rv_editor_workspace_draw) already covers them.
 rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
 {
-    const float fs = ImGui::GetFontSize();
-    const float fh = ImGui::GetFrameHeight();
+    // Called before the first frame, with no current font: measure with the UI font explicitly.
+    ImFont *font = ImGui::GetIO().Fonts->Fonts[0];
+    const float fs = font->LegacySize;
     const ImGuiStyle &style = ImGui::GetStyle();
+    const float fh = fs + 2.0f * style.FramePadding.y;
     const float gap = style.ItemSpacing.y;
-    const float large = rv_editor_tile_width({}, rv_editor_tile_size::large);
+    const float large = rv_editor_tile_large_side(font, fs);
     const int32_t strip_w = static_cast<int32_t>(fs * strip_min_width_em);
     switch (kind) {
     // A strip is as tall as its tallest state at its minimum width, not as what it drew this frame. Controls: at
@@ -56,13 +59,12 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
     // a frame and a text line, less than the scene tools).
     case rv_editor_pane_kind::toolchest: {
         const float wrap = strip_w - 2.0f * style.WindowPadding.x - style.WindowPadding.y;
-        const float no_scene = ImGui::CalcTextSize(rv_editor_text("pane_toolchest.no_scene"), nullptr, false, wrap).y;
+        const float no_scene = font->CalcTextSizeA(fs, FLT_MAX, wrap, rv_editor_text("pane_toolchest.no_scene")).y;
         return { strip_w, static_cast<int32_t>(std::ceil(shelf_height(std::max(2.0f * fh + gap, no_scene)))) };
     }
     // The mode row's shelf, the well's padding around the picture and the status row over it.
     case rv_editor_pane_kind::game:
-        return { 0,
-            static_cast<int32_t>(std::ceil(shelf_height(fh) + style.WindowPadding.y + ImGui::GetTextLineHeightWithSpacing())) };
+        return { 0, static_cast<int32_t>(std::ceil(shelf_height(fh) + style.WindowPadding.y + (fs + gap))) };
     case rv_editor_pane_kind::output:
     case rv_editor_pane_kind::runtime_log:
     case rv_editor_pane_kind::build_log:

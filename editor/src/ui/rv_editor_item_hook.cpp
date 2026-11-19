@@ -19,10 +19,16 @@ void rv_editor_item_sink_set(rv_editor_item_sink *sink)
 
 } // namespace rv_editor
 
-void ImGuiTestEngineHook_ItemAdd(ImGuiContext *, ImGuiID id, const ImRect &bb, const ImGuiLastItemData *)
+void ImGuiTestEngineHook_ItemAdd(ImGuiContext *context, ImGuiID id, const ImRect &bb, const ImGuiLastItemData *)
 {
-    if (rv_editor::sink_in_use != nullptr) {
+    // A tooltip floats over the layout and is not part of it.
+    const bool tooltip = context->CurrentWindow != nullptr && (context->CurrentWindow->Flags & ImGuiWindowFlags_Tooltip) != 0;
+    if (rv_editor::sink_in_use != nullptr && !tooltip) {
         rv_editor::sink_in_use->item_add(id, bb.Min, bb.Max);
+        // A window's title bar is an item of its own: it takes its window's name.
+        if (context->CurrentWindow != nullptr && id == context->CurrentWindow->MoveId) {
+            rv_editor::sink_in_use->item_info(id, context->CurrentWindow->Name);
+        }
     }
 }
 

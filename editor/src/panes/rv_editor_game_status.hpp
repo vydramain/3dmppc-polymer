@@ -56,7 +56,4 @@ rv_editor_game_picture_view(int frame_w, int frame_h, float area_w, float area_h
 // The click area of the picture: the whole picture area from origin, text included.
 rv_editor_game_rect rv_editor_game_click_rect(ImVec2 origin, ImVec2 area);
 
-// Whether the Game shelf draws its Run button: never in the release view, where Release Controls' Run runs the candidate.
-bool rv_editor_game_shelf_shows_run(bool release_view);
-
 } // namespace rv_editor

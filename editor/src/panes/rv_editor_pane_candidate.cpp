@@ -87,9 +87,6 @@ const char *rv_editor_why_not_pass(const rv_editor_app &app, const rv_editor_can
     return nullptr;
 }
 
-// The void suffix of a state whose result belongs to other bytes.
-constexpr const char *void_suffix = ", void: other bytes";
-
 void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, int &selected, const rv_editor_theme &theme)
 {
     rv_editor_check &check = c.checks[id];
@@ -103,8 +100,9 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
     rv_editor_label(check.name, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     rv_editor_item_tooltip((std::string(rv_editor_text("pane_candidate.passed_means")) + " " + check.passes_when).c_str());
     rv_editor_table_cell();
-    const std::string state =
-        valid ? rv_editor_check_state_name(check.state) : std::string(rv_editor_check_state_name(check.state)) + void_suffix;
+    const std::string state = valid ?
+        rv_editor_check_state_name(check.state) :
+        std::string(rv_editor_check_state_name(check.state)) + rv_editor_text("pane_candidate.void_suffix");
     rv_editor_status(state.c_str(), rv_editor_check_lamp(c, check), theme);
     if (!check.at.empty()) {
         rv_editor_item_tooltip((check.note + "\nset " + check.at + ", on " + check.env).c_str());
@@ -164,7 +162,7 @@ void rv_editor_candidate_checks(rv_editor_app &app, rv_editor_candidate &c, cons
              rv_editor_check_state::failed,
              rv_editor_check_state::blocked,
              rv_editor_check_state::skipped }) {
-        const std::string name = std::string(rv_editor_check_state_name(state)) + void_suffix;
+        const std::string name = std::string(rv_editor_check_state_name(state)) + rv_editor_text("pane_candidate.void_suffix");
         widest = ImGui::CalcTextSize(name.c_str()).x > ImGui::CalcTextSize(widest.c_str()).x ? name : widest;
     }
     const float state_width =

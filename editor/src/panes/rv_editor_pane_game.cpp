@@ -122,6 +122,7 @@ void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme, cons
     if (rv_editor_button(run_text, theme, { rv_editor_look::live, run_why }) && !app.release_view) {
         rv_editor_app_run(app);
     }
+    // The reason shows at once, not after the hover delay: it is why the button is greyed.
     if (run_why != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         rv_editor_tooltip(run_why);
     }

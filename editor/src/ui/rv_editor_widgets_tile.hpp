@@ -41,4 +41,7 @@ bool rv_editor_tile_button(const rv_editor_tile &tile,
 // Width a tile of `size` takes. Large is a square; medium and small are frame height tall.
 float rv_editor_tile_width(const rv_editor_tile &tile, rv_editor_tile_size size);
 
+// The side of a large tile for `font` at `size`, measured without a frame or a current font.
+float rv_editor_tile_large_side(ImFont *font, float size);
+
 } // namespace rv_editor

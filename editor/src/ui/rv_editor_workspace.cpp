@@ -236,7 +236,6 @@ void draw_leaf(rv_editor_workspace &ws,
 
     // The content keeps the theme's padding off the frame, like every catalog pane.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(theme.pad_px * s, theme.pad_px * s));
-    const bool tabbed = leaf.tabs.size() > 1;
     const float tabs_h = rv_editor_tab_strip_height(); // reserved with one tab too
     // Every pane draws straight into this window, so its focus is the pane's.
     if (ws.focus_request == node) {
@@ -255,7 +254,7 @@ void draw_leaf(rv_editor_workspace &ws,
         draw_pane(context, active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
     }
     rv_editor_scroll_end(theme);
-    if (tabbed) {
+    if (!leaf.tabs.empty()) {
         // Right under the well: EndChild leaves the cursor an item spacing lower,
         // which would push the tabs' bottom under the tile's frame.
         ImGui::SetCursorScreenPos(ImVec2(well_min.x, well_max.y));

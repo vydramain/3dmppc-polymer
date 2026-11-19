@@ -221,10 +221,10 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
             &out.stop },
         reload_slot,
     };
-    // Reload/Restart is always shown, disabled when it cannot act. The bar never wraps
-    // to a second row and never hides a button: it takes the largest size whose row,
+    // Reload/Restart is always shown, disabled when it cannot act. The bar wraps only when no size fits
+    // and never hides a button: it takes the largest size whose row,
     // with `reserve` after it, fits the window; if none fits, small is drawn and the
-    // window clips the row's end.
+    // buttons that do not fit wrap to a second row.
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const float tail = reserve > 0.0f ? gap + reserve : 0.0f; // room what follows the bar needs
     const float avail = ImGui::GetContentRegionAvail().x;
@@ -242,7 +242,8 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
     for (size_t i = 0; i < std::size(buttons); ++i) {
         const auto &b = buttons[i];
         if (i > 0) {
-            ImGui::SameLine();
+            // A row that fits is one row; when even small does not, the rest goes below instead of past the edge.
+            rv_editor_flow(rv_editor_tile_width(b.tile, size));
         }
         *b.clicked = rv_editor_tile_button(b.tile, size, theme, { rv_editor_look::live, b.disabled });
     }
@@ -276,8 +277,10 @@ std::vector<bool> &ask_open_stack()
 float ask_place_height(int lines)
 {
     const ImGuiStyle &st = ImGui::GetStyle();
+    const float rows = static_cast<float>(std::max(lines, 1));
+    // The header, each line and the button row are items: a gap after every one but the last.
     return 2.0f * (st.WindowPadding.y + st.ChildBorderSize) + 2.0f * ImGui::GetFrameHeight() +
-        static_cast<float>(std::max(lines, 1)) * ImGui::GetTextLineHeight() + 3.0f * st.ItemSpacing.y;
+        rows * ImGui::GetTextLineHeight() + (rows + 1.0f) * st.ItemSpacing.y;
 }
 
 } // namespace

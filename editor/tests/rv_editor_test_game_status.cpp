@@ -48,9 +48,3 @@ RV_EDITOR_TEST(rv_editor_test_game_status_candidate_texts_never_name_run_candida
         RV_EDITOR_CHECK(!has(l.state, "Run Candidate"));
     }
 }
-
-RV_EDITOR_TEST(rv_editor_test_game_shelf_run_button_only_outside_release_view)
-{
-    RV_EDITOR_CHECK(rv_editor_game_shelf_shows_run(false));
-    RV_EDITOR_CHECK(!rv_editor_game_shelf_shows_run(true));
-}

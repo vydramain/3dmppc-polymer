@@ -78,9 +78,4 @@ rv_editor_game_rect rv_editor_game_click_rect(ImVec2 origin, ImVec2 area)
     return { origin, ImVec2(origin.x + area.x, origin.y + area.y) };
 }
 
-bool rv_editor_game_shelf_shows_run(bool release_view)
-{
-    return !release_view;
-}
-
 } // namespace rv_editor
