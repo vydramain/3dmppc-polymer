@@ -6,6 +6,8 @@
 #include <limits>
 #include <type_traits>
 
+#include "imgui_internal.h"
+
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
@@ -256,6 +258,8 @@ bool rv_editor_dropdown(const char *label,
     const char *preview = (*current >= 0 && *current < count) ? items[*current] : "";
     bool changed = false;
     const bool open = ImGui::BeginCombo(label, preview, ImGuiComboFlags_NoArrowButton);
+    ImGuiContext &g = *ImGui::GetCurrentContext();
+    IMGUI_TEST_ENGINE_ITEM_INFO(ImGui::GetItemID(), label, g.LastItemData.StatusFlags); // BeginCombo labels nothing itself
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max(min.x + width, ImGui::GetItemRectMax().y);
     const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), open);

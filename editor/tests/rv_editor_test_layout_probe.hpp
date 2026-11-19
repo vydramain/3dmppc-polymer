@@ -107,9 +107,9 @@ inline std::string rv_editor_probe_compare(const rv_editor_probe_record &a, cons
     return "";
 }
 
-// One frame at `width`: runs body(record) in the window and returns what was recorded.
+// One frame at `width` x `height`: runs body(record) in the window and returns what was recorded.
 template <class F>
-rv_editor_probe_record rv_editor_probe_draw(rv_editor_test_imgui &gui, float width, F body)
+rv_editor_probe_record rv_editor_probe_draw(rv_editor_test_imgui &gui, float width, F body, float height = 300)
 {
     rv_editor_probe_record record;
     rv_editor_probe_detail::sink sink(&record);
@@ -120,7 +120,8 @@ rv_editor_probe_record rv_editor_probe_draw(rv_editor_test_imgui &gui, float wid
             body(record);
             record.content_height = ImGui::GetCursorPosY();
         },
-        width);
+        width,
+        height);
     ImGui::GetCurrentContext()->TestEngineHookItems = false;
     rv_editor::rv_editor_item_sink_set(nullptr);
     return record;

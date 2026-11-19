@@ -3,30 +3,18 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "app/rv_editor_app.hpp"
 #include "build/rv_editor_build.hpp"
 #include "build/rv_editor_export.hpp"
 #include "build/rv_editor_progress.hpp"
+#include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
 {
 
-// Which framed blocks the tile shows for the chosen kind: Kind, Output and Progress always, Web Tools only for a kind
-// that needs web tools.
-struct rv_editor_export_blocks {
-    bool kind = false;
-    bool web_tools = false;
-    bool output = false;
-    bool progress = false;
-};
-
-rv_editor_export_blocks rv_editor_export_blocks_shown(rv_editor_export_kind kind);
-
-// How many cards fit one row of `avail` pixels, each at least `card_min` wide with `spacing` between; 1..count.
-int rv_editor_export_card_columns(float avail, float card_min, float spacing, int count);
-
-// A card click changes the kind only while no job runs.
+// The kind can be changed only while no job runs.
 bool rv_editor_export_kind_change_allowed(bool busy);
 
 // Why Export is grey: nullptr when it is live; the text of the reason otherwise (a job runs; the kind needs web tools
@@ -61,5 +49,24 @@ rv_editor_export_result_view rv_editor_export_result_make(rv_editor_build_state 
 
 // Show in Problems: asks the window to bring Problems forward.
 void rv_editor_export_show_problems(rv_editor_app &app);
+
+// The kind dropdown's items: the name of each row of the kinds table, in its order.
+std::vector<std::string> rv_editor_export_kind_items();
+
+// The wrapped height of a kind's description at `width`, and the tallest of them: the description area's constant height.
+// Call inside a frame.
+float rv_editor_export_description_wrapped_height(rv_editor_export_kind kind, float width);
+float rv_editor_export_description_height(float width);
+
+// What the disabled Web Tools block says for a kind that needs no tools; nullptr for a kind that does.
+const char *rv_editor_export_web_tools_disabled_text(rv_editor_export_kind kind);
+
+// The pane's form as the dropdown and the Export button drive it, for tests: choose a kind (loads its destination) and
+// start an export as the Export button does (RV_OK or an rv_err code).
+void rv_editor_pane_export_select_kind(rv_editor_export_kind kind);
+int rv_editor_pane_export_start(rv_editor_app &app);
+
+// What the Directory field drew last: the text on screen and the full path.
+const rv_editor_path_probe &rv_editor_pane_export_dest_probe();
 
 } // namespace rv_editor

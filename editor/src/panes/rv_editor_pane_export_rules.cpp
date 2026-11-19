@@ -1,6 +1,5 @@
 #include "panes/rv_editor_pane_export.hpp"
 
-#include <algorithm>
 #include <cstddef>
 
 #include "text/rv_editor_text.hpp"
@@ -17,17 +16,6 @@ const rv_editor_export_kind_info &rv_editor_export_row(rv_editor_export_kind kin
 }
 
 } // namespace
-
-rv_editor_export_blocks rv_editor_export_blocks_shown(rv_editor_export_kind kind)
-{
-    return { true, rv_editor_export_row(kind).needs_web_tools, true, true };
-}
-
-int rv_editor_export_card_columns(float avail, float card_min, float spacing, int count)
-{
-    const int fit = static_cast<int>((avail + spacing) / (card_min + spacing));
-    return std::clamp(fit, 1, std::max(1, count));
-}
 
 bool rv_editor_export_kind_change_allowed(bool busy)
 {

@@ -5,10 +5,12 @@
 
 #include "panes/rv_editor_pane_export.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 #include <SDL3/SDL.h>
 
@@ -44,8 +46,9 @@ struct rv_editor_export_form {
     rv_editor_export_kind run_kind = rv_editor_export_kind::disc; // the kind of the last export that started
     bool has_run = false;                                         // an export started in this project
     char dest[filesystem_path_field_size] = {};
-    rv_editor_export_paths paths; // the destination of each kind, kept while the project stays open
-    std::string error;            // why the last Export was refused, or why the default directory could not be offered
+    rv_editor_export_paths paths;    // the destination of each kind, kept while the project stays open
+    std::string error;               // why the last Export was refused, or why the default directory could not be offered
+    rv_editor_path_probe dest_probe; // what the Directory field drew last
 };
 
 rv_editor_export_form export_form_draft;
@@ -101,18 +104,19 @@ void rv_editor_export_log_error(rv_editor_app &app, const char *key, const std::
         rv_editor_text_format(key, std::make_format_args(error)));
 }
 
-void rv_editor_export_start(rv_editor_app &app, rv_editor_export_form &form)
+int rv_editor_export_start(rv_editor_app &app, rv_editor_export_form &form)
 {
     std::string error;
     const int err = app.exporter.start(app.project, app.tools, form.kind, std::filesystem::path(form.dest), app.log, error);
     if (err != RV_OK) {
         form.error = error;
         rv_editor_export_log_error(app, "pane_export.log_refused", error);
-        return;
+        return err;
     }
     form.run_kind = form.kind;
     form.has_run = true;
     form.error.clear();
+    return RV_OK;
 }
 
 // Cancel is live only while the export runs and is not already being cancelled.
@@ -192,11 +196,12 @@ void rv_editor_export_setup(rv_editor_app &app, rv_editor_export_form &form)
     form.error.clear();
 }
 
-// Layout of the Kind block: a card is at least this many font widths wide.
-constexpr float card_min_em = 16.0f;
+// Text lines the Web Tools body and the step strip keep for their longest variant; what needs more scrolls inside.
+constexpr float web_body_lines = 2.0f;
+constexpr float steps_lines = 3.0f;
 
-// A framed block with a header; `right` is dim text at the header's right edge. A block of height 0 follows its
-// content. Always pair with rv_editor_export_block_end.
+// A framed block with a header; `right` is dim text at the header's right edge, cut with dots when it would reach the
+// title. Always pair with rv_editor_export_block_end.
 void rv_editor_export_block_begin(const char *id, const char *title, const std::string &right, const rv_editor_theme &theme)
 {
     ImGui::BeginChild(id,
@@ -204,9 +209,14 @@ void rv_editor_export_block_begin(const char *id, const char *title, const std::
         ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
         ImGuiWindowFlags_NoScrollbar);
     rv_editor_label(title, rv_editor_label_kind::bright, theme, rv_editor_label_layout::line);
-    if (!right.empty()) {
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(right.c_str()).x + ImGui::GetCursorPosX());
-        rv_editor_label(right.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
+    const float room = ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(title).x - ImGui::GetStyle().ItemSpacing.x;
+    if (!right.empty() && room > 0.0f) {
+        const char *end = right.c_str() + right.size();
+        const char *fit = rv_editor_text_fit(right.c_str(), end, room);
+        const std::string shown =
+            fit == end ? right : std::string(right.c_str(), fit) + rv_editor_text("widgets_fields.path_ellipsis");
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(shown.c_str()).x + ImGui::GetCursorPosX());
+        rv_editor_label(shown.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
     }
     ImGui::Separator();
 }
@@ -216,53 +226,40 @@ void rv_editor_export_block_end()
     ImGui::EndChild();
 }
 
-// One card: radio with the name, the one-line description under it. True when the card was chosen.
-bool rv_editor_export_card(const rv_editor_export_kind_info &info,
-    bool active,
-    const char *why,
-    float width,
-    float height,
-    const rv_editor_theme &theme)
+// The Kind block: the dropdown over the table, the chosen kind's description in an area as tall as the tallest one.
+void rv_editor_export_kind_block(const rv_editor_export_form &form, bool busy, const rv_editor_theme &theme)
 {
-    const std::string id = "##export_card_" + std::string(info.subdir);
-    ImGui::BeginChild(id.c_str(), ImVec2(width, height), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar);
-    const bool chosen = rv_editor_radio(rv_editor_text(info.name_key), active, theme, { rv_editor_look::live, why });
-    rv_editor_label(rv_editor_text(info.description_key), rv_editor_label_kind::dim, theme);
-    ImGui::EndChild();
-    return chosen;
-}
-
-// The Kind block: the cards in rows of as many as fit.
-void rv_editor_export_kind_block(rv_editor_export_form &form,
-    const std::filesystem::path &root,
-    bool busy,
-    const rv_editor_theme &theme)
-{
-    const ImGuiStyle &style = ImGui::GetStyle();
-    const auto kinds = rv_editor_export_kinds();
-    const int count = static_cast<int>(kinds.size());
-    const float inner = ImGui::GetContentRegionAvail().x - 2.0f * style.WindowPadding.x;
-    const int columns = rv_editor_export_card_columns(inner, ImGui::GetFontSize() * card_min_em, style.ItemSpacing.x, count);
-    const float width = (inner - static_cast<float>(columns - 1) * style.ItemSpacing.x) / static_cast<float>(columns);
-    const float height =
-        ImGui::GetFrameHeight() + ImGui::GetTextLineHeight() + 2.0f * style.WindowPadding.y + style.ItemSpacing.y;
-
-    rv_editor_export_block_begin("##export_block_kind", rv_editor_text("pane_export.block_kind"), {}, theme);
-    const char *why = rv_editor_export_kind_change_allowed(busy) ? nullptr : rv_editor_text("pane_export.busy_why");
-    for (int i = 0; i < count; ++i) {
-        if (i % columns != 0) {
-            ImGui::SameLine();
-        }
-        const rv_editor_export_kind_info &info = kinds[static_cast<size_t>(i)];
-        if (rv_editor_export_card(info, form.kind == info.kind, why, width, height, theme)) {
-            form.paths.set(form.kind, form.dest);
-            form.kind = info.kind;
-            rv_editor_export_load_dest(form, root);
-        }
+    const std::vector<std::string> names = rv_editor_export_kind_items();
+    std::vector<const char *> items;
+    for (const std::string &name : names) {
+        items.push_back(name.c_str());
     }
+    rv_editor_export_block_begin("##export_block_kind", rv_editor_text("pane_export.block_kind"), {}, theme);
+    int current = static_cast<int>(form.kind);
+    ImGui::SetNextItemWidth(-1.0f);
+    const char *why = rv_editor_export_kind_change_allowed(busy) ? nullptr : rv_editor_text("pane_export.busy_why");
+    if (rv_editor_dropdown("##export_kind_combo",
+            &current,
+            items.data(),
+            static_cast<int>(items.size()),
+            theme,
+            { { rv_editor_look::live, why } }) &&
+        static_cast<size_t>(current) < names.size()) {
+        rv_editor_pane_export_select_kind(rv_editor_export_kinds()[static_cast<size_t>(current)].kind);
+    }
+    ImGui::BeginChild("##export_kind_desc",
+        ImVec2(0.0f, rv_editor_export_description_height(ImGui::GetContentRegionAvail().x)),
+        ImGuiChildFlags_None,
+        ImGuiWindowFlags_NoScrollbar);
+    rv_editor_label(rv_editor_text(rv_editor_export_kinds()[static_cast<size_t>(form.kind)].description_key),
+        rv_editor_label_kind::dim,
+        theme,
+        rv_editor_label_layout::wrap);
+    ImGui::EndChild();
     rv_editor_export_block_end();
 }
 
+// The Web Tools block: a constant rect for every kind and state; the body scrolls when its text needs more.
 void rv_editor_export_web_tools_block(rv_editor_app &app,
     rv_editor_export_form &form,
     bool installed,
@@ -270,13 +267,22 @@ void rv_editor_export_web_tools_block(rv_editor_app &app,
 {
     const rv_editor_export &exporter = app.exporter;
     const bool busy = exporter.busy();
+    const rv_editor_export_kind_info &row = rv_editor_export_kinds()[static_cast<size_t>(form.kind)];
+    const ImGuiStyle &style = ImGui::GetStyle();
+    const float body = web_body_lines * ImGui::GetTextLineHeight() + style.ItemSpacing.y;
     rv_editor_export_block_begin("##export_block_web_tools", rv_editor_text("pane_export.block_web_tools"), {}, theme);
+    ImGui::BeginChild("##export_web_body", ImVec2(0.0f, body), ImGuiChildFlags_None);
     if (busy && exporter.setup_job()) {
         if (exporter.progress().runs.empty()) {
             rv_editor_label(rv_editor_text("pane_export.progress_starting"), rv_editor_label_kind::normal, theme);
         } else {
             rv_editor_steps_draw(exporter.progress().runs.back(), theme);
         }
+    } else if (!row.needs_web_tools) {
+        rv_editor_label(rv_editor_export_web_tools_disabled_text(form.kind),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::wrap);
     } else if (installed) {
         rv_editor_label(rv_editor_text("pane_export.web_installed"), rv_editor_label_kind::dim, theme);
     } else {
@@ -298,6 +304,7 @@ void rv_editor_export_web_tools_block(rv_editor_app &app,
                 rv_editor_label_layout::wrap);
         }
     }
+    ImGui::EndChild();
     rv_editor_export_block_end();
 }
 
@@ -315,24 +322,27 @@ void rv_editor_export_output_block(rv_editor_app &app,
         rv_editor_label_layout::line);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-1.0f);
-    if (rv_editor_text_field("##export_dest", form.dest, sizeof(form.dest), theme)) {
+    if (rv_editor_path_field("##export_dest",
+            form.dest,
+            sizeof(form.dest),
+            app.project.root.string(),
+            theme,
+            {},
+            &form.dest_probe)) {
         form.paths.set(form.kind, form.dest);
     }
-    rv_editor_item_tooltip(rv_editor_text("pane_export.dest_tooltip"));
     rv_editor_label(rv_editor_text("pane_export.replaces"), rv_editor_label_kind::dim, theme);
     const char *start_why = rv_editor_export_button_why(form.kind, installed, exporter.busy());
     if (rv_editor_button(rv_editor_text("pane_export.export_button"), theme, { rv_editor_look::live, start_why })) {
         rv_editor_export_start(app, form);
     }
-    ImGui::SameLine();
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_export.cancel_button")));
     if (rv_editor_button(rv_editor_text("pane_export.cancel_button"),
             theme,
             { rv_editor_look::live, rv_editor_export_cancel_why(exporter) })) {
         rv_editor_export_cancel(app);
     }
-    if (!form.error.empty()) {
-        rv_editor_label(form.error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
-    }
+    rv_editor_message_line("##export_error", form.error.c_str(), 2, 0.0f, theme);
     rv_editor_export_block_end();
 }
 
@@ -349,6 +359,25 @@ std::string rv_editor_export_run_header(const rv_editor_export &exporter, const 
     return rv_editor_text_format("pane_export.run_header", std::make_format_args(name, run, minutes, seconds));
 }
 
+// The result line's text for the job's state; empty while it runs (the strip says it).
+std::string rv_editor_export_result_line(const rv_editor_export_result_view &view, bool cancelled, bool shown)
+{
+    switch (view.kind) {
+    case rv_editor_export_result_kind::succeeded:
+        return rv_editor_text_format("pane_export.done", std::make_format_args(view.path));
+    case rv_editor_export_result_kind::failed:
+        return view.step.empty() ?
+            rv_editor_text_format("pane_export.failed", std::make_format_args(view.reason)) :
+            rv_editor_text_format("pane_export.failed_at", std::make_format_args(view.step, view.reason));
+    case rv_editor_export_result_kind::running:
+        return {};
+    case rv_editor_export_result_kind::none:
+        break;
+    }
+    return rv_editor_text(shown && cancelled ? "pane_export.cancelled" : "pane_export.nothing_yet");
+}
+
+// The Progress block: every part is always drawn in its place; the buttons are enabled as the result allows.
 void rv_editor_export_progress_block(rv_editor_app &app, rv_editor_export_form &form, const rv_editor_theme &theme)
 {
     const rv_editor_export &exporter = app.exporter;
@@ -363,47 +392,38 @@ void rv_editor_export_progress_block(rv_editor_app &app, rv_editor_export_form &
                                                           exporter.progress(),
                                                           form.run_kind) :
                                                       rv_editor_export_result_view{};
-    switch (view.kind) {
-    case rv_editor_export_result_kind::running:
+    ImGui::BeginChild("##export_steps",
+        ImVec2(0.0f, steps_lines * ImGui::GetTextLineHeight() + ImGui::GetStyle().ItemSpacing.y),
+        ImGuiChildFlags_None);
+    if (view.kind == rv_editor_export_result_kind::running) {
         if (exporter.progress().runs.empty()) {
             rv_editor_label(rv_editor_text("pane_export.progress_starting"), rv_editor_label_kind::normal, theme);
         } else {
             rv_editor_steps_draw(exporter.progress().runs.back(), theme);
         }
-        break;
-    case rv_editor_export_result_kind::succeeded: {
-        const std::string line = rv_editor_text_format("pane_export.done", std::make_format_args(view.path));
-        rv_editor_label(line.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        if (view.open_browser && rv_editor_button(rv_editor_text("pane_export.open_browser_button"), theme)) {
-            rv_editor_export_open(app, form, exporter.result());
-        }
-        if (view.open_folder) {
-            ImGui::SameLine();
-            if (rv_editor_button(rv_editor_text("pane_export.open_folder_button"), theme)) {
-                std::error_code ec;
-                const std::filesystem::path &result = exporter.result();
-                rv_editor_export_open(app, form, std::filesystem::is_directory(result, ec) ? result : result.parent_path());
-            }
-        }
-        break;
     }
-    case rv_editor_export_result_kind::failed: {
-        const std::string line = view.step.empty() ?
-            rv_editor_text_format("pane_export.failed", std::make_format_args(view.reason)) :
-            rv_editor_text_format("pane_export.failed_at", std::make_format_args(view.step, view.reason));
-        rv_editor_label(line.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
-        if (view.show_problems && rv_editor_button(rv_editor_text("pane_export.show_problems_button"), theme)) {
-            rv_editor_export_show_problems(app);
-        }
-        break;
+    ImGui::EndChild();
+    const std::string line = rv_editor_export_result_line(view, exporter.state() == rv_editor_build_state::cancelled, shown);
+    rv_editor_message_line("##export_result", line.c_str(), 1, 0.0f, theme);
+    const char *open_why = rv_editor_text("pane_export.open_why");
+    if (rv_editor_button(rv_editor_text("pane_export.open_folder_button"),
+            theme,
+            { rv_editor_look::live, view.open_folder ? nullptr : open_why })) {
+        std::error_code ec;
+        const std::filesystem::path &result = exporter.result();
+        rv_editor_export_open(app, form, std::filesystem::is_directory(result, ec) ? result : result.parent_path());
     }
-    default:
-        rv_editor_label(rv_editor_text(shown && exporter.state() == rv_editor_build_state::cancelled ?
-                                "pane_export.cancelled" :
-                                "pane_export.nothing_yet"),
-            rv_editor_label_kind::dim,
-            theme);
-        break;
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_export.open_browser_button")));
+    if (rv_editor_button(rv_editor_text("pane_export.open_browser_button"),
+            theme,
+            { rv_editor_look::live, view.open_browser ? nullptr : open_why })) {
+        rv_editor_export_open(app, form, exporter.result());
+    }
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_export.show_problems_button")));
+    if (rv_editor_button(rv_editor_text("pane_export.show_problems_button"),
+            theme,
+            { rv_editor_look::live, view.show_problems ? nullptr : rv_editor_text("pane_export.problems_why") })) {
+        rv_editor_export_show_problems(app);
     }
     rv_editor_export_block_end();
 }
@@ -420,12 +440,59 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_export_prefill(form, app.project.root);
     const bool busy = app.exporter.busy();
     const bool installed = rv_editor_export_installed_cached(form.kind, busy);
-    rv_editor_export_kind_block(form, app.project.root, busy, theme);
-    if (rv_editor_export_blocks_shown(form.kind).web_tools) {
-        rv_editor_export_web_tools_block(app, form, installed, theme);
-    }
+    rv_editor_export_kind_block(form, busy, theme);
+    rv_editor_export_web_tools_block(app, form, installed, theme);
     rv_editor_export_output_block(app, form, installed, theme);
     rv_editor_export_progress_block(app, form, theme);
+}
+
+std::vector<std::string> rv_editor_export_kind_items()
+{
+    std::vector<std::string> items;
+    for (const rv_editor_export_kind_info &info : rv_editor_export_kinds()) {
+        items.push_back(rv_editor_text(info.name_key));
+    }
+    return items;
+}
+
+float rv_editor_export_description_wrapped_height(rv_editor_export_kind kind, float width)
+{
+    const char *text = rv_editor_text(rv_editor_export_kinds()[static_cast<size_t>(kind)].description_key);
+    return ImGui::CalcTextSize(text, nullptr, false, width).y;
+}
+
+float rv_editor_export_description_height(float width)
+{
+    float tallest = 0.0f;
+    for (const rv_editor_export_kind_info &info : rv_editor_export_kinds()) {
+        tallest = std::max(tallest, rv_editor_export_description_wrapped_height(info.kind, width));
+    }
+    return tallest;
+}
+
+const char *rv_editor_export_web_tools_disabled_text(rv_editor_export_kind kind)
+{
+    return rv_editor_export_kinds()[static_cast<size_t>(kind)].needs_web_tools ?
+        nullptr :
+        rv_editor_text("pane_export.web_tools_not_needed");
+}
+
+void rv_editor_pane_export_select_kind(rv_editor_export_kind kind)
+{
+    rv_editor_export_form &form = export_form_draft;
+    form.paths.set(form.kind, form.dest);
+    form.kind = kind;
+    rv_editor_export_load_dest(form, form.filled_for);
+}
+
+int rv_editor_pane_export_start(rv_editor_app &app)
+{
+    return rv_editor_export_start(app, export_form_draft);
+}
+
+const rv_editor_path_probe &rv_editor_pane_export_dest_probe()
+{
+    return export_form_draft.dest_probe;
 }
 
 } // namespace rv_editor
