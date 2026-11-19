@@ -119,6 +119,35 @@ bool rv_editor_dropdown(const char *label,
 // tooltip, and a Copy button that puts it on the clipboard.
 void rv_editor_path_row(const char *label, const std::string &path, const rv_editor_theme &theme);
 
+// What a path is shown as when it does not fit `width`: "..." and its END (the file name stays whole); a path that
+// fits is returned unchanged.
+std::string rv_editor_path_tail(const std::string &path, float width);
+
+// A path inside `root` as it is relative to it ("export/web"); one outside it (or a sibling that only shares the
+// prefix) stays as given.
+std::string rv_editor_path_relative(const std::string &path, const std::string &root);
+
+// The text a pane header / a tab shows for `title` in `width`: a path-like title (has a '/') keeps its tail.
+std::string rv_editor_pane_header_title(const char *title, float width);
+std::string rv_editor_tab_label_fit(const char *label, float width);
+
+// What rv_editor_path_field drew last, for tests.
+struct rv_editor_path_probe {
+    std::string shown;   // the text on screen
+    std::string tooltip; // the full path
+    bool editing = false;
+};
+
+// A text field for a path: unfocused it shows the tail (relative to `root` when inside it) with the full path in a
+// tooltip; focused it is a normal input field over the whole value.
+bool rv_editor_path_field(const char *label,
+    char *buf,
+    size_t size,
+    const std::string &root,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field = {},
+    rv_editor_path_probe *probe = nullptr);
+
 // Whole pixels for a measured height or chrome: rounded up, so a fraction never cuts the last row off.
 int32_t rv_editor_px_ceil(float px);
 
@@ -215,16 +244,19 @@ rv_editor_list_result rv_editor_list_row(const char *id,
 // are the ones ImGui has no public form of.
 
 // Slanted folder tabs, one per label: the front tab in brass, the rest
-// behind it. Returns true when a click moved *active. Non-null `pressed` gets
-// the index of the tab the left button went down on this frame, for a caller
-// that tells a drag from a click without repeating this layout.
+// behind it. A label wider than `max_tab_width` is clipped (a path keeps its
+// tail) and shows whole in a tooltip. Returns true when a click moved *active.
+// Non-null `pressed` gets the index of the tab the left button went down on
+// this frame, for a caller that tells a drag from a click without repeating
+// this layout.
 bool rv_editor_tab_strip(const char *id,
     const char *const labels[],
     int count,
     int *active,
     const rv_editor_theme &theme,
     const rv_editor_state &state = {},
-    int *pressed = nullptr);
+    int *pressed = nullptr,
+    float max_tab_width = 240.0f);
 
 // A scrolling area with Motif scrollbars instead of ImGui's: arrow boxes
 // at both ends, a sunken trough, a raised thumb with a grip. A bar appears once
