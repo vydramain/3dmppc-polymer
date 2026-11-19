@@ -240,9 +240,9 @@ inline void run_set_paths(rv_editor_app &app, const path_world &w)
     app.run_config.profiles[0].memcard = w.memcard;
 }
 
-// Every path field, unfocused, shows the end of its path ('Z', 'J', 'X'); read from the field's probe. Outside the root
-// (`root` empty) the shown text is "..." + the end of the path, shorter than the path; inside it the path is relative.
-inline void check_tails(rv_editor_test_imgui &gui, rv_editor_app &app, const std::string &root = {})
+// Every path field, unfocused, shows its whole path ('Z', 'J', 'X' at the end); read from the field's probe. Outside the
+// root (`root` empty) that is the full path; inside it the path relative to the root. The tooltip keeps the full path.
+inline void check_paths(rv_editor_test_imgui &gui, rv_editor_app &app, const std::string &root = {})
 {
     run_draw(gui, app, 600.0f);
     const rv_editor_probe_record r = run_draw(gui, app, 600.0f);
@@ -255,13 +255,9 @@ inline void check_tails(rv_editor_test_imgui &gui, rv_editor_app &app, const std
         if (p != nullptr) {
             RV_EDITOR_CHECK(!p->editing);
             RV_EDITOR_CHECK(!p->shown.empty() && p->shown.back() == tail);
-            RV_EDITOR_CHECK(p->shown.size() < p->tooltip.size());
             RV_EDITOR_CHECK(p->tooltip.back() == tail);
-            if (root.empty()) {
-                RV_EDITOR_CHECK(p->shown.rfind("...", 0) == 0);
-            } else {
-                RV_EDITOR_CHECK(p->shown.rfind(root, 0) != 0 && p->tooltip.rfind(root, 0) == 0);
-            }
+            const std::string expected = root.empty() ? p->tooltip : fs::path(p->tooltip).lexically_relative(root).string();
+            RV_EDITOR_CHECK(p->shown == expected);
         }
     }
 }

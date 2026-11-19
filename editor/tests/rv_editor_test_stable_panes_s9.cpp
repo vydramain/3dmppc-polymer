@@ -183,11 +183,6 @@ std::string row_text(const rv_editor_probe_record &r)
     return row == nullptr ? "" : row->label.substr(0, row->label.size() - 6);
 }
 
-bool ends_with(const std::string &s, const std::string &tail)
-{
-    return s.size() >= tail.size() && s.compare(s.size() - tail.size(), tail.size(), tail) == 0;
-}
-
 // Hover the centre of the row for a few frames; true when a tooltip is up.
 template <class F>
 bool tooltip_on_row(rv_editor_test_imgui &gui, float width, F body)
@@ -355,7 +350,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_problems_build_alert)
     }
 }
 
-RV_EDITOR_TEST(rv_editor_test_stable_s9_problems_path_cell_keeps_the_end)
+RV_EDITOR_TEST(rv_editor_test_stable_s9_problems_path_cell_shows_the_whole_relative_path)
 {
     rv_editor_test_imgui gui(true);
     setup();
@@ -365,8 +360,8 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_problems_path_cell_keeps_the_end)
     const auto r = draw_problems(gui, app);
     const std::string shown = row_text(r);
     RV_EDITOR_CHECK(!shown.empty());
-    RV_EDITOR_CHECK(shown.compare(0, 3, "...") == 0);
-    RV_EDITOR_CHECK(ends_with(shown, "engine.cfg"));
+    RV_EDITOR_CHECK(shown == long_relative()); // whole, relative to the project root, no "..."
+    RV_EDITOR_CHECK(shown.find("...") == std::string::npos);
     RV_EDITOR_CHECK(tooltip_on_row(gui, narrow_width, [&] {
         rv_editor_pane_problems(app, theme);
     }));
@@ -389,7 +384,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_search_result_notes)
     same("results with the scope and stopped notes", draw_search(gui, plain), draw_search(gui, noted));
 }
 
-RV_EDITOR_TEST(rv_editor_test_stable_s9_search_path_cell_keeps_the_end)
+RV_EDITOR_TEST(rv_editor_test_stable_s9_search_path_cell_shows_the_whole_relative_path)
 {
     rv_editor_test_imgui gui(true);
     setup();
@@ -399,8 +394,8 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_search_path_cell_keeps_the_end)
     const auto r = draw_search(gui, app);
     const std::string shown = row_text(r);
     RV_EDITOR_CHECK(!shown.empty());
-    RV_EDITOR_CHECK(shown.compare(0, 3, "...") == 0);
-    RV_EDITOR_CHECK(ends_with(shown, "engine.cfg"));
+    RV_EDITOR_CHECK(shown == long_relative()); // whole, relative to the project root, no "..."
+    RV_EDITOR_CHECK(shown.find("...") == std::string::npos);
     RV_EDITOR_CHECK(tooltip_on_row(gui, narrow_width, [&] {
         rv_editor_pane_search(app, theme);
     }));

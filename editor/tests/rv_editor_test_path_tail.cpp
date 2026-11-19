@@ -1,5 +1,5 @@
-// A path that does not fit shows its END with a leading "...": the tail function, the relative display, the path
-// field (tail unfocused, whole when focused, tooltip with the full path), and the pane header.
+// The tail function and the relative display, the path field (whole path, no "...", tooltip with the full path) and
+// the pane header (a title that does not fit still keeps its END with a leading "...").
 
 #include <string>
 
@@ -144,7 +144,7 @@ RV_EDITOR_TEST(rv_editor_test_path_relative_outside_root_stays_full)
     RV_EDITOR_CHECK(rv_editor_path_relative("/home/u/proj/x", "") == "/home/u/proj/x");
 }
 
-RV_EDITOR_TEST(rv_editor_test_path_field_unfocused_shows_tail_and_full_tooltip)
+RV_EDITOR_TEST(rv_editor_test_path_field_unfocused_shows_the_whole_path_and_full_tooltip)
 {
     load_texts();
     rv_editor_test::rv_editor_test_imgui gui;
@@ -153,8 +153,8 @@ RV_EDITOR_TEST(rv_editor_test_path_field_unfocused_shows_tail_and_full_tooltip)
     rv_editor_path_probe probe;
     field_frame(gui, value, "", probe, false);
     field_frame(gui, value, "", probe, false);
-    RV_EDITOR_CHECK(probe.shown.rfind("...", 0) == 0);
-    RV_EDITOR_CHECK(ends_with(probe.shown, "engine.cfg"));
+    RV_EDITOR_CHECK(probe.shown == path); // whole, no "..."
+    RV_EDITOR_CHECK(probe.shown.find("...") == std::string::npos);
     RV_EDITOR_CHECK(!probe.editing);
     RV_EDITOR_CHECK(probe.tooltip == path);
 }
@@ -186,7 +186,7 @@ RV_EDITOR_TEST(rv_editor_test_path_field_focused_edits_the_whole_value)
     RV_EDITOR_CHECK(value == path);
 }
 
-RV_EDITOR_TEST(rv_editor_test_path_field_after_leaving_shows_the_tail_again)
+RV_EDITOR_TEST(rv_editor_test_path_field_after_leaving_shows_the_whole_path_again)
 {
     load_texts();
     rv_editor_test::rv_editor_test_imgui gui;
@@ -198,8 +198,8 @@ RV_EDITOR_TEST(rv_editor_test_path_field_after_leaving_shows_the_tail_again)
     field_frame(gui, value, "", probe, false, true);
     field_frame(gui, value, "", probe, false);
     RV_EDITOR_CHECK(!probe.editing);
-    RV_EDITOR_CHECK(probe.shown.rfind("...", 0) == 0);
-    RV_EDITOR_CHECK(ends_with(probe.shown, "engine.cfg"));
+    RV_EDITOR_CHECK(probe.shown == path); // whole, no "..."
+    RV_EDITOR_CHECK(probe.shown.find("...") == std::string::npos);
     RV_EDITOR_CHECK(value == path);
 }
 

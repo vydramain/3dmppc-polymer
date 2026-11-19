@@ -32,8 +32,6 @@ constexpr int spinner_buttons = 2;
 constexpr unsigned char utf8_continuation_mask = 0xc0;
 // UTF-8 continuation byte value for multi-byte sequences.
 constexpr unsigned char utf8_continuation_byte = 0x80;
-// Frame paddings (both sides) taken off a path field's width for its text.
-constexpr float path_field_pads = 2.0f;
 // Error marker glyph for field invalid state indicator.
 constexpr const char *error_marker_glyph = "!";
 // Dirty marker glyph for field unsaved state indicator.
@@ -295,24 +293,32 @@ bool rv_editor_dropdown(const char *label,
     return changed;
 }
 
+void rv_editor_text_item(const char *text, uint32_t colour, float pad_y)
+{
+    const ImVec2 size = ImGui::CalcTextSize(text);
+    const ImVec2 min = ImGui::GetCursorScreenPos();
+    ImGui::InvisibleButton("", ImVec2(std::max(size.x, 1.0f), size.y + pad_y * half_divisor));
+    ImGui::GetWindowDrawList()->AddText(ImVec2(min.x, min.y + pad_y),
+        colour != 0 ? rv_editor_col(colour) : ImGui::GetColorU32(ImGuiCol_Text),
+        text);
+}
+
 void rv_editor_path_row(const char *label, const std::string &path, const rv_editor_theme &theme)
 {
     ImGui::PushID(label);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label, rv_editor_label_end(label));
     ImGui::SameLine();
-    const char *copy_label = rv_editor_text("widgets_fields.button_copy");
-    const float room = ImGui::GetContentRegionAvail().x - rv_editor_button_width(copy_label) - ImGui::GetStyle().ItemSpacing.x;
-    const float text_x = ImGui::GetCursorPosX();
-    const std::string shown = rv_editor_path_tail(path, room);
-    ImGui::TextUnformatted(shown.c_str());
+    rv_editor_text_item(path.c_str(), 0, ImGui::GetStyle().FramePadding.y);
     ImGui::SetItemTooltip("%s", path.c_str());
-    // Copy keeps its place at the row's right end, whatever the path's length.
-    ImGui::SameLine(text_x + room + ImGui::GetStyle().ItemSpacing.x);
-    if (rv_editor_button(copy_label, theme)) {
-        ImGui::SetClipboardText(path.c_str());
+    if (rv_editor_context_menu_begin("##path_menu")) {
+        if (rv_editor_menu_item(rv_editor_text("widgets_fields.button_copy"), nullptr, nullptr)) {
+            ImGui::SetClipboardText(path.c_str());
+        }
+        rv_editor_context_menu_end();
     }
     ImGui::PopID();
+    (void)theme;
 }
 
 std::string rv_editor_path_tail(const std::string &path, float width)
@@ -396,11 +402,13 @@ bool rv_editor_path_field(const char *label,
     const ImVec2 pad = ImGui::GetStyle().FramePadding;
     std::string shown = buf;
     if (!editing) {
-        // The input shows the head of the value; cover it with the well and the tail instead.
-        shown = rv_editor_path_tail(rv_editor_path_relative(buf, root), width - pad.x * path_field_pads);
+        // The input shows the head of the value; cover it with the well and the relative path instead.
+        shown = rv_editor_path_relative(buf, root);
         ImDrawList *dl = ImGui::GetWindowDrawList();
         dl->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_FrameBg));
+        dl->PushClipRect(min, max, true);
         dl->AddText(ImVec2(min.x + pad.x, min.y + pad.y), ImGui::GetColorU32(ImGuiCol_Text), shown.c_str());
+        dl->PopClipRect();
         if (hovered && field.invalid == nullptr && field.state.disabled == nullptr) {
             ImGui::SetTooltip("%s", buf);
         }

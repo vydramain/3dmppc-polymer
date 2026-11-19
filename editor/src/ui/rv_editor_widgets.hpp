@@ -143,9 +143,13 @@ bool rv_editor_dropdown(const char *label,
     const rv_editor_theme &theme,
     const rv_editor_field &field = {});
 
-// A read-only path: its label, then the path itself, cut at the front with
-// "..." when it does not fit (the tail names the file), the whole of it in a
-// tooltip, and a Copy button that puts it on the clipboard.
+// Plain text as a layout item of its own size and an empty label (ImGui text has no id, so layout tests and hover
+// would not see it);
+// `pad_y` is added above and below the text. `colour` 0 = the text colour.
+void rv_editor_text_item(const char *text, uint32_t colour = 0, float pad_y = 0.0f);
+
+// A read-only path: its label, then the whole path (a narrow row overflows), the same in a tooltip, and Copy in the
+// context menu of the path.
 void rv_editor_path_row(const char *label, const std::string &path, const rv_editor_theme &theme);
 
 // What a path is shown as when it does not fit `width`: "..." and its END (the file name stays whole); a path that
@@ -238,13 +242,15 @@ void rv_editor_tree_pop();
 
 // How a list row looks. `height` 0 is the usual line height. `dim` only dims the label
 // (text_disabled); a dim row is not disabled and has no tooltip. `span_columns` spans
-// every table column; `overlap` lets the next items overlap the row.
+// every table column; `overlap` lets the next items overlap the row; `whole` keeps a label wider than the row whole
+// (it is clipped by the cell, the caller gives the tooltip).
 struct rv_editor_list_style {
     bool selected = false;
     bool dim = false;
     bool span_columns = false;
     bool overlap = false;
     float height = 0.0f;
+    bool whole = false;
 };
 
 // What the row did. A frozen look or a disabled row reports nothing. Order: the second

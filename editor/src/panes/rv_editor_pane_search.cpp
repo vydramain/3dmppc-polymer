@@ -54,9 +54,8 @@ void rv_editor_search_list(rv_editor_app &app, const rv_editor_theme &theme)
             const std::filesystem::path shown = std::filesystem::relative(hit.file, app.project.root, ec);
             const std::string label = (ec || shown.empty() ? hit.file : shown).string();
             // The whole row answers a click; double click or Enter opens the place.
-            const float room = ImGui::GetContentRegionAvail().x - ImGui::GetStyle().FramePadding.x * 2.0f;
             const rv_editor_list_result row =
-                rv_editor_list_row("##hit", rv_editor_path_tail(label, room).c_str(), theme, { .span_columns = true });
+                rv_editor_list_row("##hit", label.c_str(), theme, { .span_columns = true, .whole = true });
             if (ImGui::IsItemHovered()) {
                 rv_editor_tooltip(hit.file.string().c_str());
             }

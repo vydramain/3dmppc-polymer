@@ -173,11 +173,9 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             const std::filesystem::path shown = std::filesystem::relative(p.file, app.project.root, ec);
             const bool there = std::filesystem::exists(p.file, ec);
             // The whole row answers a click; double click or Enter opens the place.
-            const rv_editor_list_style file_style = { .span_columns = true };
+            const rv_editor_list_style file_style = { .span_columns = true, .whole = true };
             const std::string path = (ec || shown.empty() ? p.file : shown).string();
-            const float room = ImGui::GetContentRegionAvail().x - ImGui::GetStyle().FramePadding.x * 2.0f;
-            const rv_editor_list_result row =
-                rv_editor_list_row("##file", rv_editor_path_tail(path, room).c_str(), theme, file_style);
+            const rv_editor_list_result row = rv_editor_list_row("##file", path.c_str(), theme, file_style);
             if (ImGui::IsItemHovered()) {
                 rv_editor_tooltip(p.file.c_str());
             }

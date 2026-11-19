@@ -1,5 +1,5 @@
-// Run Config and Project keep their blocks in place by state, wrap their labels and buttons, and show paths by their
-// tail: probe pairs (one width, two states), label/field rects and button rows in a narrow tile.
+// Run Config and Project keep their blocks in place by state, wrap their labels and buttons, and show paths in full:
+// probe pairs (one width, two states), label/field rects and button rows in a narrow tile.
 
 #include <unistd.h>
 
@@ -82,8 +82,8 @@ RV_EDITOR_TEST(rv_editor_test_run_config_buttons_wrap_in_a_narrow_tile)
     }
 }
 
-// AC8: outside the project root the fields show the end of the path.
-RV_EDITOR_TEST(rv_editor_test_run_config_paths_show_their_tail)
+// AC8: outside the project root the fields show the whole path.
+RV_EDITOR_TEST(rv_editor_test_run_config_paths_show_in_full)
 {
     load_texts();
     rv_editor_test_imgui gui;
@@ -92,7 +92,7 @@ RV_EDITOR_TEST(rv_editor_test_run_config_paths_show_their_tail)
     rv_editor_app app;
     run_open(app, other);
     run_set_paths(app, world);
-    check_tails(gui, app);
+    check_paths(gui, app);
     fs::remove_all(other);
 }
 
@@ -105,7 +105,7 @@ RV_EDITOR_TEST(rv_editor_test_run_config_paths_inside_the_root_are_relative)
     rv_editor_app app;
     run_open(app, world.inner);
     run_set_paths(app, world);
-    check_tails(gui, app, world.inner.string());
+    check_paths(gui, app, world.inner.string());
 }
 
 // AC9: a profile error, a problem of the edited profile do not move the form or the buttons.

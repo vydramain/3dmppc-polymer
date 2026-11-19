@@ -186,14 +186,12 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
         usable                                      ? nullptr :
         b.pick == rv_editor_browse_pick::executable ? rv_editor_text("browser.select_executable") :
                                                       rv_editor_text("browser.select_directory");
-    // The selected path on one line, its tail when it does not fit, the whole path in a tooltip.
+    // The selected path on one line, whole.
     const std::string whole = target.string();
-    const std::string shown = target.empty() ? rv_editor_text("browser.nothing_selected") :
-                                               rv_editor_path_tail(whole, ImGui::GetContentRegionAvail().x);
-    rv_editor_label(shown.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-    if (shown != whole && !target.empty() && ImGui::IsItemHovered()) {
-        rv_editor_tooltip(whole.c_str());
-    }
+    rv_editor_label(target.empty() ? rv_editor_text("browser.nothing_selected") : whole.c_str(),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::line);
     if (rv_editor_button(b.action.c_str(), theme, { rv_editor_look::live, why })) {
         out = target;
         result = rv_editor_browse_result::picked;

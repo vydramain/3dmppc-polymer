@@ -39,16 +39,6 @@ bool contains(const std::string &s, const std::string &part)
     return s.find(part) != std::string::npos;
 }
 
-bool starts_with(const std::string &s, const std::string &prefix)
-{
-    return s.compare(0, prefix.size(), prefix) == 0;
-}
-
-bool ends_with(const std::string &s, const std::string &tail)
-{
-    return s.size() >= tail.size() && s.compare(s.size() - tail.size(), tail.size(), tail) == 0;
-}
-
 // 150 characters ending in "leaf_dir".
 std::string long_path()
 {
@@ -164,7 +154,7 @@ rv_editor_probe_record new_draw(rv_editor_test_imgui &gui, rv_editor_shell &shel
 
 } // namespace
 
-RV_EDITOR_TEST(rv_editor_test_start_new_directory_shows_the_tail)
+RV_EDITOR_TEST(rv_editor_test_start_new_directory_shows_the_whole_path)
 {
     load_texts();
     rv_editor_test_imgui gui;
@@ -173,8 +163,8 @@ RV_EDITOR_TEST(rv_editor_test_start_new_directory_shows_the_tail)
     std::snprintf(shell.start.dir, sizeof(shell.start.dir), "%s", path.c_str());
     new_draw(gui, shell, 400);
     const rv_editor_path_probe &probe = rv_editor_page_new_project_dir_probe();
-    RV_EDITOR_CHECK(starts_with(probe.shown, "..."));
-    RV_EDITOR_CHECK(ends_with(probe.shown, "leaf_dir"));
+    RV_EDITOR_CHECK(probe.shown == path); // whole, no "..."
+    RV_EDITOR_CHECK(!contains(probe.shown, "..."));
     RV_EDITOR_CHECK(probe.tooltip == path);
 }
 
@@ -217,7 +207,7 @@ RV_EDITOR_TEST(rv_editor_test_start_new_form_fits_a_narrow_tile)
 
 // --- Open Project and its browser ----------------------------------------------------------------------------------
 
-RV_EDITOR_TEST(rv_editor_test_start_open_browser_path_shows_the_tail)
+RV_EDITOR_TEST(rv_editor_test_start_open_browser_path_shows_the_whole_path)
 {
     load_texts();
     rv_editor_test_imgui gui;
@@ -228,8 +218,8 @@ RV_EDITOR_TEST(rv_editor_test_start_open_browser_path_shows_the_tail)
         rv_editor_page_open_project(shell, theme);
     });
     const rv_editor_path_probe &probe = rv_editor_browser_path_probe();
-    RV_EDITOR_CHECK(starts_with(probe.shown, "..."));
-    RV_EDITOR_CHECK(ends_with(probe.shown, "a_rather_long_directory_name_4"));
+    RV_EDITOR_CHECK(probe.shown == dir.string()); // whole, no "..."
+    RV_EDITOR_CHECK(!contains(probe.shown, "..."));
     RV_EDITOR_CHECK(probe.tooltip == dir.string());
     remove_deep("open_tail");
 }
@@ -268,7 +258,7 @@ rv_editor_probe_record settings_draw(rv_editor_test_imgui &gui, rv_editor_shell 
 
 } // namespace
 
-RV_EDITOR_TEST(rv_editor_test_start_settings_override_path_shows_the_tail)
+RV_EDITOR_TEST(rv_editor_test_start_settings_override_path_shows_the_whole_path)
 {
     load_texts();
     rv_editor_test_imgui gui;
@@ -278,8 +268,8 @@ RV_EDITOR_TEST(rv_editor_test_start_settings_override_path_shows_the_tail)
     std::snprintf(shell.settings_paths[0], sizeof(shell.settings_paths[0]), "%s", path.c_str());
     settings_draw(gui, shell, 400);
     const rv_editor_path_probe &probe = rv_editor_page_settings_path_probe(0);
-    RV_EDITOR_CHECK(starts_with(probe.shown, "..."));
-    RV_EDITOR_CHECK(ends_with(probe.shown, "leaf_dir"));
+    RV_EDITOR_CHECK(probe.shown == path); // whole, no "..."
+    RV_EDITOR_CHECK(!contains(probe.shown, "..."));
     RV_EDITOR_CHECK(probe.tooltip == path);
 }
 
