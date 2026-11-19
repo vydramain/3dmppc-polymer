@@ -42,6 +42,11 @@ struct rv_editor_gizmo_drag {
 
 // Scene viewport tools: toolbar UI, object manipulation, view framing.
 void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, const rv_editor_theme &theme);
+// The width of the toolbar in one row, without the shelf's padding. Call inside a frame.
+float rv_editor_scene_toolbar_width();
+// What the Scene viewport needs besides its picture's floor height: the width of the wheels, their labels and the picture's
+// floor width, and the height of the wheel under the picture. Call inside a frame.
+ImVec2 rv_editor_scene_viewport_around();
 void rv_editor_manipulate(rv_editor_app &app,
     const rv_editor_scene_camera &cam,
     const rv_editor_view &v,

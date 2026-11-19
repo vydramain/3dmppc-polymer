@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <fstream>
 #include <functional>
 #include <memory>
 #include <string>
@@ -354,28 +353,4 @@ RV_EDITOR_TEST(rv_editor_test_stable_scene_read_only_line_does_not_move_the_view
     const std::string d = item_difference(base, f.scene(), viewport);
     report(d);
     RV_EDITOR_CHECK(d.empty());
-}
-
-RV_EDITOR_TEST(rv_editor_test_stable_scene_open_buttons_wrap_in_a_narrow_tile)
-{
-    scene_fixture f;
-    f.app.scene.reset();
-    fs::create_directories(f.where / "scenes");
-    for (const char *name : { "first_level", "second_level", "third_level" }) {
-        std::ofstream(f.where / "scenes" / (std::string(name) + ".scene.toml")) << "\n";
-    }
-    constexpr float narrow = 200.0f;
-    const auto r = f.scene(narrow);
-    int buttons = 0;
-    for (const auto &e : r.entries) {
-        if (e.label.compare(0, 5, "Open ") == 0) {
-            ++buttons;
-            if (e.x1 > narrow + 0.5f) {
-                report(rv_editor_probe_detail::name(e) + " " + rv_editor_probe_detail::rect(e) + " reaches past " +
-                    std::to_string(narrow));
-            }
-            RV_EDITOR_CHECK(e.x1 <= narrow + 0.5f);
-        }
-    }
-    RV_EDITOR_CHECK(buttons == 3);
 }

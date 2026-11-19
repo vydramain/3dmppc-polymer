@@ -59,7 +59,8 @@ int rv_editor_message_box(const char *id,
     rv_editor_label_kind kind,
     const std::vector<std::string> &buttons,
     const rv_editor_theme &theme,
-    float min_width)
+    float min_width,
+    const std::function<void(float)> &lead)
 {
     ImGui::PushID(id);
     const ImVec2 min = ImGui::GetCursorScreenPos();
@@ -77,7 +78,12 @@ int rv_editor_message_box(const char *id,
     const float row_y = ImGui::GetCursorScreenPos().y;
     const float row_h = ImGui::GetFrameHeight();
     int pressed = -1;
-    float x = min.x + width - rv_editor_message_row_width(buttons);
+    const float row_width = rv_editor_message_row_width(buttons);
+    if (lead) {
+        ImGui::SetCursorScreenPos(ImVec2(min.x, row_y));
+        lead(width - row_width - (buttons.empty() ? 0.0f : ImGui::GetStyle().ItemSpacing.x));
+    }
+    float x = min.x + width - row_width;
     for (int i = 0; i < static_cast<int>(buttons.size()); ++i) {
         ImGui::SetCursorScreenPos(ImVec2(x, row_y));
         if (rv_editor_button(buttons[i].c_str(), theme)) {

@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <span>
 #include <string>
 #include <string_view>
@@ -36,7 +37,7 @@ struct rv_editor_hierarchy_command_spec {
     uint32_t rv_editor_theme::*color;
 };
 
-// The shelf's commands, in order. Clear Picks sits on the target line instead.
+// The shelf's commands, in order, then Clear Picks.
 constexpr rv_editor_hierarchy_command_spec shelf_commands[] = {
     { rv_editor_scene_action::remove, rv_editor_glyph::delete_, &rv_editor_theme::code_red },
     { rv_editor_scene_action::duplicate, rv_editor_glyph::duplicate, &rv_editor_theme::code_magenta },
@@ -101,11 +102,18 @@ const char *rv_editor_scene_kind_label(const std::string &kind)
     return kind == kind_mesh ? "model" : kind.c_str();
 }
 
+float rv_editor_hierarchy_shelf_width()
+{
+    const float buttons = static_cast<float>(std::size(shelf_commands) + 2);
+    return buttons * ImGui::GetFrameHeight() + (buttons - 1.0f) * ImGui::GetStyle().ItemSpacing.x;
+}
+
 void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
-    rv_editor_scene_doc &doc = *app.scene;
-    // A read-only scene refuses Add and every command, saying why.
-    const char *read_only_why = doc.scene.read_only.empty() ? nullptr : rv_editor_text("scene_actions.read_only");
+    // No scene or a read-only one refuses Add and every command, saying why.
+    const char *read_only_why = app.scene == nullptr ? rv_editor_text("pane_hierarchy.no_scene_open") :
+        app.scene->scene.read_only.empty()           ? nullptr :
+                                                       rv_editor_text("scene_actions.read_only");
     const rv_editor_state add_state{ rv_editor_look::live, read_only_why };
     const float side = ImGui::GetFrameHeight();
     rv_editor_shelf_begin("##shelf", theme);
@@ -121,7 +129,7 @@ void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme,
         for (std::string_view kind : kinds) {
             const std::string kind_name(kind);
             if (rv_editor_menu_item(rv_editor_scene_kind_label(kind_name), nullptr, read_only_why)) {
-                rv_editor_hierarchy_add(doc, kind_name);
+                rv_editor_hierarchy_add(*app.scene, kind_name);
             }
         }
         rv_editor_popup_end();
@@ -130,43 +138,35 @@ void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme,
         rv_editor_flow(side);
         rv_editor_hierarchy_command(app, ui, theme, spec);
     }
+    rv_editor_flow(side);
+    rv_editor_hierarchy_command(app, ui, theme, clear_picks_command);
     rv_editor_shelf_end();
 }
 
-void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
+std::string rv_editor_hierarchy_target_text(const rv_editor_app &app, rv_editor_label_kind &kind)
 {
+    kind = rv_editor_label_kind::normal;
+    if (app.scene == nullptr) {
+        kind = rv_editor_label_kind::dim;
+        return rv_editor_text("pane_hierarchy.no_scene_open");
+    }
     const rv_editor_scene_doc &doc = *app.scene;
     const rv_editor_scene_action_target target = rv_editor_scene_action_target_of(doc);
     const int index = rv_editor_scene_find(doc.scene, doc.selected);
-    std::string text;
-    rv_editor_label_kind kind = rv_editor_label_kind::normal;
     if (target == rv_editor_scene_action_target::none || index < 0) {
-        text = rv_editor_text("pane_hierarchy.target_none");
         kind = rv_editor_label_kind::dim;
-    } else {
-        const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(index)];
-        const std::string object_name = rv_editor_object_get_name(o);
-        const char *name = object_name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : object_name.c_str();
-        if (target == rv_editor_scene_action_target::pieces) {
-            const size_t count = doc.picked_pieces.size();
-            text = rv_editor_text_format("pane_hierarchy.target_pieces", std::make_format_args(name, count));
-        } else {
-            const std::string object_kind = rv_editor_object_get_kind(o);
-            const char *kind_label = rv_editor_scene_kind_label(object_kind);
-            text = rv_editor_text_format("pane_hierarchy.node_label", std::make_format_args(name, kind_label));
-        }
+        return rv_editor_text("pane_hierarchy.target_none");
     }
-    // One line in a place of its own, with Clear Picks always beside it (disabled with its reason without picks).
-    const float side = ImGui::GetFrameHeight();
-    rv_editor_message_line("##target",
-        text.c_str(),
-        1,
-        ImGui::GetContentRegionAvail().x - side - ImGui::GetStyle().ItemSpacing.x,
-        theme,
-        nullptr,
-        kind);
-    ImGui::SameLine();
-    rv_editor_hierarchy_command(app, ui, theme, clear_picks_command);
+    const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(index)];
+    const std::string object_name = rv_editor_object_get_name(o);
+    const char *name = object_name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : object_name.c_str();
+    if (target == rv_editor_scene_action_target::pieces) {
+        const size_t count = doc.picked_pieces.size();
+        return rv_editor_text_format("pane_hierarchy.target_pieces", std::make_format_args(name, count));
+    }
+    const std::string object_kind = rv_editor_object_get_kind(o);
+    const char *kind_label = rv_editor_scene_kind_label(object_kind);
+    return rv_editor_text_format("pane_hierarchy.node_label", std::make_format_args(name, kind_label));
 }
 
 } // namespace rv_editor

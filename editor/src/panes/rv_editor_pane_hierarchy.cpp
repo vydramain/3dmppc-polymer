@@ -14,11 +14,13 @@
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "panes/rv_editor_scene_actions.hpp"
 #include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -48,22 +50,68 @@ void rv_editor_hierarchy_move(rv_editor_app &app, const std::string &id, const s
     (void)rv_editor_app_request(app, request);
 }
 
-// The last move's refusal in a place of its own, with a Dismiss button that asks the app to clear it; with no note
-// the place stays, empty, and Dismiss is disabled, so the tree below never moves.
-void rv_editor_hierarchy_note(rv_editor_app &app, const rv_editor_theme &theme)
+// The search field's least width, in font sizes.
+constexpr float query_min_em = 10.0f;
+
+// The Dismiss button of a move note.
+const char *rv_editor_hierarchy_dismiss_label()
 {
-    const bool has_note = !app.scene_move_note.empty();
-    rv_editor_message_line("##note", app.scene_move_note.c_str(), 2, 0.0f, theme, nullptr, rv_editor_label_kind::warning);
-    const bool dismiss_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::dismiss_scene_note);
-    const char *dismiss_why = nullptr;
-    if (!has_note) {
-        dismiss_why = rv_editor_text("pane_hierarchy.no_note");
-    } else if (dismiss_pending) {
-        dismiss_why = rv_editor_text("app_why_not.request_pending");
+    return rv_editor_text("findings.dismiss");
+}
+
+const char *const *rv_editor_hierarchy_sort_items()
+{
+    static const char *items[3];
+    items[0] = rv_editor_text("pane_hierarchy.sort_file_order");
+    items[1] = rv_editor_text("pane_hierarchy.sort_name");
+    items[2] = rv_editor_text("pane_hierarchy.sort_kind");
+    return items;
+}
+
+// The sort choice as wide as its longest item: the text, the arrow button and the frame padding.
+float rv_editor_hierarchy_sort_width()
+{
+    float widest = 0.0f;
+    for (int i = 0; i < 3; ++i) {
+        widest = std::max(widest, ImGui::CalcTextSize(rv_editor_hierarchy_sort_items()[i]).x);
     }
-    const bool dismiss_clicked =
-        rv_editor_button(rv_editor_text("findings.dismiss"), theme, { rv_editor_look::live, dismiss_why });
-    if (dismiss_clicked && has_note) {
+    return widest + ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.x * 2.0f;
+}
+
+float rv_editor_hierarchy_form_width()
+{
+    return ImGui::GetFontSize() * query_min_em + ImGui::GetStyle().ItemSpacing.x + rv_editor_hierarchy_sort_width();
+}
+
+float rv_editor_hierarchy_content_width()
+{
+    return std::max({ rv_editor_scene_none_width(),
+        rv_editor_message_box_min_width({ { rv_editor_hierarchy_dismiss_label() } }),
+        rv_editor_tiled_shelf_width(rv_editor_hierarchy_shelf_width()) + ImGui::GetStyle().WindowPadding.x,
+        rv_editor_hierarchy_form_width() + ImGui::GetStyle().WindowPadding.x });
+}
+
+// The one message box: the last move's refusal with a Dismiss button that asks the app to clear it, else the target
+// of the commands. With no scene it says so, with the way to get one.
+void rv_editor_hierarchy_say(rv_editor_app &app, const rv_editor_theme &theme, float width)
+{
+    rv_editor_label_kind kind = rv_editor_label_kind::normal;
+    const std::string target = rv_editor_hierarchy_target_text(app, kind);
+    if (app.scene == nullptr) {
+        rv_editor_scene_none_box(app, target, kind, theme, width);
+        return;
+    }
+    if (app.scene_move_note.empty()) {
+        (void)rv_editor_message_box("##note", target, kind, {}, theme, width);
+        return;
+    }
+    const bool dismiss = rv_editor_message_box("##note",
+                             app.scene_move_note,
+                             rv_editor_label_kind::warning,
+                             { rv_editor_hierarchy_dismiss_label() },
+                             theme,
+                             width) == 0;
+    if (dismiss && !rv_editor_app_request_pending(app, rv_editor_pane_request_kind::dismiss_scene_note)) {
         (void)rv_editor_app_request(app, { .kind = rv_editor_pane_request_kind::dismiss_scene_note });
     }
 }
@@ -319,27 +367,34 @@ void rv_editor_hierarchy_matches(rv_editor_app &app, const rv_editor_theme &them
     }
 }
 
-// The search field and the sort choice, above the tree.
-void rv_editor_hierarchy_filter(rv_editor_scene_doc &doc, const rv_editor_theme &theme)
+// The form: the search field and the sort choice in a row above the tree, the field taking what the choice leaves. With
+// no scene both are off.
+void rv_editor_hierarchy_filter(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    rv_editor_text_field("##hierarchy_query", doc.hierarchy_query, sizeof(doc.hierarchy_query), theme);
+    char none_query[1] = {};
+    int none_sort = 0;
+    ImGui::BeginDisabled(app.scene == nullptr);
+    char *query = app.scene != nullptr ? app.scene->hierarchy_query : none_query;
+    const size_t query_size = app.scene != nullptr ? sizeof(app.scene->hierarchy_query) : sizeof(none_query);
+    ImGui::SetNextItemWidth(
+        ImGui::GetContentRegionAvail().x - rv_editor_hierarchy_sort_width() - ImGui::GetStyle().ItemSpacing.x);
+    rv_editor_text_field("##hierarchy_query", query, query_size, theme);
     // The field has no hint of its own: the hint is drawn over the empty box, unless it is being typed in.
-    if (doc.hierarchy_query[0] == '\0' && !ImGui::IsItemActive()) {
+    if (query[0] == '\0' && !ImGui::IsItemActive()) {
         const ImVec2 pos = ImGui::GetItemRectMin();
         const ImVec2 pad = ImGui::GetStyle().FramePadding;
         ImGui::GetWindowDrawList()->AddText(ImVec2(pos.x + pad.x, pos.y + pad.y),
             rv_editor_col(theme.text_disabled),
             rv_editor_text("pane_hierarchy.search_hint"));
     }
-    const char *const sort_items[] = {
-        rv_editor_text("pane_hierarchy.sort_file_order"),
-        rv_editor_text("pane_hierarchy.sort_name"),
-        rv_editor_text("pane_hierarchy.sort_kind"),
-    };
-    int sort_index = static_cast<int>(doc.hierarchy_sort);
-    if (rv_editor_dropdown("##hierarchy_sort", &sort_index, sort_items, std::ssize(sort_items), theme)) {
-        doc.hierarchy_sort = static_cast<rv_editor_hierarchy_sort>(sort_index);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(rv_editor_hierarchy_sort_width());
+    int sort_index = app.scene != nullptr ? static_cast<int>(app.scene->hierarchy_sort) : none_sort;
+    if (rv_editor_dropdown("##hierarchy_sort", &sort_index, rv_editor_hierarchy_sort_items(), 3, theme) &&
+        app.scene != nullptr) {
+        app.scene->hierarchy_sort = static_cast<rv_editor_hierarchy_sort>(sort_index);
     }
+    ImGui::EndDisabled();
 }
 
 } // namespace
@@ -370,40 +425,37 @@ void rv_editor_scene_keys(rv_editor_app &app, const rv_editor_ui_port &ui)
     }
 }
 
+rv_editor_size rv_editor_hierarchy_minimum()
+{
+    // The shelf, the form (a frame and its spacing) and the message box over the content area.
+    const float form = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
+    return rv_editor_tiled_minimum(rv_editor_hierarchy_content_width(),
+        rv_editor_tiled_shelf_block() + form + rv_editor_tiled_box_block());
+}
+
 void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
-    if (!app.project.open) {
-        rv_editor_open_project_row(app, theme);
-        return;
-    }
-    if (app.scene == nullptr) {
-        rv_editor_label(rv_editor_text("pane_hierarchy.no_scene_open"),
-            rv_editor_label_kind::normal,
-            theme,
-            rv_editor_label_layout::wrap);
-        rv_editor_scene_open_row(app, theme);
-        return;
-    }
+    const float width = rv_editor_hierarchy_content_width();
     rv_editor_scene_keys(app, ui);
+    rv_editor_hierarchy_shelf(app, theme, ui);
+    rv_editor_hierarchy_filter(app, theme);
+    rv_editor_hierarchy_say(app, theme, width);
+    (void)rv_editor_tiled_area_begin("##tree_area", width, theme);
+    if (app.scene == nullptr) {
+        rv_editor_scene_files_list(app, theme);
+        rv_editor_tiled_area_end(theme);
+        return;
+    }
     rv_editor_scene_doc &doc = *app.scene;
     const bool read_only = !doc.scene.read_only.empty();
-    rv_editor_hierarchy_shelf(app, theme, ui);
-    rv_editor_hierarchy_target(app, theme, ui);
-
-    rv_editor_hierarchy_note(app, theme);
-    rv_editor_hierarchy_filter(doc, theme);
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const rv_editor_hierarchy_tree tree = rv_editor_hierarchy_build(doc);
-    const auto body = [&]() {
-        if (doc.hierarchy_query[0] != '\0') {
-            rv_editor_hierarchy_matches(app, theme);
-        } else {
-            rv_editor_hierarchy_roots(app, ui, tree, read_only, theme);
-        }
-        if (app.scene == nullptr) {
-            return;
-        }
-        // The rest of the pane is the root: dropped here, an object leaves its parent.
+    if (doc.hierarchy_query[0] != '\0') {
+        rv_editor_hierarchy_matches(app, theme);
+    } else {
+        rv_editor_hierarchy_roots(app, ui, tree, read_only, theme);
+    }
+    if (app.scene != nullptr) {
+        // The rest of the area is the root: dropped here, an object leaves its parent.
         const ImVec2 rest = ImGui::GetContentRegionAvail();
         ImGui::Dummy(ImVec2(rest.x, std::max(rest.y, ImGui::GetFrameHeight())));
         const bool drag = !read_only && doc.hierarchy_sort == rv_editor_hierarchy_sort::file_order;
@@ -416,9 +468,8 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
         if (ImGui::IsItemClicked()) {
             rv_editor_scene_select(doc, std::string());
         }
-    };
-    body();
-    rv_editor_well_end();
+    }
+    rv_editor_tiled_area_end(theme);
 }
 
 } // namespace rv_editor

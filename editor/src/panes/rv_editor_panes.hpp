@@ -66,6 +66,9 @@ rv_editor_size rv_editor_output_minimum();
 rv_editor_size rv_editor_terminal_minimum();
 rv_editor_size rv_editor_problems_minimum();
 rv_editor_size rv_editor_search_minimum();
+rv_editor_size rv_editor_scene_minimum();
+rv_editor_size rv_editor_hierarchy_minimum();
+rv_editor_size rv_editor_inspector_minimum();
 
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
@@ -188,8 +191,24 @@ void rv_editor_pane_scene(rv_editor_app &app,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui);
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
-// The New Scene area at the top of the Scene pane while it is asked for (menu_scene.cpp).
-void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// The box of a scene pane with no scene: Open Project when there is no project, else `text` and Create Scene; the least
+// width it needs, and the project's scenes as rows that open on a click (rv_editor_pane_scene_none.cpp).
+void rv_editor_scene_none_box(rv_editor_app &app,
+    const std::string &text,
+    rv_editor_label_kind kind,
+    const rv_editor_theme &theme,
+    float width);
+float rv_editor_scene_none_width();
+void rv_editor_scene_files_list(rv_editor_app &app, const rv_editor_theme &theme);
+// The New Scene question in the Scene pane's message box, the least width its row needs; it draws nothing and returns
+// false while the question is closed (menu_scene.cpp).
+bool rv_editor_scene_new_box(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui, float width);
+float rv_editor_scene_new_width();
+bool rv_editor_scene_new_open();
+// The message box between the shelf and the viewport: the New Scene question, else an empty box (rv_editor_pane_scene.cpp).
+void rv_editor_scene_say(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// The width every row of the Scene pane keeps at least (rv_editor_pane_scene.cpp).
+float rv_editor_scene_content_width();
 // A scene tab for `path` (a PNG, a sound or a model: .png, .wav, .pcm, .gltf, .glb), with a
 // sound's duration read now; nullopt for any other file (pane_scene_tabs.cpp).
 std::optional<rv_editor_scene_tab> rv_editor_scene_tab_build(const std::filesystem::path &path);
@@ -214,8 +233,10 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
 void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o, const rv_editor_theme &theme);
 // Hierarchy's shelf: Add opens the kinds menu, then the command buttons (rv_editor_pane_hierarchy_actions.cpp).
 void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
-// What the commands act on, with Clear Picks when pieces are picked (rv_editor_pane_hierarchy_actions.cpp).
-void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// What the commands act on, in words, and how to draw them (rv_editor_pane_hierarchy_actions.cpp).
+std::string rv_editor_hierarchy_target_text(const rv_editor_app &app, rv_editor_label_kind &kind);
+// The width of the shelf's buttons in a row, without the shelf's padding. Call inside a frame.
+float rv_editor_hierarchy_shelf_width();
 // Runs an action on a copy of the Scene camera, queuing a changed camera (rv_editor_pane_hierarchy_actions.cpp).
 void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv_editor_scene_action action);
 // The object kinds the Add menus offer, in menu order, and the label each one shows.
@@ -228,6 +249,11 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
 float rv_editor_inspector_column(float widest);
 // After a label: the field follows on the same line at `column`, or stays on the line below when `column` is 0.
 void rv_editor_inspector_field_at(float column);
+// The width of the next field: what is left of the row less `reserve`, but never less than `text` shown whole.
+void rv_editor_inspector_field_width(const char *text, float reserve);
+float rv_editor_inspector_content_width();
+// The reason the last edit of the object at `at` was refused, "" when none (rv_editor_pane_scene_fields.cpp).
+std::string rv_editor_inspector_refusal(const rv_editor_scene_doc &doc, size_t at);
 // The snapshot's description records when it is loaded, else nullptr: the built-ins apply (rv_editor_pane_scene_fields.cpp).
 const std::vector<rv_pdkkit::ecs_component_record> *rv_editor_descs_records(const rv_editor_app &app);
 // The components of the object at `at`, each a section of its fields by their descriptions (rv_editor_pane_scene_fields.cpp).

@@ -31,6 +31,9 @@ bool rv_editor_pane_converted(rv_editor_pane_kind kind)
     case rv_editor_pane_kind::search:
     case rv_editor_pane_kind::code:
     case rv_editor_pane_kind::review_changes:
+    case rv_editor_pane_kind::scene:
+    case rv_editor_pane_kind::hierarchy:
+    case rv_editor_pane_kind::inspector:
         return true;
     default:
         return false;

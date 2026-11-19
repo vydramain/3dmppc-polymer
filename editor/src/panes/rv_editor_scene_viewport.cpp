@@ -11,6 +11,8 @@
 #include <cstdio>
 #include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "imgui.h"
 
@@ -22,6 +24,8 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_thumbwheel.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_picture.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -33,7 +37,6 @@ namespace
 constexpr float wheel_height_factor = 0.75f;
 constexpr float min_viewport_size = 40.0f;
 constexpr float wheel_width_spacing = 2.0f;
-constexpr float line_height_spacing = 2.0f;
 constexpr float gap_multiplier = 4.0f;
 constexpr float half = 0.5f;
 constexpr double dolly_sensitivity = 0.01;
@@ -47,10 +50,7 @@ constexpr double gizmo_size_factor = 0.15;
 // The same factor in Q20.12, rounded to the nearest raw; the gizmo length is the camera distance times it.
 constexpr rv_pdklib::fx gizmo_size_fx = static_cast<rv_pdklib::fx>(gizmo_size_factor * rv_pdklib::fx_one + 0.5);
 constexpr float gizmo_click_threshold = 40.0f;
-constexpr float text_wrap_width = 28.0f;
-constexpr float status_text_offset = 2.0f;
 constexpr int grid_half_extent = 10;
-constexpr size_t camera_status_buffer_size = 160; // the camera status line: yaw, pitch, distance
 
 // The Scene viewport's own tool drag, shared by every Scene tile.
 rv_editor_gizmo_drag tool_drag;
@@ -110,7 +110,55 @@ int rv_editor_selected_index(const rv_editor_scene_doc &doc)
     return vis == rv_editor_visibility::absent ? -1 : at;
 }
 
+// The first two lines of `text` wrapped at `width`; the rest is read in the bands' tooltip.
+std::string rv_editor_two_lines(const std::string &text, float width)
+{
+    const char *end = text.c_str() + text.size();
+    const char *at = text.c_str();
+    for (int line = 0; line < 2 && at < end; ++line) {
+        at = ImGui::GetFont()->CalcWordWrapPosition(ImGui::GetFontSize(), at, end, width);
+        while (at < end && (*at == ' ' || *at == '\n')) {
+            ++at;
+        }
+    }
+    return std::string(text.c_str(), at);
+}
+
+// The notes as translucent bands from the top of the viewport down, each of at most two lines, clipped to the picture.
+// The whole texts and `tip` show in a tooltip while the mouse is over the bands.
+void rv_editor_viewport_bands(const std::vector<std::pair<std::string, rv_editor_label_kind>> &notes,
+    const std::string &tip,
+    const rv_editor_theme &theme,
+    ImVec2 p0,
+    ImVec2 size,
+    bool hovered)
+{
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    dl->PushClipRect(p0, ImVec2(p0.x + size.x, p0.y + size.y), true);
+    rv_editor_picture_rect area{ p0, ImVec2(p0.x + size.x, p0.y + size.y) };
+    std::string whole;
+    for (const auto &[text, kind] : notes) {
+        if (!text.empty()) {
+            area.min.y = rv_editor_picture_overlay(rv_editor_two_lines(text, size.x), kind, theme, area).max.y;
+            whole += text + "\n";
+        }
+    }
+    dl->PopClipRect();
+    if (hovered && ImGui::IsMouseHoveringRect(p0, ImVec2(p0.x + size.x, area.min.y))) {
+        rv_editor_tooltip((whole + tip).c_str());
+    }
+}
+
 } // namespace
+
+ImVec2 rv_editor_scene_viewport_around()
+{
+    const float wheel = ImGui::GetFrameHeight() * wheel_height_factor;
+    const float gap = ImGui::GetStyle().ItemSpacing.x;
+    const float labels = ImGui::CalcTextSize(rv_editor_text("scene_viewport.rot_x")).x +
+        ImGui::CalcTextSize(rv_editor_text("scene_viewport.dolly")).x;
+    return ImVec2(min_viewport_size + wheel_width_spacing * wheel + labels + gap_multiplier * gap, wheel + gap);
+}
 
 void rv_editor_scene_viewport(rv_editor_app &app,
     SDL_Renderer *renderer,
@@ -128,9 +176,9 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     rv_editor_scene_toolbar(app, cam, theme);
     rv_editor_shelf_end();
     rv_editor_scene_keys(app, ui);
+    rv_editor_scene_say(app, theme, ui);
 
-    // The well never scrolls: the Scene tile's picture shrinks to fit instead.
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    // The tile never scrolls: the viewport takes all the room under the box, down to a floor, and shrinks to fit.
     // The canvas between a Rot X wheel on the left, a Dolly wheel on the right and a
     // Rot Y wheel below, as Open Inventor's viewers have them; each wheel carries a
     // visible label in the UI font.
@@ -140,13 +188,12 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     const float wheel = ImGui::GetFrameHeight() * wheel_height_factor;
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const float line = ImGui::GetTextLineHeightWithSpacing();
     const ImVec2 label_x = ImGui::CalcTextSize(rot_x_label);
     const ImVec2 label_y = ImGui::CalcTextSize(rot_y_label);
     const ImVec2 label_d = ImGui::CalcTextSize(dolly_label);
     const ImVec2 size(
         std::max(min_viewport_size, avail.x - wheel_width_spacing * wheel - label_x.x - label_d.x - gap_multiplier * gap),
-        std::max(min_viewport_size, avail.y - wheel - line_height_spacing * line - gap));
+        std::max(rv_editor_content_min_height(), avail.y - wheel - gap));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
     // The navigation calls in this function log their own refusal and leave the view as it was; the codes are dropped.
@@ -191,8 +238,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
     if (!v.valid) {
-        // No camera, no frame: the well closes and the scene is not drawn. A changed camera still reaches the shell.
-        rv_editor_well_end();
+        // No camera, no frame: the scene is not drawn. A changed camera still reaches the shell.
         if (cam != ui.state.scene_camera) {
             ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
         }
@@ -385,49 +431,44 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     }
     dl->PopClipRect();
 
-    // What the view is, in numbers, and which camera this is.
+    // What the view is, in numbers, and which camera this is; the read-only note and the error go over it too.
     const std::string seek_msg = cam.seeking ? rv_editor_text("scene_viewport.seek_hint") : "";
     (void)rv_editor_camera_read_units(cam, units);
     const std::string camera_info = rv_editor_text_format("scene_viewport.camera_status",
         std::make_format_args(units.yaw, units.pitch, units.distance, seek_msg));
-    char buf[camera_status_buffer_size];
-    std::snprintf(buf, sizeof(buf), "%s", camera_info.c_str());
     // Whether the running game has read this open scene document (its resource
     // name is the file's own name: the disc flattens scenes/*.scene.toml). The
-    // status line stays short; the reason is a tooltip.
+    // status stays short; the reason is in the tooltip.
     const std::string scene_name = doc.scene.path.filename().string();
     const char *read_line = rv_editor_text("scene_viewport.game_not_running");
-    std::string read_tip;
+    std::string tip;
     if (app.session.connected()) {
         if (app.session.scenes_read().contains(scene_name)) {
             read_line = rv_editor_text("scene_viewport.game_read_scene");
-            read_tip = rv_editor_text("scene_viewport.game_restart_needed");
+            tip = std::string(rv_editor_text("scene_viewport.game_restart_needed")) + "\n";
         } else {
             read_line = rv_editor_text("scene_viewport.game_not_read_scene");
-            read_tip = rv_editor_text_format("scene_viewport.game_disc_not_opened", std::make_format_args(scene_name));
+            tip = rv_editor_text_format("scene_viewport.game_disc_not_opened", std::make_format_args(scene_name)) + "\n";
         }
     }
-    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset));
     const char *const error_str = mesh_error.c_str();
     const std::string status_line = mesh_error.empty() ?
-        rv_editor_text_format("scene_viewport.status_line_format", std::make_format_args(buf, read_line)) :
-        rv_editor_text_format("scene_viewport.mesh_placeholder_format", std::make_format_args(buf, read_line, error_str));
-    rv_editor_label(status_line.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
-    if (!read_tip.empty()) {
-        rv_editor_item_tooltip(read_tip.c_str());
-    }
-    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset + line));
-    rv_editor_label(rv_editor_text("scene_viewport.example_meshes_title"),
-        rv_editor_label_kind::dim,
+        rv_editor_text_format("scene_viewport.status_line_format", std::make_format_args(camera_info, read_line)) :
+        rv_editor_text_format("scene_viewport.mesh_placeholder_format",
+            std::make_format_args(camera_info, read_line, error_str));
+    tip += std::string(rv_editor_text("scene_viewport.example_meshes_title")) + ": " +
+        rv_editor_text("scene_viewport.example_meshes_tooltip");
+    const std::string read_only_note = doc.scene.read_only.empty() ?
+        std::string() :
+        rv_editor_text_format("pane_scene.read_only_format", std::make_format_args(doc.scene.read_only));
+    rv_editor_viewport_bands({ { read_only_note, rv_editor_label_kind::normal },
+                                 { app.scene_error, rv_editor_label_kind::error },
+                                 { status_line, rv_editor_label_kind::dim } },
+        tip,
         theme,
-        rv_editor_label_layout::line);
-    if (ImGui::BeginItemTooltip()) {
-        ImGui::PushTextWrapPos(ImGui::GetFontSize() * text_wrap_width);
-        ImGui::TextUnformatted(rv_editor_text("scene_viewport.example_meshes_tooltip"));
-        ImGui::PopTextWrapPos();
-        ImGui::EndTooltip();
-    }
-    rv_editor_well_end();
+        p0,
+        size,
+        hovered);
     // The copy goes back to the shell once: queued at the end of this draw, applied after all panes drew.
     const bool changed = cam != ui.state.scene_camera;
     if (changed) {

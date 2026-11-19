@@ -3,6 +3,7 @@
 
 #include <cctype>
 #include <cstdio>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -18,6 +19,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
@@ -27,10 +29,6 @@ namespace
 
 // Scene name buffer: the name entered in the New Scene dialog, with room including NUL
 constexpr size_t new_scene_name_bytes = 64;
-
-// Lines the New Scene ask's place is made for (its header and button row come with the place): the name row, the check
-// box and the error (2 lines), and one more because those rows are taller than a text line and have gaps between them.
-constexpr int new_scene_ask_lines = 6;
 
 // Project's scenes directory.
 constexpr std::string_view scenes_dir = "scenes";
@@ -141,38 +139,27 @@ void rv_editor_shell_new_scene_request(const rv_editor_app &app)
     std::snprintf(g_new_scene.name, sizeof(g_new_scene.name), "%s", rv_editor_app_scene_free_name(app).c_str());
 }
 
-void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
+bool rv_editor_scene_new_open()
 {
-    // The ask has a place of its own whether it is open or not, so the viewport below it never moves.
-    if (!rv_editor_ask_place_begin("##new_scene",
-            rv_editor_text("shell_menu_scene.new_scene_title"),
-            new_scene_ask_lines,
-            g_new_scene.open,
-            theme)) {
-        rv_editor_ask_place_end();
-        return;
+    return g_new_scene.open;
+}
+
+float rv_editor_scene_new_width()
+{
+    return rv_editor_message_box_min_width(
+        { { rv_editor_text("shell_menu_scene.create_button"), rv_editor_text("shell_menu_scene.cancel_button") } });
+}
+
+bool rv_editor_scene_new_box(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui, float width)
+{
+    if (!g_new_scene.open) {
+        return false;
     }
     // Escape closes it while this pane (or the name field in it) has the keyboard.
     if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
         g_new_scene.open = false;
-        rv_editor_ask_place_end();
-        return;
+        return false;
     }
-    ImGui::AlignTextToFramePadding();
-    rv_editor_label(rv_editor_text("shell_menu_scene.name_label"),
-        rv_editor_label_kind::normal,
-        theme,
-        rv_editor_label_layout::line);
-    ImGui::SameLine();
-    if (g_new_scene.focus_name) {
-        // the scene's own tab, so the created scene shows (applied after this draw)
-        ui.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = 0 });
-        ImGui::SetKeyboardFocusHere();
-        g_new_scene.focus_name = false;
-    }
-    ImGui::SetNextItemWidth(-1.0f);
-    rv_editor_text_field("##new_scene_name", g_new_scene.name, sizeof(g_new_scene.name), theme);
-
     const std::string name = g_new_scene.name;
     std::error_code ec;
     std::string invalid_reason;
@@ -186,38 +173,53 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, 
     } else {
         disabled = nullptr;
     }
-
-    // The header's path shows its end when it does not fit; the whole path is in the tooltip.
-    const std::string header = "src/" + rv_editor_new_scene_header_id(name) + "_scene.hpp";
-    const std::string no_path;
-    const auto bare_label = rv_editor_text_format("shell_menu_scene.write_cpp", std::make_format_args(no_path));
-    const float path_room = ImGui::GetContentRegionAvail().x - rv_editor_checkbox_width(bare_label.c_str());
-    const std::string header_shown = rv_editor_path_tail(header, path_room);
-    const rv_editor_state cpp_state{ rv_editor_look::live,
-        app.project.has_build_section ? nullptr : rv_editor_text("shell_menu_scene.not_cpp_disc") };
-    const auto cpp_label = rv_editor_text_format("shell_menu_scene.write_cpp", std::make_format_args(header_shown));
-    rv_editor_checkbox((cpp_label + "##write_cpp").c_str(), &g_new_scene.write_cpp, theme, cpp_state);
-    if (header_shown != header && cpp_state.disabled == nullptr) {
-        rv_editor_item_tooltip(header.c_str());
-    }
-
-    rv_editor_message_line("##error", g_new_scene.error.c_str(), 2, 0.0f, theme, nullptr, rv_editor_label_kind::error);
-
-    const rv_editor_state create_state{ rv_editor_look::live, disabled };
-    const bool create = rv_editor_button(rv_editor_text("shell_menu_scene.create_button"), theme, create_state);
-    ImGui::SameLine();
-    const bool cancel = rv_editor_button(rv_editor_text("shell_menu_scene.cancel_button"), theme);
-    if (create) {
+    // The name field and the Write C++ check box share the button row's room left of the buttons. The header's path is
+    // the check box's tooltip.
+    const std::function<void(float)> lead = [&](float room) {
+        const char *label = rv_editor_text("shell_menu_scene.write_cpp_short");
+        const float box = rv_editor_checkbox_width(label);
+        if (g_new_scene.focus_name) {
+            // the scene's own tab, so the created scene shows (applied after this draw)
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = 0 });
+            ImGui::SetKeyboardFocusHere();
+            g_new_scene.focus_name = false;
+        }
+        ImGui::SetNextItemWidth(room - box - ImGui::GetStyle().ItemSpacing.x);
+        rv_editor_text_field("##new_scene_name", g_new_scene.name, sizeof(g_new_scene.name), theme);
+        ImGui::SameLine();
+        const rv_editor_state cpp_state{ rv_editor_look::live,
+            app.project.has_build_section ? nullptr : rv_editor_text("shell_menu_scene.not_cpp_disc") };
+        rv_editor_checkbox((std::string(label) + "##write_cpp").c_str(), &g_new_scene.write_cpp, theme, cpp_state);
+        if (cpp_state.disabled == nullptr) {
+            const std::string header = "src/" + rv_editor_new_scene_header_id(name) + "_scene.hpp";
+            const std::string tip = rv_editor_text_format("shell_menu_scene.write_cpp", std::make_format_args(header));
+            rv_editor_item_tooltip(tip.c_str());
+        }
+    };
+    // The last refusal, else why Create is off, else the title.
+    const bool failed = !g_new_scene.error.empty();
+    const char *plain = disabled != nullptr ? disabled : rv_editor_text("shell_menu_scene.new_scene_title");
+    const std::string text = failed ? g_new_scene.error : std::string(plain);
+    const int pressed = rv_editor_message_box("##new_scene",
+        text,
+        failed                  ? rv_editor_label_kind::error :
+            disabled != nullptr ? rv_editor_label_kind::warning :
+                                  rv_editor_label_kind::normal,
+        { rv_editor_text("shell_menu_scene.create_button"), rv_editor_text("shell_menu_scene.cancel_button") },
+        theme,
+        width,
+        lead);
+    if (pressed == 0 && disabled == nullptr) {
         std::string error;
         if (rv_editor_app_scene_create(app, name, g_new_scene.write_cpp, error) == RV_OK) {
             g_new_scene.open = false;
         } else {
             g_new_scene.error = error;
         }
-    } else if (cancel) {
+    } else if (pressed == 1) {
         g_new_scene.open = false;
     }
-    rv_editor_ask_place_end();
+    return true;
 }
 
 // The scene document's commands; each edit is one undo step.

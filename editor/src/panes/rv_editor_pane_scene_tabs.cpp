@@ -16,6 +16,7 @@
 
 #include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_asset_preview.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_sound.hpp"
@@ -93,7 +94,7 @@ void rv_editor_scene_tab_picture(rv_editor_app &app,
     const rv_editor_icon picture = rv_editor_asset_picture(renderer, a);
     if (picture.id == ImTextureID{}) {
         const std::string error_msg = rv_editor_text_format("pane_scene_tabs.error_picture_load", std::make_format_args(a.rel));
-        rv_editor_label(error_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+        rv_editor_label(error_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
         return;
     }
     const std::string picture_info =
@@ -135,7 +136,7 @@ void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_t
         rv_editor_label(rv_editor_scene_sound_last_error.text.c_str(),
             rv_editor_label_kind::normal,
             theme,
-            rv_editor_label_layout::wrap);
+            rv_editor_label_layout::line);
     }
 }
 
@@ -234,6 +235,7 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
         return true;
     }
     const rv_editor_scene_tab &tab = st.tabs[static_cast<size_t>(front - 1)];
+    (void)rv_editor_tiled_area_begin("##tab_area", rv_editor_scene_content_width(), theme);
     switch (tab.kind) {
     case rv_editor_scene_tab_kind::picture:
         rv_editor_scene_tab_picture(app, renderer, tab, theme);
@@ -245,6 +247,7 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
         rv_editor_scene_tab_model(renderer, tab, theme);
         break;
     }
+    rv_editor_tiled_area_end(theme);
     return false;
 }
 

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -24,11 +25,13 @@ float rv_editor_message_box_min_width(const std::vector<std::vector<std::string>
 // normal (an ask) draws in the code text colour, info and error in their severity colours. The buttons sit in one row aligned
 // right, the row's place is kept with none. Returns the index of the button pressed this frame, else -1.
 // `min_width` is the least the box is wide, past the room left in the window (a pane's constant minimum).
+// `lead`, when given, draws items in the button row left of the buttons, a frame high, and is told the width it has.
 int rv_editor_message_box(const char *id,
     const std::string &text,
     rv_editor_label_kind kind,
     const std::vector<std::string> &buttons,
     const rv_editor_theme &theme,
-    float min_width = 0.0f);
+    float min_width = 0.0f,
+    const std::function<void(float)> &lead = nullptr);
 
 } // namespace rv_editor

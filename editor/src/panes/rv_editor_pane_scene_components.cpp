@@ -26,16 +26,12 @@ namespace rv_editor
 namespace
 {
 
-// Field width ImGui takes for the rest of the row.
-constexpr float fill_width = -1.0f;
-
 // A label column, then the field.
 void rv_editor_components_label(const char *label, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
     rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     rv_editor_inspector_field_at(rv_editor_inspector_column(ImGui::CalcTextSize(label).x));
-    ImGui::SetNextItemWidth(fill_width);
 }
 
 // A string committed as a whole when its field is left, as one undo step. A value too long for the
@@ -51,6 +47,7 @@ void rv_editor_components_string(rv_editor_scene_doc &doc, const char *id, std::
     rv_editor_field field;
     field.read_only = !fits;
     field.state.disabled = fits ? nullptr : too_long.c_str();
+    rv_editor_inspector_field_width(fits ? buf : "", 0.0f);
     rv_editor_text_field(id, buf, sizeof(buf), theme, field);
     if (fits && ImGui::IsItemDeactivatedAfterEdit() && value != buf) {
         rv_editor_scene_step(doc);

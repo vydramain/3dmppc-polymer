@@ -174,7 +174,7 @@ void rv_editor_fields_edit(rv_editor_scene_doc &doc,
     if (dimmed) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
     }
-    ImGui::SetNextItemWidth(-(rv_editor_button_width(reset) + ImGui::GetStyle().ItemSpacing.x));
+    rv_editor_inspector_field_width(fits ? buf : "", rv_editor_button_width(reset) + ImGui::GetStyle().ItemSpacing.x);
     rv_editor_text_field(value_id, buf, sizeof(buf), theme, field);
     if (fits && ImGui::IsItemDeactivatedAfterEdit()) {
         rv_editor_fields_commit(doc, at, index, desc, row.name, buf);
@@ -214,24 +214,22 @@ void rv_editor_fields_row(rv_editor_scene_doc &doc,
     }
 }
 
-// The refusal of the last refused edit, in the one place the Inspector keeps for it under all the components (the
-// document holds one refusal at a time), empty when there is none.
-void rv_editor_fields_refusal(const rv_editor_scene_doc &doc, size_t at, const rv_editor_theme &theme)
-{
-    const rv_editor_scene_field_refusal &r = doc.field_refusal;
-    std::string text;
-    if (r.steps == doc.steps && r.undo == doc.undo.size() && r.object == doc.scene.objects[at].id) {
-        text = rv_editor_text_format("pane_scene_fields.refusal", std::make_format_args(r.key, r.reason));
-    }
-    rv_editor_message_line("##refusal", text.c_str(), 2, 0.0f, theme, nullptr, rv_editor_label_kind::error);
-}
-
 } // namespace
 
 const std::vector<rv_pdkkit::ecs_component_record> *rv_editor_descs_records(const rv_editor_app &app)
 {
     const bool loaded = app.descriptions.snapshot.state == rv_editor_descriptions_state::loaded;
     return loaded ? &app.descriptions.snapshot.records : nullptr;
+}
+
+std::string rv_editor_inspector_refusal(const rv_editor_scene_doc &doc, size_t at)
+{
+    // The document holds one refusal at a time, shown while it is the last thing that happened to this object.
+    const rv_editor_scene_field_refusal &r = doc.field_refusal;
+    if (r.steps != doc.steps || r.undo != doc.undo.size() || r.object != doc.scene.objects[at].id) {
+        return std::string();
+    }
+    return rv_editor_text_format("pane_scene_fields.refusal", std::make_format_args(r.key, r.reason));
 }
 
 void rv_editor_inspector_fields(rv_editor_app &app, const rv_editor_theme &theme, size_t at)
@@ -265,7 +263,6 @@ void rv_editor_inspector_fields(rv_editor_app &app, const rv_editor_theme &theme
         }
         ImGui::PopID();
     }
-    rv_editor_fields_refusal(doc, at, theme);
     if (removing < count) {
         rv_editor_fields_remove(doc, at, removing);
     }

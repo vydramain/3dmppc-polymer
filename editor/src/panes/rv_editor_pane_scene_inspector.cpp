@@ -11,9 +11,12 @@
 
 #include "imgui.h"
 
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
@@ -43,7 +46,6 @@ void rv_editor_inspector_label(const char *label, float column, const rv_editor_
     ImGui::AlignTextToFramePadding();
     rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     rv_editor_inspector_field_at(column);
-    ImGui::SetNextItemWidth(-1.0f);
 }
 
 // A text value committed as a whole, never letter by letter.
@@ -61,6 +63,7 @@ void rv_editor_inspector_text(rv_editor_app &app,
     rv_editor_scene_doc &doc = *app.scene;
     const int at = rv_editor_scene_find(doc.scene, id);
     rv_editor_inspector_label(display_label, column, theme);
+    rv_editor_inspector_field_width(buf, 0.0f);
     rv_editor_text_field((std::string("##") + label).c_str(), buf, size, theme);
     const bool commit = ImGui::IsItemDeactivatedAfterEdit();
     if (at < 0 || !commit) {
@@ -81,6 +84,13 @@ float rv_editor_inspector_column(float widest)
     return column > ImGui::GetContentRegionAvail().x * max_column_share ? 0.0f : column;
 }
 
+void rv_editor_inspector_field_width(const char *text, float reserve)
+{
+    // A value is shown whole: the field is as wide as its text, and the area scrolls when that is more than the room.
+    const float whole = ImGui::CalcTextSize(text).x + 2.0f * ImGui::GetStyle().FramePadding.x;
+    ImGui::SetNextItemWidth(std::max(ImGui::GetContentRegionAvail().x - reserve, whole));
+}
+
 void rv_editor_inspector_field_at(float column)
 {
     if (column > 0.0f) {
@@ -88,35 +98,54 @@ void rv_editor_inspector_field_at(float column)
     }
 }
 
+rv_editor_size rv_editor_inspector_minimum()
+{
+    return rv_editor_tiled_minimum(rv_editor_inspector_content_width(), rv_editor_tiled_box_block());
+}
+
+float rv_editor_inspector_content_width()
+{
+    return std::max(rv_editor_scene_none_width(), rv_editor_message_box_min_width({}));
+}
+
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
-    if (!app.project.open) {
-        rv_editor_open_project_row(app, theme);
-        return;
-    }
+    const float width = rv_editor_inspector_content_width();
     rv_editor_scene_keys(app, ui);
-    // Content only, no controls row: the whole pane is one well. Early returns
-    // inside stay reachable, so the body is a lambda that always runs to well_end.
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
-    const auto body = [&]() {
-        if (app.scene == nullptr) {
-            rv_editor_label(rv_editor_text("pane_scene_inspector.no_scene_open"),
-                rv_editor_label_kind::normal,
-                theme,
-                rv_editor_label_layout::wrap);
-            rv_editor_scene_open_row(app, theme);
-            return;
-        }
+    const int at = app.scene != nullptr ? rv_editor_scene_find(app.scene->scene, app.scene->selected) : -1;
+    // The one message box: what the pane lacks, the refusal of the last edit, or the read-only banner.
+    if (app.scene == nullptr) {
+        rv_editor_scene_none_box(app,
+            rv_editor_text("pane_scene_inspector.no_scene_open"),
+            rv_editor_label_kind::normal,
+            theme,
+            width);
+    } else if (at < 0) {
+        (void)rv_editor_message_box("##note",
+            rv_editor_text("pane_scene_inspector.select_object"),
+            rv_editor_label_kind::normal,
+            {},
+            theme,
+            width);
+    } else {
+        const rv_editor_scene_doc &doc = *app.scene;
+        const std::string refusal = rv_editor_inspector_refusal(doc, static_cast<size_t>(at));
+        const std::string &ro = doc.scene.read_only;
+        const std::string banner =
+            ro.empty() ? std::string() : rv_editor_text_format("pane_scene_inspector.read_only", std::make_format_args(ro));
+        (void)rv_editor_message_box("##note",
+            refusal.empty() ? banner : refusal,
+            refusal.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
+            {},
+            theme,
+            width);
+    }
+    (void)rv_editor_tiled_area_begin("##form_area", width, theme);
+    if (app.scene == nullptr) {
+        rv_editor_scene_files_list(app, theme);
+    } else if (at >= 0) {
         rv_editor_scene_doc &doc = *app.scene;
         rv_editor_inspector_draft &draft = inspector_draft;
-        const int at = rv_editor_scene_find(doc.scene, doc.selected);
-        if (at < 0) {
-            rv_editor_label(rv_editor_text("pane_scene_inspector.select_object"),
-                rv_editor_label_kind::normal,
-                theme,
-                rv_editor_label_layout::wrap);
-            return;
-        }
         const rv_editor_scene_object o = doc.scene.objects[static_cast<size_t>(at)];
         // The name field follows the selection and undo; the one being typed in keeps its text.
         const bool refresh = draft.shown != o.id || !ImGui::GetIO().WantTextInput;
@@ -125,13 +154,6 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
             draft.shown = o.id;
         }
         const bool read_only = !doc.scene.read_only.empty();
-        // The banner's place is kept when there is none, so the fields below do not move.
-        std::string banner;
-        if (read_only) {
-            const std::string &ro = doc.scene.read_only;
-            banner = rv_editor_text_format("pane_scene_inspector.read_only", std::make_format_args(ro));
-        }
-        rv_editor_message_line("##read_only", banner.c_str(), 2, 0.0f, theme);
         const char *const name_label = rv_editor_text("pane_scene_inspector.name_label");
         const char *const kind_label = rv_editor_text("pane_scene_inspector.kind_label");
         const char *const id_label = rv_editor_text("pane_scene_inspector.id_label");
@@ -163,9 +185,8 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
             rv_editor_item_tooltip(rv_editor_text("pane_scene_inspector.extra_tooltip"));
         }
         ImGui::EndDisabled();
-    };
-    body();
-    rv_editor_well_end();
+    }
+    rv_editor_tiled_area_end(theme);
 }
 
 } // namespace rv_editor

@@ -163,6 +163,18 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
         const ui_font_scope scope;
         return review_minimum();
     }
+    case rv_editor_pane_kind::scene: {
+        const ui_font_scope scope;
+        return rv_editor_scene_minimum();
+    }
+    case rv_editor_pane_kind::hierarchy: {
+        const ui_font_scope scope;
+        return rv_editor_hierarchy_minimum();
+    }
+    case rv_editor_pane_kind::inspector: {
+        const ui_font_scope scope;
+        return rv_editor_inspector_minimum();
+    }
     default:
         return { 0, 0 };
     }
