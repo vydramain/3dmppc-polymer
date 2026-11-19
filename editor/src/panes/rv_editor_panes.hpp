@@ -49,14 +49,23 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
 std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id pane);
 // "All" (every source but the protocol trace), "All + protocol", or the names shown.
 std::string rv_editor_output_sources(const rv_editor_output_view &view, bool capital);
-// Source, Level, Find, Follow and Wrap, then Copy, Export and Clear View, or as many
-// of those as the row fits; the rest reachable from a "More" menu. Sets copy and
+// Source, Level, Find, Follow and Wrap, then Copy, Export and Clear View, all in one row. Sets copy and
 // exporting when the caller should act on the lines it filters out below.
 void rv_editor_output_controls(rv_editor_app &app,
     rv_editor_output_view &view,
     bool &copy,
     bool &exporting,
     const rv_editor_theme &theme);
+
+// The width of that row with Find at its minimum. Call inside a frame.
+float rv_editor_output_controls_width();
+
+// The one minimum of the tile of Output, Runtime Log and Build Log, Terminal, Problems and Search Results, whatever
+// their state. Call inside a frame.
+rv_editor_size rv_editor_output_minimum();
+rv_editor_size rv_editor_terminal_minimum();
+rv_editor_size rv_editor_problems_minimum();
+rv_editor_size rv_editor_search_minimum();
 
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);

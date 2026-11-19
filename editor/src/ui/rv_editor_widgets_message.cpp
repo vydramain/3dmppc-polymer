@@ -58,11 +58,12 @@ int rv_editor_message_box(const char *id,
     const std::string &text,
     rv_editor_label_kind kind,
     const std::vector<std::string> &buttons,
-    const rv_editor_theme &theme)
+    const rv_editor_theme &theme,
+    float min_width)
 {
     ImGui::PushID(id);
     const ImVec2 min = ImGui::GetCursorScreenPos();
-    const float width = ImGui::GetContentRegionAvail().x;
+    const float width = std::max(ImGui::GetContentRegionAvail().x, min_width);
     ImGui::PushStyleColor(ImGuiCol_ChildBg, rv_editor_col(theme.code_base));
     ImGui::PushStyleColor(ImGuiCol_Text,
         rv_editor_col(kind == rv_editor_label_kind::normal ? theme.code_text : rv_editor_label_colour(kind, theme)));

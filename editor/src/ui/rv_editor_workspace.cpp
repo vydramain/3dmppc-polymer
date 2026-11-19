@@ -19,6 +19,22 @@ namespace rv_editor
 namespace
 {
 
+// The kinds built from the tiled UI templates (S13 on); each is listed as its pane is converted.
+bool rv_editor_pane_converted(rv_editor_pane_kind kind)
+{
+    switch (kind) {
+    case rv_editor_pane_kind::output:
+    case rv_editor_pane_kind::runtime_log:
+    case rv_editor_pane_kind::build_log:
+    case rv_editor_pane_kind::terminal:
+    case rv_editor_pane_kind::problems:
+    case rv_editor_pane_kind::search:
+        return true;
+    default:
+        return false;
+    }
+}
+
 // Monospace glyph for measuring cell width in layout calculations.
 constexpr const char *grid_cell_width_probe = "M";
 
@@ -242,7 +258,16 @@ void draw_leaf(rv_editor_workspace &ws,
         ws.focus_request = rv_editor_tile_none;
         ImGui::SetNextWindowFocus();
     }
-    rv_editor_scroll_begin("##pane", ImVec2(0, -tabs_h), false, ImGuiChildFlags_AlwaysUseWindowPadding);
+    // A converted kind's body never scrolls: it is never smaller than its minimum, and its content area scrolls itself.
+    const bool converted = !leaf.tabs.empty() && rv_editor_pane_converted(ws.panes.panes[leaf.tabs[leaf.active]].kind);
+    if (converted) {
+        ImGui::BeginChild("##pane",
+            ImVec2(0, -tabs_h),
+            ImGuiChildFlags_AlwaysUseWindowPadding,
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    } else {
+        rv_editor_scroll_begin("##pane", ImVec2(0, -tabs_h), false, ImGuiChildFlags_AlwaysUseWindowPadding);
+    }
     ImGui::PopStyleVar();
     // A sunken well inside the raised frame: the window's double edge. Drawn by
     // the content window itself, whose background would cover the parent's lines.
@@ -253,7 +278,11 @@ void draw_leaf(rv_editor_workspace &ws,
         rv_editor_pane_id active_pane_id = leaf.tabs[leaf.active];
         draw_pane(context, active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
     }
-    rv_editor_scroll_end(theme);
+    if (converted) {
+        ImGui::EndChild();
+    } else {
+        rv_editor_scroll_end(theme);
+    }
     if (!leaf.tabs.empty()) {
         // Right under the well: EndChild leaves the cursor an item spacing lower,
         // which would push the tabs' bottom under the tile's frame.

@@ -17,6 +17,7 @@
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_layout_probe.hpp"
 #include "text/rv_editor_text.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 
 using namespace rv_editor;
@@ -57,6 +58,36 @@ void same(const char *what, const rv_editor_probe_record &a, const rv_editor_pro
         std::fprintf(stderr, "%s: %s\n", what, difference.c_str());
     }
     RV_EDITOR_CHECK(difference.empty());
+}
+
+// The record without what moves legally with the state: the items inside a content area, and the message box's bar and
+// buttons (they depend on the state and the length of the text). The boxes' windows and the area frames stay.
+rv_editor_probe_record frames_only(const rv_editor_probe_record &r, float box_h)
+{
+    const rv_editor_probe_entry *box = nullptr;
+    for (const auto &e : r.entries) {
+        const size_t at = e.label.rfind('/');
+        const std::string last = at == std::string::npos ? e.label : e.label.substr(at + 1);
+        box = e.scroll_area && last.compare(0, 7, "##text_") == 0 ? &e : box;
+    }
+    rv_editor_probe_record out;
+    for (const auto &e : r.entries) {
+        const bool inside_box = box != nullptr && &e != box && e.y0 >= box->y0 && e.y1 <= box->y0 + box_h;
+        if (!e.in_scroll && !inside_box) {
+            out.entries.push_back(e);
+        }
+    }
+    return out;
+}
+
+// Like same(), but only the windows, shelf and headers: what is inside a message box or an area may differ.
+void same_frames(rv_editor_test_imgui &gui, const char *what, const rv_editor_probe_record &a, const rv_editor_probe_record &b)
+{
+    float box_h = 0.0f;
+    gui.frame([&] {
+        box_h = rv_editor_message_box_height();
+    });
+    same(what, frames_only(a, box_h), frames_only(b, box_h));
 }
 
 std::string long_text(size_t size)
@@ -183,7 +214,7 @@ std::string row_text(const rv_editor_probe_record &r)
     return row == nullptr ? "" : row->label.substr(0, row->label.size() - 6);
 }
 
-// Hover the centre of the row for a few frames; true when a tooltip is up.
+// Hover the left edge of the row's visible part for a few frames; true when a tooltip is up.
 template <class F>
 bool tooltip_on_row(rv_editor_test_imgui &gui, float width, F body)
 {
@@ -194,7 +225,7 @@ bool tooltip_on_row(rv_editor_test_imgui &gui, float width, F body)
             body();
         });
         if (const auto *row = find_suffix(r, "###row")) {
-            mouse = ImVec2((row->x0 + row->x1) / 2.0f, (row->y0 + row->y1) / 2.0f);
+            mouse = ImVec2(row->x0 + 4.0f, (row->y0 + row->y1) / 2.0f);
         }
     }
     const ImGuiWindow *tip = ImGui::FindWindowByName("##Tooltip_00");
@@ -267,7 +298,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_output_exported_note)
     add_info(plain, 3);
     add_info(exported, 3);
     exported.outputs[pane].exported = std::string(root_dir) + "/" + long_relative();
-    same("last export", draw_output(gui, plain), draw_output(gui, exported));
+    same_frames(gui, "last export", draw_output(gui, plain), draw_output(gui, exported));
 }
 
 RV_EDITOR_TEST(rv_editor_test_stable_s9_output_source_label)
@@ -313,7 +344,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_terminal_shell_alive_and_ended)
     RV_EDITOR_CHECK(alive.app.terminals[pane].term != nullptr && alive.app.terminals[pane].term->running());
     setenv("SHELL", "/bin/true", 1);
     RV_EDITOR_CHECK(wait_ended(gui, ended));
-    same("shell alive and ended", a, draw_terminal(gui, ended));
+    same_frames(gui, "shell alive and ended", a, draw_terminal(gui, ended));
     setenv("SHELL", "/bin/sh", 1);
 }
 
@@ -326,7 +357,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_terminal_paste_ask)
     const auto closed = draw_terminal(gui, t);
     RV_EDITOR_CHECK(t.app.terminals[pane].term != nullptr);
     t.app.terminals[pane].paste = "first line\nsecond line " + long_text(300) + "\nthird line";
-    same("paste ask closed and open", closed, draw_terminal(gui, t));
+    same_frames(gui, "paste ask closed and open", closed, draw_terminal(gui, t));
 }
 
 // --- Problems ----------------------------------------------------------------------------------------------------
@@ -343,7 +374,8 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_problems_build_alert)
             rv_editor_app alert;
             problems_app(alert);
             alert.build_alert = { kind, reason };
-            same(kind == rv_editor_build_alert_kind::failed ? "build failed alert" : "build not started alert",
+            same_frames(gui,
+                kind == rv_editor_build_alert_kind::failed ? "build failed alert" : "build not started alert",
                 base,
                 draw_problems(gui, alert));
         }
@@ -381,7 +413,13 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_search_result_notes)
     noted.project_search.result.skipped_dirs = 4;
     noted.project_search.result.skipped_files = 9;
     noted.project.root = "/home/user/a_project_with_a_rather_long_folder_name";
-    same("results with the scope and stopped notes", draw_search(gui, plain), draw_search(gui, noted));
+    // The File column fits its content, so the path stays the same relative path under the longer root.
+    noted.project_search.result.hits.clear();
+    for (size_t i = 0; i < 3; ++i) {
+        noted.project_search.result.hits.push_back(
+            { std::filesystem::path(noted.project.root) / "src/a.cpp", static_cast<int32_t>(i + 1), 4, "int needle = 0;" });
+    }
+    same_frames(gui, "results with the scope and stopped notes", draw_search(gui, plain), draw_search(gui, noted));
 }
 
 RV_EDITOR_TEST(rv_editor_test_stable_s9_search_path_cell_shows_the_whole_relative_path)

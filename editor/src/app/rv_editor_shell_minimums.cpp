@@ -10,6 +10,7 @@
 #include "imgui.h"
 #include "panes/rv_editor_game_status.hpp"
 #include "panes/rv_editor_pane_controls.hpp"
+#include "panes/rv_editor_panes.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets_tile.hpp"
 
@@ -21,11 +22,6 @@ namespace
 
 // Minimum width in font sizes of a strip of controls.
 constexpr int strip_min_width_em = 20;
-// Minimum width in font sizes for log/output panes.
-constexpr float log_pane_min_width_em = 30.0f;
-// Minimum height in frame heights for log/output panes.
-constexpr float log_pane_min_height_frames = 6.0f;
-
 // Minimum width in font sizes and height in frame heights of the Widget Catalog.
 constexpr float catalog_min_width_em = 20.0f;
 constexpr float catalog_min_height_frames = 8.0f;
@@ -38,9 +34,21 @@ float shelf_height(float rows)
     return style.WindowPadding.y + rows + style.ItemSpacing.y;
 }
 
-// The log panes' one control row, down to Source + Level + Find (at its own
-// minimum) + More, once Follow, Wrap, Copy, Export and Clear View have all
-// dropped behind More (rv_editor_output_controls); a few lines under it.
+// Pushes the UI font for a measure taken before the first frame or outside one.
+struct ui_font_scope {
+    ui_font_scope()
+    {
+        ImFont *font = ImGui::GetIO().Fonts->Fonts[0];
+        ImGui::PushFont(font, font->LegacySize);
+    }
+    ~ui_font_scope()
+    {
+        ImGui::PopFont();
+    }
+    ui_font_scope(const ui_font_scope &) = delete;
+    ui_font_scope &operator=(const ui_font_scope &) = delete;
+};
+
 // Kinds not listed have no need of their own: the tree's generic per-tile
 // minimum (rv_editor_workspace_draw) already covers them.
 rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
@@ -76,10 +84,25 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
     // The catalog scrolls as a whole, so any size shows it whole: room for the section tiles' headings and a few rows.
     case rv_editor_pane_kind::catalog:
         return { static_cast<int32_t>(fs * catalog_min_width_em), static_cast<int32_t>(fh * catalog_min_height_frames) };
+    // The tiled panes: a function of their own each, the sum of what they draw in their widest state.
     case rv_editor_pane_kind::output:
     case rv_editor_pane_kind::runtime_log:
-    case rv_editor_pane_kind::build_log:
-        return { static_cast<int32_t>(fs * log_pane_min_width_em), static_cast<int32_t>(fh * log_pane_min_height_frames) };
+    case rv_editor_pane_kind::build_log: {
+        const ui_font_scope scope;
+        return rv_editor_output_minimum();
+    }
+    case rv_editor_pane_kind::terminal: {
+        const ui_font_scope scope;
+        return rv_editor_terminal_minimum();
+    }
+    case rv_editor_pane_kind::problems: {
+        const ui_font_scope scope;
+        return rv_editor_problems_minimum();
+    }
+    case rv_editor_pane_kind::search: {
+        const ui_font_scope scope;
+        return rv_editor_search_minimum();
+    }
     default:
         return { 0, 0 };
     }

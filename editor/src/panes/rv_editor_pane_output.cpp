@@ -18,10 +18,13 @@
 #include "pdk/rv_err.h"
 
 #include "font/rv_editor_font.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
@@ -66,8 +69,6 @@ constexpr std::string_view sources_separator = ", ";
 // Capitalized build source name, from rv_editor_log_source_name with capital=true.
 constexpr std::string_view build_source_capitalized = "Build";
 constexpr std::string_view build_number_separator = " #";
-// Text lines the notes above the log have in all.
-constexpr int output_notes_lines = 2;
 // Width measurement: sample character for monospace cell width.
 constexpr std::string_view char_width_sample = "0";
 // Message column: array index in view.columns[].
@@ -184,13 +185,12 @@ int rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_edito
     return RV_OK;
 }
 
-// Time, Lvl, Source and Message over the lines, in the UI font but at the cells'
+// Time, Lvl, Source and Message over the lines, `h` high, in the UI font but at the cells'
 // code-font x positions below; the borders between them drag.
-void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_editor_theme &theme)
+void rv_editor_output_header(rv_editor_output_view &view, float cell, float h, const rv_editor_theme &theme)
 {
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
-    const float h = ImGui::GetTextLineHeight() + header_height_padding_px;
     const float w = ImGui::GetContentRegionAvail().x;
     dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + h), rv_editor_col(theme.code_base));
     dl->AddLine(ImVec2(p0.x, p0.y + h - 1.0f), ImVec2(p0.x + w, p0.y + h - 1.0f), rv_editor_col(theme.code_surface));
@@ -278,6 +278,24 @@ std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id p
     return std::string(rv_editor_text("pane_output.title_prefix")) + what;
 }
 
+namespace
+{
+
+// The widest row of a log tile: the shelf's, or the message box's.
+float rv_editor_output_content_width()
+{
+    return std::max(rv_editor_tiled_shelf_width(rv_editor_output_controls_width()), rv_editor_message_box_min_width({}));
+}
+
+} // namespace
+
+rv_editor_size rv_editor_output_minimum()
+{
+    const float header = ImGui::GetTextLineHeight() + header_height_padding_px + ImGui::GetStyle().ItemSpacing.y;
+    return rv_editor_tiled_minimum(rv_editor_output_content_width(),
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block() + header);
+}
+
 void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
 {
     rv_editor_output_view &view = app.outputs[pane];
@@ -290,8 +308,6 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     rv_editor_shelf_begin("##shelf", theme);
     rv_editor_output_controls(app, view, copy, exporting, theme);
     rv_editor_shelf_end();
-
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     // The lines, and what the filters keep out of sight.
     const std::string needle = rv_editor_output_lower(view.search);
@@ -334,7 +350,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         (void)rv_editor_output_export(app, shown, view.exported);
     }
 
-    // What the lines do not say shares one reserved line, so it never pushes the lines down.
+    // What the lines do not say is the message box's, whose place is there with or without a note.
     std::string notes;
     const auto note = [&notes](const std::string &text) {
         notes += (notes.empty() ? "" : "  ") + text;
@@ -355,17 +371,21 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     const auto notes_kind = hidden_errors != 0 ? rv_editor_label_kind::error :
         hidden_warnings != 0                   ? rv_editor_label_kind::warning :
                                                  rv_editor_label_kind::normal;
-    rv_editor_message_line("##notes", notes.c_str(), output_notes_lines, 0.0f, theme, nullptr, notes_kind);
+    (void)rv_editor_message_box("##notes", notes, notes_kind, {}, theme, rv_editor_output_content_width());
 
-    // The lines draw in the code font; the header takes its cell width from it.
+    // The header's height is the UI font's; the lines draw in the code font and the header takes its cell width from it.
+    const float header_h = ImGui::GetTextLineHeight() + header_height_padding_px;
     rv_editor_font_code_push();
     const float cell = ImGui::CalcTextSize(char_width_sample.data()).x;
-    rv_editor_output_header(view, cell, theme);
+    rv_editor_font_code_pop();
+    rv_editor_output_header(view, cell, header_h, theme);
     const float at_level = cell * view.columns[0];
     const float at_source = at_level + cell * view.columns[1];
     const float at_message = at_source + cell * view.columns[message_column_index];
 
-    rv_editor_log_begin("##lines", ImVec2(0, 0), theme);
+    // The area is measured in the UI font like the minimum; its rows are in the code font.
+    (void)rv_editor_tiled_area_begin("##lines", rv_editor_output_content_width(), theme);
+    rv_editor_font_code_push();
     const float line_h = ImGui::GetTextLineHeight();
     // Less the half cell each row starts in by, and as much again on the right.
     const float wrap_w = std::max(cell * wrap_width_min_cells, ImGui::GetContentRegionAvail().x - at_message - cell);
@@ -430,7 +450,9 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         ImGui::SetCursorPos(start);
         ImGui::Dummy(ImVec2(0.0f, h));
     };
-    if (view.wrap) {
+    if (shown.empty()) {
+        rv_editor_content_empty_row(rv_editor_text("pane_output.empty_row"), theme);
+    } else if (view.wrap) {
         // Rows of different heights: those out of sight only take their room.
         const float top = ImGui::GetScrollY();
         const float bottom = top + ImGui::GetWindowHeight();
@@ -466,9 +488,8 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     if (view.follow) {
         ImGui::SetScrollHereY(1.0f);
     }
-    rv_editor_log_end(theme);
     rv_editor_font_code_pop();
-    rv_editor_well_end();
+    rv_editor_tiled_area_end(theme);
 }
 
 } // namespace rv_editor

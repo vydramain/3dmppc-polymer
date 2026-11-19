@@ -112,8 +112,13 @@ void rv_editor_shelf_end()
 {
     const rv_editor_shelf_frame f = rv_editor_shelf_stack.back();
     rv_editor_shelf_stack.pop_back();
-    ImGui::EndGroup();
     ImGuiWindow *win = ImGui::GetCurrentWindow();
+    // A window that skips its items (a tile clipped away) leaves the last item of another window in the context, and
+    // EndGroup would take that item's edge for the group's.
+    if (win->SkipItems) {
+        ImGui::GetCurrentContext()->LastItemData.Rect = ImRect(f.origin, f.origin);
+    }
+    ImGui::EndGroup();
     win->ContentRegionRect.Max.x = f.region_right;
     win->WorkRect.Max.x = f.work_right;
     const ImVec2 min = f.origin;

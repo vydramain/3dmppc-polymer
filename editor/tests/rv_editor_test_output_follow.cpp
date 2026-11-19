@@ -24,14 +24,15 @@ constexpr int prefill_lines = 100;
 constexpr int warmup_frames = 4;
 constexpr int checked_frames = 10;
 
-// The deepest scroll child inside the pane's well: the one that holds the lines.
+// The deepest scroll child inside the pane's well or content area: the one that holds the lines.
 const ImGuiWindow *lines_child()
 {
     const ImGuiWindow *found = nullptr;
     for (const ImGuiWindow *w : ImGui::GetCurrentContext()->Windows) {
         const std::string_view name = w->Name;
         const std::string_view last = name.substr(name.find_last_of('/') + 1);
-        if (name.find("##well") != std::string_view::npos && last.find("##scroll") == 0) {
+        if ((name.find("##well") != std::string_view::npos || name.find("##area") != std::string_view::npos) &&
+            last.find("##scroll") == 0) {
             found = w;
         }
     }

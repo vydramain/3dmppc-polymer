@@ -15,12 +15,13 @@
 #include "app/rv_editor_shell.hpp"
 #include "font/rv_editor_font.hpp"
 
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
-#include "ui/rv_editor_widgets_table.hpp"
-#include "ui/rv_editor_widgets_text.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
@@ -52,8 +53,6 @@ constexpr int utf8_3byte_length = 3;
 constexpr int utf8_4byte_length = 4;
 // Grid cell width probe glyph for layout measurement (editor assumption: monospace font).
 constexpr const char *grid_cell_width_probe = "M";
-// Maximum preview lines in paste confirmation dialog.
-constexpr int max_paste_preview_lines = 8;
 // Minimum terminal grid columns.
 constexpr int min_terminal_cols = 2;
 // Minimum terminal grid rows.
@@ -230,14 +229,50 @@ bool rv_editor_term_keys(rv_editor_terminal &term)
     return typed;
 }
 
-void rv_editor_pane_terminal_body(rv_editor_app &app,
-    rv_editor_pane_id pane,
-    const rv_editor_theme &theme,
-    const rv_editor_ui_port &ui)
+// The widest row: the message box with the widest of its button rows.
+float rv_editor_terminal_content_width()
 {
-    rv_editor_terminal_view &view = app.terminals[pane];
+    return rv_editor_message_box_min_width(
+        { { rv_editor_text("shell_menu.ask_terminal_end"), rv_editor_text("shell_menu.ask_terminal_keep") },
+            { rv_editor_text("pane_terminal.paste"), rv_editor_text("pane_terminal.cancel") },
+            { rv_editor_text("pane_terminal.start_again") } });
+}
 
-    // A shell that ended or never started says so above the screen it left, in a row that is there either way.
+// What the terminal says in the message box, whatever it takes: the shell's end question, several pasted lines to look at,
+// or that the shell ended or never started. Each has its buttons; a running shell with nothing to ask says nothing. The
+// box is there either way, so the screen never moves.
+void rv_editor_terminal_say(rv_editor_terminal_view &view, const rv_editor_theme &theme)
+{
+    const float width = rv_editor_terminal_content_width();
+    if (view.ending) {
+        const int pressed = rv_editor_message_box("##say",
+            rv_editor_text("shell_menu.ask_terminal_message"),
+            rv_editor_label_kind::normal,
+            { rv_editor_text("shell_menu.ask_terminal_end"), rv_editor_text("shell_menu.ask_terminal_keep") },
+            theme,
+            width);
+        if (pressed >= 0) {
+            view.end_answer = pressed == 0 ? rv_editor_terminal_end_answer::end : rv_editor_terminal_end_answer::keep;
+        }
+        return;
+    }
+    if (!view.paste.empty() && view.term != nullptr) {
+        // Every pasted line is in the box, to look at before it runs.
+        const std::string lines = std::string(rv_editor_text("pane_terminal.paste_lines_info")) + "\n" + view.paste;
+        const int pressed = rv_editor_message_box("##say",
+            lines,
+            rv_editor_label_kind::normal,
+            { rv_editor_text("pane_terminal.paste"), rv_editor_text("pane_terminal.cancel") },
+            theme,
+            width);
+        if (pressed == 0) {
+            rv_editor_term_type(*view.term, view.paste);
+        }
+        if (pressed >= 0) {
+            view.paste.clear();
+        }
+        return;
+    }
     std::string why;
     if (!view.error.empty()) {
         why = rv_editor_text_format("pane_terminal.shell_not_started", std::make_format_args(view.error));
@@ -245,79 +280,20 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
         const std::string ended_msg = view.term->ended();
         why = rv_editor_text_format("pane_terminal.shell_ended", std::make_format_args(ended_msg));
     }
-    rv_editor_font_code_pop();
-    const float again_width = rv_editor_button_width(rv_editor_text("pane_terminal.start_again"));
-    const float line_width = std::max(1.0f, ImGui::GetContentRegionAvail().x - again_width - ImGui::GetStyle().ItemSpacing.x);
-    rv_editor_message_line("##ended", why.c_str(), 1, line_width, theme);
-    ImGui::SameLine();
-    const rv_editor_state again_state = { rv_editor_look::live,
-        why.empty() ? rv_editor_text("pane_terminal.start_again_running") : nullptr };
-    if (rv_editor_button(rv_editor_text("pane_terminal.start_again"), theme, again_state)) {
+    const std::vector<std::string> again =
+        why.empty() ? std::vector<std::string>{} : std::vector<std::string>{ rv_editor_text("pane_terminal.start_again") };
+    const auto kind = view.error.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error;
+    if (rv_editor_message_box("##say", why, kind, again, theme, width) == 0) {
         view = {};
     }
+}
 
-    // One place for what the terminal asks: ending the tile (the shell asks) or several pasted lines; it is there
-    // either way, so the screen never moves.
-    const bool ending = view.ending;
-    const bool pasting = !ending && !view.paste.empty() && view.term != nullptr;
-    (void)rv_editor_ask_place_begin("##paste_ask",
-        rv_editor_text(ending ? "shell_menu.ask_terminal_title" : "pane_terminal.paste_dialog_title"),
-        max_paste_preview_lines + 2,
-        ending || pasting,
-        theme);
-    if (ending) {
-        rv_editor_label(rv_editor_text("shell_menu.ask_terminal_message"),
-            rv_editor_label_kind::normal,
-            theme,
-            rv_editor_label_layout::wrap);
-        if (rv_editor_button(rv_editor_text("shell_menu.ask_terminal_end"), theme)) {
-            view.end_answer = rv_editor_terminal_end_answer::end;
-        }
-        ImGui::SameLine();
-        if (rv_editor_button(rv_editor_text("shell_menu.ask_terminal_keep"), theme)) {
-            view.end_answer = rv_editor_terminal_end_answer::keep;
-        }
-    } else {
-        ImGui::AlignTextToFramePadding();
-        rv_editor_label(rv_editor_text("pane_terminal.paste_lines_info"),
-            rv_editor_label_kind::normal,
-            theme,
-            rv_editor_label_layout::line);
-        ImGui::SameLine();
-        const bool paste = rv_editor_button(rv_editor_text("pane_terminal.paste"), theme);
-        ImGui::SameLine();
-        const bool cancel = rv_editor_button(rv_editor_text("pane_terminal.cancel"), theme);
-        rv_editor_font_code_push();
-        // Every pasted line is in a read-only area of a constant height that scrolls, to inspect before it runs.
-        // Its content is never shorter than the area, so the scrollbar is always there and the text width is the same
-        // for any paste and when closed.
-        const rv_editor_field paste_field = { .state = {}, .read_only = true };
-        ImGui::SetNextItemWidth(-1.0f);
-        const ImGuiStyle &style = ImGui::GetStyle();
-        const float area_h =
-            ImGui::GetTextLineHeight() * static_cast<float>(max_paste_preview_lines) + style.FramePadding.y * 2.0f;
-        const float text_w = ImGui::CalcItemWidth() - style.FramePadding.x * 2.0f - style.ScrollbarSize;
-        std::string none;
-        std::string &shown = pasting ? view.paste : none;
-        const float text_h = ImGui::CalcTextSize(shown.c_str(), nullptr, false, text_w).y + style.FramePadding.y * 2.0f;
-        ImGui::SetNextWindowContentSize(ImVec2(0.0f, std::max(text_h, area_h + 1.0f)));
-        rv_editor_text_area("##paste",
-            shown.data(),
-            shown.size() + 1,
-            static_cast<float>(max_paste_preview_lines),
-            theme,
-            paste_field);
-        rv_editor_font_code_pop();
-        if (paste) {
-            rv_editor_term_type(*view.term, view.paste);
-        }
-        if (paste || cancel) {
-            view.paste.clear();
-        }
-    }
-    rv_editor_ask_place_end();
-    rv_editor_font_code_push();
-
+// The shell's screen in the content area, in whole cells of the code font. Starts the shell at the area's size.
+void rv_editor_terminal_screen(rv_editor_app &app,
+    rv_editor_terminal_view &view,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui)
+{
     // The screen fills the tile in whole cells: no permanent status row.
     const ImVec2 cell(ImGui::CalcTextSize(grid_cell_width_probe).x, ImGui::GetTextLineHeight());
     const ImVec2 at = ImGui::GetCursorScreenPos();
@@ -330,6 +306,9 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
         if (view.term->start(view.cwd, cols, rows, theme, view.error) != RV_OK && view.error.empty()) {
             view.error = rv_editor_text("pane_terminal.unknown_error");
         }
+    }
+    if (view.term == nullptr) {
+        return; // it did not start: the box says why
     }
     rv_editor_terminal &term = *view.term;
     if (term.running()) {
@@ -420,18 +399,24 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
 
 } // namespace
 
+rv_editor_size rv_editor_terminal_minimum()
+{
+    return rv_editor_tiled_minimum(rv_editor_terminal_content_width(), rv_editor_tiled_box_block());
+}
+
 void rv_editor_pane_terminal(rv_editor_app &app,
     rv_editor_pane_id pane,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui)
 {
+    rv_editor_terminal_view &view = app.terminals[pane];
+    rv_editor_terminal_say(view, theme);
+    // The area is measured in the UI font like the minimum; the screen in it is in the code font.
+    (void)rv_editor_tiled_area_begin("##screen", rv_editor_terminal_content_width(), theme);
     rv_editor_font_code_push();
-    // No controls row: the screen alone, in a well; it draws its own opaque
-    // background and scrolls by its own wheel handling.
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    rv_editor_pane_terminal_body(app, pane, theme, ui);
-    rv_editor_well_end();
+    rv_editor_terminal_screen(app, view, theme, ui);
     rv_editor_font_code_pop();
+    rv_editor_tiled_area_end(theme);
 }
 
 } // namespace rv_editor
