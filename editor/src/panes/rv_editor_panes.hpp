@@ -180,6 +180,11 @@ void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv
 std::span<const std::string_view> rv_editor_hierarchy_kinds();
 const char *rv_editor_scene_kind_label(const std::string &kind);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// Where fields start beside labels `widest` px wide: that plus a gap (at least six font sizes), or 0 when it is more
+// than half the row and each field goes on a line below its label instead (rv_editor_pane_scene_inspector.cpp).
+float rv_editor_inspector_column(float widest);
+// After a label: the field follows on the same line at `column`, or stays on the line below when `column` is 0.
+void rv_editor_inspector_field_at(float column);
 // The snapshot's description records when it is loaded, else nullptr: the built-ins apply (rv_editor_pane_scene_fields.cpp).
 const std::vector<rv_pdkkit::ecs_component_record> *rv_editor_descs_records(const rv_editor_app &app);
 // The components of the object at `at`, each a section of its fields by their descriptions (rv_editor_pane_scene_fields.cpp).

@@ -4,6 +4,7 @@
 
 #include "panes/rv_editor_panes.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <string>
@@ -20,8 +21,9 @@ namespace rv_editor
 namespace
 {
 
-// Field labels end this many font sizes in.
+// Labels end this many font sizes in, as the fields' do; a longer label takes more, up to this share of the row.
 constexpr float label_column_em = 6.0f;
+constexpr float max_column_share = 0.5f;
 
 // The Inspector's draft: the name's text for the object shown.
 struct rv_editor_inspector_draft {
@@ -36,11 +38,11 @@ rv_editor_inspector_draft inspector_draft;
 constexpr const char *undo_name = "Name";
 
 // A label column, then the field.
-void rv_editor_inspector_label(const char *label, const rv_editor_theme &theme)
+void rv_editor_inspector_label(const char *label, float column, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
     rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-    ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
+    rv_editor_inspector_field_at(column);
     ImGui::SetNextItemWidth(-1.0f);
 }
 
@@ -53,11 +55,12 @@ void rv_editor_inspector_text(rv_editor_app &app,
     size_t size,
     const std::string &id,
     const rv_editor_theme &theme,
-    const char *display_label)
+    const char *display_label,
+    float column)
 {
     rv_editor_scene_doc &doc = *app.scene;
     const int at = rv_editor_scene_find(doc.scene, id);
-    rv_editor_inspector_label(display_label, theme);
+    rv_editor_inspector_label(display_label, column, theme);
     rv_editor_text_field((std::string("##") + label).c_str(), buf, size, theme);
     const bool commit = ImGui::IsItemDeactivatedAfterEdit();
     if (at < 0 || !commit) {
@@ -71,6 +74,19 @@ void rv_editor_inspector_text(rv_editor_app &app,
 }
 
 } // namespace
+
+float rv_editor_inspector_column(float widest)
+{
+    const float column = std::max(ImGui::GetFontSize() * label_column_em, widest + ImGui::GetStyle().ItemSpacing.x);
+    return column > ImGui::GetContentRegionAvail().x * max_column_share ? 0.0f : column;
+}
+
+void rv_editor_inspector_field_at(float column)
+{
+    if (column > 0.0f) {
+        ImGui::SameLine(column);
+    }
+}
 
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
@@ -109,11 +125,18 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
             draft.shown = o.id;
         }
         const bool read_only = !doc.scene.read_only.empty();
+        // The banner's place is kept when there is none, so the fields below do not move.
+        std::string banner;
         if (read_only) {
             const std::string &ro = doc.scene.read_only;
-            const auto msg = rv_editor_text_format("pane_scene_inspector.read_only", std::make_format_args(ro));
-            rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+            banner = rv_editor_text_format("pane_scene_inspector.read_only", std::make_format_args(ro));
         }
+        rv_editor_message_line("##read_only", banner.c_str(), 2, 0.0f, theme);
+        const char *const name_label = rv_editor_text("pane_scene_inspector.name_label");
+        const char *const kind_label = rv_editor_text("pane_scene_inspector.kind_label");
+        const char *const id_label = rv_editor_text("pane_scene_inspector.id_label");
+        const float column = rv_editor_inspector_column(std::max(
+            { ImGui::CalcTextSize(name_label).x, ImGui::CalcTextSize(kind_label).x, ImGui::CalcTextSize(id_label).x }));
         ImGui::BeginDisabled(read_only);
         rv_editor_inspector_text(app,
             undo_name,
@@ -123,12 +146,13 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
             sizeof(draft.name),
             o.id,
             theme,
-            rv_editor_text("pane_scene_inspector.name_label"));
-        rv_editor_inspector_label(rv_editor_text("pane_scene_inspector.kind_label"), theme);
+            name_label,
+            column);
+        rv_editor_inspector_label(kind_label, column, theme);
         const std::string kind = rv_editor_object_get_kind(o);
         const char *kind_text = kind == kind_mesh ? rv_editor_text("pane_scene_inspector.kind_mesh") : kind.c_str();
         rv_editor_label(kind_text, rv_editor_label_kind::normal, theme);
-        rv_editor_inspector_label(rv_editor_text("pane_scene_inspector.id_label"), theme);
+        rv_editor_inspector_label(id_label, column, theme);
         rv_editor_label(o.id.c_str(), rv_editor_label_kind::dim, theme);
         rv_editor_inspector_components(app, theme, o.id, read_only);
         if (!o.extra.empty()) {

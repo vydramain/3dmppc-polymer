@@ -26,9 +26,6 @@ namespace rv_editor
 namespace
 {
 
-// Labels end this many font sizes in, as the Inspector's do.
-constexpr float label_column_em = 6.0f;
-
 // Field width ImGui takes for the rest of the row.
 constexpr float fill_width = -1.0f;
 
@@ -37,22 +34,25 @@ void rv_editor_components_label(const char *label, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
     rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-    ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
+    rv_editor_inspector_field_at(rv_editor_inspector_column(ImGui::CalcTextSize(label).x));
     ImGui::SetNextItemWidth(fill_width);
 }
 
 // A string committed as a whole when its field is left, as one undo step. A value too long for the
-// field's buffer is shown, not edited, so nothing is cut when it is written back.
+// field's buffer keeps its field, read-only with the whole value in its tooltip, so nothing is cut when it is
+// written back.
 void rv_editor_components_string(rv_editor_scene_doc &doc, const char *id, std::string &value, const rv_editor_theme &theme)
 {
-    if (value.size() >= asset_identifier_field_size) {
-        rv_editor_label(value.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        return;
-    }
     char buf[asset_identifier_field_size] = {};
     std::snprintf(buf, sizeof(buf), "%s", value.c_str());
-    rv_editor_text_field(id, buf, sizeof(buf), theme);
-    if (ImGui::IsItemDeactivatedAfterEdit() && value != buf) {
+    const bool fits = value.size() < sizeof(buf);
+    const std::string too_long =
+        fits ? std::string() : rv_editor_text_format("pane_scene_fields.too_long", std::make_format_args(value));
+    rv_editor_field field;
+    field.read_only = !fits;
+    field.state.disabled = fits ? nullptr : too_long.c_str();
+    rv_editor_text_field(id, buf, sizeof(buf), theme, field);
+    if (fits && ImGui::IsItemDeactivatedAfterEdit() && value != buf) {
         rv_editor_scene_step(doc);
         value = buf;
     }

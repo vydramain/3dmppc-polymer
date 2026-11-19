@@ -25,16 +25,26 @@ constexpr const char *no_pdkkit_text_id = "shell_pane.no_pdkkit";
 
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
 {
+    const float row_width = ImGui::GetContentRegionAvail().x;
     if (rv_editor_button(rv_editor_text("pane_scene.create_scene"), theme)) {
         rv_editor_shell_new_scene_request(app);
     }
     rv_editor_item_tooltip(rv_editor_text("pane_scene.create_scene_tooltip"));
     for (const std::filesystem::path &path : rv_editor_app_scene_files(app)) {
-        ImGui::SameLine();
+        // A file name that does not fit a row of its own keeps its end (the full name is in the tooltip).
         const std::string filename = path.filename().string();
-        const auto open_label = rv_editor_text_format("pane_scene.open_file", std::make_format_args(filename));
+        const std::string full = rv_editor_text_format("pane_scene.open_file", std::make_format_args(filename));
+        const float chrome = rv_editor_button_width(full.c_str()) - ImGui::CalcTextSize(full.c_str()).x;
+        const float room = row_width - chrome - ImGui::CalcTextSize(full.c_str()).x + ImGui::CalcTextSize(filename.c_str()).x;
+        const std::string shown = rv_editor_path_tail(filename, room);
+        const std::string open_label =
+            rv_editor_text_format("pane_scene.open_file", std::make_format_args(shown)) + "##" + filename;
+        rv_editor_flow(rv_editor_button_width(open_label.substr(0, open_label.find("##")).c_str()));
         if (rv_editor_button(open_label.c_str(), theme)) {
             rv_editor_app_scene_open(app, path);
+        }
+        if (shown != filename) {
+            rv_editor_item_tooltip(filename.c_str());
         }
     }
 }
@@ -61,9 +71,7 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
             rv_editor_label_kind::normal,
             theme,
             rv_editor_label_layout::wrap);
-        if (!app.scene_error.empty()) {
-            rv_editor_label(app.scene_error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
-        }
+        rv_editor_message_line("##error", app.scene_error.c_str(), 2, 0.0f, theme, nullptr, rv_editor_label_kind::error);
         rv_editor_scene_open_row(app, theme);
         rv_editor_label(rv_editor_text("pane_scene.game_loader_explanation"),
             rv_editor_label_kind::dim,
@@ -71,14 +79,13 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
             rv_editor_label_layout::wrap);
         return;
     }
+    // The read-only line and the error keep their places, empty when there is nothing to say, so the viewport stays.
+    std::string read_only_msg;
     if (!app.scene->scene.read_only.empty()) {
-        const auto read_only_msg =
-            rv_editor_text_format("pane_scene.read_only_format", std::make_format_args(app.scene->scene.read_only));
-        rv_editor_label(read_only_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+        read_only_msg = rv_editor_text_format("pane_scene.read_only_format", std::make_format_args(app.scene->scene.read_only));
     }
-    if (!app.scene_error.empty()) {
-        rv_editor_label(app.scene_error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
-    }
+    rv_editor_message_line("##read_only", read_only_msg.c_str(), 1, 0.0f, theme);
+    rv_editor_message_line("##error", app.scene_error.c_str(), 2, 0.0f, theme, nullptr, rv_editor_label_kind::error);
     rv_editor_scene_viewport(app, renderer, theme, ui);
 }
 
