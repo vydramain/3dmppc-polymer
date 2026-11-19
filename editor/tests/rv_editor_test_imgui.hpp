@@ -25,13 +25,13 @@ struct rv_editor_test_imgui {
     rv_editor_test_imgui(const rv_editor_test_imgui &) = delete;
     rv_editor_test_imgui &operator=(const rv_editor_test_imgui &) = delete;
 
-    // One frame with a window at the origin whose content is 400 px wide; `body` draws inside it.
+    // One frame with a window at the origin, 400x300 unless a size is given; `body` draws inside it.
     template <class F>
-    void frame(F body)
+    void frame(F body, float width = 400, float height = 300)
     {
         ImGui::NewFrame();
         ImGui::SetNextWindowPos(ImVec2(0, 0));
-        ImGui::SetNextWindowSize(ImVec2(400, 300));
+        ImGui::SetNextWindowSize(ImVec2(width, height));
         ImGui::Begin("test", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings);
         body();
         ImGui::End();
