@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <initializer_list>
 #include <map>
 #include <optional>
@@ -164,6 +165,10 @@ struct rv_editor_path_probe {
     std::string tooltip; // the full path
     bool editing = false;
 };
+
+// For tests: what the path field with ImGui item id `id` drew last; nullptr when it has not drawn. Kept by every
+// rv_editor_path_field, whether or not the caller passes a probe.
+const rv_editor_path_probe *rv_editor_path_probe_of(uint32_t id);
 
 // A text field for a path: unfocused it shows the tail (relative to `root` when inside it) with the full path in a
 // tooltip; focused it is a normal input field over the whole value.

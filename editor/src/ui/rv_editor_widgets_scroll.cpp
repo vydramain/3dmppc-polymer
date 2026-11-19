@@ -5,6 +5,7 @@
 #include <cmath>
 #include <vector>
 
+#include "imgui_internal.h"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -218,11 +219,16 @@ void rv_editor_scroll_end(const rv_editor_theme &theme)
     const float mx = ImGui::GetScrollMaxX();
     const float my = ImGui::GetScrollMaxY();
     const ImVec2 view = ImGui::GetWindowSize();
+    // What this frame drew, not ImGui's ScrollMax (which is last frame's), so the bars show one frame sooner.
+    const ImGuiWindow *w = ImGui::GetCurrentWindow();
+    const float drawn_w = w->DC.CursorMaxPos.x - w->DC.CursorStartPos.x + w->WindowPadding.x * 2.0f;
+    const float drawn_h = w->DC.CursorMaxPos.y - w->DC.CursorStartPos.y + w->WindowPadding.y * 2.0f;
+    const ImVec2 chrome(view.x - w->InnerRect.GetWidth(), view.y - w->InnerRect.GetHeight());
     ImGui::EndChild();
 
     ImGuiStorage &store = rv_editor_scroll_store();
-    store.SetFloat(f.content_w, mx + view.x);
-    store.SetFloat(f.content_h, my + view.y);
+    store.SetFloat(f.content_w, std::max(view.x, drawn_w + chrome.x));
+    store.SetFloat(f.content_h, std::max(view.y, drawn_h + chrome.y));
     if (f.show_v) {
         const ImVec2 a(f.max.x - f.bar, f.min.y);
         const ImVec2 b(f.max.x, f.max.y - (f.show_h ? f.bar : 0.0f));

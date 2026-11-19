@@ -17,7 +17,7 @@ struct rv_editor_test_imgui {
     {
         ImGui::CreateContext(with_fonts ? &shared_font_atlas() : nullptr);
         ImGuiIO &io = ImGui::GetIO();
-        io.DisplaySize = ImVec2(800, 600);
+        io.DisplaySize = ImVec2(2000, 2000); // larger than any test window, so nothing is clipped
         io.IniFilename = nullptr;
         if (!with_fonts) {
             io.Fonts->AddFontDefault();

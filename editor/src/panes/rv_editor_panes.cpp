@@ -2,6 +2,7 @@
 
 #include "panes/rv_editor_panes.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -57,6 +58,9 @@ void rv_editor_project_group(const char *label, const rv_editor_theme &theme)
     rv_editor_label(label, rv_editor_label_kind::bright, theme);
     rv_editor_separator();
 }
+
+// Lines a manifest error, a tool's note and a settings error reserve.
+constexpr int note_lines = 2;
 
 // Millisecond extraction modulus for time formatting.
 constexpr size_t ms_modulo = 1000;
@@ -118,9 +122,15 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
             disc_info = rv_editor_text_format("panes.disc_info_with_title", std::make_format_args(disc_id, disc_title));
         }
         rv_editor_wrapped(disc_info, theme);
-        if (!p.manifest_error.empty()) {
-            rv_editor_wrapped(rv_editor_text("panes.manifest_parse_error") + p.manifest_error, theme);
-        }
+        const std::string manifest_error =
+            p.manifest_error.empty() ? std::string() : rv_editor_text("panes.manifest_parse_error") + p.manifest_error;
+        rv_editor_message_line("##manifest_error",
+            manifest_error.c_str(),
+            note_lines,
+            0.0f,
+            theme,
+            nullptr,
+            rv_editor_label_kind::error);
     }
 
     // The editor's own paths and tools, not disc.toml sections.
@@ -134,19 +144,29 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_section(rv_editor_text("panes.toolchain_header"));
     for (size_t i = 0; i < std::size(tool_rows); ++i) {
         const rv_editor_tool &t = app.tools.*tool_rows[i].tool;
-        rv_editor_status(rv_editor_text(tool_rows[i].name_id),
-            t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error,
-            theme);
-        ImGui::SameLine();
-        if (!t.problem.empty()) {
-            rv_editor_wrapped(t.problem, theme);
-            continue;
+        // The note starts at the same place whether the lamp is green or red.
+        const char *name = rv_editor_text(tool_rows[i].name_id);
+        const float name_width = std::max(rv_editor_status_width(name, rv_editor_status_kind::ok, theme),
+            rv_editor_status_width(name, rv_editor_status_kind::error, theme));
+        const float name_x = ImGui::GetCursorPosX();
+        rv_editor_status(name, t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error, theme);
+        ImGui::SameLine(name_x + name_width + ImGui::GetStyle().ItemSpacing.x);
+        // One line in a place of its own and the path row below it, so a row keeps its height in every state.
+        std::string note = t.problem;
+        if (t.problem.empty()) {
+            const std::string origin = t.origin;
+            const std::string origin_text = rv_editor_text_format("panes.tool_found_in", std::make_format_args(origin));
+            const std::string version = t.version_check.running() ? rv_editor_text("panes.tool_checking_version") : t.version;
+            note = version.empty() ? origin_text : version + ", " + origin_text;
         }
-        const std::string origin = t.origin;
-        const std::string origin_text = rv_editor_text_format("panes.tool_found_in", std::make_format_args(origin));
-        const std::string version = t.version_check.running() ? rv_editor_text("panes.tool_checking_version") : t.version;
-        rv_editor_wrapped(version.empty() ? origin_text : version + ", " + origin_text, theme);
         ImGui::PushID(i);
+        rv_editor_message_line("##note",
+            note.c_str(),
+            1,
+            0.0f,
+            theme,
+            nullptr,
+            t.problem.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error);
         rv_editor_path_row(rv_editor_text("panes.path_label"), t.path.string(), theme);
         ImGui::PopID();
     }
@@ -158,9 +178,13 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_app_init(app);
     }
     rv_editor_path_row(rv_editor_text("panes.settings_path"), app.tools.settings_path.string(), theme);
-    if (!app.tools.settings_error.empty()) {
-        rv_editor_wrapped(app.tools.settings_error, theme);
-    }
+    rv_editor_message_line("##settings_error",
+        app.tools.settings_error.c_str(),
+        note_lines,
+        0.0f,
+        theme,
+        nullptr,
+        rv_editor_label_kind::error);
     rv_editor_well_end();
 }
 

@@ -16,6 +16,7 @@
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 
 namespace rv_editor
 {
@@ -23,16 +24,14 @@ namespace rv_editor
 namespace
 {
 
-// Label column position in em units.
-constexpr float label_column_em = 9.0f;
-// Checkbox alignment at double the label column in em units.
-constexpr float checkbox_spacing_em = 18.0f;
+// The widest share of the form a label column may take; a wider label goes above its field.
+constexpr float label_column_share = 0.5f;
+// Lines the profile error and the edited profile's problem reserve; the session note takes one.
+constexpr int message_lines = 2;
 // Multiline input box height in text lines.
 constexpr float multiline_box_lines = 3.5f;
 // Profile list width in em units.
 constexpr float profile_list_width_em = 12.0f;
-// Actions area height in frame heights with spacing.
-constexpr float actions_height_frames = 2.0f;
 // Minimum well content area height in frame heights.
 constexpr float min_well_height_frames = 6.0f;
 
@@ -53,6 +52,44 @@ struct rv_editor_run_form {
 };
 
 rv_editor_run_form run_form_draft;
+
+// The labels of the form's fields, for the width of the label column.
+std::array<const char *, 4> rv_editor_run_labels()
+{
+    return { rv_editor_text("pane_run_config.name_label"),
+        rv_editor_text("pane_run_config.runtime_label"),
+        rv_editor_text("pane_run_config.working_dir_label"),
+        rv_editor_text("pane_run_config.memory_card_label") };
+}
+
+// Where the fields start from the form's left edge: the widest label and a gap, or 0 when that is more than its share
+// of the form and the labels go above their fields.
+float rv_editor_run_column()
+{
+    float widest = 0.0f;
+    for (const char *label : rv_editor_run_labels()) {
+        widest = std::max(widest, ImGui::CalcTextSize(label).x);
+    }
+    const float column = widest + ImGui::GetStyle().ItemSpacing.x * 2.0f;
+    return column <= ImGui::GetContentRegionAvail().x * label_column_share ? column : 0.0f;
+}
+
+// A label in the label column, or above its field when `column` is 0; the field follows.
+void rv_editor_run_label(const char *text, float column, const rv_editor_theme &theme)
+{
+    if (column > 0.0f) {
+        ImGui::AlignTextToFramePadding();
+        rv_editor_label(text, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+        ImGui::SameLine(column);
+    } else {
+        // Above its field, cut to the form's width with the whole label in a tooltip.
+        const std::string shown = rv_editor_ellipsize(text, ImGui::GetContentRegionAvail().x);
+        rv_editor_label(shown.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+        if (shown != text) {
+            rv_editor_item_tooltip(text);
+        }
+    }
+}
 
 std::string rv_editor_run_lines(const std::vector<std::string> &items)
 {
@@ -116,22 +153,25 @@ void rv_editor_run_group(const char *display_label, const rv_editor_theme &theme
     rv_editor_separator();
 }
 
-// A label column, then the field with what an empty one means as its tooltip.
+// A label, then the path field (relative to the project root when inside it) with what an empty one means as its
+// tooltip.
 void rv_editor_run_path(const char *label,
     char *buf,
     size_t size,
     const char *empty_means_key,
+    const rv_editor_app &app,
+    float column,
     const rv_editor_theme &theme,
     const char *display_label)
 {
-    ImGui::AlignTextToFramePadding();
-    rv_editor_label(display_label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-    ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
+    rv_editor_run_label(display_label, column, theme);
     ImGui::SetNextItemWidth(-1.0f);
-    rv_editor_text_field((std::string("##") + label).c_str(), buf, size, theme);
-    const auto empty_means = rv_editor_text(empty_means_key);
-    const auto tip = rv_editor_text_format("pane_run_config.empty_means", std::make_format_args(empty_means));
-    rv_editor_item_tooltip(tip.c_str());
+    rv_editor_path_field((std::string("##") + label).c_str(), buf, size, app.project.root.string(), theme);
+    if (buf[0] == '\0') {
+        const auto empty_means = rv_editor_text(empty_means_key);
+        const auto tip = rv_editor_text_format("pane_run_config.empty_means", std::make_format_args(empty_means));
+        rv_editor_item_tooltip(tip.c_str());
+    }
 }
 
 // Any profile request waits: the list and the profile buttons wait with it.
@@ -168,9 +208,14 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
     rv_editor_well_begin("##profiles", ImVec2(width, height - side - ImGui::GetStyle().ItemSpacing.y), theme);
     for (size_t i = 0; i < config.profiles.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
-        const rv_editor_list_style style{ .selected = i == config.active };
+        const rv_editor_list_style style{ .selected = i == config.active, .span_columns = true };
+        const std::string &name = config.profiles[i].name;
+        const std::string shown = rv_editor_ellipsize(name.c_str(), std::max(1.0f, width - ImGui::GetFrameHeight() * 2.0f));
         const rv_editor_list_result row =
-            rv_editor_list_row("##profile", config.profiles[i].name.c_str(), theme, style, { rv_editor_look::live, why });
+            rv_editor_list_row("##profile", shown.c_str(), theme, style, { rv_editor_look::live, why });
+        if (shown != name) {
+            rv_editor_item_tooltip(name.c_str());
+        }
         if (row.clicked && i != config.active) {
             rv_editor_pane_request select = rv_editor_run_request(rv_editor_pane_request_kind::profile_select);
             select.choice = i;
@@ -208,41 +253,44 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
 {
     rv_editor_run_form &form = run_form_draft;
     rv_editor_well_begin("##fields", size, theme);
-    if (!app.run_config.error.empty()) {
-        const auto err = rv_editor_text_format("pane_run_config.profile_error", std::make_format_args(app.run_config.error));
-        rv_editor_label(err.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
-    }
+    // The profile error and the session note have their places, empty when there is nothing to say.
+    const std::string err = app.run_config.error.empty() ?
+        std::string() :
+        rv_editor_text_format("pane_run_config.profile_error", std::make_format_args(app.run_config.error));
+    rv_editor_message_line("##profile_error", err.c_str(), message_lines, 0.0f, theme, nullptr, rv_editor_label_kind::error);
+    std::string note;
     if (app.session.live()) {
         const auto session_num = app.session.number();
-        const auto msg = rv_editor_text_format("pane_run_config.session_active", std::make_format_args(session_num));
-        rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+        note = rv_editor_text_format("pane_run_config.session_active", std::make_format_args(session_num));
     }
+    rv_editor_message_line("##session_note", note.c_str(), 1, 0.0f, theme);
+    const float column = rv_editor_run_column();
     rv_editor_run_group(rv_editor_text("pane_run_config.session_group"), theme);
-    ImGui::AlignTextToFramePadding();
-    rv_editor_label(rv_editor_text("pane_run_config.name_label"),
-        rv_editor_label_kind::normal,
-        theme,
-        rv_editor_label_layout::line);
-    ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
+    rv_editor_run_label(rv_editor_text("pane_run_config.name_label"), column, theme);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##name", form.name, sizeof(form.name), theme);
     rv_editor_run_path("Runtime",
         form.runtime,
         sizeof(form.runtime),
         "pane_run_config.runtime_empty_tooltip",
+        app,
+        column,
         theme,
         rv_editor_text("pane_run_config.runtime_label"));
     rv_editor_run_path("Working dir",
         form.cwd,
         sizeof(form.cwd),
         "pane_run_config.working_dir_empty_tooltip",
+        app,
+        column,
         theme,
         rv_editor_text("pane_run_config.working_dir_label"));
     rv_editor_checkbox(rv_editor_text("pane_run_config.start_paused_label"), &form.paused, theme);
     rv_editor_item_tooltip(rv_editor_text("pane_run_config.start_paused_tooltip"));
-    ImGui::SameLine(ImGui::GetFontSize() * checkbox_spacing_em);
+    rv_editor_flow(rv_editor_checkbox_width(rv_editor_text("pane_run_config.fixed_step_label")));
     rv_editor_checkbox(rv_editor_text("pane_run_config.fixed_step_label"), &form.fixed_step, theme);
     rv_editor_item_tooltip(rv_editor_text("pane_run_config.fixed_step_tooltip"));
+    rv_editor_flow(rv_editor_checkbox_width(rv_editor_text("pane_run_config.reload_on_save_label")));
     rv_editor_checkbox(rv_editor_text("pane_run_config.reload_on_save_label"), &form.reload_on_save, theme);
     rv_editor_item_tooltip(rv_editor_text("pane_run_config.reload_on_save_tooltip"));
     rv_editor_label(rv_editor_text("pane_run_config.console_options_label"), rv_editor_label_kind::normal, theme);
@@ -262,6 +310,8 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
         form.memcard,
         sizeof(form.memcard),
         "pane_run_config.memory_card_empty_tooltip",
+        app,
+        column,
         theme,
         rv_editor_text("pane_run_config.memory_card_label"));
     rv_editor_well_end();
@@ -289,21 +339,19 @@ void rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
     const rv_editor_run_config &config = app.run_config;
     const rv_editor_run_profile edited = rv_editor_run_form_profile(run_form_draft);
     const std::string problem = rv_editor_app_profile_problem(app, edited);
-    if (!problem.empty()) {
-        rv_editor_label(problem.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
-    }
+    rv_editor_message_line("##problem", problem.c_str(), message_lines, 0.0f, theme, nullptr, rv_editor_label_kind::error);
     const bool pending = rv_editor_run_profile_pending(app);
     const char *edit_why = problem.empty() ? nullptr : rv_editor_text("pane_run_config.apply_disabled");
     const char *apply_why = pending ? rv_editor_text("app_why_not.request_pending") : edit_why;
     const bool apply =
         rv_editor_button(rv_editor_text("pane_run_config.apply_label"), theme, { rv_editor_look::live, apply_why });
     rv_editor_item_tooltip(rv_editor_text("pane_run_config.apply_button_tooltip"));
-    ImGui::SameLine();
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_run_config.apply_restart_label")));
     const char *restart_why = rv_editor_run_restart_why(app, pending, edit_why);
     const bool restart =
         rv_editor_button(rv_editor_text("pane_run_config.apply_restart_label"), theme, { rv_editor_look::live, restart_why });
     rv_editor_item_tooltip(rv_editor_text("pane_run_config.apply_restart_tooltip"));
-    ImGui::SameLine();
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_run_config.revert_label")));
     if (rv_editor_button(rv_editor_text("pane_run_config.revert_label"), theme)) {
         rv_editor_run_form_fill(run_form_draft, config.profiles[config.active]);
     }
@@ -315,7 +363,7 @@ void rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-// The list beside the fields in `size`, each in a well of its own.
+// The list beside the fields (above them in a narrow tile) in `size`, each in a well of its own.
 void rv_editor_run_editor(rv_editor_app &app, ImVec2 size, const rv_editor_theme &theme)
 {
     rv_editor_run_config &config = app.run_config;
@@ -324,9 +372,38 @@ void rv_editor_run_editor(rv_editor_app &app, ImVec2 size, const rv_editor_theme
         run_form_draft.loaded = app.run_config_revision;
     }
     const float list = ImGui::GetFontSize() * profile_list_width_em;
+    const float gap = ImGui::GetStyle().ItemSpacing.x;
+    if (size.x < list * 2.0f) {
+        // Narrow tile: the list above the form, not beside it, so the form keeps the tile's width.
+        const float list_height = std::min(ImGui::GetFrameHeightWithSpacing() * min_well_height_frames, size.y * 0.5f);
+        rv_editor_run_profiles(app, size.x, list_height, theme);
+        rv_editor_run_fields(app,
+            ImVec2(size.x, std::max(1.0f, size.y - list_height - ImGui::GetStyle().ItemSpacing.y)),
+            theme);
+        return;
+    }
     rv_editor_run_profiles(app, list, size.y, theme);
     ImGui::SameLine();
-    rv_editor_run_fields(app, ImVec2(std::max(1.0f, size.x - list - ImGui::GetStyle().ItemSpacing.x), size.y), theme);
+    rv_editor_run_fields(app, ImVec2(std::max(1.0f, size.x - list - gap), size.y), theme);
+}
+
+// What the actions take: the problem's place and the rows the three buttons flow into at `width`.
+float rv_editor_run_actions_height(float width)
+{
+    const float gap = ImGui::GetStyle().ItemSpacing.x;
+    float row = 0.0f;
+    int rows = 1;
+    for (const char *key :
+        { "pane_run_config.apply_label", "pane_run_config.apply_restart_label", "pane_run_config.revert_label" }) {
+        const float w = rv_editor_button_width(rv_editor_text(key));
+        if (row > 0.0f && row + gap + w > width) {
+            ++rows;
+            row = 0.0f;
+        }
+        row += (row > 0.0f ? gap : 0.0f) + w;
+    }
+    return ImGui::GetTextLineHeight() * message_lines + ImGui::GetFrameHeightWithSpacing() * rows +
+        ImGui::GetStyle().ItemSpacing.y;
 }
 
 } // namespace
@@ -338,7 +415,7 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const float actions = ImGui::GetFrameHeightWithSpacing() * actions_height_frames;
+    const float actions = rv_editor_run_actions_height(avail.x);
     // The two-column body takes what the region leaves above the actions row.
     const float body_height = std::max(ImGui::GetFrameHeight() * min_well_height_frames, avail.y - actions);
     rv_editor_run_editor(app, ImVec2(avail.x, body_height), theme);

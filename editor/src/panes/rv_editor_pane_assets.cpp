@@ -270,12 +270,17 @@ void rv_editor_pane_assets(rv_editor_app &app,
     const char *details_text = rv_editor_text("pane_assets.details");
     rv_editor_flow(rv_editor_checkbox_width(details_text));
     rv_editor_checkbox(details_text, &ui.details, theme);
-    if (!rv_editor_assets.selected.empty()) {
-        const std::filesystem::path file = app.project.root / rv_editor_assets.selected;
-        const rv_editor_change_plan plan = rv_editor_app_change_for(app, file);
+    {
+        // Always there; without a selection it says why it waits.
+        const bool has_selection = !rv_editor_assets.selected.empty();
+        const std::filesystem::path file =
+            has_selection ? app.project.root / rv_editor_assets.selected : std::filesystem::path();
+        const rv_editor_change_plan plan = has_selection ? rv_editor_app_change_for(app, file) : rv_editor_change_plan{};
         const char *why = nullptr;
         const bool bake_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::texture_bake);
-        if (bake_pending) {
+        if (!has_selection) {
+            why = rv_editor_text("pane_assets.select_first");
+        } else if (bake_pending) {
             why = rv_editor_text("app_why_not.request_pending");
         } else if (!app.session.live() || !rv_editor_app_can_reload(app)) {
             why = rv_editor_text("pane_assets.no_console");
@@ -365,7 +370,9 @@ void rv_editor_pane_assets(rv_editor_app &app,
                 rv_editor_table_row();
                 rv_editor_table_cell();
                 const rv_editor_list_style row_style{ .selected = a->rel == rv_editor_assets.selected, .span_columns = true };
-                rv_editor_list_row(a->rel.c_str(), a->rel.c_str(), theme, row_style);
+                // The name is cut to the column; the item's tooltip has the whole path.
+                const std::string shown_name = rv_editor_ellipsize(a->rel.c_str(), ImGui::GetContentRegionAvail().x);
+                rv_editor_list_row(a->rel.c_str(), shown_name.c_str(), theme, row_style);
                 rv_editor_asset_item(app, *a, ui_port);
                 const auto entry = rv_editor_assets.map.find(a->rel);
                 rv_editor_table_cell();

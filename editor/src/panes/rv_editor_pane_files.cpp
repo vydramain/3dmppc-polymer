@@ -17,6 +17,7 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 #include "text/rv_editor_text.hpp"
 
 namespace rv_editor
@@ -34,8 +35,12 @@ constexpr const char *disc_manifest_filename = "disc.toml";
 // String appended to symlink names in file tree.
 constexpr const char *symlink_indicator = " ->";
 
-// Input field width for dialogs, in font size units.
-constexpr float dialog_field_width_em = 24.0f;
+// The most doomed entries the remove dialog lists, and the lines it reserves besides them: the question, "and N more"
+// and the error, two lines each but the middle one.
+constexpr size_t dialog_doomed_max = 12;
+constexpr int dialog_text_lines = 2 + static_cast<int>(dialog_doomed_max) + 1 + 2;
+// Items between the dialog's header and its buttons in the tallest variant, whose gaps the place's height does not count.
+constexpr int dialog_extra_gaps = 13;
 
 // Divisor for vertical center calculation in file tree rows.
 constexpr float vertical_center_divisor = 2.0f;
@@ -294,24 +299,31 @@ void rv_editor_files_node(rv_editor_app &app,
     ImGui::PopID();
 }
 
+// The dialog in its ask place, which is as tall as the tallest variant (the remove dialog with its list and an error), so
+// the tree below it never moves; closed, the place is empty.
 void rv_editor_files_dialog(rv_editor_app &app,
     rv_editor_pane_id pane,
     rv_editor_files_view &view,
     const rv_editor_theme &theme)
 {
     using dialog_kind = rv_editor_files_view::rv_editor_files_dialog;
-    if (view.dialog == dialog_kind::none) {
-        return;
-    }
-    const rv_editor_files_request_row *row = rv_editor_files_request_find(view.dialog);
-    if (row == nullptr) {
+    const rv_editor_files_request_row *row =
+        view.dialog == dialog_kind::none ? nullptr : rv_editor_files_request_find(view.dialog);
+    if (view.dialog != dialog_kind::none && row == nullptr) {
         app.log.add(rv_editor_log_source::editor,
             rv_editor_log_level::error,
             "files dialog without a request closed: impossible call");
         view.dialog = dialog_kind::none;
+    }
+    const float gap_lines = ImGui::GetStyle().ItemSpacing.y / ImGui::GetTextLineHeight();
+    const int lines = dialog_text_lines + static_cast<int>(std::ceil(dialog_extra_gaps * gap_lines));
+    const bool open = row != nullptr;
+    const bool shown =
+        rv_editor_ask_place_begin("##files_dialog", open ? rv_editor_files_dialog_title(view.dialog) : "", lines, open, theme);
+    if (!shown) {
+        rv_editor_ask_place_end();
         return;
     }
-    rv_editor_ask_begin(rv_editor_files_dialog_title(view.dialog), theme);
 
     // While the dialog's request waits or runs, its confirm, name field and Cancel say so;
     // the app closes the dialog on success.
@@ -325,22 +337,34 @@ void rv_editor_files_dialog(rv_editor_app &app,
         const std::string dir_suffix = dir ? rv_editor_text("pane_files.remove_with_contents") : "";
         const std::string confirm_msg =
             rv_editor_text_format("pane_files.remove_confirm", std::make_format_args(what, dir_suffix));
-        rv_editor_label(confirm_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        for (const std::string &entry : view.doomed) {
+        rv_editor_message_line("##confirm", confirm_msg.c_str(), 2, 0.0f, theme);
+        const size_t listed = std::min(view.doomed.size(), dialog_doomed_max);
+        const float room = std::max(1.0f, ImGui::GetContentRegionAvail().x - ImGui::GetFontSize() * 2.0f);
+        for (size_t i = 0; i < listed; ++i) {
+            const std::string entry = rv_editor_ellipsize(view.doomed[i].c_str(), room);
             rv_editor_label(entry.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
+            if (entry != view.doomed[i]) {
+                rv_editor_item_tooltip(view.doomed[i].c_str());
+            }
         }
-        if (view.doomed_total > view.doomed.size()) {
-            const size_t more_count = view.doomed_total - view.doomed.size();
-            const std::string more_text = rv_editor_text_format("pane_files.and_more_items", std::make_format_args(more_count));
-            rv_editor_label(more_text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        }
+        const size_t more_count = view.doomed_total > listed ? view.doomed_total - listed : 0;
+        const std::string more_text =
+            more_count > 0 ? rv_editor_text_format("pane_files.and_more_items", std::make_format_args(more_count)) : "";
+        rv_editor_message_line("##more", more_text.c_str(), 1, 0.0f, theme);
     } else {
         const char *rename_label = rv_editor_text("pane_files.new_name");
         const char *name_label = rv_editor_text("pane_files.name");
         const char *label = view.dialog == dialog_kind::rename ? rename_label : name_label;
         const std::string target_path = (view.dialog == dialog_kind::rename ? view.target.parent_path() : view.target).string();
-        const std::string header = rv_editor_text_format("pane_files.dialog_header", std::make_format_args(label, target_path));
-        rv_editor_label(header.c_str(), rv_editor_label_kind::normal, theme);
+        // The path keeps its tail: the header is measured without it, and the path gets what is left.
+        const std::string bare = rv_editor_text_format("pane_files.dialog_header", std::make_format_args(label, ""));
+        const float room = std::max(1.0f, ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(bare.c_str()).x);
+        const std::string tail = rv_editor_path_tail(target_path, room);
+        const std::string header = rv_editor_text_format("pane_files.dialog_header", std::make_format_args(label, tail));
+        rv_editor_label(header.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+        if (tail != target_path) {
+            rv_editor_item_tooltip(target_path.c_str());
+        }
         rv_editor_field field;
         field.state = { rv_editor_look::live, running_why };
         field.invalid = view.error.empty() ? nullptr : view.error.c_str();
@@ -348,18 +372,16 @@ void rv_editor_files_dialog(rv_editor_app &app,
             ImGui::SetKeyboardFocusHere();
             view.opening = false;
         }
-        ImGui::SetNextItemWidth(ImGui::GetFontSize() * dialog_field_width_em);
+        ImGui::SetNextItemWidth(-1.0f);
         rv_editor_text_field("##name", view.name, sizeof(view.name), theme, field);
         confirm = ImGui::IsItemDeactivatedAfterEdit() && ImGui::IsKeyPressed(ImGuiKey_Enter);
     }
-    if (!view.error.empty()) {
-        rv_editor_label(view.error.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-    }
+    rv_editor_message_line("##files_error", view.error.c_str(), 2, 0.0f, theme, nullptr, rv_editor_label_kind::error);
     const char *delete_btn = rv_editor_text("pane_files.delete_button");
     const char *ok_btn = rv_editor_text("pane_files.ok_button");
     const char *confirm_button_text = view.dialog == dialog_kind::remove ? delete_btn : ok_btn;
     confirm = rv_editor_button(confirm_button_text, theme, { rv_editor_look::live, running_why }) || confirm;
-    ImGui::SameLine();
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_files.cancel_button")));
     const bool cancel =
         rv_editor_button(rv_editor_text("pane_files.cancel_button"), theme, { rv_editor_look::live, running_why });
 
@@ -369,7 +391,7 @@ void rv_editor_files_dialog(rv_editor_app &app,
     } else if (cancel) {
         view.dialog = dialog_kind::none;
     }
-    rv_editor_ask_end();
+    rv_editor_ask_place_end();
 }
 
 } // namespace

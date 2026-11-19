@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <type_traits>
 
 #include "imgui_internal.h"
@@ -219,7 +220,9 @@ bool rv_editor_text_area(const char *label,
 {
     // Before the call: SetNextItemWidth applies to the next item only.
     const float width = ImGui::CalcItemWidth();
-    const float height = ImGui::GetTextLineHeight() * lines + ImGui::GetStyle().FramePadding.y * frame_padding_sides;
+    // Whole pixels: a fractional height renders a pixel apart in different positions.
+    const float height = static_cast<float>(
+        rv_editor_px_ceil(ImGui::GetTextLineHeight() * lines + ImGui::GetStyle().FramePadding.y * frame_padding_sides));
     rv_editor_field_begin(theme, field);
     const bool changed = ImGui::InputTextMultiline(label, buf, size, ImVec2(width, height), rv_editor_text_area_flags(field));
     const ImVec2 min = ImGui::GetItemRectMin();
@@ -314,7 +317,7 @@ void rv_editor_path_row(const char *label, const std::string &path, const rv_edi
 
 std::string rv_editor_path_tail(const std::string &path, float width)
 {
-    if (ImGui::CalcTextSize(path.c_str()).x <= width) {
+    if (path.empty() || ImGui::CalcTextSize(path.c_str()).x <= width) {
         return path;
     }
     const std::string ellipsis = rv_editor_text("widgets_fields.path_ellipsis");
@@ -360,6 +363,22 @@ std::string rv_editor_tab_label_fit(const char *label, float width)
     return rv_editor_pane_header_title(label, width);
 }
 
+namespace
+{
+// What every path field drew last, by the item id of its InputText.
+std::map<uint32_t, rv_editor_path_probe> &path_probes()
+{
+    static std::map<uint32_t, rv_editor_path_probe> probes;
+    return probes;
+}
+} // namespace
+
+const rv_editor_path_probe *rv_editor_path_probe_of(uint32_t id)
+{
+    const auto it = path_probes().find(id);
+    return it == path_probes().end() ? nullptr : &it->second;
+}
+
 bool rv_editor_path_field(const char *label,
     char *buf,
     size_t size,
@@ -373,6 +392,7 @@ bool rv_editor_path_field(const char *label,
     rv_editor_field_begin(theme, field);
     const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
     const bool changed = ImGui::InputText(label, buf, size, flags);
+    const uint32_t item_id = ImGui::GetItemID();
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max(min.x + width, ImGui::GetItemRectMax().y);
     const bool hovered = ImGui::IsItemHovered();
@@ -392,10 +412,12 @@ bool rv_editor_path_field(const char *label,
     }
     rv_editor_field_end(field);
     rv_editor_field_frame(ImGui::GetWindowDrawList(), min, max, theme, field, look, 0.0f);
+    rv_editor_path_probe &own = path_probes()[item_id];
+    own.shown = shown;
+    own.tooltip = buf;
+    own.editing = editing;
     if (probe != nullptr) {
-        probe->shown = shown;
-        probe->tooltip = buf;
-        probe->editing = editing;
+        *probe = own;
     }
     return changed;
 }
