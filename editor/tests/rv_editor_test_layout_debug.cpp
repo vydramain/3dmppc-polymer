@@ -2,12 +2,20 @@
 
 #include <algorithm>
 
+#include <cstdio>
+#include <string>
+
 #include "app/rv_editor_shell.hpp"
 #include "layout/rv_editor_tile.hpp"
 #include "panes/rv_editor_game_fit.hpp"
 #include "rv_editor_test.hpp"
+#include "rv_editor_test_layout_probe.hpp"
+#include "rv_editor_test_stable_tiles.hpp"
+#include "rv_editor_test_imgui.hpp"
+#include "text/rv_editor_text.hpp"
 
 using namespace rv_editor;
+using namespace rv_editor_test;
 
 namespace
 {
@@ -100,15 +108,86 @@ int game_side_bands(int32_t w, int32_t h, int32_t &controls_w)
 
 } // namespace
 
-RV_EDITOR_TEST(rv_editor_test_debug_layout_has_no_toolchest)
+// S7.2: the Mark, Capture and Report tiles left Runtime Controls, so Debug starts with a Toolchest that holds them.
+RV_EDITOR_TEST(rv_editor_test_debug_layout_has_toolchest)
 {
     rv_editor_pane_registry panes;
     rv_editor_layout layout;
     rv_editor_layout_preset_make(rv_editor_layout_preset::debug, panes, layout);
+    bool found = false;
     for (uint32_t i = 0; i < layout.nodes.size(); ++i) {
-        if (layout.nodes[i].kind == rv_editor_tile_kind::leaf) {
-            RV_EDITOR_CHECK(!leaf_has(panes, layout, i, rv_editor_pane_kind::toolchest));
+        found = found || leaf_has(panes, layout, i, rv_editor_pane_kind::toolchest);
+    }
+    RV_EDITOR_CHECK(found);
+}
+
+namespace
+{
+
+// The Toolchest's leaf rectangle in a `w` x `h` window, from the Debug starting layout's initial placement (the
+// shell's game fit is not applied); false if the layout has no Toolchest leaf.
+bool toolchest_rect(rv_editor_shell &shell, int32_t w, int32_t h, rv_editor_rect &out)
+{
+    rv_editor_layout_preset_make(rv_editor_layout_preset::debug, shell.ws.panes, shell.ws.layout);
+    std::vector<rv_editor_size> pane_min(shell.ws.panes.panes.size(), rv_editor_size{ 0, 0 });
+    for (size_t i = 0; i < pane_min.size(); ++i) {
+        rv_editor_shell_set_minimum(shell, static_cast<rv_editor_pane_id>(i), shell.ws.panes.panes[i].kind, { 0, 0 });
+        const auto it = shell.ws.minimums.find(static_cast<rv_editor_pane_id>(i));
+        if (it != shell.ws.minimums.end()) {
+            pane_min[i] = it->second;
         }
+    }
+    const rv_editor_tile_metrics m{ bar_px, chrome_px, tabs_px };
+    for (const auto &place : rv_editor_layout_place(shell.ws.layout, rv_editor_rect{ 0, 0, w, h }, m, pane_min)) {
+        if (leaf_has(shell.ws.panes, shell.ws.layout, place.node, rv_editor_pane_kind::toolchest)) {
+            out = place.rect;
+            return true;
+        }
+    }
+    return false;
+}
+
+// The Toolchest's mark row, as rv_editor_text keys (the small tiles carry the name only as an id).
+const char *const toolchest_mark_keys[] = { "pane_toolchest.mark_button",
+    "pane_toolchest.capture_button",
+    "pane_toolchest.report_button" };
+
+bool drawn_label(const rv_editor_probe_record &r, const std::string &name)
+{
+    for (const auto &e : r.entries) {
+        if (e.label == name || e.label == "##" + name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+// S7.2 at 1280x720: the Debug Toolchest's leaf holds Mark, Capture and Report.
+RV_EDITOR_TEST(rv_editor_test_debug_toolchest_draws_marks_at_1280x720)
+{
+    std::string error;
+    RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
+    rv_editor_test_imgui gui;
+    rv_editor_shell shell;
+    shell.app.preset = rv_editor_layout_preset::debug;
+    rv_editor_rect tile{ 0, 0, 0, 0 };
+    RV_EDITOR_CHECK(toolchest_rect(shell, 1280, 720, tile));
+    if (tile.w <= 0 || tile.h <= 0) {
+        return;
+    }
+    const auto body = [&](rv_editor_probe_record &) {
+        rv_editor_shell_pane(&shell, 1, rv_editor_pane_kind::toolchest, stable_tiles::theme);
+    };
+    rv_editor_probe_draw(gui, static_cast<float>(tile.w), body, static_cast<float>(tile.h));
+    const auto r = rv_editor_probe_draw(gui, static_cast<float>(tile.w), body, static_cast<float>(tile.h));
+    for (const char *key : toolchest_mark_keys) {
+        const std::string name = rv_editor_text(key);
+        if (!drawn_label(r, name)) {
+            std::fprintf(stderr, "  '%s' is not drawn in the %dx%d Toolchest\n", name.c_str(), tile.w, tile.h);
+        }
+        RV_EDITOR_CHECK(drawn_label(r, name));
     }
 }
 

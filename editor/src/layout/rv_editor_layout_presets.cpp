@@ -97,8 +97,8 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
 }
 
 // Debug: the session in front. Runtime Controls as a strip across the top; below
-// it the Game beside Session, Observe and Test Case, the Runtime Log and Findings
-// along the bottom. Code, Files and the Terminal open from Window > New Tile.
+// it the Game beside Session, Observe and Test Case, the Runtime Log, Findings and
+// Toolchest along the bottom. Code, Files and the Terminal open from Window > New Tile.
 void rv_editor_preset_debug(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
@@ -108,6 +108,8 @@ void rv_editor_preset_debug(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::observe, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::test_case, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
+    // A tab, not a strip: the layout tests fix the Game's split and the log leaf.
+    b.add(rv_editor_pane_kind::toolchest, log, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, session);
     (void)rv_editor_tile_activate(b.layout, log);
 }
