@@ -210,7 +210,12 @@ void rv_editor_catalog_transport(const rv_editor_theme &t)
     const char *const status_fields[] = { rv_editor_text("catalog_status.status_bar_ready"),
         rv_editor_text("catalog_status.status_bar_runtime"),
         rv_editor_text("catalog_status.status_bar_position") };
-    rv_editor_status_bar(status_fields, static_cast<int>(std::size(status_fields)), t);
+    // A narrow tile shows the first fields that fit whole: the bar never cuts a text.
+    int shown = static_cast<int>(std::size(status_fields));
+    while (shown > 1 && rv_editor_status_bar_min_width(status_fields, shown, t) > ImGui::GetContentRegionAvail().x) {
+        --shown;
+    }
+    rv_editor_status_bar(status_fields, status_fields, shown, t);
 }
 
 } // namespace

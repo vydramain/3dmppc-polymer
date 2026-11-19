@@ -74,6 +74,12 @@ rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_k
             }
         }
     }
+    if (ws.layout.nodes.empty()) {
+        // A workspace with no tile yet: the first pane makes the root.
+        ws.layout.nodes.push_back({ rv_editor_tile_kind::leaf, rv_editor_tile_none, {}, { {}, 0 } });
+        ws.layout.root = 0;
+        ws.layout.maximized_leaf = rv_editor_tile_none;
+    }
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
     rv_editor_tile_insert(ws.layout,
         roomy ? rv_editor_roomy_leaf(ws) : rv_editor_target_leaf(ws),

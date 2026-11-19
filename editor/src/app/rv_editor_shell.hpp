@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <map>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -192,6 +193,8 @@ struct rv_editor_shell {
     // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
     float ui_scale = 1.0f;
     float ui_scale_request = 0.0f;
+    // The window minimum width the last rv_editor_shell_window_min_changed returned; 0 before the first call.
+    int window_min_last = 0;
     // The pacing in use, and one Settings change asked for, applied between frames (empty: none).
     rv_editor_pace pace;
     bool vsync_active = false; // vsync as SDL reports it on the renderer, read after each rv_editor_shell_pace_apply
@@ -302,8 +305,31 @@ struct rv_editor_status_text {
 // Builds the bar's texts from the app's state.
 rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app);
 
-// Draws the status bar's four texts with the theme.
-void rv_editor_shell_status(const rv_editor_shell &shell, const rv_editor_theme &theme);
+// "Tools: ready", "Tools: 7 missing", "Tools: 999+ missing" (a count over 999 is shown as 999+).
+std::string rv_editor_status_tools_text(int missing);
+
+// The longest text each segment can show: the project's name as it is, the others with their fields at their limits
+// (Tools: 999+ missing; Build #999999 step 99/99: <16 chars>; Runtime: <longest state>, session 999999).
+rv_editor_status_text rv_editor_status_text_widest(const rv_editor_app &app);
+
+// Least width of the status bar for the app's project: widest texts, paddings and gaps; needs a frame (measures text).
+float rv_editor_shell_status_min_width(const rv_editor_app &app, const rv_editor_theme &theme);
+
+// Least editor window width in pixels: 1280 * scale, or the status bar's `status_min` (pixels) if that is more.
+int rv_editor_window_min_width_for(float scale, float status_min);
+
+// True when the window's least width (rv_editor_window_min_width_for of the status bar's minimum for the shell's current
+// project) differs from the one the previous call returned, or on the first call; `min_out` gets it in pixels. Callable
+// every frame, outside a frame too.
+bool rv_editor_shell_window_min_changed(rv_editor_shell &shell, const rv_editor_theme &theme, int &min_out);
+
+// Sets the SDL window's least size to the 1280x720 scaled minimum, the width more if the status bar needs it, and enlarges
+// the window when it is smaller; does nothing while the minimum is as at the last call. False when SDL refused.
+bool rv_editor_window_min_sync(SDL_Window *window, rv_editor_shell &shell, const rv_editor_theme &theme);
+
+// Draws the status bar's texts with the theme; a click on the Tools segment opens Settings (Toolchain list).
+// `probe` gets what the bar drew.
+void rv_editor_shell_status(rv_editor_shell &shell, const rv_editor_theme &theme, rv_editor_status_probe *probe = nullptr);
 
 // The window's content while no project is open (rv_editor_shell_start.cpp).
 void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme &theme);

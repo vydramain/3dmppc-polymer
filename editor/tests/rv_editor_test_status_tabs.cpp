@@ -1,6 +1,6 @@
-// Status bar segments keep their widths whatever the build or session says and clip long text with an ellipsis and a
-// tooltip; a tile's content does not move when a second tab appears; a tab strip wider than its tile scrolls with the
-// wheel and has no scrollbar; a pane without a title clears the stale one.
+// Status bar segments keep their widths whatever the build or session says and show their text whole; a tile's content does not
+// move when a second tab appears; a tab strip wider than its tile scrolls with the wheel and has no scrollbar; a pane without a
+// title clears the stale one.
 
 #include <string>
 #include <vector>
@@ -19,7 +19,7 @@ namespace
 {
 
 constexpr rv_editor_theme theme = rv_editor_theme_olive;
-constexpr float bar_width = 800.0f;
+constexpr float bar_width = 1280.0f;
 constexpr int tab_count = 12;
 constexpr float tile_width = 300.0f;
 
@@ -29,26 +29,42 @@ void load_texts()
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
 }
 
-// One frame of the bar with `fields` in a window of `width`; returns what it drew.
-rv_editor_status_probe
-bar_frame(rv_editor_test::rv_editor_test_imgui &gui, std::vector<std::string> fields, float width = bar_width)
+// One frame of the bar with `fields` in a window of `width`; `widest` (default: the fields) are the segments' templates.
+rv_editor_status_probe bar_frame(rv_editor_test::rv_editor_test_imgui &gui,
+    std::vector<std::string> fields,
+    std::vector<std::string> widest = {},
+    float width = bar_width)
 {
+    if (widest.empty()) {
+        widest = fields;
+    }
     std::vector<const char *> c;
-    for (const auto &f : fields) {
-        c.push_back(f.c_str());
+    std::vector<const char *> w;
+    for (size_t i = 0; i < fields.size(); ++i) {
+        c.push_back(fields[i].c_str());
+        w.push_back(widest[i].c_str());
     }
     rv_editor_status_probe probe;
     gui.frame(
         [&] {
-            rv_editor_status_bar(c.data(), static_cast<int>(c.size()), theme, &probe);
+            rv_editor_status_bar(c.data(), w.data(), static_cast<int>(c.size()), theme, &probe);
         },
         width);
     return probe;
 }
 
+// The templates of a project bar with its fields at their limits (R5).
+std::vector<std::string> limits()
+{
+    return { "My Project",
+        "Tools: 999+ missing",
+        "Build #999999 step 99/99: " + std::string(16, 'W'),
+        "Runtime: running, session 999999" };
+}
+
 std::string long_text()
 {
-    return std::string(200, 'W');
+    return std::string(100, 'W');
 }
 
 // "" when both draws have the same segment edges.
@@ -72,13 +88,14 @@ RV_EDITOR_TEST(rv_editor_test_status_bar_segments_constant_across_states)
 {
     load_texts();
     rv_editor_test::rv_editor_test_imgui gui;
-    const rv_editor_status_probe idle = bar_frame(gui, { "My Project", "Tools ready", "Build: none", "Runtime: stopped" });
+    const auto w = limits();
+    const rv_editor_status_probe idle = bar_frame(gui, { "My Project", "Tools: ready", "Build: none", "Runtime: stopped" }, w);
     const rv_editor_status_probe step =
-        bar_frame(gui, { "My Project", "Tools ready", "Build #3 running  [##---] 2/5 compiling", "Runtime: stopped" });
+        bar_frame(gui, { "My Project", "Tools: ready", "Build #3 step 2/5: compiling", "Runtime: stopped" }, w);
     const rv_editor_status_probe failed =
-        bar_frame(gui, { "My Project", "2 tools missing", "Build #3 failed  [##x--] 2/5", "Runtime: stopped" });
+        bar_frame(gui, { "My Project", "Tools: 2 missing", "Build #3 step 2/5: compiling", "Runtime: stopped" }, w);
     const rv_editor_status_probe live =
-        bar_frame(gui, { "My Project", "Tools ready", "Build #3 done", "Runtime: session 2 live" });
+        bar_frame(gui, { "My Project", "Tools: ready", "Build #3", "Runtime: running, session 2" }, w);
     RV_EDITOR_CHECK(idle.segments.size() == 4);
     RV_EDITOR_CHECK(same_segments(idle, step).empty());
     RV_EDITOR_CHECK(same_segments(idle, failed).empty());
@@ -90,7 +107,8 @@ RV_EDITOR_TEST(rv_editor_test_status_bar_segments_fill_the_bar_in_order)
 {
     load_texts();
     rv_editor_test::rv_editor_test_imgui gui;
-    const rv_editor_status_probe p = bar_frame(gui, { "My Project", "Tools ready", "Build: none", "Runtime: stopped" });
+    const rv_editor_status_probe p =
+        bar_frame(gui, { "My Project", "Tools: ready", "Build: none", "Runtime: stopped" }, limits());
     RV_EDITOR_CHECK(p.segments.size() == 4);
     for (size_t i = 0; i < p.segments.size(); ++i) {
         RV_EDITOR_CHECK(p.segments[i].x1 > p.segments[i].x0);
@@ -102,30 +120,31 @@ RV_EDITOR_TEST(rv_editor_test_status_bar_segments_fill_the_bar_in_order)
     }
 }
 
-// The same holds without a project: two segments, and a long text in either does not change the edges.
+// The same holds without a project: two segments, and the longest text in either does not change the edges.
 RV_EDITOR_TEST(rv_editor_test_status_bar_two_segments_constant)
 {
     load_texts();
     rv_editor_test::rv_editor_test_imgui gui;
-    const rv_editor_status_probe a = bar_frame(gui, { "No project", "Tools ready" });
-    const rv_editor_status_probe b = bar_frame(gui, { long_text(), "2 tools missing" });
+    const std::vector<std::string> w = { long_text(), "Tools: 999+ missing" };
+    const rv_editor_status_probe a = bar_frame(gui, { "No project", "Tools: ready" }, w);
+    const rv_editor_status_probe b = bar_frame(gui, { long_text(), "Tools: 2 missing" }, w);
     RV_EDITOR_CHECK(a.segments.size() == 2);
     RV_EDITOR_CHECK(same_segments(a, b).empty());
 }
 
-// A text longer than its segment ends with "...", fits the segment and keeps the whole text as the tooltip.
-RV_EDITOR_TEST(rv_editor_test_status_bar_long_text_is_clipped_with_tooltip)
+// R17/AC18: the longest text of a segment is shown whole: no "...", the segment holds it, no tooltip.
+RV_EDITOR_TEST(rv_editor_test_status_bar_longest_text_is_shown_whole)
 {
     load_texts();
     rv_editor_test::rv_editor_test_imgui gui;
     const std::string text = long_text();
-    const rv_editor_status_probe p = bar_frame(gui, { "My Project", "Tools ready", text, "Runtime: stopped" });
+    const rv_editor_status_probe p = bar_frame(gui, { "My Project", "Tools: ready", text, "Runtime: stopped" });
     RV_EDITOR_CHECK(p.segments.size() == 4);
     if (p.segments.size() == 4) {
         const auto &s = p.segments[2];
-        RV_EDITOR_CHECK(s.shown.size() > 3 && s.shown.substr(s.shown.size() - 3) == "...");
-        RV_EDITOR_CHECK(s.shown.size() < text.size());
-        RV_EDITOR_CHECK(s.tooltip == text);
+        RV_EDITOR_CHECK(s.shown == text);
+        RV_EDITOR_CHECK(s.shown.find("...") == std::string::npos);
+        RV_EDITOR_CHECK(s.tooltip.empty());
         gui.frame([&] {
             RV_EDITOR_CHECK(ImGui::CalcTextSize(s.shown.c_str()).x <= s.x1 - s.x0);
         });
@@ -137,7 +156,8 @@ RV_EDITOR_TEST(rv_editor_test_status_bar_fitting_text_has_no_tooltip)
 {
     load_texts();
     rv_editor_test::rv_editor_test_imgui gui;
-    const rv_editor_status_probe p = bar_frame(gui, { "My Project", "Tools ready", "Build: none", "Runtime: stopped" });
+    const rv_editor_status_probe p =
+        bar_frame(gui, { "My Project", "Tools: ready", "Build: none", "Runtime: stopped" }, limits());
     RV_EDITOR_CHECK(p.segments.size() == 4);
     for (const auto &s : p.segments) {
         RV_EDITOR_CHECK(!s.shown.empty());
@@ -146,26 +166,24 @@ RV_EDITOR_TEST(rv_editor_test_status_bar_fitting_text_has_no_tooltip)
     RV_EDITOR_CHECK(p.segments.size() == 4 && p.segments[2].shown == "Build: none");
 }
 
-// Hovering a clipped segment shows a tooltip window; hovering a fitting one does not.
-RV_EDITOR_TEST(rv_editor_test_status_bar_hover_shows_tooltip_only_when_clipped)
+// Hovering a segment shows no tooltip: nothing in the bar is cut, so there is nothing to add.
+RV_EDITOR_TEST(rv_editor_test_status_bar_hover_shows_no_tooltip)
 {
     load_texts();
-    for (const bool clipped : { true, false }) {
-        rv_editor_test::rv_editor_test_imgui gui;
-        const std::string build = clipped ? long_text() : "Build: none";
-        rv_editor_status_probe p = bar_frame(gui, { "My Project", "Tools ready", build, "Runtime: stopped" });
-        RV_EDITOR_CHECK(p.segments.size() == 4);
-        if (p.segments.size() != 4) {
-            return;
-        }
-        const ImVec2 mouse((p.segments[2].x0 + p.segments[2].x1) / 2.0f, 8.0f);
-        for (int i = 0; i < 3; ++i) {
-            ImGui::GetIO().MousePos = mouse;
-            bar_frame(gui, { "My Project", "Tools ready", build, "Runtime: stopped" });
-        }
-        const ImGuiWindow *tip = ImGui::FindWindowByName("##Tooltip_00");
-        RV_EDITOR_CHECK((tip != nullptr && tip->WasActive) == clipped);
+    rv_editor_test::rv_editor_test_imgui gui;
+    const std::vector<std::string> f = { "My Project", "Tools: ready", long_text(), "Runtime: stopped" };
+    rv_editor_status_probe p = bar_frame(gui, f);
+    RV_EDITOR_CHECK(p.segments.size() == 4);
+    if (p.segments.size() != 4) {
+        return;
     }
+    const ImVec2 mouse((p.segments[2].x0 + p.segments[2].x1) / 2.0f, 8.0f);
+    for (int i = 0; i < 3; ++i) {
+        ImGui::GetIO().MousePos = mouse;
+        bar_frame(gui, f);
+    }
+    const ImGuiWindow *tip = ImGui::FindWindowByName("##Tooltip_00");
+    RV_EDITOR_CHECK(tip == nullptr || !tip->WasActive);
 }
 
 namespace

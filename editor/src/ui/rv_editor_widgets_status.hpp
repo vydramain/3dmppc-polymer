@@ -30,10 +30,9 @@ enum class rv_editor_severity {
     error,
 };
 
-// Status bar: one sunken field per text, left to right; the first field takes
-// the width the others leave.
-// What rv_editor_status_bar drew, for tests. The segments' widths depend on the bar's width and the field count only,
-// never on the texts; a text that does not fit is ellipsized and `tooltip` holds it whole (else empty).
+// Status bar: one sunken field per text, left to right; a text is always shown whole.
+// What rv_editor_status_bar drew, for tests. The segments' widths depend on the bar's width and the widest texts only,
+// never on the shown texts; `tooltip` stays empty.
 struct rv_editor_status_probe {
     struct segment {
         float x0 = 0, x1 = 0;
@@ -43,10 +42,16 @@ struct rv_editor_status_probe {
     std::vector<segment> segments;
 };
 
-void rv_editor_status_bar(const char *const fields[],
+// `widest[i]` is the longest text field i can ever show (its template with fields at their limits); segment i is as wide
+// as that text plus an equal share of the free width. Returns the index of the segment clicked this frame, else -1.
+int rv_editor_status_bar(const char *const fields[],
+    const char *const widest[],
     int count,
     const rv_editor_theme &theme,
     rv_editor_status_probe *probe = nullptr);
+
+// The bar's least width: the widest texts, the segments' paddings, the gaps and the window's side paddings.
+float rv_editor_status_bar_min_width(const char *const widest[], int count, const rv_editor_theme &theme);
 
 // Lamp and label; each kind has its own symbol as well as its own colour.
 void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme);

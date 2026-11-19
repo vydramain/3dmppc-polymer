@@ -244,30 +244,6 @@ int rv_editor_fonts_build(ImGuiIO &io, float scale)
     return RV_OK;
 }
 
-// Set minimum window size to 1280x720 UI points at the given scale, accounting for pixel density (window can be larger).
-// If resize_up, enlarge to minimum when too small; otherwise leave size unchanged.
-// Window must be valid (post-creation).
-int rv_editor_set_window_size_for_scale(SDL_Window *window, float scale, bool resize_up)
-{
-    const float density = SDL_GetWindowPixelDensity(window);
-    const int w_points = static_cast<int>(std::ceil(rv_editor::window_min_width * scale / density));
-    const int h_points = static_cast<int>(std::ceil(rv_editor::window_min_height * scale / density));
-    if (!SDL_SetWindowMinimumSize(window, w_points, h_points)) {
-        return RV_ERR_IO;
-    }
-    if (resize_up) {
-        int cur_w;
-        int cur_h;
-        SDL_GetWindowSize(window, &cur_w, &cur_h);
-        if (cur_w < w_points || cur_h < h_points) {
-            if (!SDL_SetWindowSize(window, std::max(cur_w, w_points), std::max(cur_h, h_points))) {
-                return RV_ERR_IO;
-            }
-        }
-    }
-    return RV_OK;
-}
-
 // Sleeps out the rest of a frame that started at frame_start (SDL_GetTicksNS), so the
 // loop runs at fps_limit when vsync does not pace it. SDL_DelayPrecise, not SDL_Delay:
 // SDL_Delay rounds the sleep to whole milliseconds.
@@ -368,9 +344,6 @@ int main(int argc, char **argv)
         }
     }
 
-    if (rv_editor_set_window_size_for_scale(window, theme.scale, true) != RV_OK) {
-        std::fprintf(stderr, "3dmppc-editor: SetWindowMinimumSize/SetWindowSize: %s\n", SDL_GetError());
-    }
     rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
     if (rv_editor_fonts_build(io, theme.scale) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot build the fonts\n");
@@ -436,12 +409,6 @@ int main(int argc, char **argv)
                 theme.scale = previous;
             }
             shell->ui_scale = theme.scale;
-            if (rv_editor_set_window_size_for_scale(window, theme.scale, true) != RV_OK) {
-                std::fprintf(stderr,
-                    "3dmppc-editor: SetWindowMinimumSize/SetWindowSize at scale %g: %s\n",
-                    theme.scale,
-                    SDL_GetError());
-            }
             rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
         }
         // Settings' vsync and frame rate limit, applied between frames.
@@ -449,6 +416,10 @@ int main(int argc, char **argv)
             shell->pace = *shell->pace_request;
             shell->pace_request.reset();
             (void)rv_editor::rv_editor_shell_pace_apply(*shell);
+        }
+        // The status bar's least width follows the project's name and the scale: checked before every frame.
+        if (!rv_editor::rv_editor_window_min_sync(window, *shell, theme)) {
+            std::fprintf(stderr, "3dmppc-editor: SetWindowMinimumSize/SetWindowSize: %s\n", SDL_GetError());
         }
         rv_editor::rv_editor_shell_update(*shell);
         ImGui_ImplSDLRenderer3_NewFrame();
