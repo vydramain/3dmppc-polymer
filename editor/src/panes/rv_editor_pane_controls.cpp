@@ -75,44 +75,24 @@ namespace
 // rest: it can carry a request or a failure, so it must never shrink to nothing.
 constexpr float facts_room_share = 0.5f;
 
-// What the action slot after the state name offers; `none` when nothing does.
+// What the action slot after the state name offers; Cancel Build is the one it falls back to, disabled when no build runs.
 enum class rv_editor_action_kind {
-    none,
     force_stop,
     cancel_build,
     reload_badge,
 };
 
 // A hung or lost runtime needs Force Stop first, then a running build needs
-// Cancel, and only then the reload badge.
+// Cancel, then the reload badge; with none of them Cancel Build stays, disabled.
 rv_editor_action_kind rv_editor_action_for(const rv_editor_session &session, bool building, bool has_badge)
 {
     if (session.hung() || session.state() == rv_editor_run_state::disconnected) {
         return rv_editor_action_kind::force_stop;
     }
-    if (building) {
+    if (building || !has_badge) {
         return rv_editor_action_kind::cancel_build;
     }
-    return has_badge ? rv_editor_action_kind::reload_badge : rv_editor_action_kind::none;
-}
-
-// Width the action takes on the row: the transport bar reserves it, the flow places it.
-float rv_editor_action_width(rv_editor_action_kind action,
-    const std::string &badge_label,
-    rv_editor_status_kind badge_kind,
-    const rv_editor_theme &theme)
-{
-    switch (action) {
-    case rv_editor_action_kind::force_stop:
-        return rv_editor_button_width(rv_editor_text("panes.force_stop_button"));
-    case rv_editor_action_kind::cancel_build:
-        return rv_editor_button_width(rv_editor_text("panes.cancel_build_button"));
-    case rv_editor_action_kind::reload_badge:
-        return rv_editor_status_width(badge_label.c_str(), badge_kind, theme);
-    case rv_editor_action_kind::none:
-        break;
-    }
-    return 0.0f;
+    return rv_editor_action_kind::reload_badge;
 }
 
 // Draws the action slot's item: the button or the badge; `none` draws nothing.
@@ -135,16 +115,20 @@ void rv_editor_action_draw(rv_editor_app &app,
         const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
         const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
         const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : nullptr;
-        const char *cancel_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
+        const char *idle_why = app.build.busy() ? nullptr : rv_editor_text("panes.no_build_to_cancel");
+        const char *busy_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
+        const char *cancel_why = idle_why != nullptr ? idle_why : busy_why;
         if (rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, { rv_editor_look::live, cancel_why })) {
             (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
+        }
+        // The reason shows at once, not after the hover delay: it is why the slot is greyed.
+        if (cancel_why != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            rv_editor_tooltip(cancel_why);
         }
         break;
     }
     case rv_editor_action_kind::reload_badge:
         rv_editor_status(badge_label.c_str(), badge_kind, theme);
-        break;
-    case rv_editor_action_kind::none:
         break;
     }
 }
@@ -270,7 +254,6 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
     // and this tail fit on the row when the window is wide enough; otherwise the
     // smallest size is drawn and the row's end clips.
     const rv_editor_action_kind action = rv_editor_action_for(s, app.build.busy(), !badge_label.empty());
-    const float action_w = rv_editor_action_width(action, badge_label, badge_kind, theme);
     // The mark row follows the action; it too is part of what the bar leaves room for.
     const float marks_w = rv_editor_mark_tools_min_width(theme, false);
     // The reserve is the slot's widest content, whatever shows in it, so the tile size follows the width alone.
@@ -297,12 +280,15 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
     if (clicked.build_restart) {
         rv_editor_app_build_restart(app);
     }
-    // The action shares the bar's row; the bar's reserve is what keeps it there. An item that
-    // does not fit wraps to the next row.
-    if (action != rv_editor_action_kind::none) {
-        rv_editor_flow(action_w);
-        rv_editor_action_draw(app, action, badge_label, badge_kind, theme);
-    }
+    // The action slot shares the bar's row; the bar's reserve is what keeps it there. It is always drawn, at the
+    // one width, in a clipping area, so what it holds never moves the items after it.
+    const float slot_w = rv_editor_controls_action_slot_width(theme);
+    rv_editor_flow(slot_w);
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::BeginChild("##action", ImVec2(slot_w, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
+    rv_editor_action_draw(app, action, badge_label, badge_kind, theme);
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
     // The mark row fills what remains of the row, or moves to the next one when its minimum does not fit.
     rv_editor_flow(marks_w);
     (void)rv_editor_mark_tools(app, theme, ui, false);
@@ -332,13 +318,16 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
         s.facts().lua_budget > 0,
         static_cast<int>(s.facts().revision),
         static_cast<int>(s.facts().first_revision) });
-    const bool show_facts = !facts.empty();
+    // The facts' place is as wide as their longest text, whatever digits show, so the message never changes width.
+    const std::string widest_facts = rv_editor_facts_line({ true, false, 999999, 99, 99, true, 9999, 0 });
+    const bool show_facts = !debug_preset;
     const std::string profile_name = app.run_config.profiles[app.run_config.active].name;
     const std::string profile = rv_editor_text_format("panes.profile", std::make_format_args(profile_name));
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
-    const float profile_w = rv_editor_button_width(profile.c_str());
+    // The profile button never takes more than a third of the row: a long name clips with its full text in the tooltip.
+    const float profile_w = std::min(rv_editor_button_width(profile.c_str()), ImGui::GetContentRegionAvail().x / 3.0f);
     const float room = ImGui::GetContentRegionAvail().x - profile_w - spacing;
-    const float facts_text_w = show_facts ? ImGui::CalcTextSize(facts.c_str()).x : 0.0f;
+    const float facts_text_w = show_facts ? ImGui::CalcTextSize(widest_facts.c_str()).x : 0.0f;
     const float facts_w = std::max(1.0f, std::min(facts_text_w, facts_room_share * room));
     const float facts_gap = show_facts ? facts_w + spacing : 0.0f;
     const float message_w = std::max(1.0f, room - facts_gap);
@@ -348,10 +337,12 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, c
     }
     rv_editor_reserved_line("##message", message.brief, message_w, theme, message.full);
     ImGui::SameLine();
-    if (rv_editor_button(profile.c_str(), theme)) {
+    if (rv_editor_button_clipped(profile.c_str(), profile_w, theme)) {
         app.show_request = rv_editor_pane_kind::run_config;
     }
-    rv_editor_item_tooltip(rv_editor_text("panes.run_config_tooltip"));
+    const bool clipped = profile_w < rv_editor_button_width(profile.c_str());
+    rv_editor_item_tooltip(clipped ? (std::string(rv_editor_text("panes.run_config_tooltip")) + "\n" + profile).c_str() :
+                                     rv_editor_text("panes.run_config_tooltip"));
     rv_editor_shelf_end();
 }
 

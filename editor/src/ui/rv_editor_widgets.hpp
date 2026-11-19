@@ -77,6 +77,11 @@ float rv_editor_checkbox_width(const char *label);
 
 // The width of the widest of `labels` as a button: a button whose label changes keeps it.
 float rv_editor_button_width_for(std::initializer_list<const char *> labels);
+// A button as wide as `label` needs but never wider than `max_width`: a longer label ends in dots.
+bool rv_editor_button_clipped(const char *label,
+    float max_width,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state = {});
 // A button showing `label`, as wide as the widest of `labels_for_width`.
 bool rv_editor_button_fixed(const char *label,
     std::initializer_list<const char *> labels_for_width,

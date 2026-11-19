@@ -206,8 +206,6 @@ struct rv_editor_shell {
     std::array<std::optional<rv_editor_tool>, settings_tools_count> settings_checks;
     int settings_browse = -1; // the field the browser is choosing for; -1: none
     rv_editor_browser settings_browser;
-    // Not written: a strip's minimum is its kind's (rv_editor_shell_set_minimum), not what it drew.
-    std::map<rv_editor_pane_id, rv_editor_size> strips;
     // The UI state, and the requests the panes queued for rv_editor_shell_ui_apply.
     rv_editor_ui ui;
     std::vector<rv_editor_ui_request> ui_requests;

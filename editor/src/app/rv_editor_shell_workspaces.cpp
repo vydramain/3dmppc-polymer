@@ -123,8 +123,7 @@ int rv_editor_shell_grow_game(rv_editor_workspace &ws,
     return RV_ERR_NOENT;
 }
 
-// `node`'s size along `axis`, the largest of its tabs' minimums (ws.minimums,
-// filled from shell.strips): what a strip leaf needs and nothing more.
+// `node`'s size along `axis`, the largest of its tabs' minimums (ws.minimums): what a strip leaf needs and nothing more.
 int32_t rv_editor_strip_min_along(const rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis)
 {
     rv_editor_size need{ 0, 0 };

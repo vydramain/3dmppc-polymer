@@ -109,14 +109,16 @@ void rv_editor_checks_content(const rv_editor_candidate &c, float width, const r
 
 // Row two's checks part in one transparent child of `width`: nothing is drawn past the
 // edge, and the slot button follows the child on the row.
-void rv_editor_open_checks(const rv_editor_candidate &c, float width, const rv_editor_theme &theme)
+void rv_editor_open_checks(const rv_editor_candidate *c, float width, const rv_editor_theme &theme)
 {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::BeginChild("##checks",
         ImVec2(std::max(width, 1.0f), ImGui::GetFrameHeight()),
         ImGuiChildFlags_None,
         ImGuiWindowFlags_NoScrollbar);
-    rv_editor_checks_content(c, width, theme);
+    if (c != nullptr) {
+        rv_editor_checks_content(*c, width, theme);
+    }
     ImGui::EndChild();
     ImGui::PopStyleColor();
 }
@@ -212,8 +214,8 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
 
     // Line two: the action is chosen first, its width reserved, then the checks fill the rest.
     // A hung runtime needs Force Stop first.
-    const char *action_label = nullptr;
-    const char *action_why = nullptr;
+    const char *action_label = rv_editor_text("pane_candidate.cancel_build_button");
+    const char *action_why = rv_editor_text("pane_candidate.no_build_to_cancel");
     rv_editor_pane_request_kind action_kind = rv_editor_pane_request_kind::force_stop;
     if (app.session.hung()) {
         const bool force_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::force_stop);
@@ -223,22 +225,21 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
         const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
         const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : nullptr;
-        action_label = rv_editor_text("pane_candidate.cancel_build_button");
         action_kind = rv_editor_pane_request_kind::cancel_build;
         action_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
     }
     const float gap = ImGui::GetStyle().ItemSpacing.x;
-    const float action_room = action_label != nullptr ? rv_editor_button_width(action_label) + gap : 0.0f;
-    if (facts.second_line) {
-        rv_editor_open_checks(*shown, ImGui::GetContentRegionAvail().x - action_room, theme);
+    // The slot is always there at the width of its widest button, and the checks' area is the rest of the row.
+    const std::initializer_list<const char *> action_labels = { rv_editor_text("pane_candidate.force_stop_button"),
+        rv_editor_text("pane_candidate.cancel_build_button") };
+    const float action_room = rv_editor_button_width_for(action_labels) + gap;
+    rv_editor_open_checks(facts.second_line ? shown : nullptr, ImGui::GetContentRegionAvail().x - action_room, theme);
+    ImGui::SameLine();
+    if (rv_editor_button_fixed(action_label, action_labels, theme, { rv_editor_look::live, action_why })) {
+        (void)rv_editor_app_request(app, { action_kind });
     }
-    if (action_label != nullptr) {
-        if (facts.second_line) {
-            ImGui::SameLine();
-        }
-        if (rv_editor_button(action_label, theme, { rv_editor_look::live, action_why })) {
-            (void)rv_editor_app_request(app, { action_kind });
-        }
+    if (action_why != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        rv_editor_tooltip(action_why);
     }
     ImGui::EndGroup();
     rv_editor_shelf_end();

@@ -114,13 +114,16 @@ void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme, cons
             ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_game_scale, .scale = modes[i] });
         }
     }
-    if (!rv_editor_game_shelf_shows_run(app.release_view)) {
-        return;
-    }
+    // Always there; the Burn view's Run is in Release Controls, so here it says so.
     const char *run_text = rv_editor_text("pane_game.run");
     rv_editor_flow(rv_editor_button_width(run_text));
-    if (rv_editor_button(run_text, theme, { rv_editor_look::live, rv_editor_app_why_not_run(app) })) {
+    const char *run_why =
+        app.release_view ? rv_editor_text("pane_game.run_in_release_controls") : rv_editor_app_why_not_run(app);
+    if (rv_editor_button(run_text, theme, { rv_editor_look::live, run_why }) && !app.release_view) {
         rv_editor_app_run(app);
+    }
+    if (run_why != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        rv_editor_tooltip(run_why);
     }
 }
 
@@ -359,7 +362,10 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 const char *stop_player_why = stop_player_pending ? rv_editor_text("app_why_not.stop_pending") :
                     player_running                                ? nullptr :
                                                                     rv_editor_text("scene_viewport.game_not_running");
-                const bool clicked = rv_editor_button(button_text, theme, { rv_editor_look::live, stop_player_why });
+                const bool clicked = rv_editor_button_fixed(button_text,
+                    { rv_editor_text("pane_game.kill_player"), rv_editor_text("pane_game.stop_player") },
+                    theme,
+                    { rv_editor_look::live, stop_player_why });
                 const bool stop_now = clicked && player_running;
                 if (stop_now) {
                     (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::stop_player });
