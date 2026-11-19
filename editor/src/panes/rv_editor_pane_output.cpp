@@ -458,7 +458,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     if (view.follow && ImGui::IsWindowHovered() && ImGui::GetIO().MouseWheel > 0.0f) {
         view.follow = false;
     }
-    if (view.follow && ImGui::GetScrollY() < ImGui::GetScrollMaxY()) {
+    if (view.follow) {
         ImGui::SetScrollHereY(1.0f);
     }
     rv_editor_log_end(theme);
