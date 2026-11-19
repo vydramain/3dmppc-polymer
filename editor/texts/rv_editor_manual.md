@@ -44,7 +44,7 @@ Every build goes to a new numbered directory. Run and Build and Restart start th
 
 Before it builds, mppcburner runs mppcinspector on the disc. Without mppcinspector in the bakers' directory the editor does not start a build at all. If the inspector finds an error in the sources, the build is refused and nothing is compiled.
 
-A build that fails or is refused opens Problems in front, with its tile focused. At the top of Problems an area says Build did not start, when the build was refused before it began, or Build failed, with the reason and an OK button. The inspector's findings are below it. The area stays until you press OK or start the next build.
+A build that fails or is refused opens Problems in front, with its tile focused. At the top of Problems an area says Build did not start, when the build was refused before it began, or Build failed, with the reason and an OK button. The inspector's findings are below it. The area has its place at the top of Problems even when it is empty, so the findings never move down; the reason sits in it and a long one shows in full on hover. The area stays until you press OK or start the next build.
 
 To see what is wrong, open Problems. Every finding has the source inspector, a file, a line and a message that ends with the rule and the key in brackets. Problems also shows warnings, and it fills up again when you open the project, when you save a file and after every build.
 
@@ -64,11 +64,13 @@ Compiler errors and warnings from the build are in Problems too, with the source
 
 There are four layouts: Code, Scene, Debug and Burn. To switch, click one at the right end of the menu bar or choose Window > Reference Layouts. Each keeps its own tiles. Window > Reset Layout puts the chosen one back to its standard tiles. Switching changes only what is shown, never what is built, running or edited.
 
-A tile holds one pane or several as tabs. To move a pane, drag its tile header or tab to the edge of another tile; Escape cancels. To close a tile use the X in its header, and to maximize it use the M. Right click the header to split, change or close it. To add a pane, choose Window > New Tile. To move the keyboard to the next tile, press Ctrl+F6.
+A tile holds one pane or several as tabs. To move a pane, drag its tile header or tab to the edge of another tile; Escape cancels. To close a tile use the X in its header, and to maximize it use the M. Right click the header to split, change or close it. To add a pane, choose Window > New Tile. To move the keyboard to the next tile, press Ctrl+F6. When the tabs of a tile do not fit, they scroll with the mouse wheel over them, and a scrollbar shows under them; a single tab is still shown.
+
+A tile does not change its look by state: buttons that cannot be used are dimmed and say why in their tooltip, and a line with a message has its place even when it is empty. A long text wraps in its area, a short label or a table cell that does not fit ends with ... and shows the whole text on hover. A path that does not fit shows its end with ... in front and the full path on hover; in a path field it is the same until you click into it, and a path inside the project is shown relative to the project.
 
 Code layout. Files on the left, a Code tile in the middle and the Game with Runtime Controls on the right. Console Output, Problems, Terminal and Search Results are tabs below. To search the whole project, press Ctrl+Shift+F.
 
-Code tile. It is a text editor, Neovim inside. To open a file, double click it in Files. Each file is a tab. The Vim button switches Vim mode on and off. A file with unsaved changes shows [+]. Ctrl+S saves it. Ctrl+Z and Ctrl+Shift+Z undo and redo.
+Code tile. It is a text editor, Neovim inside. To open a file, double click it in Files. Each file is a tab. The Vim button switches Vim mode on and off. A file with unsaved changes shows [+]. Ctrl+S saves it. Ctrl+Z and Ctrl+Shift+Z undo and redo. A question of the tile, Unsaved changes, Save As or what to do with a swap file, covers the whole tile until you answer it.
 
 Files. It shows the project directory as it is on disk. Right click a file or folder, or use the buttons, for New File, New Folder, Rename and Delete. Open as Text opens a file in a Code tile. The folders .mppcburn, .git and .3dmppc-editor are hidden.
 
@@ -94,14 +96,14 @@ Burn layout. For checking a disc before it ships. Release Controls lie across th
 
 Export. The tile has four framed blocks.
 
-- Kind. Three cards: Disc, one .mppcdisc file that a player runs; Bundle, a directory with the player and the disc, ready to copy and run; Web, a directory with a page that runs the game in a browser.
-- Web Tools. For the Web kind. It says Installed. or says that Emscripten is not installed, needed once per user (about 400 MB), and offers Install Web Support. The step strip shows the install.
+- Kind. A dropdown with three kinds, and the description of the chosen one below it: Disc, one .mppcdisc file that a player runs; Bundle, a directory with the player and the disc, ready to copy and run; Web, a directory with a page that runs the game in a browser.
+- Web Tools. Always shown, in the same place for every kind. For Disc and Bundle it is dimmed and says that the kind needs no web tools. For Web it says Installed. or says that Emscripten is not installed, needed once per user (about 400 MB), and offers Install Web Support. The step strip shows the install.
 - Output. The destination directory. Each kind has its own default under the project, export/mppcdisc, export/bundle and export/web, and the tile remembers the path you typed for each kind until the project closes. An export replaces only an empty directory or one an earlier export made, which holds the mark file .mppcexport. It never replaces another directory, and it refuses the project itself or a directory that contains it; choose another path then. Export starts it and Cancel stops it.
-- Progress. While an export runs, the step strip shows its steps. At the end the result is DONE with the path, and the button Open Folder for Disc and Bundle or Open in Browser for Web; or it is FAILED with the step and the reason, and the button Show in Problems. Before the first export it says Nothing exported yet. Export keeps no list of past exports.
+- Progress. It keeps its place whatever the state. While an export runs, the step strip shows its steps. At the end the result is DONE with the path, and the button Open Folder for Disc and Bundle or Open in Browser for Web; or it is FAILED with the step and the reason, and the button Show in Problems. Before the first export it says Nothing exported yet. Export keeps no list of past exports.
 
 ## Settings and tools
 
-To see and change the tools, choose File > Settings.... The page has a row for each tool: Runtime, Burner, Inspector, Bakers and Player. Each shows the path in use and its status. To use another file, type or Browse... the Override path, then press Check and Apply. Revert drops the changes.
+To see and change the tools, choose File > Settings.... The page has a row for each tool: Runtime, Burner, Inspector, Bakers and Player. Each shows the path in use and its status. To use another file, type or Browse... the Override path, then press Check and Apply. Browse... opens the file browser in place of the form; pick there, or cancel, and the form comes back. Revert drops the changes.
 
 The editor looks for the console and burner next to itself. The Bakers row is a directory: it holds mppctexbaker, mppcmusbaker, mppcmodbaker and mppcinspector, and the editor looks for them in its own directory unless you name another. The player has no default place: name it if you want to run a candidate in it. Settings are kept in settings.toml, in its [tools] section.
 
