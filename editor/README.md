@@ -107,42 +107,84 @@ a quick run. The test binary is not part of the delivery's `bin`.
 ## Tiled UI rules
 
 Mandatory for every pane and every new pane. The editor is a set of tiles that the user resizes;
-a tile must look the same in every state. The widgets named below are in `src/ui/`.
+a tile looks the same in every state. The templates and their states are on the approved page
+https://claude.ai/artifact/Bassxq3RAXAVeY1kGRY9VJ and in the Widget Catalog (View > Widget Catalog),
+where every template is drawn in each of its states at its minimum and at a roomy size. The widgets
+named below are in `src/ui/` unless a path says otherwise.
 
-1. Click area. Anything that looks like a button, card or row reacts to a click on its whole
-   drawn area, not on its text. Use `rv_editor_card`, `rv_editor_table_row_select` and
-   `rv_editor_button`; do not put an interactive item inside a card (it would take the clicks).
-2. Text. Long variable text (a status, a message, a reason) wraps in its area and is read in
-   full: `rv_editor_status` and `rv_editor_label` wrap by default, `rv_editor_message_line`
-   wraps within the lines it reserves. A short label or a table cell stays on one line and, when
-   it does not fit, ends with "..." and shows the whole text in a tooltip:
-   `rv_editor_table_cell_text`, `rv_editor_ellipsize`.
-3. Paths. A path that does not fit shows its end with a leading "..." and the full path in a
-   tooltip (`rv_editor_path_tail`, `rv_editor_path_row`). A path field
-   (`rv_editor_path_field`) shows the tail until it is focused, relative to the project root when
-   the path is inside it.
-4. Nothing appears, disappears, moves or resizes by state. Every block, button and message line
-   has its place from the start: a button that cannot be used is disabled with its reason in a
-   tooltip; a line with nothing to say is an empty reserved place (`rv_editor_message_line`,
-   `rv_editor_ask_place_begin` / `rv_editor_ask_place_end` for an ask); a button whose label
-   changes keeps one width (`rv_editor_button_fixed`); a pane with an action that is not always
-   needed keeps its slot. Layout changes only when the window or a tile is resized:
-   `rv_editor_flow` and the transport bar depend on the width only, and the minimum of a tile is
-   constant per pane kind. Switching the whole mode of a pane is allowed (project closed or
-   open, the Code tile's Unsaved changes or Save As ask and its swap recovery, Settings Browse).
+### Rules
 
-Allowed: an error that fills a reserved line; a Build button that is dimmed while a build runs
-and says why; a row of buttons that wraps when the tile is narrower. Forbidden: an error line
-that pushes the content down when it shows; a button that is added only when a file is open; a
-label that gets wider when its text changes; a path cut at its end.
+1. A real minimum. A tile cannot be made smaller than the size at which every element in it fits
+   whole. The minimum is one size per pane kind, taken over all its states (the longest text
+   template, every button, the content area at 3 rows); a state never changes it. There is no More
+   menu, no shrinking and no element past an edge.
+2. Unique text is whole. Names, hashes, paths, messages and statuses are shown in full, with no
+   "...". On the Catppuccin background a long text keeps its length and its area scrolls; in the
+   chrome (shelves, transport, status bar, tile headers) the minimum is sized so that the text fits.
+3. Only the content scrolls: lists, trees, tables, logs, code, long text. A bar shows only when the
+   content really overflows. A shelf, the tab row, the transport, the status bar, a row of buttons
+   and a tile header never scroll, and no empty room is kept for a bar. The body of a tile has no
+   scrollbar.
+4. The content area has at least 3 rows and a horizontal bar. When it is empty it keeps its
+   background and column headers and says in its first row, dim, what will appear and how.
+5. Text in the chrome is a template with a limit on each variable field: a count is at most
+   `999+` (a click on it opens the full list), a build or session number is 6 digits, a step name
+   is 16 characters (the progress protocol of the tools rejects a longer one,
+   `rv_pdklib::rv_progress_step_name_max`). The minimum is taken with every field at its limit.
+6. Layout changes only with a size. A state changes text, colour and availability, never a place
+   or a size: a button that cannot be used stays and is dimmed, with its reason in a tooltip; a line
+   with nothing to say is an empty place. Changing the whole mode of a pane is allowed (project
+   closed or open, the Code tile's Unsaved changes, Save As and swap questions, Settings Browse).
+7. A click works on the whole drawn area of a button or a row, not on its text.
 
-To test a pane, use the layout probe `tests/rv_editor_test_layout_probe.hpp`.
+### Templates and their widgets
+
+| Template | Widget | Widget Catalog section |
+| --- | --- | --- |
+| Tile frame and tab row: one tab high, one tab is drawn too, `< >` arrows and a `v` list of all tabs when they overflow, the wheel scrolls the row, the active tab is always visible | `rv_editor_tab_strip`, `rv_editor_tab_strip_height` | Tile frame and tab row |
+| Shelf: one row, every button always visible, an unavailable one stays with its reason in a tooltip | `rv_editor_shelf_begin` / `rv_editor_shelf_end`, `rv_editor_shelf_fill` | Shelf |
+| List, tree, table: Catppuccin background, rows whole and all as wide as the longest, the selection across the full width, status columns pinned to the right edge, a total above | `rv_editor_content_begin` / `rv_editor_content_end`, `rv_editor_content_empty_row`, tables with `pinned_left` / `pinned_right` columns (`rv_editor_widgets_table.hpp`) | List, tree and table |
+| Record with a status (Recent Projects, candidates): exactly 2 lines, name and path, and a pinned status column as wide as the longest status word | `rv_editor_record_row` | Records with a status |
+| Message box: 2 text lines on Catppuccin and one row of buttons aligned right; a long text scrolls inside, the buttons stay. Optional `field` (input in the button row), `lead` (items left of the buttons), `button_states` (a disabled button keeps its place, its reason is the tooltip) | `rv_editor_message_box`, `rv_editor_message_box_height`, `rv_editor_message_box_min_width` | Message box and ask |
+| Big ask: replaces the content of the tile (title, text with a bar, a message line, buttons); `body` draws a form or a list in place of the text | `rv_editor_mode_card_begin` / `rv_editor_mode_card_end`, `rv_editor_mode_card_min_size`, `rv_editor_mode_card_spec` | Big ask |
+| Form: a label column as wide as the longest label, fields right of it, an error line under the field that can give one, the button row always visible | `rv_editor_form_begin` / `rv_editor_form_row` / `rv_editor_form_custom_begin` / `rv_editor_form_buttons_begin` / `rv_editor_form_end` | Form |
+| Transport strip (Runtime and Release Controls): 6 buttons, the Cancel Build or Force Stop slot, the note and the message line, labels from 640 px, a fixed height | `rv_editor_transport_bar` (`src/panes/rv_editor_pane_controls.hpp`, strip in `src/panes/rv_editor_pane_controls_strip.cpp`), `rv_editor_transport_min_width`, `rv_editor_transport_height` | Transport strip |
+| Picture (Game, Candidate Playtest, the Scene viewport): keeps its proportions and takes all the room under the shelf; status and notes lie on a translucent band over it | `rv_editor_picture_begin` / `rv_editor_picture_end`, `rv_editor_picture_overlay`, `rv_editor_picture_min_width` | Picture view |
+| Facts list: Catppuccin background, whole values, both bars, a key column pinned left, Copy in the row's context menu | `rv_editor_facts_begin` / `rv_editor_facts_row` / `rv_editor_facts_end` | Facts list |
+| Status bar: 4 segments, each as wide as its longest template plus an equal share of the spare room; the window's minimum width counts their sum; the Tools segment opens Settings | `rv_editor_status_bar`, `rv_editor_status_bar_min_width` (`ui/rv_editor_widgets_status.hpp`, filled by `src/app/rv_editor_shell_status.cpp`) | Status bar |
+
+A pane puts its parts in a tile with `rv_editor_tiled_area_begin` / `rv_editor_tiled_area_end` and
+measures its minimum with `rv_editor_tiled_minimum` and the `rv_editor_tiled_*` helpers of
+`src/panes/rv_editor_pane_tiled.hpp`. Old widgets (`rv_editor_card`, the ask places and overlays)
+are gone; use the templates above.
+
+### Checking a new pane
+
+A pane passes when it fits whole in every state at its minimum and not at one pixel less.
+
+1. Write the minimum as `rv_editor_<pane>_minimum()` in `src/app/rv_editor_shell_minimums.cpp`,
+   inside `ui_font_scope` (it then works outside a frame), measured on the longest template of the
+   pane over all its states, and return it for the pane kind in that file's switch.
+2. In a test include `tests/rv_editor_test_fits_whole.hpp`. `rv_editor_fits_whole(record, tile_rect)`
+   returns "" or the first violation: an element outside the tile, a text wider or taller than its
+   rectangle, "..." in a visible label, a visible scrollbar on a window not opened with
+   `rv_editor_scroll_begin`. Elements inside `rv_editor_scroll_begin` areas are skipped. (The "..."
+   search is by substring, so a label such as `Open...` is caught too: write chrome without it.)
+3. `rv_editor_check_pane_states(gui, shell, kind, states, min)` draws the pane in a tile of `min`
+   for each state, checks `rv_editor_fits_whole` and that the rectangles are the same in every state.
+   Call it again with `min` one pixel smaller and expect a violation. The pattern is in
+   `tests/rv_editor_test_s13*.cpp` (`_minimums`, `_fits`, `_content`).
+
+The window of such a test is the minimum of the tile or more: tests do not fit the UI to a small
+window.
+
+To test a layout in other ways, use the layout probe `tests/rv_editor_test_layout_probe.hpp`.
 `rv_editor_probe_draw` draws the body in one frame and records the rectangle of every item and
 child window; draw two states at the same size and compare them with `rv_editor_probe_compare`
 (empty string means equal). `rv_editor_probe_resize` draws at width w1, w2 and w1 again and
 checks that the first and third draws are equal. Tests that draw whole panes use the shared
-context of `tests/rv_editor_test_pane_state.hpp` (`tall_gui`, a display tall enough for a whole
-pane); `rv_editor_test_imgui` gives a display larger than any test window, so nothing is clipped.
+context of `tests/rv_editor_test_pane_state.hpp` (`tall_gui`); `rv_editor_test_imgui` gives a
+display larger than any test window, so nothing is clipped.
 
 ## Manual
 
