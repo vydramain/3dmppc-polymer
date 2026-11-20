@@ -17,7 +17,7 @@ namespace rv_editor
 namespace
 {
 
-int rv_editor_facts_rows = 0; // ids the rows apart even when two keys are equal
+int rv_editor_facts_rows = 0;            // ids the rows apart even when two keys are equal
 bool rv_editor_facts_table_open = false; // false while the area is clipped away: no row is drawn then
 
 } // namespace
