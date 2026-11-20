@@ -235,7 +235,7 @@ void message_draw(int state, const rv_editor_theme &theme)
 ImVec2 message_min(const rv_editor_theme &)
 {
     // The strip at the minimum width shows its longest text whole, with the buttons of its row.
-    const float w = rv_editor_message_box_min_width(message_button_rows());
+    const float w = rv_editor_message_strip_min_width(message_button_rows());
     const auto &rows = message_button_rows();
     const float strip = std::max(rv_editor_message_strip_height(T("msg_long_error"), rows[0], w),
         rv_editor_message_strip_height(T("msg_long_ask"), rows[1], w));

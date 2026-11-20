@@ -1,4 +1,4 @@
-// What the panes of the tiled kinds (Export, Candidate, Observe, Session, Build Result) say in their message box when no
+// What the panes of the tiled kinds (Export, Candidate, Observe, Session, Build Result) say in their strip when no
 // project is open.
 
 #pragma once
@@ -7,13 +7,14 @@
 
 #include "app/rv_editor_app.hpp"
 #include "theme/rv_editor_theme.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
 
-// With no project open: the box "No project is open." with Open Project, `width` wide; true when it was drawn. With a
-// project nothing is drawn and the pane says what it has to.
-bool rv_editor_say_no_project(rv_editor_app &app, const rv_editor_theme &theme, float width);
+// What a pane says with no project open: "No project is open." and its Open Project button (button 0 sets
+// app.open_folder_request). With a project the pane says what it has to.
+rv_editor_message_say rv_editor_say_no_project();
 
 // Registers the rectangle of the last text item as an item of its own, so a layout check sees how wide the text is
 // (ImGui gives a text no id). Call right after the text.

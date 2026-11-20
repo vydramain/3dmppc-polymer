@@ -1,6 +1,6 @@
-// S17, R1/R4/R11/R19/R20, AC21: what every converted pane puts where, in every state of the plan's table. A pane with a
-// message has the box (two lines of text on Catppuccin) and a content area at the same rectangles whatever the state,
-// every area keeps its floor height, and no stretch of the tile is left empty (the reserve blocks of the last pass).
+// S17, R1/R4/R11/R19/R20, AC21: what every converted pane puts where, in every state of the plan's table. A pane has no
+// message box (what it says is a strip under its areas, drawn only with a text), its content areas start at the same
+// place whatever the state, every area keeps its floor height, and no stretch of the tile is left empty.
 
 #include <cstdio>
 #include <string>
@@ -35,9 +35,9 @@ void report(const char *kind, const char *state, const std::string &bad)
 
 } // namespace
 
-// R11, R4: every state of a pane with a message has a message box and a content area, no ask place, an area that is at
-// least three rows and a bar high, and the boxes and the areas do not move from state to state.
-RV_EDITOR_TEST(rv_editor_test_s17_every_state_has_a_message_box_and_a_content_area_that_stay_put)
+// R1, R11, R4: no state of a pane has a message box (Export's description is its one text window) or an ask place, and has a
+// content area that is at least three rows and a bar high; the areas start at the same place from state to state.
+RV_EDITOR_TEST(rv_editor_test_s17_no_state_has_a_message_box_and_every_area_stays_put)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -53,10 +53,11 @@ RV_EDITOR_TEST(rv_editor_test_s17_every_state_has_a_message_box_and_a_content_ar
             f.states[i].set();
             const rv_editor_probe_record r = settled(f, min.w, min.h);
             const state &st = f.states[i];
-            RV_EDITOR_CHECK(!texts(r).empty());
+            const size_t allowed = kind == rv_editor_pane_kind::export_ ? 1 : 0;
+            RV_EDITOR_CHECK(texts(r).size() <= allowed);
             RV_EDITOR_CHECK(!s13::has_ask_place(r));
-            if (texts(r).empty()) {
-                report(name_of(kind), st.name, "no message box");
+            if (texts(r).size() > allowed) {
+                report(name_of(kind), st.name, "a message box is drawn");
             }
             if (st.project) {
                 RV_EDITOR_CHECK(!areas(r).empty());
@@ -96,8 +97,9 @@ RV_EDITOR_TEST(rv_editor_test_s17_no_state_leaves_an_empty_block)
     }
 }
 
-// R11, AC12: a message box (text window) is exactly two lines of text and the padding high in every state.
-RV_EDITOR_TEST(rv_editor_test_s17_a_message_box_is_two_lines_high_in_every_state)
+// R11, AC12, R1: the one text window left (Export's description of the kind) is exactly two lines of text and the padding
+// high in every state, and no other kind has one.
+RV_EDITOR_TEST(rv_editor_test_s17_the_description_is_two_lines_high_and_no_message_box_is_left)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -112,7 +114,7 @@ RV_EDITOR_TEST(rv_editor_test_s17_a_message_box_is_two_lines_high_in_every_state
         for (size_t i = 0; i < f.states.size(); ++i) {
             const auto r = at_minimum(gui, kind, i);
             const auto t = texts(r);
-            RV_EDITOR_CHECK(!t.empty());
+            RV_EDITOR_CHECK(t.size() <= (kind == rv_editor_pane_kind::export_ ? 1u : 0u));
             for (const auto *box : t) {
                 const float h = box->y1 - box->y0;
                 const float want = 2.0f * line + 2.0f * pad;

@@ -11,6 +11,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s16.hpp"
+#include "rv_editor_test_s3.hpp"
 
 using namespace rv_editor;
 using namespace rv_editor_test;
@@ -49,18 +50,15 @@ const rv_editor_probe_entry *first_row(const rv_editor_probe_record &r, const rv
 
 int count_boxes(const rv_editor_probe_record &r)
 {
-    int n = 0;
-    for (const auto &e : r.entries) {
-        n += e.scroll_area && s13::is_child(s13::parts_of(e.label).back(), "##text") ? 1 : 0;
-    }
-    return n;
+    return s3::boxes(r);
 }
 
 } // namespace
 
-// R19, AC20: Hierarchy is a shelf, a form of the search field and the sort choice, one message box and the tree in the
-// content area, in that order from the top, and the old lines of the target and the note are gone.
-RV_EDITOR_TEST(rv_editor_test_s16_hierarchy_is_a_shelf_a_form_one_box_and_a_tree_in_an_area)
+// R19, AC20, R2: Hierarchy is a shelf, a form of the search field and the sort choice, the tree in the content area and a
+// message strip under it only for a real message (the refusal of a move), in that order from the top, no message box, and the
+// old lines of the target and the note are gone.
+RV_EDITOR_TEST(rv_editor_test_s16_hierarchy_is_a_shelf_a_form_a_tree_in_an_area_and_a_strip)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -70,20 +68,23 @@ RV_EDITOR_TEST(rv_editor_test_s16_hierarchy_is_a_shelf_a_form_one_box_and_a_tree
     for (const size_t state : { size_t(1), size_t(4), size_t(5) }) {
         const auto r = at_minimum(gui, f, state, min);
         const auto *area = content_area(r);
-        const auto *box = message_box(r);
+        const auto *strip = s3::strip_of(r);
         const auto *query = find(r, "##hierarchy_query");
         const auto *sort = find(r, "##hierarchy_sort");
         const auto *add = find(r, "##add");
-        RV_EDITOR_CHECK(area != nullptr && box != nullptr && query != nullptr && sort != nullptr && add != nullptr);
-        if (area == nullptr || box == nullptr || query == nullptr || sort == nullptr || add == nullptr) {
-            std::fprintf(stderr, "  state %zu: the area, box, search, sort or shelf is missing\n", state);
+        // The target is a placeholder, not a message: only the move note (4) is a strip.
+        RV_EDITOR_CHECK((strip != nullptr) == (state == 4));
+        RV_EDITOR_CHECK(area != nullptr && query != nullptr && sort != nullptr && add != nullptr);
+        if (area == nullptr || query == nullptr || sort == nullptr || add == nullptr) {
+            std::fprintf(stderr, "  state %zu: the area, search, sort or shelf is missing\n", state);
             continue;
         }
-        RV_EDITOR_CHECK(count_boxes(r) == 1);
+        RV_EDITOR_CHECK(count_boxes(r) == 0);
         RV_EDITOR_CHECK(find(r, "##target") == nullptr && find(r, "##note") == nullptr);
         RV_EDITOR_CHECK(!has_ask_place(r));
-        // The shelf, the form and the box are above the area; the tree's rows are inside it.
-        RV_EDITOR_CHECK(add->y1 <= area->y0 && query->y1 <= area->y0 && sort->y1 <= area->y0 && box->y1 <= area->y0);
+        // The shelf and the form are above the area, the strip under it; the tree's rows are inside the area.
+        RV_EDITOR_CHECK(add->y1 <= area->y0 && query->y1 <= area->y0 && sort->y1 <= area->y0 &&
+            (strip == nullptr || strip->y0 >= area->y1 - 0.5f));
         RV_EDITOR_CHECK(first_row(r, area) != nullptr);
         // The search field and the sort choice are the form: whole, inside the tile, the field before the choice.
         RV_EDITOR_CHECK(query->x1 <= sort->x0 + 0.5f || query->y1 <= sort->y0 + 0.5f);
@@ -124,9 +125,9 @@ RV_EDITOR_TEST(rv_editor_test_s16_hierarchy_context_menu_opens_from_a_row_in_the
     RV_EDITOR_CHECK(find(menu, rv_editor_text("pane_hierarchy.delete")) != nullptr);
 }
 
-// R13, R19: Inspector keeps its form in the content area and its banner and refusal in one message box, with no message
-// line of its own.
-RV_EDITOR_TEST(rv_editor_test_s16_inspector_form_is_in_the_area_under_one_box)
+// R13, R19, R2: Inspector keeps its form in the content area and its banner and refusal in one strip under it (none with
+// nothing to say), with no message box and no message line of its own.
+RV_EDITOR_TEST(rv_editor_test_s16_inspector_form_is_in_the_area_over_one_strip)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -136,17 +137,18 @@ RV_EDITOR_TEST(rv_editor_test_s16_inspector_form_is_in_the_area_under_one_box)
     for (const size_t state : { size_t(2), size_t(3), size_t(4) }) {
         const auto r = at_minimum(gui, f, state, min);
         const auto *area = content_area(r);
-        const auto *box = message_box(r);
+        const auto *strip = s3::strip_of(r);
         const auto *name = find(r, "##Name");
-        RV_EDITOR_CHECK(area != nullptr && box != nullptr && name != nullptr);
-        if (area == nullptr || box == nullptr || name == nullptr) {
-            std::fprintf(stderr, "  state %zu: the area, box or Name field is missing\n", state);
+        RV_EDITOR_CHECK(area != nullptr && name != nullptr);
+        if (area == nullptr || name == nullptr) {
+            std::fprintf(stderr, "  state %zu: the area or Name field is missing\n", state);
             continue;
         }
-        RV_EDITOR_CHECK(count_boxes(r) == 1);
+        RV_EDITOR_CHECK((strip != nullptr) == (state != 2)); // nothing to say in state 2
+        RV_EDITOR_CHECK(count_boxes(r) == 0);
         RV_EDITOR_CHECK(find(r, "##read_only") == nullptr);
         RV_EDITOR_CHECK(!has_ask_place(r));
-        RV_EDITOR_CHECK(box->y1 <= area->y0);
+        RV_EDITOR_CHECK(strip == nullptr || strip->y0 >= area->y1 - 0.5f);
         RV_EDITOR_CHECK(center_inside(*name, *area));
     }
 }

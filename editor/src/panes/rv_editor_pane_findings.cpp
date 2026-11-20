@@ -1,6 +1,6 @@
 // Findings: a captured frame and a written-down observation, saved as local
 // files with what the editor knows about the session they came from. Test Case:
-// a written check of the game and its result, saved the same way. Both are built from a message box, a form and a list
+// a written check of the game and its result, saved the same way. Both are built from a message strip, a form and a list
 // in a content area.
 
 #include "panes/rv_editor_panes.hpp"
@@ -12,6 +12,7 @@
 #include "imgui.h"
 
 #include "panes/rv_editor_findings_result.hpp"
+#include "panes/rv_editor_pane_say.hpp"
 #include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -57,7 +58,7 @@ float rv_editor_findings_shelf_items()
 
 float rv_editor_findings_content_width()
 {
-    return std::max({ rv_editor_message_box_min_width(rv_editor_findings_button_rows()),
+    return std::max({ rv_editor_message_strip_min_width(rv_editor_findings_button_rows()),
         rv_editor_tiled_shelf_width(rv_editor_findings_shelf_items()),
         rv_editor_form_min_width(rv_editor_findings_rows()) });
 }
@@ -82,7 +83,7 @@ std::vector<rv_editor_form_row_desc> rv_editor_case_rows()
 
 float rv_editor_case_content_width()
 {
-    return std::max({ rv_editor_message_box_min_width(rv_editor_findings_button_rows()),
+    return std::max({ rv_editor_message_strip_min_width(rv_editor_findings_button_rows()),
         rv_editor_case_buttons_width(),
         rv_editor_form_min_width(rv_editor_case_rows()) });
 }
@@ -102,30 +103,29 @@ void rv_editor_case_pick(rv_editor_findings &f, const rv_editor_theme &theme)
     rv_editor_form_custom_end(false, nullptr, theme);
 }
 
-// The message box: `text` (the error when there is one) with Dismiss, or the no-project text with Open Project.
-void rv_editor_findings_box(rv_editor_app &app, const std::string &text, float width, const rv_editor_theme &theme)
+// What the strip says: the error with Dismiss, else `text` (the result of the last case, may be empty), or the no-project
+// text with Open Project.
+rv_editor_message_say rv_editor_findings_say(const rv_editor_app &app, const std::string &text)
 {
-    const std::string &error = app.findings.error;
     if (!app.project.open) {
-        if (rv_editor_message_box("##note",
-                rv_editor_text("panes.no_project_open_message"),
-                rv_editor_label_kind::normal,
-                { rv_editor_text("panes.open_project_box") },
-                theme,
-                width) == 0) {
-            app.open_folder_request = true;
-        }
+        return rv_editor_say_no_project();
+    }
+    if (!app.findings.error.empty()) {
+        return { app.findings.error, rv_editor_label_kind::error, { rv_editor_text("findings.dismiss") } };
+    }
+    return { text, rv_editor_label_kind::normal, {} };
+}
+
+// The strip under the area and what its button does.
+void rv_editor_findings_strip(rv_editor_app &app, const rv_editor_message_say &say, float width, const rv_editor_theme &theme)
+{
+    const int pressed = rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, width);
+    if (pressed != 0) {
         return;
     }
-    const bool pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::dismiss_findings_error);
-    const bool failed = !error.empty();
-    const int pressed = rv_editor_message_box("##note",
-        failed ? error : text,
-        failed ? rv_editor_label_kind::error : rv_editor_label_kind::normal,
-        { rv_editor_text("findings.dismiss") },
-        theme,
-        width);
-    if (pressed == 0 && failed && !pending) {
+    if (!app.project.open) {
+        app.open_folder_request = true;
+    } else if (!rv_editor_app_request_pending(app, rv_editor_pane_request_kind::dismiss_findings_error)) {
         (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::dismiss_findings_error });
     }
 }
@@ -167,10 +167,10 @@ void rv_editor_findings_area_text(const char *label, char *buf, size_t size, boo
 }
 
 // The form and, under it, the screenshot, the note on the session and the saved findings, all in the content area.
-void rv_editor_findings_area(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_findings_area(rv_editor_app &app, float strip_h, const rv_editor_theme &theme)
 {
     rv_editor_findings &f = app.findings;
-    (void)rv_editor_tiled_area_begin("##findings_area", rv_editor_findings_content_width(), theme);
+    (void)rv_editor_tiled_area_begin("##findings_area", rv_editor_findings_content_width(), theme, {}, false, 0.0f, strip_h);
     rv_editor_form_begin(rv_editor_findings_rows(), theme);
     const bool ro = !app.project.open;
     rv_editor_findings_text(rv_editor_text("findings.title"), f.title, sizeof(f.title), ro, theme);
@@ -207,10 +207,16 @@ void rv_editor_case_text(const char *heading, const std::string &text, bool pick
     }
 }
 
-void rv_editor_case_area(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_case_area(rv_editor_app &app, float strip_h, const rv_editor_theme &theme)
 {
     rv_editor_findings &f = app.findings;
-    (void)rv_editor_tiled_area_begin("##case_area", rv_editor_case_content_width(), theme, { rv_editor_content_min_height() });
+    (void)rv_editor_tiled_area_begin("##case_area",
+        rv_editor_case_content_width(),
+        theme,
+        { rv_editor_content_min_height() },
+        false,
+        0.0f,
+        strip_h);
     // The chosen case is drawn from the listing's cache; the listing keeps the index in range. The headings are there
     // with no case picked, so the area never changes its bars with the state.
     const bool picked = f.test_case >= 0 && static_cast<size_t>(f.test_case) < f.cases.size();
@@ -218,7 +224,7 @@ void rv_editor_case_area(rv_editor_app &app, const rv_editor_theme &theme)
     const rv_editor_listed_case &shown = picked ? f.cases[static_cast<size_t>(f.test_case)] : blank;
     rv_editor_case_text(rv_editor_text("findings.steps"), shown.steps, picked);
     rv_editor_case_text(rv_editor_text("findings.expected"), shown.expected, picked);
-    // The latest result is the box's text, so the list shows only the earlier ones.
+    // The latest result is the strip's text, so the list shows only the earlier ones.
     ImGui::TextUnformatted(rv_editor_text("findings.results_heading"));
     for (size_t i = 0; i + 1 < f.results.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
@@ -233,7 +239,7 @@ void rv_editor_case_area(rv_editor_app &app, const rv_editor_theme &theme)
 rv_editor_size rv_editor_findings_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_findings_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block());
 }
 
 rv_editor_size rv_editor_test_case_minimum()
@@ -241,7 +247,7 @@ rv_editor_size rv_editor_test_case_minimum()
     // Two form rows and the row of buttons, each a frame high with the spacing under it.
     const float rows = 3.0f * (ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y);
     return rv_editor_tiled_minimum(rv_editor_case_content_width(),
-        rv_editor_tiled_box_block() + rows,
+        rv_editor_tiled_strip_block() + rows,
         { rv_editor_content_min_height() });
 }
 
@@ -255,8 +261,6 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
             (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cases_list });
         }
     }
-    rv_editor_findings_box(app, rv_editor_case_result_line(f.results), rv_editor_case_content_width(), theme);
-
     rv_editor_form_begin(rv_editor_case_rows(), theme);
     rv_editor_case_pick(f, theme);
     rv_editor_form_custom_begin(rv_editor_text("findings.result"), theme);
@@ -303,7 +307,10 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
         (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::case_new });
     }
     rv_editor_item_tooltip(rv_editor_text("findings.new_test_case_tooltip"));
-    rv_editor_case_area(app, theme);
+    const rv_editor_message_say say = rv_editor_findings_say(app, rv_editor_case_result_line(f.results));
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_case_content_width());
+    rv_editor_case_area(app, rv_editor_message_strip_height(say.text, say.buttons, strip_w), theme);
+    rv_editor_findings_strip(app, say, strip_w, theme);
 }
 
 void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
@@ -332,8 +339,10 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
     }
     rv_editor_shelf_end();
 
-    rv_editor_findings_box(app, std::string(), rv_editor_findings_content_width(), theme);
-    rv_editor_findings_area(app, theme);
+    const rv_editor_message_say say = rv_editor_findings_say(app, std::string());
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_findings_content_width());
+    rv_editor_findings_area(app, rv_editor_message_strip_height(say.text, say.buttons, strip_w), theme);
+    rv_editor_findings_strip(app, say, strip_w, theme);
 }
 
 } // namespace rv_editor

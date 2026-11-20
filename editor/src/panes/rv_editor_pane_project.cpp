@@ -57,7 +57,7 @@ std::vector<std::vector<std::string>> rv_editor_project_button_rows()
 
 float rv_editor_project_content_width()
 {
-    return rv_editor_message_box_min_width(rv_editor_project_button_rows());
+    return rv_editor_message_strip_min_width(rv_editor_project_button_rows());
 }
 
 // What is wrong, one line each: the manifest, the tools that cannot run, the settings.
@@ -83,13 +83,7 @@ std::string rv_editor_project_trouble(const rv_editor_app &app)
 }
 
 // What the strip under the records says: what is wrong (with Look for Tools Again), or that no project is open.
-struct rv_editor_project_say_text {
-    std::string text;
-    rv_editor_label_kind kind = rv_editor_label_kind::normal;
-    std::vector<std::string> buttons;
-};
-
-rv_editor_project_say_text rv_editor_project_say(const rv_editor_app &app)
+rv_editor_message_say rv_editor_project_say(const rv_editor_app &app)
 {
     const std::string trouble = rv_editor_project_trouble(app);
     const bool open = app.project.open;
@@ -105,10 +99,7 @@ rv_editor_project_say_text rv_editor_project_say(const rv_editor_app &app)
         buttons };
 }
 
-void rv_editor_project_strip(rv_editor_app &app,
-    const rv_editor_project_say_text &say,
-    float width,
-    const rv_editor_theme &theme)
+void rv_editor_project_strip(rv_editor_app &app, const rv_editor_message_say &say, float width, const rv_editor_theme &theme)
 {
     const bool running = app.build.busy() || app.session.live();
     const std::vector<rv_editor_state> states = { rv_editor_state{ rv_editor_look::live,
@@ -192,7 +183,7 @@ rv_editor_size rv_editor_project_minimum()
 
 void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    const rv_editor_project_say_text say = rv_editor_project_say(app);
+    const rv_editor_message_say say = rv_editor_project_say(app);
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_project_content_width());
     const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
     rv_editor_project_facts(app, strip_h, theme);

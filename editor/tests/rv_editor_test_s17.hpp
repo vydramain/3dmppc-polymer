@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -26,6 +27,7 @@
 #include "rv_editor_test_layout_probe.hpp"
 #include "rv_editor_test_pane_state.hpp"
 #include "rv_editor_test_s13.hpp"
+#include "rv_editor_test_s3.hpp"
 #include "rv_editor_test_stable_tiles.hpp"
 #include "text/rv_editor_text.hpp"
 
@@ -216,6 +218,22 @@ struct fixture {
         }
     }
 
+    // No session at all, not even the memory of one that ended: the state does not depend on the state drawn before it.
+    void no_session()
+    {
+        end_session();
+        std::destroy_at(&app().session); // neither copyable nor movable: built again where it stands
+        std::construct_at(&app().session);
+    }
+
+    // No build at all, not even the result of the last one.
+    void no_build()
+    {
+        end_jobs();
+        std::destroy_at(&app().build);
+        std::construct_at(&app().build);
+    }
+
     // A live session on the stand-in console, connected.
     void live_session(const pane_state::fake_console_options &o = {})
     {
@@ -322,19 +340,10 @@ inline std::vector<const rv_editor_probe_entry *> areas(const rv_editor_probe_re
     return out;
 }
 
-// The text windows of message boxes (and of any 2-line text area), top to bottom.
+// The text windows of the old message box (and of any 2-line text area with the padding), top to bottom.
 inline std::vector<const rv_editor_probe_entry *> texts(const rv_editor_probe_record &r)
 {
-    std::vector<const rv_editor_probe_entry *> out;
-    for (const auto &e : r.entries) {
-        if (e.scroll_area && s13::is_child(s13::parts_of(e.label).back(), "##text")) {
-            out.push_back(&e);
-        }
-    }
-    std::sort(out.begin(), out.end(), [](auto *a, auto *b) {
-        return a->y0 < b->y0;
-    });
-    return out;
+    return s3::old_boxes(r);
 }
 
 inline bool inside(const rv_editor_probe_entry &e, const rv_editor_probe_entry &area)
@@ -411,44 +420,22 @@ inline std::string layouts::add(const state &st, const rv_editor_probe_record &r
     }
     for (const auto &[layout, first] : firsts) {
         if (layout == st.layout) {
-            return s13::windows_difference(first, record);
+            return s3::windows_difference(first, record);
         }
     }
     firsts.push_back({ st.layout, record });
     return "";
 }
 
-// What the text window of a message box drew in the frame just ended (draw indices of the window and its children): a
-// box says more when it has a text to say.
-inline int drawn_indices(const rv_editor_probe_entry *box)
-{
-    const ImGuiWindow *w = box != nullptr ? ImGui::FindWindowByName(box->label.c_str()) : nullptr;
-    int n = 0;
-    for (const ImGuiWindow *x : ImGui::GetCurrentContext()->Windows) {
-        for (const ImGuiWindow *p = x; w != nullptr && p != nullptr; p = p->ParentWindow) {
-            if (p == w) {
-                for (const ImDrawCmd &cmd : x->DrawList->CmdBuffer) {
-                    n += static_cast<int>(cmd.ElemCount);
-                }
-                break;
-            }
-        }
-    }
-    return n;
-}
-
-// How much all the text windows of the pane drew in the state just set, drawn at the pane's minimum: they say more when
-// they have more to say.
-inline int box_drawn(fixture &f, size_t state)
+// How tall the strip is that the pane draws in the state just set, at the pane's minimum, 0 with none: a strip is taller
+// the more it has to say (its text wraps).
+inline float strip_height(fixture &f, size_t state)
 {
     const auto min = tile_of(f.gui, f.kind);
     f.states[state].set();
     const rv_editor_probe_record r = settled(f, min.w, min.h);
-    int n = 0;
-    for (const auto *box : texts(r)) {
-        n += drawn_indices(box);
-    }
-    return n;
+    const auto *strip = s3::strip_of(r);
+    return strip != nullptr ? strip->y1 - strip->y0 : 0.0f;
 }
 
 // What a window's padding and the spacing between rows leave between two blocks; call inside a frame.

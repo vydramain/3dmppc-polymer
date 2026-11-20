@@ -15,6 +15,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
 #include "ui/rv_editor_widgets_picture.hpp"
 
@@ -78,22 +79,13 @@ rv_editor_size rv_editor_scene_minimum()
     const float spacing = ImGui::GetStyle().ItemSpacing.y;
     // The tab strip is counted whether or not a tab is open, so the minimum is the same in every state.
     const float above = rv_editor_tab_strip_height() + 2.0f * spacing + rv_editor_tiled_shelf_block() +
-        rv_editor_tiled_box_block() + rv_editor_scene_viewport_around().y;
+        rv_editor_tiled_strip_block(true) + rv_editor_scene_viewport_around().y;
     return rv_editor_tiled_minimum(rv_editor_scene_content_width(), above);
-}
-
-void rv_editor_scene_say(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
-{
-    const float box_width = std::max(rv_editor_scene_none_width(), rv_editor_scene_new_width());
-    if (!rv_editor_scene_new_box(app, theme, ui, box_width)) {
-        (void)rv_editor_message_box("##note", "", rv_editor_label_kind::normal, {}, theme, box_width);
-    }
 }
 
 void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     const float width = rv_editor_scene_content_width();
-    const float box_width = std::max(rv_editor_scene_none_width(), rv_editor_scene_new_width());
     const rv_editor_scene_tabs &st = ui.state.scene_tabs;
     const bool bare = app.project.open && app.project.sdk == rv_editor_sdk_state::bare;
     // The question is asked in the scene's own tab: a picture, sound or model in front gives way to it.
@@ -103,30 +95,43 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
     if (!rv_editor_scene_tabs_draw(app, renderer, theme, ui)) {
         return; // a picture, sound or model tab is in front; it drew its own content
     }
+    // The strip is as wide as its row needs, not as the viewport's status: a narrow tile cuts that, never the buttons.
+    const float strip_w =
+        std::max({ ImGui::GetContentRegionAvail().x, rv_editor_scene_none_width(), rv_editor_scene_new_width() });
+    const rv_editor_scene_new_say ask = bare ? rv_editor_scene_new_say{} : rv_editor_scene_new_ask(app);
     const bool has_scene = app.project.open && !bare && app.scene != nullptr;
     if (has_scene) {
-        rv_editor_scene_viewport(app, renderer, theme, ui);
+        rv_editor_scene_viewport(app, renderer, theme, ui, ask, strip_w);
         return;
     }
-    if (bare) {
-        (void)
-            rv_editor_message_box("##none", rv_editor_text(no_pdkkit_text_id), rv_editor_label_kind::dim, {}, theme, box_width);
-    } else if (!rv_editor_scene_new_box(app, theme, ui, box_width)) {
+    // The strip says what is wrong or asks for a new scene; a bare disc has nothing to say but the area's one dim line.
+    rv_editor_message_say say = ask.say;
+    if (say.text.empty() && !bare) {
         const bool failed = !app.scene_error.empty();
-        const std::string text = failed ? app.scene_error :
-                                          std::string(rv_editor_text("pane_scene.no_scene_open")) + " " +
-                rv_editor_text("pane_scene.game_loader_explanation");
-        rv_editor_scene_none_box(app,
-            text,
-            failed ? rv_editor_label_kind::error : rv_editor_label_kind::normal,
-            theme,
-            box_width);
+        say = rv_editor_scene_none_say(app,
+            failed ? app.scene_error : std::string(rv_editor_text("pane_scene.no_scene_open")),
+            failed ? rv_editor_label_kind::error : rv_editor_label_kind::normal);
     }
-    (void)rv_editor_tiled_area_begin("##scenes_area", width, theme);
-    if (!bare) {
+    const bool asking = !ask.say.text.empty();
+    const float strip_h = asking ? rv_editor_scene_new_strip_height(ask, strip_w) :
+                                   rv_editor_message_strip_height(say.text, say.buttons, strip_w);
+    (void)rv_editor_tiled_area_begin("##scenes_area", width, theme, {}, false, 0.0f, strip_h);
+    if (bare) {
+        rv_editor_content_empty_row(rv_editor_text(no_pdkkit_text_id), theme);
+    } else {
+        // What a game does with a scene stays in the area: the strip keeps to what is wrong and what to do.
+        rv_editor_label(rv_editor_text("pane_scene.game_loader_explanation"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::wrap);
         rv_editor_scene_files_list(app, theme);
     }
     rv_editor_tiled_area_end(theme);
+    if (asking) {
+        rv_editor_scene_new_strip(app, ask, theme, ui, strip_w);
+    } else {
+        rv_editor_scene_none_strip(app, say, strip_w, theme);
+    }
 }
 
 } // namespace rv_editor

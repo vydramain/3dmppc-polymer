@@ -108,7 +108,7 @@ void rv_editor_start_toolchest(rv_editor_shell &shell, const rv_editor_theme &th
 constexpr float open_path_min_em = 12.0f;
 constexpr float open_area_min_em = 20.0f;
 
-// The rows around the area, apart from the box: the path row over it, the button row under it, each with its gap.
+// The rows around the area, apart from the strip: the path row over it, the button row under it, each with its gap.
 float rv_editor_open_rows()
 {
     return 2.0f * (ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y);
@@ -121,14 +121,14 @@ float rv_editor_open_content_width()
         rv_editor_button_width(rv_editor_text("browser.up")) + style.ItemSpacing.x + ImGui::GetFontSize() * open_path_min_em;
     const float buttons = rv_editor_button_width(rv_editor_text("shell_start.open_project")) +
         rv_editor_button_width(rv_editor_text("browser.cancel")) + style.ItemSpacing.x;
-    return std::max({ path, buttons, ImGui::GetFontSize() * open_area_min_em, rv_editor_message_box_min_width({ {} }) });
+    return std::max({ path, buttons, ImGui::GetFontSize() * open_area_min_em, rv_editor_message_strip_min_width({ {} }) });
 }
 
 } // namespace
 
 rv_editor_size rv_editor_open_project_minimum()
 {
-    return rv_editor_tiled_minimum(rv_editor_open_content_width(), rv_editor_tiled_box_block() + rv_editor_open_rows());
+    return rv_editor_tiled_minimum(rv_editor_open_content_width(), rv_editor_tiled_strip_block() + rv_editor_open_rows());
 }
 
 void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &theme)
@@ -149,13 +149,6 @@ void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &
     const std::string target_path = target.string();
     const std::string found_msg = rv_editor_text_format("shell_start.disc_found_with_path", std::make_format_args(target_path));
     const std::string notfound_msg = rv_editor_text_format("shell_start.no_disc_in_path", std::make_format_args(target_path));
-    // What the directory is for, then what it holds: one box of a constant place, however long the path.
-    (void)rv_editor_message_box("##about",
-        b.purpose + "\n" + (found ? found_msg : notfound_msg),
-        found ? rv_editor_label_kind::info : rv_editor_label_kind::error,
-        {},
-        theme,
-        rv_editor_open_content_width());
     rv_editor_browser_path_row(b, theme);
     const char *why_not = found ? nullptr : rv_editor_text("shell_start.no_disc_in_this_dir");
     std::filesystem::path picked;
@@ -164,14 +157,26 @@ void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &
     const float listing = static_cast<float>(b.entries.size()) * ImGui::GetTextLineHeightWithSpacing() + style.ItemSpacing.y +
         std::floor(style.ScrollbarSize) + 2.0f * style.FramePadding.y;
     const float buttons_row = ImGui::GetFrameHeight() + style.ItemSpacing.y;
+    // What the directory is for, then what it holds: a strip under the listing, however long the path.
+    const std::string about = b.purpose + "\n" + (found ? found_msg : notfound_msg);
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_open_content_width());
+    const float strip_h = rv_editor_message_strip_height(about, {}, strip_w);
+    const float strip_room = strip_h + style.ItemSpacing.y;
     (void)rv_editor_tiled_area_begin("##open_area",
         rv_editor_open_content_width(),
         theme,
         {},
         false,
-        std::max(1.0f, std::min(listing, ImGui::GetContentRegionAvail().y - buttons_row)));
+        std::max(1.0f, std::min(listing, ImGui::GetContentRegionAvail().y - buttons_row - strip_room)),
+        strip_h);
     rv_editor_browse_result r = rv_editor_browser_entries(b, why_not, picked, theme);
     rv_editor_tiled_area_end(theme);
+    (void)rv_editor_message_strip("##about",
+        about,
+        found ? rv_editor_label_kind::info : rv_editor_label_kind::error,
+        {},
+        theme,
+        strip_w);
     if (rv_editor_button(b.action.c_str(), theme, { rv_editor_look::live, rv_editor_browser_why_not(b, why_not) })) {
         picked = target;
         r = rv_editor_browse_result::picked;

@@ -109,6 +109,8 @@ void rv_editor_export_log_error(rv_editor_app &app, const char *key, const std::
 
 int rv_editor_export_start(rv_editor_app &app, rv_editor_export_form &form)
 {
+    // The form is this project's before it starts, or the run would show as another project's and be hidden.
+    rv_editor_export_prefill(form, app.project.root);
     std::string error;
     const int err = app.exporter.start(app.project, app.tools, form.kind, std::filesystem::path(form.dest), app.log, error);
     if (err != RV_OK) {
@@ -240,10 +242,10 @@ float rv_editor_export_label_column()
         ImGui::GetStyle().ItemSpacing.x;
 }
 
-// The widest row: the box with its widest button row, or either shelf.
+// The widest row: the strip with its widest button row, or either shelf.
 float rv_editor_export_content_width()
 {
-    return std::max({ rv_editor_message_box_min_width(
+    return std::max({ rv_editor_message_strip_min_width(
                           { { rv_editor_text("pane_export.setup_button") }, { rv_editor_text("panes.open_project_box") } }),
         rv_editor_say_shelf_width({ rv_editor_text("pane_export.export_button"), rv_editor_text("pane_export.cancel_button") }),
         rv_editor_say_shelf_width({ rv_editor_text("pane_export.open_folder_button"),
@@ -350,15 +352,13 @@ void rv_editor_export_shelves(rv_editor_app &app,
     rv_editor_shelf_end();
 }
 
-// What the box says: a refusal or a failure of the form, that web support is missing (with its Install button), how the
+// What the strip says: a refusal or a failure of the form, that web support is missing (with its Install button), how the
 // last export ended, or what Export does to the directory.
-void rv_editor_export_say(rv_editor_app &app,
-    rv_editor_export_form &form,
+rv_editor_message_say rv_editor_export_say(const rv_editor_app &app,
+    const rv_editor_export_form &form,
     bool installed,
     const rv_editor_export_result_view &view,
-    bool shown,
-    float width,
-    const rv_editor_theme &theme)
+    bool shown)
 {
     const rv_editor_export &exporter = app.exporter;
     std::string text;
@@ -382,10 +382,7 @@ void rv_editor_export_say(rv_editor_app &app,
             text == rv_editor_text("pane_export.cancelled")      ? rv_editor_label_kind::warning :
                                                                    rv_editor_label_kind::normal;
     }
-    const char *setup_hint = buttons.empty() ? nullptr : rv_editor_text("pane_export.setup_tooltip");
-    if (rv_editor_message_box("##say", text, kind, buttons, theme, width, nullptr, nullptr, setup_hint) == 0) {
-        rv_editor_export_setup(app, form);
-    }
+    return { text, kind, buttons };
 }
 
 // The running job (an export or a web setup) in the content area: what it is, then its steps.
@@ -414,7 +411,7 @@ rv_editor_size rv_editor_export_minimum()
     const float rows = 2.0f * row + rv_editor_message_text_height() + ImGui::GetStyle().ItemSpacing.y;
     // The result shelf sits straight in the window, so its right WindowPadding.x counts too.
     return rv_editor_tiled_minimum(rv_editor_export_content_width() + ImGui::GetStyle().WindowPadding.x,
-        rows + 2.0f * rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
+        rows + 2.0f * rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block());
 }
 
 void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
@@ -435,12 +432,35 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
                                                       rv_editor_export_result_view{};
     rv_editor_export_form_rows(app, form, width, theme);
     rv_editor_export_shelves(app, form, installed, view, theme);
-    if (!rv_editor_say_no_project(app, theme, width)) {
-        rv_editor_export_say(app, form, installed, view, shown, width, theme);
-    }
-    (void)rv_editor_tiled_area_begin("##export_steps", width, theme);
+    const rv_editor_message_say say =
+        app.project.open ? rv_editor_export_say(app, form, installed, view, shown) : rv_editor_say_no_project();
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, width);
+    (void)rv_editor_tiled_area_begin("##export_steps",
+        width,
+        theme,
+        {},
+        false,
+        0.0f,
+        rv_editor_message_strip_height(say.text, say.buttons, strip_w));
     rv_editor_export_steps(exporter, form, theme);
     rv_editor_tiled_area_end(theme);
+    const char *setup_hint = say.buttons.empty() || !app.project.open ? nullptr : rv_editor_text("pane_export.setup_tooltip");
+    if (rv_editor_message_strip("##strip",
+            say.text,
+            say.kind,
+            say.buttons,
+            theme,
+            strip_w,
+            nullptr,
+            nullptr,
+            nullptr,
+            setup_hint) == 0) {
+        if (app.project.open) {
+            rv_editor_export_setup(app, form);
+        } else {
+            app.open_folder_request = true;
+        }
+    }
 }
 
 std::vector<std::string> rv_editor_export_kind_items()

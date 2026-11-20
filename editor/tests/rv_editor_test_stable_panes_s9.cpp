@@ -15,6 +15,7 @@
 #include "imgui_internal.h"
 #include "panes/rv_editor_panes.hpp"
 #include "rv_editor_test.hpp"
+#include "rv_editor_test_s3.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_layout_probe.hpp"
 #include "rv_editor_test_s13.hpp"
@@ -63,34 +64,32 @@ void same(const char *what, const rv_editor_probe_record &a, const rv_editor_pro
     RV_EDITOR_CHECK(difference.empty());
 }
 
-// The record without what moves legally with the state: the items inside a content area, and the message box's bar and
-// buttons (they depend on the state and the length of the text). The boxes' windows and the area frames stay.
-rv_editor_probe_record frames_only(const rv_editor_probe_record &r, float box_h)
+// The record without what moves legally with the state: the items inside a content area, the message strip (it comes and
+// goes and is as tall as its text) and the bottom edge of the areas and the old box's window (a strip takes the area's
+// height at its bottom). The windows' tops, sides and the area frames' places stay.
+rv_editor_probe_record frames_only(const rv_editor_probe_record &r)
 {
+    const rv_editor_probe_entry *strip = rv_editor_test::s3::strip_of(r);
+    // A box left over from a pane not yet converted: its text window and the button row under it.
     const rv_editor_probe_entry *box = nullptr;
     for (const auto &e : r.entries) {
-        const size_t at = e.label.rfind('/');
-        const std::string last = at == std::string::npos ? e.label : e.label.substr(at + 1);
-        box = e.scroll_area && last.compare(0, 7, "##text_") == 0 ? &e : box;
+        box =
+            e.scroll_area && rv_editor_test::s13::is_child(rv_editor_test::s13::parts_of(e.label).back(), "##text") ? &e : box;
     }
+    const float row = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
     rv_editor_probe_record out;
     for (const auto &e : r.entries) {
-        const bool inside_box = box != nullptr && &e != box && e.y0 >= box->y0 && e.y1 <= box->y0 + box_h;
-        if (!e.in_scroll && !inside_box) {
-            out.entries.push_back(e);
+        const bool in_strip = strip != nullptr && e.y0 >= strip->y0 - 0.5f && e.y1 <= strip->y1 + 0.5f;
+        const bool in_box = box != nullptr && &e != box && e.y0 >= box->y0 && e.y1 <= box->y1 + row + 0.5f;
+        if (e.in_scroll || in_strip || in_box) {
+            continue;
+        }
+        out.entries.push_back(e);
+        if (e.scroll_area || e.label.find("##area") != std::string::npos) {
+            out.entries.back().y1 = e.y0;
         }
     }
     return out;
-}
-
-// Like same(), but only the windows, shelf and headers: what is inside a message box or an area may differ.
-void same_frames(rv_editor_test_imgui &gui, const char *what, const rv_editor_probe_record &a, const rv_editor_probe_record &b)
-{
-    float box_h = 0.0f;
-    gui.frame([&] {
-        box_h = rv_editor_message_box_height();
-    });
-    same(what, frames_only(a, box_h), frames_only(b, box_h));
 }
 
 // For the panes that say things in a strip under their area (the logs, Terminal, Search): the two draws agree on everything

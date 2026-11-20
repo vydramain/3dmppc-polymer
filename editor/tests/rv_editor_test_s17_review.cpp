@@ -71,8 +71,8 @@ RV_EDITOR_TEST(rv_editor_test_s17_export_without_a_project_keeps_its_form_and_sh
         report(d);
         RV_EDITOR_CHECK(d.empty());
     }
-    // The description box under the dropdown is there too.
-    RV_EDITOR_CHECK(texts(none).size() >= 2);
+    // The description box under the dropdown is there too, and it is the only text window (the message is a strip).
+    RV_EDITOR_CHECK(texts(none).size() == 1);
     RV_EDITOR_CHECK(texts(none).size() == texts(with).size());
 }
 

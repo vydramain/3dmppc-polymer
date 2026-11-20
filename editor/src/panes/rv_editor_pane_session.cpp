@@ -60,12 +60,12 @@ float rv_editor_session_controls_width()
     return rv_editor_mark_tools_min_width(rv_editor_theme_olive, false);
 }
 
-// The widest row: the message box, or the Notes title with its controls.
+// The widest row: the strip, or the Notes title with its controls.
 float rv_editor_session_content_width()
 {
     // The area's frame on both sides and its vertical bar.
     const rv_editor_theme &theme = rv_editor_theme_olive;
-    return std::max(rv_editor_message_box_min_width({ { rv_editor_text("panes.open_project_box") } }),
+    return std::max(rv_editor_message_strip_min_width({ { rv_editor_text("panes.open_project_box") } }),
         rv_editor_content_section_min_width(rv_editor_text("pane_session.notes_title"), rv_editor_session_controls_width()) +
             2.0f * static_cast<float>(theme.pad_px * theme.scale) + ImGui::GetStyle().ScrollbarSize);
 }
@@ -203,7 +203,17 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme, co
 {
     const rv_editor_session &s = app.session;
     const float width = rv_editor_session_content_width();
-    if (rv_editor_say_no_project(app, theme, width)) {
+    if (!app.project.open) {
+        // Nothing to show without a project: the strip that says so.
+        const rv_editor_message_say none = rv_editor_say_no_project();
+        if (rv_editor_message_strip("##strip",
+                none.text,
+                none.kind,
+                none.buttons,
+                theme,
+                std::max(ImGui::GetContentRegionAvail().x, width)) == 0) {
+            app.open_folder_request = true;
+        }
         return;
     }
     const bool has_session = s.number() != 0;

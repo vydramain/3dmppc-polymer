@@ -147,15 +147,17 @@ inline std::string text_overflow(const rv_editor_probe_record &r, float width)
     return "";
 }
 
-// "" when item `label` is in both draws at the very same rectangle; else why not.
-inline std::string item_difference(const rv_editor_probe_record &a, const rv_editor_probe_record &b, const char *label)
+// "" when item `label` is in both draws at the very same rectangle; else why not. `bottom` false: the lower edge may differ
+// (R2: a strip under the item takes it).
+inline std::string
+item_difference(const rv_editor_probe_record &a, const rv_editor_probe_record &b, const char *label, bool bottom = true)
 {
     const auto *ea = find_item(a, label);
     const auto *eb = find_item(b, label);
     if (ea == nullptr || eb == nullptr) {
         return std::string("'") + label + "' is missing from " + (ea == nullptr ? "the first" : "the second") + " draw";
     }
-    if (ea->x0 != eb->x0 || ea->y0 != eb->y0 || ea->x1 != eb->x1 || ea->y1 != eb->y1) {
+    if (ea->x0 != eb->x0 || ea->y0 != eb->y0 || ea->x1 != eb->x1 || (bottom && ea->y1 != eb->y1)) {
         return std::string("'") + label + "' " + rv_editor_probe_detail::rect(*ea) + " became " +
             rv_editor_probe_detail::rect(*eb);
     }

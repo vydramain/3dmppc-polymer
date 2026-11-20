@@ -65,13 +65,7 @@ std::string rv_editor_problem_place(const rv_editor_app &app, const rv_editor_pr
 
 // The strip under the table: the build's failure or refusal with OK, the closed project's question with its button.
 // Empty text: no strip.
-struct rv_editor_problems_strip {
-    std::string text;
-    rv_editor_label_kind kind = rv_editor_label_kind::normal;
-    std::vector<std::string> buttons;
-};
-
-rv_editor_problems_strip rv_editor_problems_strip_of(const rv_editor_app &app)
+rv_editor_message_say rv_editor_problems_strip_of(const rv_editor_app &app)
 {
     if (app.build_alert.kind != rv_editor_build_alert_kind::none) {
         return { rv_editor_problems_alert_text(app),
@@ -89,7 +83,7 @@ rv_editor_problems_strip rv_editor_problems_strip_of(const rv_editor_app &app)
 // The narrowest pane: the widest row of the strip's buttons.
 float rv_editor_problems_content_width()
 {
-    return rv_editor_message_box_min_width(
+    return rv_editor_message_strip_min_width(
         { { rv_editor_text("pane_problems.alert_ok") }, { rv_editor_text("panes.open_project_box") } });
 }
 
@@ -129,7 +123,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
     const rv_editor_build &b = app.build;
     const std::vector<rv_editor_problem> problems =
         app.project.open ? rv_editor_gather_problems(app) : std::vector<rv_editor_problem>{};
-    const rv_editor_problems_strip strip = rv_editor_problems_strip_of(app);
+    const rv_editor_message_say strip = rv_editor_problems_strip_of(app);
     const float strip_h = rv_editor_message_strip_height(strip.text, strip.buttons, ImGui::GetContentRegionAvail().x);
 
     (void)rv_editor_tiled_area_begin("##problems_area", rv_editor_problems_content_width(), theme, {}, false, 0.0f, strip_h);

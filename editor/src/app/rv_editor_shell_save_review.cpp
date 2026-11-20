@@ -15,6 +15,7 @@
 #include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
@@ -89,7 +90,7 @@ float rv_editor_review_content_width()
     for (const leave what : { leave::build, leave::run, leave::build_restart }) {
         widest = std::max(widest, rv_editor_review_row_width(rv_editor_review_buttons(what)));
     }
-    return std::max(rv_editor_tiled_shelf_width(widest), rv_editor_message_box_min_width({}));
+    return std::max(rv_editor_tiled_shelf_width(widest), rv_editor_message_strip_min_width({}));
 }
 
 void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
@@ -121,7 +122,8 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
         }
     }
     rv_editor_shelf_end();
-    const char *message = rv_editor_text("shell_save.nothing_waits");
+    // What happens on leaving is a message; with nothing waiting the area's one dim line says so.
+    std::string message;
     if (what == leave::quit) {
         message = rv_editor_text("shell_save.editor_closes");
     } else if (what == leave::open) {
@@ -129,17 +131,22 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
     } else if (ahead) {
         message = rv_editor_text("shell_save.build_saves");
     }
-    (void)rv_editor_message_box("##review_message",
-        message,
-        rv_editor_label_kind::normal,
-        {},
+    const float width = rv_editor_review_content_width();
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, width);
+    (void)rv_editor_tiled_area_begin("##review_area",
+        width,
         theme,
-        rv_editor_review_content_width());
-    (void)rv_editor_tiled_area_begin("##review_area", rv_editor_review_content_width(), theme);
+        {},
+        false,
+        0.0f,
+        rv_editor_message_strip_height(message, {}, strip_w));
     if (what != leave::none) {
         rv_editor_review_list(shell, theme, ahead);
+    } else {
+        rv_editor_content_empty_row(rv_editor_text("shell_save.nothing_waits"), theme);
     }
     rv_editor_tiled_area_end(theme);
+    (void)rv_editor_message_strip("##review_message", message, rv_editor_label_kind::normal, {}, theme, strip_w);
     if (pressed < 0) {
         return;
     }

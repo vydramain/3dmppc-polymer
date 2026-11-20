@@ -1,4 +1,4 @@
-// What the logs, Terminal, Problems and Search share: the measures of their rows (shelf, message box) and the content
+// What the logs, Terminal, Problems and Search share: the measures of their rows (shelf, message strip) and the content
 // area that keeps its floor size, so a pane's minimum is the sum of what it draws.
 
 #pragma once
@@ -14,9 +14,6 @@ namespace rv_editor
 
 // A shelf of one frame-high row and the spacing under it. Call inside a frame.
 float rv_editor_tiled_shelf_block();
-
-// The message box and the spacing under it.
-float rv_editor_tiled_box_block();
 
 // The tallest message strip a pane can show and the spacing above it: what a pane's minimum keeps under the area.
 // `second_row`: the strip has a field or a lead item in a row of its own.

@@ -194,7 +194,7 @@ void rv_editor_files_ask(rv_editor_files_view &view,
 float rv_editor_files_content_width()
 {
     return std::max(rv_editor_tiled_shelf_width(rv_editor_files_shelf_items()),
-        rv_editor_message_box_min_width(
+        rv_editor_message_strip_min_width(
             { { rv_editor_text("pane_files.ok_button"), rv_editor_text("pane_files.cancel_button") },
                 { rv_editor_text("pane_files.delete_button"), rv_editor_text("pane_files.cancel_button") },
                 { rv_editor_text("panes.open_project_box") } },
@@ -224,10 +224,7 @@ namespace
 
 // What the strip under the tree says: a short question (with the name field for a new name), or the project's absence, or
 // nothing (empty text).
-struct rv_editor_files_say_text {
-    std::string text;
-    rv_editor_label_kind kind = rv_editor_label_kind::normal;
-    std::vector<std::string> buttons;
+struct rv_editor_files_say_text : rv_editor_message_say {
     bool named = false; // the name field in a row of its own
 };
 
@@ -237,13 +234,13 @@ rv_editor_files_say_text rv_editor_files_say(rv_editor_app &app, rv_editor_files
         if (app.files.is_open()) {
             return {};
         }
-        return { rv_editor_text("panes.no_project_open_message"),
+        return { { rv_editor_text("panes.no_project_open_message"),
             rv_editor_label_kind::normal,
-            { rv_editor_text("panes.open_project_box") } };
+            { rv_editor_text("panes.open_project_box") } } };
     }
-    return { rv_editor_files_question_text(view),
-        view.error.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
-        rv_editor_files_question_buttons(view),
+    return { { rv_editor_files_question_text(view),
+                 view.error.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
+                 rv_editor_files_question_buttons(view) },
         view.dialog != dialog_kind::remove };
 }
 

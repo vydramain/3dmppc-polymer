@@ -232,7 +232,7 @@ bool rv_editor_term_keys(rv_editor_terminal &term)
 // The widest row: the message box with the widest of its button rows.
 float rv_editor_terminal_content_width()
 {
-    return rv_editor_message_box_min_width(
+    return rv_editor_message_strip_min_width(
         { { rv_editor_text("shell_menu.ask_terminal_end"), rv_editor_text("shell_menu.ask_terminal_keep") },
             { rv_editor_text("pane_terminal.paste"), rv_editor_text("pane_terminal.cancel") },
             { rv_editor_text("pane_terminal.start_again") } });
@@ -241,13 +241,7 @@ float rv_editor_terminal_content_width()
 // What the terminal says in the strip under the screen, whatever it takes: the shell's end question, several pasted lines to
 // look at, or that the shell ended or never started. Each has its buttons; a running shell with nothing to ask says nothing
 // and has no strip.
-struct rv_editor_terminal_say_text {
-    std::string text;
-    rv_editor_label_kind kind = rv_editor_label_kind::normal;
-    std::vector<std::string> buttons;
-};
-
-rv_editor_terminal_say_text rv_editor_terminal_say(const rv_editor_terminal_view &view)
+rv_editor_message_say rv_editor_terminal_say(const rv_editor_terminal_view &view)
 {
     if (view.ending) {
         return { rv_editor_text("shell_menu.ask_terminal_message"),
@@ -412,7 +406,7 @@ void rv_editor_pane_terminal(rv_editor_app &app,
     const rv_editor_ui_port &ui)
 {
     rv_editor_terminal_view &view = app.terminals[pane];
-    const rv_editor_terminal_say_text say = rv_editor_terminal_say(view);
+    const rv_editor_message_say say = rv_editor_terminal_say(view);
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_terminal_content_width());
     const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
     // The area is measured in the UI font like the minimum; the screen in it is in the code font.

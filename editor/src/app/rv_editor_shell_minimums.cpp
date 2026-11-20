@@ -17,6 +17,7 @@
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 #include "ui/rv_editor_widgets_mode.hpp"
 #include "ui/rv_editor_widgets_tile.hpp"
 
@@ -80,13 +81,18 @@ rv_editor_size code_minimum()
         static_cast<int32_t>(std::ceil(style.WindowPadding.y + rv_editor_tiled_shelf_block() + card.y)) };
 }
 
-// Review Changes: its shelf, message box and content area, and a Save As card instead of them.
+// Review Changes: its shelf, content area and message strip, and a Save As card instead of them.
 rv_editor_size review_minimum()
 {
     const ImGuiStyle &style = ImGui::GetStyle();
     const ImVec2 card = ask_card_size();
+    // The strip is the tallest of the three things the page says, in the width it keeps.
+    float strip = 0.0f;
+    for (const char *key : { "shell_save.editor_closes", "shell_save.project_opens", "shell_save.build_saves" }) {
+        strip = std::max(strip, rv_editor_message_strip_height(rv_editor_text(key), {}, rv_editor_review_content_width()));
+    }
     const rv_editor_size min =
-        rv_editor_tiled_minimum(rv_editor_review_content_width(), rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
+        rv_editor_tiled_minimum(rv_editor_review_content_width(), rv_editor_tiled_shelf_block() + strip + style.ItemSpacing.y);
     return { std::max(min.w, static_cast<int32_t>(std::ceil(style.WindowPadding.x + card.x))),
         std::max(min.h, static_cast<int32_t>(std::ceil(2.0f * style.WindowPadding.y + card.y))) };
 }

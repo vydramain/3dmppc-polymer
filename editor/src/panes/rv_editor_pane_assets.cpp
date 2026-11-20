@@ -19,6 +19,7 @@
 #include "app/rv_editor_shell.hpp"
 #include "build/rv_editor_build_map.hpp"
 #include "panes/rv_editor_asset_preview.hpp"
+#include "panes/rv_editor_pane_say.hpp"
 #include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -145,6 +146,10 @@ void rv_editor_assets_refresh(const rv_editor_app &app)
     const auto now = std::chrono::steady_clock::now();
     if (rv_editor_assets.root != app.project.root ||
         now - rv_editor_assets.read > std::chrono::seconds(refresh_period_seconds)) {
+        // Another project's selection means nothing here.
+        if (rv_editor_assets.root != app.project.root) {
+            rv_editor_assets.selected.clear();
+        }
         rv_editor_assets.root = app.project.root;
         rv_editor_assets.read = now;
         rv_editor_assets_scan(app.project.root);
@@ -231,7 +236,7 @@ float rv_editor_assets_shelf_items()
         rv_editor_button_width(rv_editor_text("pane_assets.refresh")) + 3.0f * gap;
 }
 
-// The box's button rows over the states: a sound's Play and Stop with Add to Disc, or Open Project.
+// The strip's button rows over the states: a sound's Play and Stop with Add to Disc, or Open Project.
 std::vector<std::vector<std::string>> rv_editor_assets_button_rows()
 {
     return { { rv_editor_text("asset_preview.button_play"),
@@ -243,7 +248,7 @@ std::vector<std::vector<std::string>> rv_editor_assets_button_rows()
 float rv_editor_assets_content_width()
 {
     return std::max(rv_editor_tiled_shelf_width(rv_editor_assets_shelf_items()),
-        rv_editor_message_box_min_width(rv_editor_assets_button_rows()));
+        rv_editor_message_strip_min_width(rv_editor_assets_button_rows()));
 }
 
 // The folder, the filter, and the view: icons or a list with details; Refresh in Game is always there.
@@ -424,7 +429,7 @@ double rv_editor_assets_seconds(const rv_editor_asset &selected)
 rv_editor_size rv_editor_assets_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_assets_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block());
 }
 
 void rv_editor_pane_assets(rv_editor_app &app,
@@ -462,40 +467,22 @@ void rv_editor_pane_assets(rv_editor_app &app,
     const rv_editor_icon picture = selected != nullptr ? rv_editor_asset_picture(renderer, *selected) : rv_editor_icon{};
     const double seconds = selected != nullptr ? rv_editor_assets_seconds(*selected) : 0.0;
 
-    // The box: what is selected and what can be done to it, or no project.
-    if (!app.project.open) {
-        if (rv_editor_message_box("##note",
-                rv_editor_text("panes.no_project_open_message"),
-                rv_editor_label_kind::normal,
-                { rv_editor_text("panes.open_project_box") },
-                theme,
-                rv_editor_assets_content_width()) == 0) {
-            app.open_folder_request = true;
-        }
-    } else {
-        const rv_editor_asset_view view = rv_editor_asset_preview(selected, entry, picture, seconds, app.project);
-        std::vector<rv_editor_state> states(view.buttons.size());
-        for (size_t i = 0; i < states.size(); ++i) {
-            if (view.actions[i] == rv_editor_asset_action::stop && !rv_editor_sound_playing()) {
-                states[i].disabled = rv_editor_text("asset_preview.tooltip_nothing_playing");
-            }
-        }
-        const int pressed = rv_editor_message_box("##note",
-            view.text,
-            rv_editor_label_kind::normal,
-            view.buttons,
-            theme,
-            rv_editor_assets_content_width(),
-            nullptr,
-            nullptr,
-            nullptr,
-            &states);
-        if (pressed >= 0 && selected != nullptr) {
-            rv_editor_asset_act(view.actions[static_cast<size_t>(pressed)], *selected, app.project);
+    // The strip: no project, or what is selected and what can be done to it; nothing selected says nothing.
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_assets_content_width());
+    const rv_editor_asset_view view = rv_editor_asset_preview(selected, entry, picture, seconds, app.project);
+    rv_editor_message_say say{ view.text, rv_editor_label_kind::normal, view.buttons };
+    std::vector<rv_editor_state> states(view.buttons.size());
+    for (size_t i = 0; i < states.size(); ++i) {
+        if (view.actions[i] == rv_editor_asset_action::stop && !rv_editor_sound_playing()) {
+            states[i].disabled = rv_editor_text("asset_preview.tooltip_nothing_playing");
         }
     }
+    if (!app.project.open) {
+        say = rv_editor_say_no_project();
+    }
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
 
-    (void)rv_editor_tiled_area_begin("##assets_area", rv_editor_assets_content_width(), theme);
+    (void)rv_editor_tiled_area_begin("##assets_area", rv_editor_assets_content_width(), theme, {}, false, 0.0f, strip_h);
     const std::string filtered = rv_editor_text_format("pane_assets.no_match_filter", std::make_format_args(ui.filter));
     const char *empty_message = !app.project.open ? rv_editor_text("panes.no_project_open_message") :
         files.empty()                             ? rv_editor_text("pane_assets.no_resources") :
@@ -509,6 +496,12 @@ void rv_editor_pane_assets(rv_editor_app &app,
     }
     rv_editor_asset_picture_show(picture, ImGui::GetContentRegionAvail().x, ImGui::GetFontSize() * preview_picture_height_em);
     rv_editor_tiled_area_end(theme);
+    const int pressed = rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w, &states);
+    if (pressed >= 0 && !app.project.open) {
+        app.open_folder_request = true;
+    } else if (pressed >= 0 && selected != nullptr) {
+        rv_editor_asset_act(view.actions[static_cast<size_t>(pressed)], *selected, app.project);
+    }
 }
 
 } // namespace rv_editor

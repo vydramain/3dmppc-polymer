@@ -1,6 +1,6 @@
-// S15, R11, R13: the two widget variants the panes of S15 need. The message box takes an input field in its button row
-// (Files asks for a name there); the form takes a row whose field is the caller's (a path field, a text area, a check
-// box) in the label column, with the error line reserved and the minimum counting the field's value.
+// S15, R13: the form takes a row whose field is the caller's (a path field, a text area, a check box) in the label column,
+// with the error line reserved and the minimum counting the field's value. (The message box with a field is gone with the
+// box: the strip of S1 has no field, the panes that ask for a name draw it themselves.)
 
 #include <cstdio>
 #include <string>
@@ -14,7 +14,6 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_form.hpp"
-#include "ui/rv_editor_widgets_message.hpp"
 
 using namespace rv_editor;
 using namespace rv_editor_test;
@@ -23,8 +22,6 @@ namespace
 {
 
 constexpr rv_editor_theme theme = rv_editor_theme_olive;
-constexpr int field_chars = 20;
-constexpr size_t buf_size = 256;
 
 void load_texts()
 {
@@ -42,129 +39,7 @@ const rv_editor_probe_entry *find(const rv_editor_probe_record &r, const std::st
     return nullptr;
 }
 
-const rv_editor_probe_entry *text_window(const rv_editor_probe_record &r)
-{
-    for (const auto &e : r.entries) {
-        if (e.scroll_area) {
-            return &e;
-        }
-    }
-    return nullptr;
-}
-
-// --- the message box with a field
-
-const std::vector<std::string> ok_cancel = { "OK", "Cancel" };
-
-struct box_frame {
-    rv_editor_probe_record record;
-    int pressed = -1;
-};
-
-// `height` < 0: measured in a frame of its own first, which takes the input of the frame that follows; pass it to keep
-// typing and keys for the frame with the field.
-box_frame draw_box(rv_editor_test_imgui &gui, char *buf, bool with_field, bool focus, float width, float height = -1.0f)
-{
-    box_frame out;
-    rv_editor_message_box_field field;
-    field.buf = buf;
-    field.size = buf_size;
-    field.hint = "name";
-    field.focus = focus;
-    if (height < 0.0f) {
-        gui.frame([&] {
-            height = rv_editor_message_box_height() + 2.0f * ImGui::GetStyle().WindowPadding.y;
-        });
-    }
-    out.record = rv_editor_probe_draw(
-        gui,
-        width,
-        [&](rv_editor_probe_record &) {
-            out.pressed = rv_editor_message_box("ask",
-                "New file in the project",
-                rv_editor_label_kind::normal,
-                ok_cancel,
-                theme,
-                0.0f,
-                with_field ? &field : nullptr);
-        },
-        height);
-    return out;
-}
-
-float min_box_window(rv_editor_test_imgui &gui)
-{
-    float w = 0.0f;
-    gui.frame([&] {
-        w = rv_editor_message_box_min_width({ ok_cancel }, field_chars) + 2.0f * ImGui::GetStyle().WindowPadding.x;
-    });
-    return w;
-}
-
-} // namespace
-
-// R11: at the box's minimum width the field sits in the button row, right of the text area's bottom edge and left of
-// the buttons, at least `field_chars` characters wide, and the box is as high as without a field.
-RV_EDITOR_TEST(rv_editor_test_s15_message_box_field_sits_in_the_button_row)
-{
-    load_texts();
-    rv_editor_test_imgui gui(true);
-    std::vector<char> buf(buf_size, '\0');
-    const float width = min_box_window(gui);
-    draw_box(gui, buf.data(), true, false, width);
-    const auto with = draw_box(gui, buf.data(), true, false, width);
-    draw_box(gui, buf.data(), false, false, width);
-    const auto without = draw_box(gui, buf.data(), false, false, width);
-    float char_w = 0.0f;
-    gui.frame([&] {
-        char_w = ImGui::CalcTextSize("0").x;
-    });
-    const auto *field = find(with.record, "##field");
-    const auto *text = text_window(with.record);
-    const auto *ok = find(with.record, "OK");
-    const auto *cancel = find(with.record, "Cancel");
-    RV_EDITOR_CHECK(field != nullptr && text != nullptr && ok != nullptr && cancel != nullptr);
-    if (field != nullptr && text != nullptr && ok != nullptr && cancel != nullptr) {
-        RV_EDITOR_CHECK(field->y0 >= text->y1);
-        RV_EDITOR_CHECK(field->x1 <= ok->x0 && ok->x1 <= cancel->x0);
-        RV_EDITOR_CHECK(field->x1 - field->x0 >= static_cast<float>(field_chars) * char_w);
-        RV_EDITOR_CHECK(field->y0 == ok->y0);
-    }
-    RV_EDITOR_CHECK(with.record.content_height == without.record.content_height);
-    RV_EDITOR_CHECK(find(without.record, "##field") == nullptr);
-    const auto *plain_text = text_window(without.record);
-    RV_EDITOR_CHECK(text != nullptr && plain_text != nullptr && text->x0 == plain_text->x0 && text->y0 == plain_text->y0 &&
-        text->x1 == plain_text->x1 && text->y1 == plain_text->y1);
-}
-
-// R11: Enter in the field presses the first button, and what was typed is in the buffer.
-RV_EDITOR_TEST(rv_editor_test_s15_message_box_enter_in_the_field_presses_the_first_button)
-{
-    load_texts();
-    rv_editor_test_imgui gui(true);
-    std::vector<char> buf(buf_size, '\0');
-    const float width = min_box_window(gui);
-    float height = 0.0f;
-    gui.frame([&] {
-        height = rv_editor_message_box_height() + 2.0f * ImGui::GetStyle().WindowPadding.y;
-    });
-    draw_box(gui, buf.data(), true, true, width, height); // the question was just asked: the field takes the focus
-    draw_box(gui, buf.data(), true, false, width, height);
-    ImGuiIO &io = ImGui::GetIO();
-    io.AddInputCharacter('x');
-    draw_box(gui, buf.data(), true, false, width, height);
-    io.AddKeyEvent(ImGuiKey_Enter, true);
-    int pressed = draw_box(gui, buf.data(), true, false, width, height).pressed;
-    io.AddKeyEvent(ImGuiKey_Enter, false);
-    pressed = std::max(pressed, draw_box(gui, buf.data(), true, false, width, height).pressed);
-    RV_EDITOR_CHECK(std::string(buf.data()) == "x");
-    RV_EDITOR_CHECK(pressed == 0);
-}
-
 // --- the form with a custom row
-
-namespace
-{
 
 constexpr size_t custom_buf = 512;
 

@@ -164,7 +164,9 @@ ImVec2 rv_editor_scene_viewport_around()
 void rv_editor_scene_viewport(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
-    const rv_editor_ui_port &ui)
+    const rv_editor_ui_port &ui,
+    const rv_editor_scene_new_say &ask,
+    float strip_w)
 {
     rv_editor_scene_doc &doc = *app.scene;
     // Worked on as a copy; the shell gets the result once, at the end.
@@ -177,9 +179,9 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     rv_editor_scene_toolbar(app, cam, theme);
     rv_editor_shelf_end();
     rv_editor_scene_keys(app, ui);
-    rv_editor_scene_say(app, theme, ui);
 
-    // The tile never scrolls: the viewport takes all the room under the box, down to a floor, and shrinks to fit.
+    // The tile never scrolls: the viewport takes all the room under the shelf, less the New Scene question's strip when it is
+    // asked, down to a floor, and shrinks to fit.
     // The canvas between a Rot X wheel on the left, a Dolly wheel on the right and a
     // Rot Y wheel below, as Open Inventor's viewers have them; each wheel carries a
     // visible label in the UI font.
@@ -188,13 +190,15 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     const char *const dolly_label = rv_editor_text("scene_viewport.dolly");
     const float wheel = ImGui::GetFrameHeight() * wheel_height_factor;
     const float gap = ImGui::GetStyle().ItemSpacing.x;
+    const float strip_h = rv_editor_scene_new_strip_height(ask, strip_w);
+    const float strip_room = strip_h > 0.0f ? strip_h + ImGui::GetStyle().ItemSpacing.y : 0.0f;
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const ImVec2 label_x = ImGui::CalcTextSize(rot_x_label);
     const ImVec2 label_y = ImGui::CalcTextSize(rot_y_label);
     const ImVec2 label_d = ImGui::CalcTextSize(dolly_label);
     const ImVec2 size(
         std::max(min_viewport_size, avail.x - wheel_width_spacing * wheel - label_x.x - label_d.x - gap_multiplier * gap),
-        std::max(rv_editor_tiled_floor(), avail.y - wheel - gap));
+        std::max(rv_editor_tiled_floor(), avail.y - wheel - gap - strip_room));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
     // The navigation calls in this function log their own refusal and leave the view as it was; the codes are dropped.
@@ -236,6 +240,10 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, p0.y + size.y + gap + (wheel - label_y.y) * half));
     rv_editor_label(rot_y_label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+    if (strip_h > 0.0f) {
+        ImGui::SetCursorScreenPos(ImVec2(top.x, p0.y + size.y + gap + wheel + ImGui::GetStyle().ItemSpacing.y));
+        rv_editor_scene_new_strip(app, ask, theme, ui, strip_w);
+    }
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
     if (!v.valid) {

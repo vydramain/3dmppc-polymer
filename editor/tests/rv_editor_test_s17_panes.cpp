@@ -1,5 +1,6 @@
 // S17, R10/R19/R24: Export (form with the kind dropdown and its two-line description, steps in the content area, message
-// box, result shelf), Build Result (shelf, box, log in the area) and the empty pane (text and kind buttons in the area).
+// box, result shelf), Build Result (shelf, box, log in the area) and the empty pane (text and kind buttons in the area); what
+// they say is a strip under the area.
 
 #include <cstdio>
 #include <string>
@@ -72,9 +73,9 @@ RV_EDITOR_TEST(rv_editor_test_s17_export_form_has_the_kind_dropdown_over_a_two_l
         RV_EDITOR_CHECK(find_item(r, "##export_card_0") == nullptr);
         const auto t = texts(r);
         const auto a = areas(r);
-        RV_EDITOR_CHECK(t.size() >= 2);
+        RV_EDITOR_CHECK(t.size() == 1); // the description only: what Export says is a strip, not a text window
         RV_EDITOR_CHECK(!a.empty());
-        if (combo == nullptr || t.size() < 2 || a.empty()) {
+        if (combo == nullptr || t.size() != 1 || a.empty()) {
             continue;
         }
         // The description is the first text window: under the dropdown, over the steps, two lines.
@@ -145,24 +146,25 @@ RV_EDITOR_TEST(rv_editor_test_s17_export_buttons_keep_their_rectangles_in_every_
     }
 }
 
-// R11, R20: a refusal and a failed export are said in the message box: its text windows draw more than they do in a
-// state with nothing to say.
-RV_EDITOR_TEST(rv_editor_test_s17_export_says_a_refusal_and_a_failure_in_the_message_box)
+// R11, R20, R2: a refusal and a failed export are said in the strip under the areas; the idle disc has none (what Export
+// does is the hint of the kind, not a message), and a running job has none.
+RV_EDITOR_TEST(rv_editor_test_s17_export_says_a_refusal_and_a_failure_in_the_strip)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
     fixture f(gui, rv_editor_pane_kind::export_);
-    const int quiet = box_drawn(f, export_disc);
-    const int refused = box_drawn(f, export_refused);
-    const int failed = box_drawn(f, export_failed);
-    RV_EDITOR_CHECK(quiet > 0);
-    RV_EDITOR_CHECK(refused > quiet);
-    RV_EDITOR_CHECK(failed > quiet);
+    const float quiet = strip_height(f, export_disc);
+    const float refused = strip_height(f, export_refused);
+    const float failed = strip_height(f, export_failed);
+    RV_EDITOR_CHECK(quiet == 0.0f);
+    RV_EDITOR_CHECK(refused > 0.0f);
+    RV_EDITOR_CHECK(failed > 0.0f);
+    RV_EDITOR_CHECK(strip_height(f, export_running) == 0.0f);
 }
 
-// R10, R19: Build Result keeps its three buttons in one row of one shelf in every state, the message box under it and the
-// log area under the box; Cancel Build is always there.
-RV_EDITOR_TEST(rv_editor_test_s17_build_result_has_a_shelf_over_the_box_over_the_log_area)
+// R10, R19, R2: Build Result keeps its three buttons in one row of one shelf in every state, the log area under it and the
+// message strip under the area, no message box; Cancel Build is always there.
+RV_EDITOR_TEST(rv_editor_test_s17_build_result_has_a_shelf_over_the_log_area_over_the_strip)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -186,17 +188,19 @@ RV_EDITOR_TEST(rv_editor_test_s17_build_result_has_a_shelf_over_the_box_over_the
         RV_EDITOR_CHECK(d.empty());
         const auto t = texts(r);
         const auto a = areas(r);
-        RV_EDITOR_CHECK(t.size() == 1 && a.size() == 1);
+        const auto *strip = s3::strip_of(r);
+        const bool idle = std::string(f.states[i].name) == "idle"; // "nothing built" is a placeholder, no strip
+        RV_EDITOR_CHECK(t.empty() && a.size() == 1 && (strip != nullptr) == !idle);
         const auto *cancel = find_item(r, labels[2]);
-        if (t.size() == 1 && a.size() == 1 && cancel != nullptr) {
-            RV_EDITOR_CHECK(cancel->y1 <= t[0]->y0 + 0.5f);
-            RV_EDITOR_CHECK(t[0]->y1 <= a[0]->y0 + 0.5f);
+        if (t.empty() && a.size() == 1 && cancel != nullptr) {
+            RV_EDITOR_CHECK(cancel->y1 <= a[0]->y0 + 0.5f);
+            RV_EDITOR_CHECK(strip == nullptr || a[0]->y1 <= strip->y0 + 0.5f);
         }
     }
 }
 
-// R11, R19: the job's own lines are rows of the log area, and what the job did is said in the message box.
-RV_EDITOR_TEST(rv_editor_test_s17_build_result_log_rows_are_in_the_area_and_the_box_says_the_outcome)
+// R11, R19: the job's own lines are rows of the log area, and what the job did is said in the strip.
+RV_EDITOR_TEST(rv_editor_test_s17_build_result_log_rows_are_in_the_area_and_the_strip_says_the_outcome)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -210,7 +214,7 @@ RV_EDITOR_TEST(rv_editor_test_s17_build_result_log_rows_are_in_the_area_and_the_
     RV_EDITOR_CHECK(rows >= 3);
     // A fixture of its own per state: build.state() of the first one stays failed whatever is set after it.
     fixture idle(gui, rv_editor_pane_kind::build_result);
-    RV_EDITOR_CHECK(box_drawn(f, build_failed) > box_drawn(idle, build_idle));
+    RV_EDITOR_CHECK(strip_height(f, build_failed) > strip_height(idle, build_idle));
 }
 
 // R19: the empty pane's text and one button for every other kind are items of the content area (they scroll, the tile does

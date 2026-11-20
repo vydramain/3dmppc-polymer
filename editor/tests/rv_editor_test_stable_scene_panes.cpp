@@ -16,6 +16,7 @@
 #include "project/rv_editor_descriptions.hpp"
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_pane_state.hpp"
+#include "rv_editor_test_strip.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 
@@ -263,7 +264,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_scene_inspector_refusal_row_is_reserved)
         "the value does not read as a string",
         doc.steps,
         doc.undo.size() };
-    const std::string d = layout_difference(base, f.inspector());
+    const std::string d = layout_difference(strip::bottom_free(base), strip::bottom_free(f.inspector()));
     report(d);
     RV_EDITOR_CHECK(d.empty());
 }
@@ -273,7 +274,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_scene_inspector_read_only_note_keeps_its_pl
     scene_fixture f;
     const auto base = f.inspector();
     f.app.scene->scene.read_only = "the file is of an older form";
-    const std::string d = layout_difference(base, f.inspector());
+    const std::string d = layout_difference(strip::bottom_free(base), strip::bottom_free(f.inspector()));
     report(d);
     RV_EDITOR_CHECK(d.empty());
 }
@@ -286,7 +287,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_scene_hierarchy_move_note_does_not_move_the
     const auto base = f.hierarchy();
     f.app.scene_move_note = "Not moved: an object cannot go under its own child, so the move is refused";
     const auto noted = f.hierarchy();
-    const std::string d = moved_items(base, noted);
+    const std::string d = moved_items(strip::bottom_free(base), strip::bottom_free(noted));
     report(d);
     RV_EDITOR_CHECK(d.empty());
     RV_EDITOR_CHECK(base.content_height == noted.content_height);
@@ -328,7 +329,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_scene_new_scene_ask_does_not_move_the_viewp
     rv_editor_shell_new_scene_request(f.app);
     const auto open = f.scene();
     close_new_scene_ask(f);
-    const std::string d = item_difference(closed, open, viewport);
+    const std::string d = item_difference(closed, open, viewport, false);
     report(d);
     RV_EDITOR_CHECK(d.empty());
 }

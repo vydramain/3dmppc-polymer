@@ -238,7 +238,7 @@ std::vector<rv_editor_key_row> rv_editor_key_rows(const rv_editor_answer &a)
 // The widest row: the shelf's two buttons or the box's button.
 float rv_editor_observe_content_width()
 {
-    return std::max(rv_editor_message_box_min_width({ { rv_editor_text("panes.open_project_box") } }),
+    return std::max(rv_editor_message_strip_min_width({ { rv_editor_text("panes.open_project_box") } }),
         rv_editor_say_shelf_width({ rv_editor_text("pane_observe.refresh"), rv_editor_text("pane_observe.up") }));
 }
 
@@ -276,18 +276,16 @@ void rv_editor_observe_shelf(rv_editor_app &app, bool lua, const rv_editor_theme
     rv_editor_shelf_end();
 }
 
-// What the box says: why there is nothing to read, or what the keys listed are; the session's end is there too.
+// What the strip says: why there is nothing to read, or what the keys listed are; the session's end is there too. No session
+// yet and keys not read yet are placeholders the areas' empty rows give: no text.
 std::string rv_editor_observe_text(const rv_editor_app &app, const rv_editor_answer *keys, size_t key_count)
 {
     const rv_editor_session &s = app.session;
     if (!s.live()) {
-        std::string text = rv_editor_text("pane_observe.no_session");
-        if (!s.end_reason().empty()) {
-            const std::string num_str = std::to_string(s.number());
-            const std::string &reason = s.end_reason();
-            text += "\n" + rv_editor_text_format("pane_observe.session_ended", std::make_format_args(num_str, reason));
-        }
-        return text;
+        const std::string num_str = std::to_string(s.number());
+        const std::string &reason = s.end_reason();
+        return reason.empty() ? std::string() :
+                                rv_editor_text_format("pane_observe.session_ended", std::make_format_args(num_str, reason));
     }
     if (!s.connected()) {
         return rv_editor_text("pane_observe.waiting_console");
@@ -296,7 +294,7 @@ std::string rv_editor_observe_text(const rv_editor_app &app, const rv_editor_ans
         return rv_editor_text("pane_observe.no_lua_machine");
     }
     if (keys == nullptr) {
-        return rv_editor_text("pane_observe.not_read_refresh");
+        return {};
     }
     if (!keys->ok) {
         const std::string &error = keys->error;
@@ -444,7 +442,7 @@ void rv_editor_observe_keys(rv_editor_app &app, const std::vector<rv_editor_key_
 rv_editor_size rv_editor_observe_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_observe_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block(),
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(),
         { rv_editor_tiled_floor(), rv_editor_tiled_floor(), rv_editor_tiled_floor() });
 }
 
@@ -466,26 +464,20 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
 
     const float width = rv_editor_observe_content_width();
     rv_editor_observe_shelf(app, lua, theme);
-    if (!rv_editor_say_no_project(app, theme, width)) {
-        (void)rv_editor_message_box("##say",
-            rv_editor_observe_text(app, keys, rows.size()),
-            rv_editor_label_kind::dim,
-            {},
-            theme,
-            width);
-    }
-    (void)rv_editor_tiled_area_begin("##facts_area",
-        width,
-        theme,
-        { rv_editor_tiled_floor(), rv_editor_tiled_floor(), rv_editor_tiled_floor() },
-        machine);
+    const rv_editor_message_say say = app.project.open ?
+        rv_editor_message_say{ rv_editor_observe_text(app, keys, rows.size()), rv_editor_label_kind::dim, {} } :
+        rv_editor_say_no_project();
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, width);
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
+    const float floor = rv_editor_tiled_floor();
+    (void)rv_editor_tiled_area_begin("##facts_area", width, theme, { floor, floor, floor }, machine, 0.0f, strip_h);
     if (machine) {
         rv_editor_observe_facts(s, theme);
     } else {
         rv_editor_content_empty_row(rv_editor_text("pane_observe.facts_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
-    (void)rv_editor_tiled_area_begin("##pins_area", width, theme, { rv_editor_tiled_floor(), rv_editor_tiled_floor() });
+    (void)rv_editor_tiled_area_begin("##pins_area", width, theme, { floor, floor }, false, 0.0f, strip_h);
     if (lua) {
         rv_editor_observe_pins(app, theme);
         rv_editor_label(rv_editor_text("pane_observe.each_value_note"),
@@ -496,13 +488,16 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_content_empty_row(rv_editor_text("pane_observe.pins_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
-    (void)rv_editor_tiled_area_begin("##keys_area", width, theme);
+    (void)rv_editor_tiled_area_begin("##keys_area", width, theme, {}, false, 0.0f, strip_h);
     if (lua && keys != nullptr && keys->ok) {
         rv_editor_observe_keys(app, rows, theme);
     } else {
         rv_editor_content_empty_row(rv_editor_text("pane_observe.keys_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
+    if (rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w) == 0) {
+        app.open_folder_request = true;
+    }
 }
 
 } // namespace rv_editor

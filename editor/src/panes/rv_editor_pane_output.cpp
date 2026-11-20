@@ -285,7 +285,7 @@ namespace
 // The widest row of a log tile: the shelf's, or the message box's.
 float rv_editor_output_content_width()
 {
-    return std::max(rv_editor_tiled_shelf_width(rv_editor_output_controls_width()), rv_editor_message_box_min_width({}));
+    return std::max(rv_editor_tiled_shelf_width(rv_editor_output_controls_width()), rv_editor_message_strip_min_width({}));
 }
 
 } // namespace

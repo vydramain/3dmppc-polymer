@@ -290,7 +290,7 @@ float rv_editor_run_buttons_width()
 float rv_editor_run_content_width()
 {
     return std::max(rv_editor_run_buttons_width(),
-        rv_editor_message_box_min_width({ { rv_editor_text("panes.open_project_box") } }));
+        rv_editor_message_strip_min_width({ { rv_editor_text("panes.open_project_box") } }));
 }
 
 void rv_editor_run_actions(rv_editor_app &app,
@@ -356,13 +356,7 @@ void rv_editor_run_actions(rv_editor_app &app,
 
 // What the strip under the area says: the profile file's error, the edited profile's problem and the session's note, or
 // nothing (empty text).
-struct rv_editor_run_say_text {
-    std::string text;
-    rv_editor_label_kind kind = rv_editor_label_kind::normal;
-    std::vector<std::string> buttons;
-};
-
-rv_editor_run_say_text rv_editor_run_say(const rv_editor_app &app, const std::string &problem)
+rv_editor_message_say rv_editor_run_say(const rv_editor_app &app, const std::string &problem)
 {
     if (!app.project.open) {
         return { rv_editor_text("panes.no_project_open_message"),
@@ -404,7 +398,7 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
     }
     const rv_editor_run_profile edited = rv_editor_run_form_profile(run_form_draft);
     const std::string problem = have_profile ? rv_editor_app_profile_problem(app, edited) : std::string();
-    const rv_editor_run_say_text say = rv_editor_run_say(app, problem);
+    const rv_editor_message_say say = rv_editor_run_say(app, problem);
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_run_content_width());
     const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
     // The area leaves the strip and the row of buttons under it.

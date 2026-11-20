@@ -100,12 +100,12 @@ void rv_editor_inspector_field_at(float column)
 
 rv_editor_size rv_editor_inspector_minimum()
 {
-    return rv_editor_tiled_minimum(rv_editor_inspector_content_width(), rv_editor_tiled_box_block());
+    return rv_editor_tiled_minimum(rv_editor_inspector_content_width(), rv_editor_tiled_strip_block());
 }
 
 float rv_editor_inspector_content_width()
 {
-    return std::max(rv_editor_scene_none_width(), rv_editor_message_box_min_width({}));
+    return std::max(rv_editor_scene_none_width(), rv_editor_message_strip_min_width({}));
 }
 
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
@@ -113,37 +113,28 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
     const float width = rv_editor_inspector_content_width();
     rv_editor_scene_keys(app, ui);
     const int at = app.scene != nullptr ? rv_editor_scene_find(app.scene->scene, app.scene->selected) : -1;
-    // The one message box: what the pane lacks, the refusal of the last edit, or the read-only banner.
+    // The strip says what the pane lacks (no scene), the refusal of the last edit, or the read-only banner; nothing selected
+    // is the area's one dim line.
+    rv_editor_message_say say;
     if (app.scene == nullptr) {
-        rv_editor_scene_none_box(app,
-            rv_editor_text("pane_scene_inspector.no_scene_open"),
-            rv_editor_label_kind::normal,
-            theme,
-            width);
-    } else if (at < 0) {
-        (void)rv_editor_message_box("##note",
-            rv_editor_text("pane_scene_inspector.select_object"),
-            rv_editor_label_kind::normal,
-            {},
-            theme,
-            width);
-    } else {
+        say = rv_editor_scene_none_say(app, rv_editor_text("pane_scene_inspector.no_scene_open"), rv_editor_label_kind::normal);
+    } else if (at >= 0) {
         const rv_editor_scene_doc &doc = *app.scene;
         const std::string refusal = rv_editor_inspector_refusal(doc, static_cast<size_t>(at));
         const std::string &ro = doc.scene.read_only;
-        const std::string banner =
-            ro.empty() ? std::string() : rv_editor_text_format("pane_scene_inspector.read_only", std::make_format_args(ro));
-        (void)rv_editor_message_box("##note",
-            refusal.empty() ? banner : refusal,
-            refusal.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
-            {},
-            theme,
-            width);
+        say.text = !refusal.empty() ? refusal :
+            ro.empty()              ? std::string() :
+                                      rv_editor_text_format("pane_scene_inspector.read_only", std::make_format_args(ro));
+        say.kind = refusal.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error;
     }
-    (void)rv_editor_tiled_area_begin("##form_area", width, theme);
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, width);
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
+    (void)rv_editor_tiled_area_begin("##form_area", width, theme, {}, false, 0.0f, strip_h);
     if (app.scene == nullptr) {
         rv_editor_scene_files_list(app, theme);
-    } else if (at >= 0) {
+    } else if (at < 0) {
+        rv_editor_content_empty_row(rv_editor_text("pane_scene_inspector.select_object"), theme);
+    } else {
         rv_editor_scene_doc &doc = *app.scene;
         rv_editor_inspector_draft &draft = inspector_draft;
         const rv_editor_scene_object o = doc.scene.objects[static_cast<size_t>(at)];
@@ -187,6 +178,11 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
         ImGui::EndDisabled();
     }
     rv_editor_tiled_area_end(theme);
+    if (app.scene == nullptr) {
+        rv_editor_scene_none_strip(app, say, strip_w, theme);
+    } else {
+        (void)rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w);
+    }
 }
 
 } // namespace rv_editor

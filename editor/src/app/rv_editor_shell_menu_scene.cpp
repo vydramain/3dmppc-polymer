@@ -146,33 +146,54 @@ bool rv_editor_scene_new_open()
 
 float rv_editor_scene_new_width()
 {
-    return rv_editor_message_box_min_width(
+    return rv_editor_message_strip_min_width(
         { { rv_editor_text("shell_menu_scene.create_button"), rv_editor_text("shell_menu_scene.cancel_button") } });
 }
 
-bool rv_editor_scene_new_box(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui, float width)
+rv_editor_scene_new_say rv_editor_scene_new_ask(const rv_editor_app &app)
 {
     if (!g_new_scene.open) {
-        return false;
+        return {};
     }
     // Escape closes it while this pane (or the name field in it) has the keyboard.
     if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
         g_new_scene.open = false;
-        return false;
+        return {};
     }
     const std::string name = g_new_scene.name;
     std::error_code ec;
-    std::string invalid_reason;
-    const char *disabled;
+    rv_editor_scene_new_say ask;
     if (!rv_editor_app_scene_name_valid(name)) {
         const size_t max_bytes = rv_editor_app_scene_name_max();
-        invalid_reason = rv_editor_text_format("shell_menu_scene.invalid_name", std::make_format_args(max_bytes));
-        disabled = invalid_reason.c_str();
+        ask.why_not = rv_editor_text_format("shell_menu_scene.invalid_name", std::make_format_args(max_bytes));
     } else if (std::filesystem::exists(app.project.root / scenes_dir / (name + std::string(scene_file_suffix)), ec)) {
-        disabled = rv_editor_text("shell_menu_scene.name_already_exists");
-    } else {
-        disabled = nullptr;
+        ask.why_not = rv_editor_text("shell_menu_scene.name_already_exists");
     }
+    // The last refusal, else why Create is off, else the title.
+    const bool failed = !g_new_scene.error.empty();
+    ask.say = { failed           ? g_new_scene.error :
+            !ask.why_not.empty() ? ask.why_not :
+                                   std::string(rv_editor_text("shell_menu_scene.new_scene_title")),
+        failed                   ? rv_editor_label_kind::error :
+            !ask.why_not.empty() ? rv_editor_label_kind::warning :
+                                   rv_editor_label_kind::normal,
+        { rv_editor_text("shell_menu_scene.create_button"), rv_editor_text("shell_menu_scene.cancel_button") } };
+    return ask;
+}
+
+float rv_editor_scene_new_strip_height(const rv_editor_scene_new_say &ask, float width)
+{
+    return rv_editor_message_strip_height(ask.say.text, ask.say.buttons, width, true);
+}
+
+void rv_editor_scene_new_strip(rv_editor_app &app,
+    const rv_editor_scene_new_say &ask,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui,
+    float width)
+{
+    // The name the question was asked for: the field may change it in this very draw.
+    const std::string name = g_new_scene.name;
     // The name field and the Write C++ check box share the button row's room left of the buttons. The header's path is
     // the check box's tooltip.
     const std::function<void(float)> lead = [&](float room) {
@@ -196,21 +217,16 @@ bool rv_editor_scene_new_box(rv_editor_app &app, const rv_editor_theme &theme, c
             rv_editor_item_tooltip(tip.c_str());
         }
     };
-    // The last refusal, else why Create is off, else the title.
-    const bool failed = !g_new_scene.error.empty();
-    const char *plain = disabled != nullptr ? disabled : rv_editor_text("shell_menu_scene.new_scene_title");
-    const std::string text = failed ? g_new_scene.error : std::string(plain);
-    const int pressed = rv_editor_message_box("##new_scene",
-        text,
-        failed                  ? rv_editor_label_kind::error :
-            disabled != nullptr ? rv_editor_label_kind::warning :
-                                  rv_editor_label_kind::normal,
-        { rv_editor_text("shell_menu_scene.create_button"), rv_editor_text("shell_menu_scene.cancel_button") },
+    const int pressed = rv_editor_message_strip("##new_scene",
+        ask.say.text,
+        ask.say.kind,
+        ask.say.buttons,
         theme,
         width,
         nullptr,
+        nullptr,
         lead);
-    if (pressed == 0 && disabled == nullptr) {
+    if (pressed == 0 && ask.why_not.empty()) {
         std::string error;
         if (rv_editor_app_scene_create(app, name, g_new_scene.write_cpp, error) == RV_OK) {
             g_new_scene.open = false;
@@ -220,7 +236,6 @@ bool rv_editor_scene_new_box(rv_editor_app &app, const rv_editor_theme &theme, c
     } else if (pressed == 1) {
         g_new_scene.open = false;
     }
-    return true;
 }
 
 // The scene document's commands; each edit is one undo step.

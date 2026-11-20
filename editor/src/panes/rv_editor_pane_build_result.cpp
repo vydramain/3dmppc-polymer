@@ -14,6 +14,7 @@
 #include "platform/rv_editor_process.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
@@ -46,7 +47,7 @@ rv_editor_label_kind rv_editor_build_outcome_kind(rv_editor_build_state state)
 // The shelf's three buttons, the widest row of the pane with the box's.
 float rv_editor_build_result_content_width()
 {
-    return std::max(rv_editor_message_box_min_width({ { rv_editor_text("panes.open_project_box") },
+    return std::max(rv_editor_message_strip_min_width({ { rv_editor_text("panes.open_project_box") },
                         { rv_editor_text("pane_build_result.open_log_button") } }),
         rv_editor_say_shelf_width({ rv_editor_text("pane_build_result.build_button"),
             rv_editor_text("pane_build_result.build_candidate_button"),
@@ -97,18 +98,13 @@ std::vector<const rv_editor_log_line *> rv_editor_build_result_found(const rv_ed
     return found;
 }
 
-// What the box says of the job: nothing built yet, or what it is and how it ended, with Open Build Log when it kept one.
-void rv_editor_build_result_say(rv_editor_app &app, size_t errors, size_t warnings, const rv_editor_theme &theme, float width)
+// What the strip says of the job: what it is and how it ended, with Open Build Log when it kept one. Nothing built yet is
+// no message: the area says it. `file` is the log's file, empty when there is none.
+rv_editor_message_say rv_editor_build_result_say(const rv_editor_app &app, size_t errors, size_t warnings, std::string &file)
 {
     const rv_editor_build &b = app.build;
     if (b.state() == rv_editor_build_state::idle) {
-        (void)rv_editor_message_box("##say",
-            rv_editor_text("pane_build_result.nothing_built"),
-            rv_editor_label_kind::normal,
-            {},
-            theme,
-            width);
-        return;
+        return {};
     }
     std::string what;
     if (b.image().empty()) {
@@ -120,20 +116,16 @@ void rv_editor_build_result_say(rv_editor_app &app, size_t errors, size_t warnin
     }
     const bool done = !b.busy();
     std::string second = rv_editor_text_format("pane_build_result.errors_warnings", std::make_format_args(errors, warnings));
-    std::string file;
     if (done) {
         std::string exit_line = rv_editor_exit_text(b.exit_status());
         exit_line += b.output_cut() ? rv_editor_text("pane_build_result.output_cut") : "";
         second = exit_line + "; " + second;
         file = app.log_files.path_for(b.pid());
     }
-    const std::vector<std::string> buttons = file.empty() ?
-        std::vector<std::string>{} :
-        std::vector<std::string>{ rv_editor_text("pane_build_result.open_log_button") };
-    const std::string text = what + state_separator + rv_editor_build_state_name(b.state()) + "\n" + second;
-    if (rv_editor_message_box("##say", text, rv_editor_build_outcome_kind(b.state()), buttons, theme, width) == 0) {
-        app.open_requests.push_back({ file, 0 });
-    }
+    return { what + state_separator + rv_editor_build_state_name(b.state()) + "\n" + second,
+        rv_editor_build_outcome_kind(b.state()),
+        file.empty() ? std::vector<std::string>{} :
+                       std::vector<std::string>{ rv_editor_text("pane_build_result.open_log_button") } };
 }
 
 } // namespace
@@ -141,7 +133,7 @@ void rv_editor_build_result_say(rv_editor_app &app, size_t errors, size_t warnin
 rv_editor_size rv_editor_build_result_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_build_result_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block());
 }
 
 void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &theme)
@@ -152,11 +144,20 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
     size_t errors = 0;
     size_t warnings = 0;
     const std::vector<const rv_editor_log_line *> found = rv_editor_build_result_found(app, errors, warnings);
-    if (!rv_editor_say_no_project(app, theme, width)) {
-        rv_editor_build_result_say(app, errors, warnings, theme, width);
-    }
-    (void)rv_editor_tiled_area_begin("##log_area", width, theme);
-    if (app.project.open && b.state() != rv_editor_build_state::idle) {
+    std::string file;
+    const rv_editor_message_say say =
+        app.project.open ? rv_editor_build_result_say(app, errors, warnings, file) : rv_editor_say_no_project();
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, width);
+    (void)rv_editor_tiled_area_begin("##log_area",
+        width,
+        theme,
+        {},
+        false,
+        0.0f,
+        rv_editor_message_strip_height(say.text, say.buttons, strip_w));
+    if (app.project.open && b.state() == rv_editor_build_state::idle) {
+        rv_editor_content_empty_row(rv_editor_text("pane_build_result.nothing_built"), theme);
+    } else if (app.project.open) {
         for (const rv_editor_log_line *l : found) {
             rv_editor_log_row("",
                 log_source_build,
@@ -166,6 +167,13 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
         }
     }
     rv_editor_tiled_area_end(theme);
+    if (rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w) == 0) {
+        if (!app.project.open) {
+            app.open_folder_request = true;
+        } else {
+            app.open_requests.push_back({ file, 0 });
+        }
+    }
 }
 
 } // namespace rv_editor

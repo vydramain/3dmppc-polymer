@@ -10,20 +10,11 @@
 namespace rv_editor
 {
 
-bool rv_editor_say_no_project(rv_editor_app &app, const rv_editor_theme &theme, float width)
+rv_editor_message_say rv_editor_say_no_project()
 {
-    if (app.project.open) {
-        return false;
-    }
-    if (rv_editor_message_box("##say",
-            rv_editor_text("panes.no_project_open_message"),
-            rv_editor_label_kind::normal,
-            { rv_editor_text("panes.open_project_box") },
-            theme,
-            width) == 0) {
-        app.open_folder_request = true;
-    }
-    return true;
+    return { rv_editor_text("panes.no_project_open_message"),
+        rv_editor_label_kind::normal,
+        { rv_editor_text("panes.open_project_box") } };
 }
 
 void rv_editor_say_whole_text()

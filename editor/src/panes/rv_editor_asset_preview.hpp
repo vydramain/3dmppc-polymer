@@ -39,7 +39,7 @@ enum class rv_editor_asset_action {
 // What the preview says of the selected asset, for the message box: its path, what it is (a PNG's pixel size, a sound's
 // duration, another file's kind and size), what the build map says it became on the disc and the last error; and the
 // buttons that go with it (Play and Stop for a sound, Add to Disc when disc.toml does not cover it), each with its
-// action. A hint when `a` is null. `picture` is the PNG's texture, already loaded by the caller's cache;
+// action. Nothing (empty text) when `a` is null. `picture` is the PNG's texture, already loaded by the caller's cache;
 // `sound_seconds` is the caller's cached result of rv_editor_asset_sound_seconds.
 struct rv_editor_asset_view {
     std::string text;

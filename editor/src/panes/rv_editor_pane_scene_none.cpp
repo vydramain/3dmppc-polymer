@@ -1,4 +1,4 @@
-// What Scene, Hierarchy and Inspector share when there is no scene to work on: the message box that says so with its
+// What Scene, Hierarchy and Inspector share when there is no scene to work on: the strip that says so with its
 // button, and the area that lists the project's scenes to open.
 
 #include "panes/rv_editor_panes.hpp"
@@ -8,6 +8,7 @@
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "panes/rv_editor_pane_say.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
@@ -17,29 +18,27 @@ namespace rv_editor
 
 float rv_editor_scene_none_width()
 {
-    return rv_editor_message_box_min_width(
+    return rv_editor_message_strip_min_width(
         { { rv_editor_text("panes.open_project_box") }, { rv_editor_text("pane_scene.create_scene") } });
 }
 
-void rv_editor_scene_none_box(rv_editor_app &app,
-    const std::string &text,
-    rv_editor_label_kind kind,
-    const rv_editor_theme &theme,
-    float width)
+rv_editor_message_say rv_editor_scene_none_say(const rv_editor_app &app, const std::string &text, rv_editor_label_kind kind)
 {
     if (!app.project.open) {
-        if (rv_editor_message_box("##note",
-                rv_editor_text("panes.no_project_open_message"),
-                rv_editor_label_kind::normal,
-                { rv_editor_text("panes.open_project_box") },
-                theme,
-                width) == 0) {
-            app.open_folder_request = true;
-        }
+        return rv_editor_say_no_project();
+    }
+    return { text, kind, { rv_editor_text("pane_scene.create_scene") } };
+}
+
+void rv_editor_scene_none_strip(rv_editor_app &app, const rv_editor_message_say &say, float width, const rv_editor_theme &theme)
+{
+    if (rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, width) != 0) {
         return;
     }
-    if (rv_editor_message_box("##note", text, kind, { rv_editor_text("pane_scene.create_scene") }, theme, width) == 0) {
+    if (app.project.open) {
         rv_editor_shell_new_scene_request(app);
+    } else {
+        app.open_folder_request = true;
     }
 }
 

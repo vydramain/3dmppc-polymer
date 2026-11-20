@@ -219,7 +219,7 @@ namespace
 // The widest row: the decision shelf, or the box with its button.
 float rv_editor_candidate_content_width()
 {
-    return std::max(rv_editor_message_box_min_width({ { rv_editor_text("panes.open_project_box") } }),
+    return std::max(rv_editor_message_strip_min_width({ { rv_editor_text("panes.open_project_box") } }),
         rv_editor_say_shelf_width({ rv_editor_text("pane_candidate.verify_bytes_button"),
             rv_editor_text("pane_candidate.approve_button"),
             rv_editor_text("pane_candidate.reject_button"),
@@ -262,9 +262,9 @@ void rv_editor_candidate_shelf(const rv_editor_app &app, rv_editor_candidate *c,
     rv_editor_shelf_end();
 }
 
-// What the box says: a failure, a refusal, that the bytes changed or that a newer candidate exists, else where the
+// What the strip says: a failure, a refusal, that the bytes changed or that a newer candidate exists, else where the
 // candidates are kept while there is none.
-void rv_editor_candidate_say(rv_editor_app &app, const rv_editor_candidate *c, const rv_editor_theme &theme, float width)
+rv_editor_message_say rv_editor_candidate_say(const rv_editor_app &app, const rv_editor_candidate *c)
 {
     const rv_editor_release &r = app.release;
     std::string text;
@@ -282,7 +282,7 @@ void rv_editor_candidate_say(rv_editor_app &app, const rv_editor_candidate *c, c
         text = rv_editor_text_format("pane_candidate.candidates_dir_note", std::make_format_args(dir));
         kind = rv_editor_label_kind::normal;
     }
-    (void)rv_editor_message_box("##say", text, kind, {}, theme, width);
+    return { text, kind, {} };
 }
 
 // The word and the lamp a record of the list shows for a candidate.
@@ -385,17 +385,17 @@ void rv_editor_candidate_facts(const rv_editor_app &app, const rv_editor_candida
 rv_editor_size rv_editor_candidate_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_candidate_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block());
 }
 
 rv_editor_size rv_editor_checks_minimum()
 {
-    return rv_editor_tiled_minimum(rv_editor_message_box_min_width({}), 0.0f);
+    return rv_editor_tiled_minimum(rv_editor_message_strip_min_width({}), 0.0f);
 }
 
 void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    (void)rv_editor_tiled_area_begin("##checks_area", rv_editor_message_box_min_width({}), theme);
+    (void)rv_editor_tiled_area_begin("##checks_area", rv_editor_message_strip_min_width({}), theme);
     rv_editor_release &r = app.release;
     if (app.project.open && !r.candidates.empty()) {
         rv_editor_candidate_checks(app, r.candidates[r.selected], theme);
@@ -413,11 +413,16 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_candidate *c = app.project.open && !r.candidates.empty() ? &r.candidates[r.selected] : nullptr;
     const float width = rv_editor_candidate_content_width();
     rv_editor_candidate_shelf(app, c, theme);
-    if (!rv_editor_say_no_project(app, theme, width)) {
-        rv_editor_candidate_say(app, c, theme, width);
-    }
+    const rv_editor_message_say say = app.project.open ? rv_editor_candidate_say(app, c) : rv_editor_say_no_project();
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, width);
     // One area: the candidates, the chosen one's facts and its checks are its sections.
-    (void)rv_editor_tiled_area_begin("##area", width, theme);
+    (void)rv_editor_tiled_area_begin("##area",
+        width,
+        theme,
+        {},
+        false,
+        0.0f,
+        rv_editor_message_strip_height(say.text, say.buttons, strip_w));
     rv_editor_content_section_begin(rv_editor_text("pane_candidate.candidates_title"), 0.0f, theme);
     rv_editor_content_section_end(theme);
     rv_editor_candidate_list(app, theme);
@@ -442,6 +447,9 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_content_empty_row(rv_editor_text("pane_candidate.checks_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
+    if (rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w) == 0) {
+        app.open_folder_request = true;
+    }
 }
 
 } // namespace rv_editor

@@ -66,7 +66,7 @@ RV_EDITOR_TEST(rv_editor_test_assets_refresh_is_present_without_a_selection)
         io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
         const rv_editor_probe_record selected = draw();
         RV_EDITOR_CHECK(find(selected, refresh) != nullptr);
-        RV_EDITOR_CHECK(stable(none, selected, { refresh, "##cell" }).empty());
+        RV_EDITOR_CHECK(stable(none, selected, { refresh, "##cell" }, true).empty());
     }
     fs::remove_all(dir);
 }
@@ -111,7 +111,7 @@ void case_open(rv_editor_app &app)
 
 } // namespace
 
-// AC9: an error of Findings does not move the form.
+// AC9, R2: an error of Findings does not move the form; the strip takes its height from the area's bottom.
 RV_EDITOR_TEST(rv_editor_test_findings_error_keeps_the_place)
 {
     load_texts();
@@ -123,10 +123,14 @@ RV_EDITOR_TEST(rv_editor_test_findings_error_keeps_the_place)
     const rv_editor_probe_record clean = findings_draw(gui, app);
     app.findings.error = "cannot write: " + long_words();
     const rv_editor_probe_record with_error = findings_draw(gui, app);
-    RV_EDITOR_CHECK(stable(clean,
+    const std::string d = stable(clean,
         with_error,
-        { "##Title", rv_editor_text("findings.capture_frame"), rv_editor_text("findings.record_finding") })
-            .empty());
+        { "##Title", rv_editor_text("findings.capture_frame"), rv_editor_text("findings.record_finding") },
+        true);
+    if (!d.empty()) {
+        std::fprintf(stderr, "  %s\n", d.c_str());
+    }
+    RV_EDITOR_CHECK(d.empty());
 }
 
 // AC9: a picked case's Steps and Expected, the results and an error of Test Case do not move the note or the buttons.
@@ -139,10 +143,17 @@ RV_EDITOR_TEST(rv_editor_test_test_case_sections_keep_their_place)
     case_draw(gui, app, width);
     const rv_editor_probe_record none = case_draw(gui, app, width);
     const std::vector<std::string> anchors = { rv_editor_text("findings.passed") };
+    const auto keeps = [&] {
+        const std::string d = stable(none, case_draw(gui, app, width), anchors, true);
+        if (!d.empty()) {
+            std::fprintf(stderr, "  %s\n", d.c_str());
+        }
+        RV_EDITOR_CHECK(d.empty());
+    };
     app.findings.test_case = 0;
-    RV_EDITOR_CHECK(stable(none, case_draw(gui, app, width), anchors).empty());
+    keeps();
     app.findings.results = { "Passed: a", "Failed: b", "Passed: c" };
-    RV_EDITOR_CHECK(stable(none, case_draw(gui, app, width), anchors).empty());
+    keeps();
     app.findings.error = "cannot write: " + long_words();
-    RV_EDITOR_CHECK(stable(none, case_draw(gui, app, width), anchors).empty());
+    keeps();
 }

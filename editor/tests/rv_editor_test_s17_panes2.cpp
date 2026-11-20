@@ -133,7 +133,7 @@ RV_EDITOR_TEST(rv_editor_test_s17_candidate_has_a_decision_shelf_and_says_a_fail
             }
         }
     }
-    RV_EDITOR_CHECK(box_drawn(f, candidate_error) > box_drawn(f, candidate_one));
+    RV_EDITOR_CHECK(strip_height(f, candidate_error) > strip_height(f, candidate_one)); // the error is the strip's text
 }
 
 // R9, R19: Checks is its table in a content area in every state with a project: the area stays when there is no candidate

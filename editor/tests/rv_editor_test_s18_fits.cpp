@@ -9,6 +9,7 @@
 #include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "rv_editor_test.hpp"
+#include "rv_editor_test_s3.hpp"
 #include "rv_editor_test_fits_whole.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s13.hpp"
@@ -60,12 +61,14 @@ std::string run_states(rv_editor_test_imgui &gui, rv_editor_pane_kind kind, stab
         const drawn d = settled(f, min.w, min.h);
         if (i < f.first_ask) {
             if (kind == rv_editor_pane_kind::review_changes) {
-                if (s13::content_area(d.record) == nullptr || s13::message_box(d.record) == nullptr) {
-                    return state + "no content area or no message box";
+                // Nothing waits (state 0) is a placeholder, no strip; what waits for the answer is a strip. No message box.
+                if (s13::content_area(d.record) == nullptr || (s3::strip_of(d.record) != nullptr) != (i != 0) ||
+                    s3::boxes(d.record) != 0) {
+                    return state + "no content area, a strip with nothing waiting (or none with something), or a message box";
                 }
                 if (i == 0) {
                     plain = d.record;
-                } else if (const std::string moved = s13::windows_difference(plain, d.record); !moved.empty()) {
+                } else if (const std::string moved = s3::windows_difference(plain, d.record); !moved.empty()) {
                     return state + moved;
                 }
             }

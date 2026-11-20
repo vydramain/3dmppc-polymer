@@ -232,7 +232,7 @@ inline void fixture::observe_states()
             false },
         { "no session",
             [this] {
-                end_session();
+                no_session();
                 open_project();
             },
             true,
@@ -336,6 +336,7 @@ inline void fixture::build_result_states()
             false },
         { "idle",
             [this] {
+                no_build();
                 open_project();
             },
             true },
@@ -362,6 +363,22 @@ inline void fixture::build_result_states()
             },
             true },
         { "succeeded", job("exit 0", true), true },
+        // The strip in its tallest form (R2): a candidate with a long image name, three lines of text and Open Build Log.
+        { "failed candidate, long name",
+            [this] {
+                end_jobs();
+                open_project();
+                pane_state::write_script(where / "burner.sh", "exit 1\n");
+                std::string e;
+                RV_EDITOR_CHECK(
+                    app().build.start(app().project, app().tools, app().log, e, where / (solid(path_chars, 'i') + ".img")) ==
+                    RV_OK);
+                for (int i = 0; i < 300 && app().build.busy(); ++i) {
+                    (void)app().build.update(app().log, e);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+            },
+            true },
     };
 }
 

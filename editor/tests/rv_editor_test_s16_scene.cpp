@@ -1,4 +1,4 @@
-// S16, R15/R19/R20, AC16/AC21: the Scene pane. The New Scene question is a message box with no ask place; the read-only
+// S16, R15/R19/R20, AC16/AC21: the Scene pane. The New Scene question is no reserved box and has no ask place; the read-only
 // line and the error are a band over the viewport (rv_editor_picture_overlay), not lines that take height from it; the
 // viewport takes all the room under the shelf, is the same rectangle with an empty or a long note, and is at least half
 // the tile in the Scene layout.
@@ -134,9 +134,9 @@ RV_EDITOR_TEST(rv_editor_test_s16_scene_error_is_a_band_over_the_viewport)
     RV_EDITOR_CHECK(moved.empty());
 }
 
-// R20: no ask place anywhere in the Scene, in any state, and the New Scene question is a message box that holds the name
+// R20, R1: no ask place and no message box anywhere in the Scene, in any state, and the New Scene question holds the name
 // field and the Create and Cancel buttons.
-RV_EDITOR_TEST(rv_editor_test_s16_new_scene_question_is_a_message_box_with_no_reserve)
+RV_EDITOR_TEST(rv_editor_test_s16_new_scene_question_has_its_field_and_buttons_and_no_reserve)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -148,10 +148,13 @@ RV_EDITOR_TEST(rv_editor_test_s16_new_scene_question_is_a_message_box_with_no_re
             std::fprintf(stderr, "  scene state %zu draws an ask place\n", i);
         }
         RV_EDITOR_CHECK(!has_ask_place(r));
+        if (message_box(r) != nullptr) {
+            std::fprintf(stderr, "  scene state %zu draws a message box\n", i);
+        }
+        RV_EDITOR_CHECK(message_box(r) == nullptr);
         if (i != ask_state) {
             continue;
         }
-        RV_EDITOR_CHECK(message_box(r) != nullptr);
         const auto *name = find(r, "##new_scene_name");
         RV_EDITOR_CHECK(name != nullptr);
         RV_EDITOR_CHECK(find(r, rv_editor_text("shell_menu_scene.create_button")) != nullptr);
@@ -159,8 +162,8 @@ RV_EDITOR_TEST(rv_editor_test_s16_new_scene_question_is_a_message_box_with_no_re
     }
 }
 
-// R20, AC21: with the question closed nothing is reserved: what is above and below the viewport is the shelf, the
-// message box, the wheels and the spacing, so a 6-line ask place that stays empty would not fit.
+// R20, AC21, R1: with the question closed nothing is reserved: what is above and below the viewport is the shelf, the
+// wheels and the spacing, so a message box or a 6-line ask place that stays empty would not fit.
 RV_EDITOR_TEST(rv_editor_test_s16_viewport_takes_everything_under_the_shelf)
 {
     load_texts();
@@ -177,9 +180,8 @@ RV_EDITOR_TEST(rv_editor_test_s16_viewport_takes_everything_under_the_shelf)
     f.gui.frame([&] {
         const ImGuiStyle &style = ImGui::GetStyle();
         const float frame = ImGui::GetFrameHeight();
-        // the shelf, the message box, the wheel under the viewport, the window's padding and a few spacings
-        allowed = rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block() + frame + 2.0f * style.WindowPadding.y +
-            4.0f * style.ItemSpacing.y;
+        // the shelf, the wheel under the viewport, the window's padding and a few spacings
+        allowed = rv_editor_tiled_shelf_block() + frame + 2.0f * style.WindowPadding.y + 4.0f * style.ItemSpacing.y;
     });
     const float spare = roomy_h - (viewport->y1 - viewport->y0);
     if (spare > allowed) {

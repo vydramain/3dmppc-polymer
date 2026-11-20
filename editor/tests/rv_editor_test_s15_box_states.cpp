@@ -1,4 +1,4 @@
-// S15.2, R24: a button of the message box can be disabled with a reason, and keeps its place. The widget takes one state
+// S15.2, R24: a button of the message strip can be disabled with a reason, and keeps its place. The widget takes one state
 // per button; Look for Tools Again (while a build runs), Stop (nothing is playing) and the Ok and Cancel of a Files
 // question (while its request waits) give theirs.
 
@@ -137,7 +137,7 @@ bool says_on_hover(fixture &f,
 
 } // namespace
 
-// The box with one state per button, drawn in a small window.
+// The strip with one state per button, drawn in a small window.
 RV_EDITOR_TEST(rv_editor_test_s15_box_button_with_a_reason_keeps_its_place_and_says_why)
 {
     load_texts();
@@ -150,16 +150,8 @@ RV_EDITOR_TEST(rv_editor_test_s15_box_button_with_a_reason_keeps_its_place_and_s
             gui,
             roomy_w,
             [&](rv_editor_probe_record &) {
-                const int p = rv_editor_message_box("ask",
-                    "A question",
-                    rv_editor_label_kind::normal,
-                    buttons,
-                    box_theme,
-                    0.0f,
-                    nullptr,
-                    nullptr,
-                    nullptr,
-                    with);
+                const int p =
+                    rv_editor_message_strip("ask", "A question", rv_editor_label_kind::normal, buttons, box_theme, 0.0f, with);
                 pressed = pressed < 0 ? p : pressed;
             },
             120.0f);

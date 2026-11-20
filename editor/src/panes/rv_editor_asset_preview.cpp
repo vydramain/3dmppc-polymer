@@ -200,7 +200,6 @@ rv_editor_asset_view rv_editor_asset_preview(const rv_editor_asset *a,
 {
     rv_editor_asset_view view;
     if (a == nullptr) {
-        view.text = rv_editor_text("asset_preview.no_asset_selected");
         return view;
     }
     const std::string ext = a->path.extension().string();

@@ -78,9 +78,13 @@ inline const rv_editor_probe_entry *find_part(const rv_editor_probe_record &r, c
 }
 
 // "" when every named item both draws have keeps its rectangle, every anchor is in both, and the content height is
-// the same. Items that only one draw has (the state's own text) are not compared.
-inline std::string
-stable(const rv_editor_probe_record &a, const rv_editor_probe_record &b, const std::vector<std::string> &anchors)
+// the same. Items that only one draw has (the state's own text) are not compared. `area_gives_bottom`: a strip under the
+// content area (R2) may take height from it, so the area's bottom edge, the right edge of what is inside it (a bar
+// narrows it) and the content height are not compared: the area's top, its width and everything above it are.
+inline std::string stable(const rv_editor_probe_record &a,
+    const rv_editor_probe_record &b,
+    const std::vector<std::string> &anchors,
+    bool area_gives_bottom = false)
 {
     using namespace rv_editor_probe_detail;
     for (const std::string &anchor : anchors) {
@@ -92,16 +96,20 @@ stable(const rv_editor_probe_record &a, const rv_editor_probe_record &b, const s
         }
     }
     for (const auto &ea : a.entries) {
-        if (ea.id == 0 || ea.label.empty()) {
+        // The strip's own text window ("##text") is as high as its text says.
+        if (ea.id == 0 || ea.label.empty() || (area_gives_bottom && ea.label.find("/##text_") != std::string::npos)) {
             continue;
         }
         for (const auto &eb : b.entries) {
-            if (eb.id == ea.id && (ea.x0 != eb.x0 || ea.y0 != eb.y0 || ea.x1 != eb.x1 || ea.y1 != eb.y1)) {
+            const bool in_area = area_gives_bottom && ea.label.find("##area") != std::string::npos;
+            const bool bar = area_gives_bottom && (in_area || ea.in_scroll); // a bar narrows the scroll window and its fields
+            if (eb.id == ea.id &&
+                (ea.x0 != eb.x0 || ea.y0 != eb.y0 || (!bar && ea.x1 != eb.x1) || (!in_area && ea.y1 != eb.y1))) {
                 return name(ea) + " " + rect(ea) + " became " + rect(eb);
             }
         }
     }
-    if (a.content_height != b.content_height) {
+    if (!area_gives_bottom && a.content_height != b.content_height) {
         return "content height " + std::to_string(a.content_height) + " became " + std::to_string(b.content_height);
     }
     return "";

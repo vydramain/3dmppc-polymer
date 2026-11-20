@@ -42,7 +42,7 @@ float rv_editor_search_content_width()
 {
     return std::max(
         rv_editor_tiled_shelf_width(ImGui::GetFontSize() * query_field_min_width_em + rv_editor_search_buttons_width()),
-        rv_editor_message_box_min_width({ { rv_editor_text("panes.open_project_box") } }));
+        rv_editor_message_strip_min_width({ { rv_editor_text("panes.open_project_box") } }));
 }
 
 void rv_editor_search_list(rv_editor_app &app, const rv_editor_theme &theme)
@@ -99,13 +99,7 @@ void rv_editor_search_list(rv_editor_app &app, const rv_editor_theme &theme)
 
 // What the search says in the strip under the hits and how: "No project is open." with its button, the note of the last
 // search, or nothing searched yet.
-struct rv_editor_search_say_text {
-    std::string text;
-    rv_editor_label_kind kind = rv_editor_label_kind::normal;
-    std::vector<std::string> buttons;
-};
-
-rv_editor_search_say_text rv_editor_search_say(const rv_editor_app &app)
+rv_editor_message_say rv_editor_search_say(const rv_editor_app &app)
 {
     const rv_editor_search_view &s = app.project_search;
     if (!app.project.open) {
@@ -188,7 +182,7 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
         s.searched_all = s.all;
     }
 
-    const rv_editor_search_say_text say = rv_editor_search_say(app);
+    const rv_editor_message_say say = rv_editor_search_say(app);
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_search_content_width());
     const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
     (void)rv_editor_tiled_area_begin("##hits_area", rv_editor_search_content_width(), theme, {}, false, 0.0f, strip_h);

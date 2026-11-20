@@ -251,6 +251,43 @@ inline record outside_area(const record &r)
     return out;
 }
 
+// The record as R2 promises it stays: what is above the last area and the area's top and width. The strip under the area
+// takes the area's bottom, so the bottom edge of the areas (window, frame, scroll window, `extra`: the labels of other
+// items that give up their bottom, the Scene's viewport), the height of the content and everything under the area's frame
+// (the strip and its text) are left out; `inside` false leaves out what is inside a scroll too. Two such records are compared
+// with any "same layout" check.
+inline record bottom_free(const record &r, const std::vector<std::string> &extra = {}, bool inside = true)
+{
+    record out;
+    const entry *last = last_area(r);
+    const entry *frame = last != nullptr ? frame_of(r, last) : nullptr;
+    for (const auto &e : r.entries) {
+        if ((frame != nullptr && !e.in_scroll && &e != frame && e.y0 >= frame->y1 - 0.5f) || (!inside && e.in_scroll)) {
+            continue;
+        }
+        out.entries.push_back(e);
+        entry &x = out.entries.back();
+        bool free = e.label.find("##area") != std::string::npos || e.scroll_area;
+        for (const std::string &label : extra) {
+            free = free || e.label == label;
+        }
+        for (const auto &a : r.entries) {
+            // The frame is the item rv_editor_tiled_area_end registers: as high as the area's window or a little higher.
+            const bool area = s13::is_child(s13::parts_of(a.label).back(), "##area");
+            free = free ||
+                (area &&
+                    (&e == frame_of(r, &a) ||
+                        (e.label.empty() && e.id != 0 && e.x0 <= a.x0 + 0.5f && e.y0 <= a.y0 + 0.5f && e.y0 >= a.y0 - 12.0f &&
+                            e.x1 >= a.x1 - 0.5f && e.y1 >= a.y1 - 0.5f)));
+        }
+        if (free) {
+            x.y1 = x.y0;
+            x.x1 = x.x0 + (s13::is_area_scroll(e) ? 0.0f : e.x1 - e.x0); // a bar narrows the scroll window
+        }
+    }
+    return out;
+}
+
 } // namespace strip
 
 } // namespace rv_editor_test

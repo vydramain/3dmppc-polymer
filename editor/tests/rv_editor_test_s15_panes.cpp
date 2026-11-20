@@ -14,6 +14,7 @@
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s15.hpp"
 #include "rv_editor_test_strip.hpp"
+#include "rv_editor_test_s3.hpp"
 
 using namespace rv_editor;
 using namespace rv_editor_test;
@@ -62,6 +63,29 @@ std::string areas_without_block(const rv_editor_probe_record &r)
         return "no content area";
     }
     return strip::has_message_window(r) ? "a window of the old message box is still drawn" : "";
+}
+
+// "" when the record draws no message box, has a content area and no ask place, and its strip (if any) lies under every
+// area; `want`: 1 the message must be there, 0 it must not, -1 either.
+std::string strip_under_area(const rv_editor_probe_record &r, int want)
+{
+    if (s3::boxes(r) != 0) {
+        return "a message box is drawn";
+    }
+    if (s3::areas(r).empty()) {
+        return "no content area";
+    }
+    if (has_ask_place(r)) {
+        return "an ask place is still drawn";
+    }
+    const auto *strip = s3::strip_of(r);
+    if (want == 1 && strip == nullptr) {
+        return "no strip under the areas";
+    }
+    if (want == 0 && strip != nullptr) {
+        return "a strip with nothing to say";
+    }
+    return "";
 }
 
 } // namespace
@@ -168,9 +192,9 @@ RV_EDITOR_TEST(rv_editor_test_s15_project_facts_row_menu_copies_a_fact)
     RV_EDITOR_CHECK(known);
 }
 
-// R8, R11, R9: Assets is a shelf (folder, filter, Details, Refresh in one row), a message box and the resources in a
+// R8, R11, R9: Assets is a shelf (folder, filter, Details, Refresh in one row), a message strip under the resources in a
 // content area as a grid of cells or as a table of rows, in every state.
-RV_EDITOR_TEST(rv_editor_test_s15_assets_have_a_shelf_a_box_and_the_resources_in_an_area)
+RV_EDITOR_TEST(rv_editor_test_s15_assets_have_a_shelf_a_strip_and_the_resources_in_an_area)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -179,19 +203,20 @@ RV_EDITOR_TEST(rv_editor_test_s15_assets_have_a_shelf_a_box_and_the_resources_in
     for (const ImVec2 size : tile_sizes(gui, f.kind, ImVec2(roomy_w, roomy_h))) {
         for (size_t i = 0; i < f.states.size(); ++i) {
             const auto r = snap(f, i, size.x, size.y);
-            const std::string bad = box_over_area(r);
+            // Only "no project" (with Open Project) is a message; "click an asset" and the selection's details are not.
+            const std::string bad = strip_under_area(r, i == 0 ? 1 : i <= 4 ? 0 : -1);
             report("assets", bad);
             RV_EDITOR_CHECK(bad.empty());
-            const auto *box = message_box(r);
+            const auto *area = s3::areas(r).empty() ? nullptr : s3::areas(r)[0];
             const auto *folder = find_id(r, "##folder");
             const auto *filter = find_id(r, "##filter");
             const auto *details = find_text(r, rv_editor_text("pane_assets.details"));
             const auto *refresh = find_text(r, rv_editor_text("pane_assets.refresh"));
             RV_EDITOR_CHECK(folder != nullptr && filter != nullptr && details != nullptr && refresh != nullptr);
-            if (box != nullptr && folder != nullptr && filter != nullptr && details != nullptr && refresh != nullptr) {
-                RV_EDITOR_CHECK(folder->y1 <= box->y0 && filter->y1 <= box->y0 && refresh->y1 <= box->y0);
+            if (area != nullptr && folder != nullptr && filter != nullptr && details != nullptr && refresh != nullptr) {
+                RV_EDITOR_CHECK(folder->y1 <= area->y0 && filter->y1 <= area->y0 && refresh->y1 <= area->y0);
                 RV_EDITOR_CHECK(std::abs(folder->y0 - filter->y0) <= 1.0f);
-                RV_EDITOR_CHECK(details->y0 < box->y0 && refresh->x0 > filter->x1); // one row, in this order
+                RV_EDITOR_CHECK(details->y0 < area->y0 && refresh->x0 > filter->x1); // one row, in this order
             }
         }
     }
@@ -228,9 +253,9 @@ RV_EDITOR_TEST(rv_editor_test_s15_assets_empty_states_say_so_in_the_area)
     }
 }
 
-// R13, R11, R3: Findings is a shelf with Capture Frame and Record Finding, the message box, the form whose fields share
-// one column right of the longest label, and the saved findings in a content area.
-RV_EDITOR_TEST(rv_editor_test_s15_findings_are_a_shelf_a_box_a_form_and_a_list)
+// R13, R11, R3: Findings is a shelf with Capture Frame and Record Finding, the form whose fields share one column right of
+// the longest label, the saved findings in a content area and, only with a message (no project, an error), a strip.
+RV_EDITOR_TEST(rv_editor_test_s15_findings_are_a_shelf_a_form_a_list_and_a_strip_when_there_is_a_message)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -244,15 +269,15 @@ RV_EDITOR_TEST(rv_editor_test_s15_findings_are_a_shelf_a_box_a_form_and_a_list)
     for (const ImVec2 size : tile_sizes(gui, f.kind, ImVec2(roomy_w, roomy_h))) {
         for (size_t i = 0; i < f.states.size(); ++i) {
             const auto r = snap(f, i, size.x, size.y);
-            const std::string bad = box_over_area(r);
+            const std::string bad = strip_under_area(r, i == 0 || i == 2 ? 1 : 0); // no project, error
             report("findings", bad);
             RV_EDITOR_CHECK(bad.empty());
             const auto *capture = find_text(r, rv_editor_text("findings.capture_frame"));
             const auto *record = find_text(r, rv_editor_text("findings.record_finding"));
-            const auto *box = message_box(r);
-            RV_EDITOR_CHECK(capture != nullptr && record != nullptr && box != nullptr);
-            if (capture != nullptr && record != nullptr && box != nullptr) {
-                RV_EDITOR_CHECK(capture->y0 == record->y0 && capture->x1 <= record->x0 && record->y1 <= box->y0);
+            const auto *first = s3::areas(r).empty() ? nullptr : s3::areas(r)[0];
+            RV_EDITOR_CHECK(capture != nullptr && record != nullptr && first != nullptr);
+            if (capture != nullptr && record != nullptr && first != nullptr) {
+                RV_EDITOR_CHECK(capture->y0 == record->y0 && capture->x1 <= record->x0 && record->y1 <= first->y0);
             }
         }
     }
@@ -261,22 +286,26 @@ RV_EDITOR_TEST(rv_editor_test_s15_findings_are_a_shelf_a_box_a_form_and_a_list)
     RV_EDITOR_CHECK(title != nullptr);
     if (title != nullptr) {
         RV_EDITOR_CHECK(title->x0 >= pad + label_w); // right of the longest label of the form
-        RV_EDITOR_CHECK(message_box(r) != nullptr && title->y0 >= message_box(r)->y1);
+        // Nothing is between the shelf and the form: the title field is under Record Finding and over the areas.
+        RV_EDITOR_CHECK(s3::boxes(r) == 0 && title->y0 >= find_text(r, rv_editor_text("findings.record_finding"))->y1);
     }
 }
 
-// R11: a finding's error is the box's text with Dismiss in the box's button row; the saved findings are rows of the
-// list, one each.
-RV_EDITOR_TEST(rv_editor_test_s15_findings_error_is_in_the_box_and_saved_ones_are_rows)
+// R11, R2: a finding's error is the strip's text with Dismiss in the strip's row, under the areas; the saved findings are
+// rows of the list, one each.
+RV_EDITOR_TEST(rv_editor_test_s15_findings_error_is_in_the_strip_and_saved_ones_are_rows)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
     fixture f(gui, rv_editor_pane_kind::findings);
     const auto idle = snap(f, 1, roomy_w, roomy_h);
     const auto error = snap(f, 2, roomy_w, roomy_h);
-    RV_EDITOR_CHECK(error.drawn > idle.drawn);
+    const auto *strip = s3::strip_of(error);
     const auto *dismiss = find_text(error, rv_editor_text("findings.dismiss"));
-    RV_EDITOR_CHECK(dismiss != nullptr && message_box(error) != nullptr && dismiss->y0 >= message_box(error)->y1);
+    RV_EDITOR_CHECK(s3::strip_of(idle) == nullptr && strip != nullptr && dismiss != nullptr);
+    if (strip != nullptr && dismiss != nullptr) {
+        RV_EDITOR_CHECK(dismiss->y0 >= strip->y0 - 0.5f && dismiss->y1 <= strip->y1 + 0.5f); // in the strip's row
+    }
     const auto saved = snap(f, 4, roomy_w, roomy_h);
     const auto *area = content_area(saved);
     RV_EDITOR_CHECK(area != nullptr);
@@ -301,7 +330,7 @@ RV_EDITOR_TEST(rv_editor_test_s15_test_case_has_a_form_a_box_and_lists)
         std::vector<shot> r;
         for (size_t i = 0; i < f.states.size(); ++i) {
             r.push_back(snap(f, i, size.x, size.y));
-            const std::string bad = box_over_area(r.back());
+            const std::string bad = strip_under_area(r.back(), i == 0 || i == 5 ? 1 : -1); // no project, error
             report("test_case", bad);
             RV_EDITOR_CHECK(bad.empty());
             const auto *a = find_text(r.back(), passed);
@@ -311,12 +340,14 @@ RV_EDITOR_TEST(rv_editor_test_s15_test_case_has_a_form_a_box_and_lists)
             if (a != nullptr && b != nullptr && c != nullptr) {
                 RV_EDITOR_CHECK(a->y0 == b->y0 && b->y0 == c->y0 && a->x1 <= b->x0 && b->x1 <= c->x0);
             }
-            const std::string moved = same_items(r.front(), r.back(), { passed, failed, blocked });
+            // R2: the area's top and what is above it stay; its bottom gives way to the strip.
+            std::string moved = strip::same_top(r.front(), r.back());
+            moved += same_items(strip::bottom_free(r.front()), strip::bottom_free(r.back()), { passed, failed, blocked });
             report("test_case", moved);
             RV_EDITOR_CHECK(moved.empty());
         }
         if (r.size() == 6) {
-            RV_EDITOR_CHECK(r[5].drawn > r[2].drawn); // the error is the box's text
+            RV_EDITOR_CHECK(s3::strip_of(r[5]) != nullptr); // the error is the strip's text
         }
     }
     // 4: results are rows of a list.

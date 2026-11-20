@@ -18,6 +18,7 @@
 #include "panes/rv_editor_scene_actions.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
@@ -240,22 +241,32 @@ void rv_editor_pane_scene(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui);
-// The box of a scene pane with no scene: Open Project when there is no project, else `text` and Create Scene; the least
-// width it needs, and the project's scenes as rows that open on a click (rv_editor_pane_scene_none.cpp).
-void rv_editor_scene_none_box(rv_editor_app &app,
-    const std::string &text,
-    rv_editor_label_kind kind,
-    const rv_editor_theme &theme,
-    float width);
+// What a scene pane with no scene says in its strip: Open Project when there is no project, else `text` and Create Scene;
+// the strip drawn `width` wide at the cursor with its button's action; the least width it needs, and the project's scenes
+// as rows that open on a click (rv_editor_pane_scene_none.cpp).
+rv_editor_message_say rv_editor_scene_none_say(const rv_editor_app &app, const std::string &text, rv_editor_label_kind kind);
+void rv_editor_scene_none_strip(rv_editor_app &app,
+    const rv_editor_message_say &say,
+    float width,
+    const rv_editor_theme &theme);
 float rv_editor_scene_none_width();
 void rv_editor_scene_files_list(rv_editor_app &app, const rv_editor_theme &theme);
-// The New Scene question in the Scene pane's message box, the least width its row needs; it draws nothing and returns
-// false while the question is closed (menu_scene.cpp).
-bool rv_editor_scene_new_box(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui, float width);
+// The New Scene question in the Scene pane's strip: what it says (empty text while it is closed) and why Create is off (empty:
+// it is on). Asked once a frame (Escape closes it); the strip's height in `width` and the strip drawn there, with its name
+// field and the C++ choice in a row of their own (menu_scene.cpp). The least width its row needs.
+struct rv_editor_scene_new_say {
+    rv_editor_message_say say;
+    std::string why_not;
+};
+rv_editor_scene_new_say rv_editor_scene_new_ask(const rv_editor_app &app);
+float rv_editor_scene_new_strip_height(const rv_editor_scene_new_say &ask, float width);
+void rv_editor_scene_new_strip(rv_editor_app &app,
+    const rv_editor_scene_new_say &ask,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui,
+    float width);
 float rv_editor_scene_new_width();
 bool rv_editor_scene_new_open();
-// The message box between the shelf and the viewport: the New Scene question, else an empty box (rv_editor_pane_scene.cpp).
-void rv_editor_scene_say(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // The width every row of the Scene pane keeps at least (rv_editor_pane_scene.cpp).
 float rv_editor_scene_content_width();
 // A scene tab for `path` (a PNG, a sound or a model: .png, .wav, .pcm, .gltf, .glb), with a
@@ -282,8 +293,6 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
 void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o, const rv_editor_theme &theme);
 // Hierarchy's shelf: Add opens the kinds menu, then the command buttons (rv_editor_pane_hierarchy_actions.cpp).
 void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
-// What the commands act on, in words, and how to draw them (rv_editor_pane_hierarchy_actions.cpp).
-std::string rv_editor_hierarchy_target_text(const rv_editor_app &app, rv_editor_label_kind &kind);
 // The width of the shelf's buttons in a row, without the shelf's padding. Call inside a frame.
 float rv_editor_hierarchy_shelf_width();
 // Runs an action on a copy of the Scene camera, queuing a changed camera (rv_editor_pane_hierarchy_actions.cpp).
@@ -310,11 +319,14 @@ void rv_editor_inspector_fields(rv_editor_app &app, const rv_editor_theme &theme
 // The selected object's entity type, Visible and Add component (rv_editor_pane_scene_components.cpp).
 void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &theme, const std::string &id, bool read_only);
 void rv_editor_scene_keys(rv_editor_app &app, const rv_editor_ui_port &ui);
-// The Scene viewport, and the Scene Toolchest's tools it uses.
+// The Scene viewport, and the Scene Toolchest's tools it uses; the New Scene question `ask` is a strip `strip_w` wide under
+// its wheels (nothing while it is closed).
 void rv_editor_scene_viewport(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
-    const rv_editor_ui_port &ui);
+    const rv_editor_ui_port &ui,
+    const rv_editor_scene_new_say &ask,
+    float strip_w);
 void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // The widest of its two rows: four small tiles, or Snap, its step and Grid.
 float rv_editor_scene_tools_min_width();

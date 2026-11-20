@@ -54,12 +54,7 @@ float rv_editor_message_text_height()
     return text_lines * ImGui::GetTextLineHeight() + padding_sides * ImGui::GetStyle().WindowPadding.y;
 }
 
-float rv_editor_message_box_height()
-{
-    return rv_editor_message_text_height() + ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeight();
-}
-
-float rv_editor_message_box_min_width(const std::vector<std::vector<std::string>> &button_rows, int field_chars)
+float rv_editor_message_strip_min_width(const std::vector<std::vector<std::string>> &button_rows, int field_chars)
 {
     float widest = 0.0f;
     for (const auto &row : button_rows) {
@@ -112,8 +107,8 @@ static int rv_editor_message_buttons(float x,
 }
 
 // The name field from `x` on the row at `y`, `room` px wide with the gap to the buttons left out; 0 when Enter presses the
-// first button, else -1. Shared by the box and the strip.
-static int rv_editor_message_field(const rv_editor_message_box_field &field,
+// first button, else -1.
+static int rv_editor_message_field(const rv_editor_message_strip_field &field,
     float x,
     float y,
     float room,
@@ -138,43 +133,6 @@ static int rv_editor_message_field(const rv_editor_message_box_field &field,
     const bool enter =
         !buttons.empty() && first_active && ImGui::IsItemDeactivatedAfterEdit() && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
     return enter ? 0 : -1;
-}
-
-int rv_editor_message_box(const char *id,
-    const std::string &text,
-    rv_editor_label_kind kind,
-    const std::vector<std::string> &buttons,
-    const rv_editor_theme &theme,
-    float min_width,
-    const rv_editor_message_box_field *field,
-    const std::function<void(float)> &lead,
-    const char *button_tooltip,
-    const std::vector<rv_editor_state> *button_states)
-{
-    ImGui::PushID(id);
-    const ImVec2 min = ImGui::GetCursorScreenPos();
-    const float width = std::max(ImGui::GetContentRegionAvail().x, min_width);
-    rv_editor_message_text_child(text, kind, theme, width);
-
-    // The row's place is kept with no buttons.
-    const float row_y = ImGui::GetCursorScreenPos().y;
-    const float row_h = ImGui::GetFrameHeight();
-    int pressed = -1;
-    const float buttons_x = min.x + width - rv_editor_message_row_width(buttons);
-    float x = buttons_x;
-    if (field != nullptr) {
-        pressed = rv_editor_message_field(*field, min.x, row_y, buttons_x - min.x, buttons, theme, button_states);
-    } else if (lead) {
-        ImGui::SetCursorScreenPos(ImVec2(min.x, row_y));
-        lead(buttons_x - min.x - (buttons.empty() ? 0.0f : ImGui::GetStyle().ItemSpacing.x));
-    }
-    if (const int hit = rv_editor_message_buttons(x, row_y, buttons, theme, button_states, button_tooltip); hit >= 0) {
-        pressed = hit;
-    }
-    ImGui::SetCursorScreenPos(ImVec2(min.x, row_y));
-    ImGui::Dummy(ImVec2(width, row_h));
-    ImGui::PopID();
-    return pressed;
 }
 
 // The room the strip's text wraps in: the width less the padding and, with no second row, the buttons' row.
@@ -218,7 +176,8 @@ int rv_editor_message_strip(const char *id,
     float width,
     const std::vector<rv_editor_state> *button_states,
     const rv_editor_message_strip_field *field,
-    const std::function<void(float)> &lead)
+    const std::function<void(float)> &lead,
+    const char *button_tooltip)
 {
     if (text.empty()) {
         return -1;
@@ -238,10 +197,13 @@ int rv_editor_message_strip(const char *id,
         std::min(ImGui::CalcTextSize(text.c_str(), nullptr, false, text_w).y, strip_max_lines * ImGui::GetTextLineHeight());
     ImGui::PushStyleColor(ImGuiCol_ChildBg, rv_editor_col(theme.code_base));
     ImGui::BeginChild("##text", ImVec2(text_w, text_h));
-    rv_editor_item_scroll_area();
     ImGui::PushTextWrapPos(0.0f);
     ImGui::TextUnformatted(text.c_str());
     ImGui::PopTextWrapPos();
+    // Only a text that scrolls is a scroll area: a short one is part of the strip.
+    if (ImGui::GetScrollMaxY() > 0.0f || ImGui::GetCurrentWindow()->ScrollbarY) {
+        rv_editor_item_scroll_area();
+    }
     ImGui::EndChild();
     ImGui::PopStyleColor(2);
     const float row_y = second_row ? min.y + h - ImGui::GetFrameHeight() : min.y;
@@ -254,7 +216,7 @@ int rv_editor_message_strip(const char *id,
         ImGui::SetCursorScreenPos(ImVec2(min.x + pad.x, row_y));
         lead(std::max(1.0f, buttons_x - min.x - pad.x - (buttons.empty() ? 0.0f : ImGui::GetStyle().ItemSpacing.x)));
     }
-    if (const int hit = rv_editor_message_buttons(buttons_x, row_y, buttons, theme, button_states, nullptr); hit >= 0) {
+    if (const int hit = rv_editor_message_buttons(buttons_x, row_y, buttons, theme, button_states, button_tooltip); hit >= 0) {
         pressed = hit;
     }
     ImGui::SetCursorScreenPos(min);

@@ -9,6 +9,8 @@
 #include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "rv_editor_test.hpp"
+#include "rv_editor_test_s3.hpp"
+#include "rv_editor_test_strip.hpp"
 #include "rv_editor_test_pane_state.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
@@ -72,20 +74,14 @@ struct candidate_fixture {
     }
 };
 
-// The record without what moves legally with the state: the items inside a content area, and the message box's bar and
-// buttons (they depend on the state and the length of the text). The box's window and the area frames stay.
-rv_editor_probe_record frames_only(const rv_editor_probe_record &r, float box_h)
+// The record without what moves legally with the state: the items inside a content area, the message strip under it (it
+// comes and goes and is as tall as its text) and the bottom edge of the areas and their frames (a strip takes the area's
+// height at its bottom). The windows' tops, sides and the area frames' places stay.
+rv_editor_probe_record frames_only(const rv_editor_probe_record &r)
 {
-    const rv_editor_probe_entry *box = nullptr;
-    for (const auto &e : r.entries) {
-        const size_t at = e.label.rfind('/');
-        const std::string last = at == std::string::npos ? e.label : e.label.substr(at + 1);
-        box = last.compare(0, 7, "##text_") == 0 ? &e : box;
-    }
     rv_editor_probe_record out;
-    for (const auto &e : r.entries) {
-        const bool inside_box = box != nullptr && &e != box && e.y0 >= box->y0 && e.y1 <= box->y0 + box_h;
-        if (!e.in_scroll && !inside_box) {
+    for (const auto &e : rv_editor_test::strip::bottom_free(r).entries) {
+        if (!e.in_scroll) {
             out.entries.push_back(e);
         }
     }
@@ -97,14 +93,10 @@ template <class F>
 std::string candidate_difference(F change)
 {
     candidate_fixture f;
-    float box_h = 0.0f;
-    f.g.gui.frame([&] {
-        box_h = rv_editor_message_box_height();
-    });
     const auto base = f.draw();
     change(f.app);
     // Long text legally gives the message box a bar of its own and the lines inside the areas move with the state.
-    return layout_difference(frames_only(base, box_h), frames_only(f.draw(), box_h));
+    return layout_difference(frames_only(base), frames_only(f.draw()));
 }
 
 void report_difference(const std::string &d)
