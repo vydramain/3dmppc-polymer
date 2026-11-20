@@ -8,6 +8,7 @@
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #include "rv_burner_print.hpp"
+#include "rv_burner_steps.hpp"
 #include "rv_burner_zip/rv_burner_zipread.hpp"
 
 namespace rv_pdktools
@@ -19,7 +20,9 @@ static constexpr const char *k_entry_manifest = "disc.toml";
 
 } // namespace rv_pdktools
 
-int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
+namespace rv_pdktools
+{
+static int rv_burner_inspect_body(const rv_burner_options &options)
 {
     std::string error;
 
@@ -29,6 +32,7 @@ int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
         rv_burner_print_error(options.operand + ": " + error);
         return open_rc;
     }
+    rv_burner_print_step("inspect", options.operand);
 
     // --- the manifest, verbatim ---
     //
@@ -75,3 +79,11 @@ int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
 
     return RV_OK;
 }
+
+int rv_burner_inspect_run(const rv_burner_options &options)
+{
+    return rv_burner_run_with_progress(rv_burner_inspect_steps(), [&] {
+        return rv_burner_inspect_body(options);
+    });
+}
+} // namespace rv_pdktools

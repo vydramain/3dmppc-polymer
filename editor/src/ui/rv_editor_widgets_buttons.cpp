@@ -7,6 +7,7 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 
 namespace rv_editor
 {
@@ -160,17 +161,29 @@ void rv_editor_letter_draw(const rv_editor_item &item,
     }
 }
 
-bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state)
+// A button of `label` and `width`.
+static bool
+rv_editor_button_of_width(const char *label, float width, const rv_editor_theme &theme, const rv_editor_state &state)
 {
-    const ImVec2 text = ImGui::CalcTextSize(label, rv_editor_label_end(label));
-    const ImVec2 size(text.x + ImGui::GetStyle().FramePadding.x * button_pad_mult, ImGui::GetFrameHeight());
+    const ImVec2 size(width, ImGui::GetFrameHeight());
     const rv_editor_item item = rv_editor_item_add(label, size, state);
     const bool down = item.held && item.hovered;
 
     ImDrawList *dl = ImGui::GetWindowDrawList();
     rv_editor_button_face(dl, item, theme, down);
-    rv_editor_label_centred(dl, label, item.min, item.max, theme, item, down);
+    // A label wider than the button ends in dots instead of crossing its border.
+    const float room = width - ImGui::GetStyle().FramePadding.x * button_pad_mult;
+    if (ImGui::CalcTextSize(label, rv_editor_label_end(label)).x > room) {
+        rv_editor_label_centred(dl, rv_editor_ellipsize(label, room).c_str(), item.min, item.max, theme, item, down);
+    } else {
+        rv_editor_label_centred(dl, label, item.min, item.max, theme, item, down);
+    }
     return item.clicked;
+}
+
+bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state)
+{
+    return rv_editor_button_of_width(label, rv_editor_button_width(label), theme, state);
 }
 
 bool rv_editor_letter_button(const char *id,
@@ -238,6 +251,13 @@ bool rv_editor_toggle(const char *label, bool *on, const rv_editor_theme &theme,
     return item.clicked;
 }
 
+bool rv_editor_card(const char *id, ImVec2 size, const rv_editor_theme &theme, bool selected, const rv_editor_state &state)
+{
+    const rv_editor_item item = rv_editor_item_add(id, size, state);
+    rv_editor_button_face(ImGui::GetWindowDrawList(), item, theme, false, selected);
+    return item.clicked;
+}
+
 bool rv_editor_checkbox(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const rv_editor_item item = rv_editor_item_add(label, rv_editor_marked_size(label), state);
@@ -278,6 +298,28 @@ bool rv_editor_radio(const char *label, bool active, const rv_editor_theme &them
 float rv_editor_button_width(const char *label)
 {
     return ImGui::CalcTextSize(label, rv_editor_label_end(label)).x + ImGui::GetStyle().FramePadding.x * button_pad_mult;
+}
+
+float rv_editor_button_width_for(std::initializer_list<const char *> labels)
+{
+    float width = 0.0f;
+    for (const char *label : labels) {
+        width = std::max(width, rv_editor_button_width(label));
+    }
+    return width;
+}
+
+bool rv_editor_button_clipped(const char *label, float max_width, const rv_editor_theme &theme, const rv_editor_state &state)
+{
+    return rv_editor_button_of_width(label, std::min(rv_editor_button_width(label), max_width), theme, state);
+}
+
+bool rv_editor_button_fixed(const char *label,
+    std::initializer_list<const char *> labels_for_width,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state)
+{
+    return rv_editor_button_of_width(label, rv_editor_button_width_for(labels_for_width), theme, state);
 }
 
 float rv_editor_checkbox_width(const char *label)

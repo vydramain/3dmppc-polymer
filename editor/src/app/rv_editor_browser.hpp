@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "theme/rv_editor_theme.hpp"
+#include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 
 namespace rv_editor
@@ -59,5 +60,8 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
     const char *why_not,
     std::filesystem::path &out,
     const rv_editor_theme &theme);
+
+// What the browser's path field drew last, for tests.
+const rv_editor_path_probe &rv_editor_browser_path_probe();
 
 } // namespace rv_editor

@@ -159,7 +159,10 @@ float rv_editor_scene_dropdown_width(const char *const items[], int count)
 void rv_editor_scene_view_select(rv_editor_scene_camera &cam, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(rv_editor_text("scene_tools.view_label"), rv_editor_label_kind::normal, theme);
+    rv_editor_label(rv_editor_text("scene_tools.view_label"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::line);
     const char *names[std::size(scene_views)];
     for (size_t i = 0; i < std::size(scene_views); ++i) {
         names[i] = rv_editor_text(scene_views[i].label_id);
@@ -185,7 +188,7 @@ void rv_editor_scene_shading_select(rv_editor_scene_camera &cam, const rv_editor
     const char *label = rv_editor_text("scene_tools.shading_label");
     rv_editor_flow(ImGui::CalcTextSize(label).x);
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     const char *names[std::size(scene_shadings)];
     int current = 0;
     for (size_t i = 0; i < std::size(scene_shadings); ++i) {

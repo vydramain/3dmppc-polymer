@@ -158,6 +158,7 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     // A candidate records the tools' versions; a check still running would leave them empty.
@@ -179,8 +180,10 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
         app.build.start(app.project, app.tools, app.log, error, dir / (std::to_string(number) + std::string(disc_image_ext)));
     if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build a candidate: " + error);
+        rv_editor_app_build_alert_refused(app, error);
         return err;
     }
+    rv_editor_app_build_alert_clear(app);
     r.building = true;
     r.building_number = number;
     // No check runs here (refused above), so the versions are final.

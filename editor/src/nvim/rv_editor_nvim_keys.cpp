@@ -176,8 +176,10 @@ std::string rv_editor_nvim_keys()
         }
         // Letters and digits with Ctrl or Alt arrive as keys, not as text.
         const bool has_ctrl_or_alt = io.KeyCtrl || io.KeyAlt;
+        // Ctrl+B (Build) and Ctrl+Shift+S (Save All) stay with the editor.
         const bool is_ctrl_b = io.KeyCtrl && key == ImGuiKey_B;
-        if (!has_ctrl_or_alt || is_ctrl_b) {
+        const bool is_save_all = io.KeyCtrl && io.KeyShift && key == ImGuiKey_S;
+        if (!has_ctrl_or_alt || is_ctrl_b || is_save_all) {
             continue;
         }
         if (key == ImGuiKey_Space) {

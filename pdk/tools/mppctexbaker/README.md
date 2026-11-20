@@ -37,6 +37,10 @@ The PNG alpha channel is honoured **always**, regardless of `--transparent-key`:
 
 Any error gets a readable message on `stderr` and exit code `1`.
 
+The tool prints its progress on `stderr` as the PDK tools' [progress protocol](../README.md#progress-protocol):
+`mppctexbaker: [plan] read encode write`, one `[n/3]` line for each step, and one
+`[end] ok` or `[end] failed: <reason>` line.
+
 ### Examples
 
 ```sh

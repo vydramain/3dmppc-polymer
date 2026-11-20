@@ -4,12 +4,30 @@
 #include "rv_pconsole/platform/sdl3/rv_pcplatform_sdl3_detail.hpp"
 
 #include <cmath>
+#include <string>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "rv_pconsole/platform/sdl3/rv_pcgamepad_parts.hpp"
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
 
 namespace rv_3dmppc
 {
+
+// rv_pcgamepad_parts.hpp uses its own copies of SDL's gamepad type numbers; they must match.
+static_assert(RV_PCPAD_TYPE_UNKNOWN == SDL_GAMEPAD_TYPE_UNKNOWN && RV_PCPAD_TYPE_STANDARD == SDL_GAMEPAD_TYPE_STANDARD &&
+        RV_PCPAD_TYPE_XBOX360 == SDL_GAMEPAD_TYPE_XBOX360 && RV_PCPAD_TYPE_XBOXONE == SDL_GAMEPAD_TYPE_XBOXONE &&
+        RV_PCPAD_TYPE_PS3 == SDL_GAMEPAD_TYPE_PS3 && RV_PCPAD_TYPE_PS4 == SDL_GAMEPAD_TYPE_PS4 &&
+        RV_PCPAD_TYPE_PS5 == SDL_GAMEPAD_TYPE_PS5 &&
+        RV_PCPAD_TYPE_NINTENDO_SWITCH_PRO == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO &&
+        RV_PCPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT &&
+        RV_PCPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT &&
+        RV_PCPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR &&
+        RV_PCPAD_TYPE_GAMECUBE == SDL_GAMEPAD_TYPE_GAMECUBE && RV_PCPAD_TYPE_STEAM == SDL_GAMEPAD_TYPE_STEAM,
+    "RV_PCPAD_TYPE_* must match SDL_GAMEPAD_TYPE_*");
 
 namespace
 {
@@ -91,6 +109,69 @@ constexpr float RV_PCGAMEPADS_SDL3_GYRO_LIVE_THRESHOLD = 0.35f;
 bool has_motion_sensors(SDL_Gamepad *pad)
 {
     return SDL_GamepadHasSensor(pad, SDL_SENSOR_GYRO) && SDL_GamepadHasSensor(pad, SDL_SENSOR_ACCEL);
+}
+
+#ifdef __EMSCRIPTEN__
+// Set on Module before main() by src/web/rv_web_pre.js.
+bool page_webhid_usable()
+{
+    return EM_ASM_INT({ return Module.rvWebhidUsable ? 1 : 0; });
+}
+
+// The text of the page's gamepad button, or "" if there is none; cut at a UTF-8 char start like rv_webhid_product_name.
+std::string page_pads_button_label()
+{
+    char buf[64];
+    const int n = EM_ASM_INT(
+        {
+            const el = document.getElementById('pads');
+            const bytes = new TextEncoder().encode(el ? el.textContent.trim() : "");
+            let n = Math.min(bytes.length, $1 - 1);
+            while (n > 0 && (bytes[n] & 0xC0) == 0x80) {
+                n--;
+            }
+            HEAPU8.set(bytes.subarray(0, n), $0);
+            HEAPU8[$0 + n] = 0;
+            return n;
+        },
+        buf,
+        static_cast<int>(sizeof(buf)));
+    return std::string(buf, n);
+}
+#endif
+
+// One warning for a pad that should have gyro or touchpad by its type but shows none of it to SDL.
+void warn_missing_parts(SDL_Gamepad *pad, unsigned missing)
+{
+    const char *name = SDL_GetGamepadName(pad);
+    if (!name) {
+        name = "";
+    }
+    const char *parts = rv_pcpad_parts_text(missing);
+#ifdef __EMSCRIPTEN__
+    if (!page_webhid_usable()) {
+        RV_LOG_WARN("pcplatform",
+            "gamepad '{}': this browser does not pass its {}; Chrome or Edge 137 or newer on a computer reads them",
+            name,
+            parts);
+        return;
+    }
+    const std::string label = page_pads_button_label();
+    if (label.empty()) {
+        RV_LOG_WARN("pcplatform",
+            "gamepad '{}': this browser does not pass its {}; the page's gamepad button gives them",
+            name,
+            parts);
+    } else {
+        RV_LOG_WARN("pcplatform",
+            "gamepad '{}': this browser does not pass its {}; the \"{}\" button gives them",
+            name,
+            parts,
+            label);
+    }
+#else
+    RV_LOG_WARN("pcplatform", "gamepad '{}': SDL gives no {} for it", name, parts);
+#endif
 }
 
 // Turns on the gyro and accel pair. If SDL refuses either one, both are turned off again:
@@ -244,6 +325,12 @@ void rv_pcgamepads_sdl3::add(uint32_t joystick_id)
     pad_abilities |= rv_pcgamepads_sdl3_trackpad_abilities(pad);
 
     const bool has_sensors = has_motion_sensors(pad);
+    const unsigned shown =
+        (has_sensors ? RV_PCPAD_PART_MOTION : 0u) | (SDL_GetNumGamepadTouchpads(pad) > 0 ? RV_PCPAD_PART_TOUCHPAD : 0u);
+    const unsigned missing = rv_pcpad_parts_of_type(SDL_GetGamepadType(pad)) & ~shown;
+    if (missing) {
+        warn_missing_parts(pad, missing);
+    }
     const bool motion = has_sensors && enable_motion_sensors(pad) == RV_OK;
     if (has_sensors && !motion) {
         motion_refused_ = true;

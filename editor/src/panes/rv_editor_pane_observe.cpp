@@ -354,21 +354,29 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
             };
             const rv_editor_table_style pin_style = { .row_bands = true, .header = true };
             if (rv_editor_table_begin("##pins", pin_columns, pins_table_cols, pin_style)) {
+                ImGuiStorage *storage = ImGui::GetStateStorage();
+                const ImGuiID selected_key = ImGui::GetID("##selected_pin");
                 for (const std::string &pin : o.pins) {
                     ImGui::PushID(pin.c_str());
                     rv_editor_table_row();
                     rv_editor_table_cell();
-                    rv_editor_label(pin.c_str(), rv_editor_label_kind::normal, theme);
+                    const ImGuiID row_id = ImGui::GetID("##pin");
+                    // A click selects the row (the selection is the pane's own state); a pin row has no other main action.
+                    if (rv_editor_table_row_select("##pin", storage->GetInt(selected_key, 0) == static_cast<int>(row_id), theme)
+                            .clicked) {
+                        storage->SetInt(selected_key, static_cast<int>(row_id));
+                    }
+                    ImGui::SameLine(0.0f, 0.0f);
+                    ImGui::AlignTextToFramePadding();
+                    rv_editor_table_cell_text(pin.c_str(), theme);
                     const auto it = s.answers().find(std::string(observe_verb_get) + pin);
                     rv_editor_table_cell();
-                    rv_editor_label(it == s.answers().end() ? rv_editor_text("pane_observe.not_read_yet") :
-                                                              rv_editor_value_text(it->second).c_str(),
-                        rv_editor_label_kind::normal,
+                    rv_editor_table_cell_text(it == s.answers().end() ? rv_editor_text("pane_observe.not_read_yet") :
+                                                                        rv_editor_value_text(it->second).c_str(),
                         theme);
                     rv_editor_table_cell();
-                    rv_editor_label(it == s.answers().end() ? rv_editor_text("pane_observe.dash") :
-                                                              rv_editor_updated_text(it->second, s).c_str(),
-                        rv_editor_label_kind::normal,
+                    rv_editor_table_cell_text(it == s.answers().end() ? rv_editor_text("pane_observe.dash") :
+                                                                        rv_editor_updated_text(it->second, s).c_str(),
                         theme);
                     rv_editor_table_cell();
                     const char *unpin_why = observe_busy_why(app);
@@ -382,12 +390,12 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         }
 
         rv_editor_section(rv_editor_path_text(o.path).c_str());
-        if (!o.path.empty()) {
-            if (rv_editor_button(rv_editor_text("pane_observe.up"), theme, { rv_editor_look::live, observe_busy_why(app) })) {
-                std::vector<std::string> up = o.path;
-                up.pop_back();
-                rv_editor_observe_leave(app, rv_editor_pane_request_kind::observe_open, rv_editor_path_name(up));
-            }
+        // Always there: at the root it is disabled and says why.
+        const char *up_why = o.path.empty() ? rv_editor_text("pane_observe.up_at_root") : observe_busy_why(app);
+        if (rv_editor_button(rv_editor_text("pane_observe.up"), theme, { rv_editor_look::live, up_why })) {
+            std::vector<std::string> up = o.path;
+            up.pop_back();
+            rv_editor_observe_leave(app, rv_editor_pane_request_kind::observe_open, rv_editor_path_name(up));
         }
         const auto it = s.answers().find(rv_editor_observe_request(observe_verb_keys, o.path));
         if (it == s.answers().end()) {
@@ -433,19 +441,38 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         if (!rv_editor_table_begin("##keys", key_columns, keys_table_cols, key_style)) {
             return;
         }
+        ImGuiStorage *storage = ImGui::GetStateStorage();
+        const ImGuiID selected_key = ImGui::GetID("##selected_key");
+        const char *const action_labels[] = { rv_editor_text("pane_observe.open"), rv_editor_text("pane_observe.pin") };
         for (const rv_editor_key_row &row : rows) {
             ImGui::PushID(row.shown.c_str());
             rv_editor_table_row();
             rv_editor_table_cell();
-            rv_editor_label(row.shown.c_str(), rv_editor_label_kind::normal, theme);
+            const ImGuiID row_id = ImGui::GetID("##key");
+            const rv_editor_table_row_result picked =
+                rv_editor_table_row_select("##key", storage->GetInt(selected_key, 0) == static_cast<int>(row_id), theme);
+            if (picked.clicked) {
+                storage->SetInt(selected_key, static_cast<int>(row_id));
+            }
+            ImGui::SameLine(0.0f, 0.0f);
+            ImGui::AlignTextToFramePadding();
+            rv_editor_table_cell_text(row.shown.c_str(), theme);
             rv_editor_table_cell();
-            rv_editor_label(row.type.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_label(row.type.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
             rv_editor_table_cell();
             if (row.name.empty()) {
-                rv_editor_label(rv_editor_text("pane_observe.dash"), rv_editor_label_kind::normal, theme);
+                rv_editor_label(rv_editor_text("pane_observe.dash"),
+                    rv_editor_label_kind::normal,
+                    theme,
+                    rv_editor_label_layout::line);
             } else if (row.type == type_table) {
                 const char *open_why = observe_busy_why(app);
-                if (rv_editor_button(rv_editor_text("pane_observe.open"), theme, { rv_editor_look::live, open_why })) {
+                // A double click or Enter on a table's row does what its Open button does.
+                if (rv_editor_button_fixed(rv_editor_text("pane_observe.open"),
+                        { action_labels[0], action_labels[1] },
+                        theme,
+                        { rv_editor_look::live, open_why }) ||
+                    (picked.activated && open_why == nullptr)) {
                     std::vector<std::string> next = o.path;
                     next.push_back(row.name);
                     rv_editor_observe_leave(app, rv_editor_pane_request_kind::observe_open, rv_editor_path_name(next));
@@ -459,7 +486,10 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
                 if (pin_why == nullptr && pinned) {
                     pin_why = rv_editor_text("pane_observe.already_pinned");
                 }
-                if (rv_editor_button(rv_editor_text("pane_observe.pin"), theme, { rv_editor_look::live, pin_why })) {
+                if (rv_editor_button_fixed(rv_editor_text("pane_observe.pin"),
+                        { action_labels[0], action_labels[1] },
+                        theme,
+                        { rv_editor_look::live, pin_why })) {
                     rv_editor_observe_leave(app, rv_editor_pane_request_kind::observe_pin, pin);
                 }
             }

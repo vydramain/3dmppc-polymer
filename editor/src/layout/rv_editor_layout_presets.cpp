@@ -26,14 +26,14 @@ constexpr float scene_game_ratio = 0.62f;
 constexpr float scene_inspector_ratio = 0.52f;
 // Scene preset: center assets panel ratio.
 constexpr float scene_assets_ratio = 0.55f;
-// Debug preset: runtime log ratio at bottom.
+// Debug preset: game and session share above the runtime log.
 constexpr float debug_log_ratio = 0.71f;
-// Debug preset: right column (session and toolchest) ratio.
+// Debug preset: game share beside the session column.
 constexpr float debug_column_ratio = 0.68f;
-// Burn preset: build log ratio at bottom.
-constexpr float burn_log_ratio = 0.68f;
-// Burn preset: right game panel ratio.
-constexpr float burn_game_ratio = 0.35f;
+// Burn preset: candidate share of the left column, the logs take the rest.
+constexpr float burn_log_ratio = 0.60f;
+// Burn preset: left column (candidate and logs) share of the width; the Game's fit then sets its own width.
+constexpr float burn_column_ratio = 0.45f;
 
 // Builds a tree by inserting panes next to panes already placed.
 struct rv_editor_preset_builder {
@@ -96,38 +96,35 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::controls, assets, rv_editor_tile_dock::bottom, 1.0f);
 }
 
-// Debug: the session in front. Runtime Controls beside the Session Toolchest
-// along the top (both strips, fit to the taller); below them the Game beside
-// Session, Observe and Test Case; the Runtime Log and Findings along the
-// bottom; Code, Files and the Terminal open from Window > New Tile.
+// Debug: the session in front. Runtime Controls as a strip across the top; below
+// it the Game beside Session, Observe and Test Case, the Runtime Log and Findings
+// along the bottom. Code, Files and the Terminal open from Window > New Tile.
 void rv_editor_preset_debug(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
-    const rv_editor_pane_id log =
-        b.add(rv_editor_pane_kind::runtime_log, controls, rv_editor_tile_dock::bottom, debug_log_ratio);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, log, rv_editor_tile_dock::top, debug_log_ratio);
     const rv_editor_pane_id session = b.add(rv_editor_pane_kind::session, game, rv_editor_tile_dock::right, debug_column_ratio);
     b.add(rv_editor_pane_kind::observe, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::test_case, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
-    // Toolchest aligned with the Session column below it: same 0.68 split.
-    b.add(rv_editor_pane_kind::toolchest, controls, rv_editor_tile_dock::right, debug_column_ratio);
     (void)rv_editor_tile_activate(b.layout, session);
     (void)rv_editor_tile_activate(b.layout, log);
 }
 
-// Burn (reference 0007): the release controls over the candidate beside its
-// playtest, the build's and the playtest's logs underneath (68/32, 35/65),
-// and an Export tab beside the candidate.
+// Burn: the release controls as a full-width strip on top; under it the candidate
+// (Export beside it, Candidate in front) over the build log (Playtest Log beside
+// it, Build Log in front) on the left, and the Game the whole remaining height
+// on the right. The Game goes in before the build log so it spans the column.
 void rv_editor_preset_burn(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
     const rv_editor_pane_id candidate = b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
-    b.add(rv_editor_pane_kind::export_, candidate, rv_editor_tile_dock::tab, 0.0f);
-    (void)rv_editor_tile_activate(b.layout, candidate);
+    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, burn_column_ratio);
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, burn_log_ratio);
-    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, burn_game_ratio);
+    b.add(rv_editor_pane_kind::export_, candidate, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
+    (void)rv_editor_tile_activate(b.layout, candidate);
     (void)rv_editor_tile_activate(b.layout, log);
 }
 

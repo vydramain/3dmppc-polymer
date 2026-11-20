@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 
+#include "imgui_internal.h" // whether the strip shows its scrollbar
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -59,12 +61,12 @@ constexpr float tab_slant_height_divisor = 2.0f;
 constexpr float tab_pad_count = 4.0f;
 // Halves the free space to center text in its box.
 constexpr float text_center_divisor = 2.0f;
+// How many tab heights one wheel notch scrolls the strip.
+constexpr float tab_wheel_step_heights = 3.0f;
 // Theme pads kept free right of the title patch for the boxes.
 constexpr float title_reserve_pads = 3.0f;
 // Theme pads around the title text in its dark patch.
 constexpr float title_patch_pads = 2.0f;
-// Mark rv_editor_text_fit reserves room for; drawn after an elided title.
-constexpr const char *ellipsis_marker = "...";
 
 // One folder tab: a parallelogram leaning right, drawn a scaled pixel row at a
 // time so its sides stay stepped and unsmoothed. Raised: light left edge, dark
@@ -138,9 +140,25 @@ bool rv_editor_tab_strip(const char *id,
     int *active,
     const rv_editor_theme &theme,
     const rv_editor_state &state,
-    int *pressed)
+    int *pressed,
+    float max_tab_width,
+    rv_editor_tab_probe *probe)
 {
     const float h = ImGui::GetFrameHeight();
+    // The strip is a child as high as a tab plus the scrollbar, so its height holds whether the bar shows or not.
+    ImGui::BeginChild(id,
+        ImVec2(0.0f, rv_editor_tab_strip_height()),
+        ImGuiChildFlags_None,
+        ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground);
+    if (ImGui::IsWindowHovered() && ImGui::GetIO().MouseWheel != 0.0f) {
+        ImGui::SetScrollX(ImGui::GetScrollX() - ImGui::GetIO().MouseWheel * h * tab_wheel_step_heights);
+    }
+    if (probe != nullptr) {
+        probe->strip_x0 = ImGui::GetWindowPos().x;
+        probe->strip_x1 = probe->strip_x0 + ImGui::GetWindowWidth();
+        probe->scroll_x = ImGui::GetScrollX();
+        probe->scrollbar = ImGui::GetCurrentWindow()->ScrollbarX;
+    }
     const float pad = static_cast<float>(theme.pad_px * theme.scale);
     const float slant = std::floor(h / tab_slant_height_divisor);
     ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -152,11 +170,17 @@ bool rv_editor_tab_strip(const char *id,
             ImGui::SameLine(0.0f, 0.0f);
         }
         const char *end = rv_editor_label_end(labels[i]);
-        const ImVec2 text = ImGui::CalcTextSize(labels[i], end);
+        const std::string whole(labels[i], end);
+        const std::string label =
+            rv_editor_tab_label_fit(labels[i], std::max(0.0f, max_tab_width - pad * tab_pad_count - slant));
+        const ImVec2 text = ImGui::CalcTextSize(label.c_str());
         ImGui::PushID(i);
         const ImVec2 tab_size(text.x + pad * tab_pad_count + slant, h);
         const rv_editor_item item = rv_editor_item_add("##tab", tab_size, state);
         ImGui::PopID();
+        if (label != whole && item.hovered) {
+            ImGui::SetTooltip("%s", whole.c_str());
+        }
         if (pressed != nullptr && item.hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             *pressed = i;
         }
@@ -171,19 +195,28 @@ bool rv_editor_tab_strip(const char *id,
         if (!front && item.hovered && !item.disabled) {
             fill = theme.bevel_hi;
         }
+        if (probe != nullptr) {
+            probe->tabs.push_back({ item.min.x, item.min.y, item.max.x, item.max.y });
+        }
         rv_editor_draw_tab(dl, item.min, item.max, slant, theme, fill, !down);
 
         const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
         const ImVec2 at(std::floor((item.min.x + item.max.x - text.x) / text_center_divisor + nudge),
             std::floor((item.min.y + item.max.y - text.y) / text_center_divisor + nudge));
         const uint32_t ink = item.disabled ? theme.text_disabled : (front ? theme.dark : theme.text);
-        dl->AddText(at, rv_editor_col(ink), labels[i], end);
+        dl->AddText(at, rv_editor_col(ink), label.c_str());
         if (item.focused) {
             rv_editor_draw_focus(dl, ImVec2(at.x - pad, item.min.y), ImVec2(at.x + text.x + pad, item.max.y), theme);
         }
     }
     ImGui::PopID();
+    ImGui::EndChild();
     return changed;
+}
+
+float rv_editor_tab_strip_height()
+{
+    return ImGui::GetFrameHeight() + ImGui::GetStyle().ScrollbarSize;
 }
 
 rv_editor_header_action rv_editor_pane_header(const char *title,
@@ -235,20 +268,17 @@ rv_editor_header_action rv_editor_pane_header(const char *title,
     const char *end = rv_editor_label_end(title);
     const ImVec2 patch_min(title_x + pad, inner_min.y);
     const float ellipsis_space = title_limit - patch_min.x - pad * title_reserve_pads;
-    const char *shown = rv_editor_text_fit(title, end, std::max(0.0f, ellipsis_space));
-    const bool elided = shown != end;
-    const float text_w = ImGui::CalcTextSize(title, shown).x + (elided ? ImGui::CalcTextSize(ellipsis_marker).x : 0.0f);
+    const std::string shown = rv_editor_pane_header_title(title, std::max(0.0f, ellipsis_space));
+    const bool elided = shown != std::string(title, end);
+    const float text_w = ImGui::CalcTextSize(shown.c_str()).x;
     const float text_h = ImGui::GetFontSize();
     const ImVec2 patch_max(patch_min.x + text_w + pad * title_patch_pads, inner_max.y);
     dl->AddRectFilled(patch_min, patch_max, rv_editor_col(theme.dark));
     const ImVec2 pos(std::floor(patch_min.x + pad), std::floor((min.y + max.y - text_h) / text_center_divisor));
     const ImU32 ink = rv_editor_col(active ? theme.text_bright : theme.text);
-    dl->AddText(pos, ink, title, shown);
-    if (elided) {
-        dl->AddText(ImVec2(pos.x + ImGui::CalcTextSize(title, shown).x, pos.y), ink, ellipsis_marker);
-        if (ImGui::IsMouseHoveringRect(patch_min, patch_max)) {
-            ImGui::SetTooltip("%.*s", static_cast<int>(end - title), title);
-        }
+    dl->AddText(pos, ink, shown.c_str());
+    if (elided && ImGui::IsMouseHoveringRect(patch_min, patch_max)) {
+        ImGui::SetTooltip("%.*s", static_cast<int>(end - title), title);
     }
 
     // The bar as one layout item, so what follows starts below it.

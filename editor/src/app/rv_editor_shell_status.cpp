@@ -9,6 +9,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_steps.hpp"
 
 namespace rv_editor
 {
@@ -53,9 +54,14 @@ rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app)
     // Build and runtime are separate facts, each with the job or session it is about.
     const char *const build_state = rv_editor_build_state_name(app.build.state());
     const auto build_number = app.build.number();
-    const std::string build = (build_number != 0) ?
+    std::string build = (build_number != 0) ?
         rv_editor_text_format("shell_status.build_with_number", std::make_format_args(build_state, build_number)) :
         rv_editor_text_format("shell_status.build_no_number", std::make_format_args(build_state));
+
+    if (app.build.busy() || app.build.state() == rv_editor_build_state::failed) {
+        const std::string steps = rv_editor_steps_compact(app.build.progress());
+        build += steps.empty() ? steps : "  " + steps;
+    }
 
     const char *const runtime_state = rv_editor_run_state_name(app.session.state());
     const auto session_number = app.session.number();

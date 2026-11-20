@@ -33,7 +33,7 @@ enum class rv_editor_visibility {
     absent
 };
 
-// The last refused edit of a field: its reason shows under the field until the document changes again.
+// The last refused edit of a field: its reason shows in the Inspector's refusal line until the document changes again.
 struct rv_editor_scene_field_refusal {
     std::string object;
     std::string component;

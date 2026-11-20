@@ -138,27 +138,35 @@ void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme
     const rv_editor_scene_doc &doc = *app.scene;
     const rv_editor_scene_action_target target = rv_editor_scene_action_target_of(doc);
     const int index = rv_editor_scene_find(doc.scene, doc.selected);
+    std::string text;
+    rv_editor_label_kind kind = rv_editor_label_kind::normal;
     if (target == rv_editor_scene_action_target::none || index < 0) {
-        rv_editor_label(rv_editor_text("pane_hierarchy.target_none"), rv_editor_label_kind::dim, theme);
-        return;
+        text = rv_editor_text("pane_hierarchy.target_none");
+        kind = rv_editor_label_kind::dim;
+    } else {
+        const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(index)];
+        const std::string object_name = rv_editor_object_get_name(o);
+        const char *name = object_name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : object_name.c_str();
+        if (target == rv_editor_scene_action_target::pieces) {
+            const size_t count = doc.picked_pieces.size();
+            text = rv_editor_text_format("pane_hierarchy.target_pieces", std::make_format_args(name, count));
+        } else {
+            const std::string object_kind = rv_editor_object_get_kind(o);
+            const char *kind_label = rv_editor_scene_kind_label(object_kind);
+            text = rv_editor_text_format("pane_hierarchy.node_label", std::make_format_args(name, kind_label));
+        }
     }
-    const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(index)];
-    // The getter returns by value; object_name owns the bytes name points into.
-    const std::string object_name = rv_editor_object_get_name(o);
-    const char *name = object_name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : object_name.c_str();
-    if (target == rv_editor_scene_action_target::pieces) {
-        const size_t count = doc.picked_pieces.size();
-        const std::string text = rv_editor_text_format("pane_hierarchy.target_pieces", std::make_format_args(name, count));
-        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme);
-        ImGui::SameLine();
-        rv_editor_hierarchy_command(app, ui, theme, clear_picks_command);
-        return;
-    }
-    // rv_editor_scene_kind_label returns kind.c_str(), or a literal for mesh; object_kind must outlive kind_label.
-    const std::string object_kind = rv_editor_object_get_kind(o);
-    const char *kind_label = rv_editor_scene_kind_label(object_kind);
-    const std::string text = rv_editor_text_format("pane_hierarchy.node_label", std::make_format_args(name, kind_label));
-    rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme);
+    // One line in a place of its own, with Clear Picks always beside it (disabled with its reason without picks).
+    const float side = ImGui::GetFrameHeight();
+    rv_editor_message_line("##target",
+        text.c_str(),
+        1,
+        ImGui::GetContentRegionAvail().x - side - ImGui::GetStyle().ItemSpacing.x,
+        theme,
+        nullptr,
+        kind);
+    ImGui::SameLine();
+    rv_editor_hierarchy_command(app, ui, theme, clear_picks_command);
 }
 
 } // namespace rv_editor

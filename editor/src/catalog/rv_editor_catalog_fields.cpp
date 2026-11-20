@@ -4,6 +4,8 @@
 #include <cstdio>
 
 #include "catalog/rv_editor_catalog.hpp"
+
+#include <algorithm>
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -36,6 +38,9 @@ constexpr float sample_area_lines = 3.0f;
 constexpr float text_sample_width_em = 24.0f;
 
 // Widget row indices in the fields catalog
+// The fields table keeps its columns from this width in font sizes.
+constexpr float table_wide_em = 40.0f;
+
 constexpr int row_text_field = 0;
 constexpr int row_spinner = 1;
 constexpr int row_spinner64 = 2;
@@ -87,17 +92,21 @@ struct rv_editor_field_values {
 void rv_editor_catalog_fields(const rv_editor_theme &theme)
 {
     static rv_editor_field_values rv_editor_field_data;
-    if (!ImGui::BeginTable("fields", rv_editor_field_column_count + 1)) {
-        return;
+    // Narrower than the columns need, a row is a label and one field under each state's name.
+    const bool table = ImGui::GetContentRegionAvail().x >= table_wide_em * ImGui::GetFontSize();
+    if (table) {
+        if (!ImGui::BeginTable("fields", rv_editor_field_column_count + 1)) {
+            return;
+        }
+        const char *longest_label = rv_editor_text("catalog_buttons.row_icon_button");
+        ImGui::TableSetupColumn(rv_editor_text("catalog_fields.column_widget"),
+            ImGuiTableColumnFlags_WidthFixed,
+            ImGui::CalcTextSize(longest_label).x);
+        for (const rv_editor_field_column &c : rv_editor_field_columns) {
+            ImGui::TableSetupColumn(rv_editor_text(c.name), ImGuiTableColumnFlags_WidthStretch);
+        }
+        ImGui::TableHeadersRow();
     }
-    const char *longest_label = rv_editor_text("catalog_buttons.row_icon_button");
-    ImGui::TableSetupColumn(rv_editor_text("catalog_fields.column_widget"),
-        ImGuiTableColumnFlags_WidthFixed,
-        ImGui::CalcTextSize(longest_label).x);
-    for (const rv_editor_field_column &c : rv_editor_field_columns) {
-        ImGui::TableSetupColumn(rv_editor_text(c.name), ImGuiTableColumnFlags_WidthStretch);
-    }
-    ImGui::TableHeadersRow();
 
     const char *row_ids[] = { "catalog_fields.row_text_field",
         "catalog_fields.row_spinner",
@@ -105,12 +114,18 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
         "catalog_fields.row_dropdown",
         "catalog_fields.row_text_area" };
     for (int row = 0; row < static_cast<int>(sizeof(row_ids) / sizeof(row_ids[0])); ++row) {
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(rv_editor_text(row_ids[row]));
-        for (int c = 0; c < rv_editor_field_column_count; ++c) {
+        if (table) {
+            ImGui::TableNextRow();
             ImGui::TableNextColumn();
+        }
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextWrapped("%s", rv_editor_text(row_ids[row]));
+        for (int c = 0; c < rv_editor_field_column_count; ++c) {
+            if (table) {
+                ImGui::TableNextColumn();
+            } else {
+                ImGui::TextDisabled("%s", rv_editor_text(rv_editor_field_columns[c].name));
+            }
             ImGui::PushID(row * rv_editor_field_column_count + c);
             ImGui::SetNextItemWidth(-1.0f);
             rv_editor_field f = rv_editor_field_columns[c].field;
@@ -148,7 +163,9 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
             ImGui::PopID();
         }
     }
-    ImGui::EndTable();
+    if (table) {
+        ImGui::EndTable();
+    }
 }
 
 // One sample of each text component: label kinds and layouts, section, separator,
@@ -164,7 +181,7 @@ void rv_editor_catalog_text_samples(const rv_editor_theme &theme)
     rv_editor_label(rv_editor_text("catalog_fields.label_error"), rv_editor_label_kind::error, theme);
 
     // Fixed-width children: their text breaks at the child's edge, not at the window's.
-    const ImVec2 sample_size(text_sample_width_em * ImGui::GetFontSize(), 0.0f);
+    const ImVec2 sample_size(std::min(text_sample_width_em * ImGui::GetFontSize(), ImGui::GetContentRegionAvail().x), 0.0f);
     ImGui::BeginChild("##wrap_sample", sample_size, ImGuiChildFlags_AutoResizeY);
     rv_editor_label(rv_editor_text("catalog_fields.wrap_sample"),
         rv_editor_label_kind::normal,

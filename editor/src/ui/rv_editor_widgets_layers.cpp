@@ -2,7 +2,10 @@
 // sunken area for content, under the pane's own dark header.
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
+
+#include "imgui_internal.h" // the window's content rect has no public setter
 
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
@@ -62,6 +65,8 @@ struct rv_editor_shelf_frame {
     ImVec2 origin; // screen pos before padding
     float width;   // full strip width
     float pad;
+    float region_right; // content rect edge to restore on end
+    float work_right;
     rv_editor_theme theme;
 };
 
@@ -78,6 +83,11 @@ std::vector<rv_editor_well_frame> rv_editor_well_stack;
 
 } // namespace
 
+int32_t rv_editor_px_ceil(float px)
+{
+    return static_cast<int32_t>(std::ceil(px));
+}
+
 void rv_editor_shelf_begin(const char *id, const rv_editor_theme &theme)
 {
     ImGui::PushID(id);
@@ -90,7 +100,12 @@ void rv_editor_shelf_begin(const char *id, const rv_editor_theme &theme)
     ImGui::GetWindowDrawList()->ChannelsSetCurrent(1);
     ImGui::SetCursorScreenPos(ImVec2(origin.x + pad, origin.y + pad));
     ImGui::BeginGroup();
-    rv_editor_shelf_stack.push_back({ origin, width, pad, theme });
+    // Full-width children size themselves by the available width, so the right
+    // padding comes off the window's content rect until the shelf ends.
+    ImGuiWindow *win = ImGui::GetCurrentWindow();
+    rv_editor_shelf_stack.push_back({ origin, width, pad, win->ContentRegionRect.Max.x, win->WorkRect.Max.x, theme });
+    win->ContentRegionRect.Max.x -= pad;
+    win->WorkRect.Max.x -= pad;
 }
 
 void rv_editor_shelf_end()
@@ -98,6 +113,9 @@ void rv_editor_shelf_end()
     const rv_editor_shelf_frame f = rv_editor_shelf_stack.back();
     rv_editor_shelf_stack.pop_back();
     ImGui::EndGroup();
+    ImGuiWindow *win = ImGui::GetCurrentWindow();
+    win->ContentRegionRect.Max.x = f.region_right;
+    win->WorkRect.Max.x = f.work_right;
     const ImVec2 min = f.origin;
     const ImVec2 max(min.x + f.width, ImGui::GetItemRectMax().y + f.pad);
 

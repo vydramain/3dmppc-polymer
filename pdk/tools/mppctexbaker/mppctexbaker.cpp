@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cerrno>
 #include <cstdio>
+#include <exception>
 #include <memory>
 #include <optional>
 #include <string>
@@ -15,6 +16,7 @@
 #include "pdk/cv/rv_vertex.h"
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
+#include "pdklib/rv_progress/rv_progress.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 #include "pdklib/rv_textures/rv_texel_pack.hpp"
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
@@ -41,6 +43,9 @@ namespace
 constexpr int RV_BAKER_EXIT_SUCCESS = 0;
 constexpr int RV_BAKER_EXIT_FAILURE = 1;
 constexpr int RV_BAKER_EXIT_USAGE = 2;
+
+// The steps of a bake, in order: the plan and the [n/N] lines come from this one list.
+const std::vector<std::string> RV_BAKER_STEPS = { "read", "encode", "write" };
 
 using rv_pdklib::rv_texel_quantize;
 
@@ -142,6 +147,23 @@ int report(const baker_error &error)
         rv_pdklib::rv_fprintf(stderr, "%s: %s\n", rv_baker_progname(), error.message.c_str());
     }
     return error.message.empty() ? RV_BAKER_EXIT_USAGE : RV_BAKER_EXIT_FAILURE;
+}
+
+// Set once the plan is out: from then on every way out, a throw included, owes an end line.
+bool plan_printed = false;
+
+// A failure once the plan is out: the protocol's end line, then the usual report.
+int fail_after_plan(const baker_error &error)
+{
+    const int code = report(error);
+    rv_pdklib::rv_progress_end_failed(rv_baker_progname(), error.message);
+    return code;
+}
+
+// Prints step n of the list above as its stage starts.
+void print_step(int n, const std::string &detail)
+{
+    rv_pdklib::rv_progress_step(rv_baker_progname(), n, static_cast<int>(RV_BAKER_STEPS.size()), RV_BAKER_STEPS[n - 1], detail);
 }
 
 // Digits in an RRGGBB argument. Fixed rather than lenient: three-digit CSS
@@ -351,17 +373,23 @@ int run(int argc, char **argv)
         return RV_BAKER_EXIT_SUCCESS;
     }
 
+    rv_pdklib::rv_progress_plan(rv_baker_progname(), RV_BAKER_STEPS);
+    plan_printed = true;
+
     source_image src;
+    print_step(1, opt.input);
     if (load_source(opt, &src, &error) != RV_OK) {
-        return report(error);
+        return fail_after_plan(error);
     }
 
     std::vector<uint8_t> file;
+    print_step(2, std::to_string(src.width) + "x" + std::to_string(src.height));
     if (encode_texture(opt, src, &file, &error) != RV_OK) {
-        return report(error);
+        return fail_after_plan(error);
     }
+    print_step(3, opt.output);
     if (write_file(opt.output, file, &error) != RV_OK) {
-        return report(error);
+        return fail_after_plan(error);
     }
 
     rv_pdklib::rv_texfmt_name::by_format(*opt.format);
@@ -372,6 +400,7 @@ int run(int argc, char **argv)
         src.height,
         rv_pdklib::rv_texfmt_name::by_format(*opt.format)->text,
         file.size());
+    rv_pdklib::rv_progress_end_ok(rv_baker_progname());
     return RV_BAKER_EXIT_SUCCESS;
 }
 
@@ -393,5 +422,13 @@ int main(int argc, char **argv)
         rv_pdklib::rv_fprintf(stdout, "mppctexbaker %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
         return 0;
     }
-    return rv_pdktools::run(argc, argv);
+    try {
+        return rv_pdktools::run(argc, argv);
+    } catch (const std::exception &e) {
+        rv_pdklib::rv_fprintf(stderr, "%s: %s\n", rv_pdktools::rv_baker_progname(), e.what());
+        if (rv_pdktools::plan_printed) {
+            rv_pdklib::rv_progress_end_failed(rv_pdktools::rv_baker_progname(), e.what());
+        }
+        return rv_pdktools::RV_BAKER_EXIT_FAILURE;
+    }
 }

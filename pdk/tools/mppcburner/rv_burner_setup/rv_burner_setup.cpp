@@ -16,6 +16,7 @@
 
 #include "rv_burner_common/rv_burner_process.hpp"
 #include "rv_burner_print.hpp"
+#include "rv_burner_steps.hpp"
 
 namespace rv_pdktools
 {
@@ -48,12 +49,11 @@ constexpr const char *k_download_suffix = ".download";
 
 // emsdk's own scripts, run from inside the emsdk directory.
 constexpr const char *k_emsdk_script = "./emsdk";
+// emsdk is python: unbuffered, its progress reaches the pipe as it is written, not in one block at exit.
+constexpr const char *k_emsdk_env = "PYTHONUNBUFFERED=1 ";
 constexpr const char *k_embuilder_script = "upstream/emscripten/embuilder";
 // Prebuilds the libc and libc++ variants for wasm so the first web burn does not wait for them.
 constexpr const char *k_embuilder_target = "MINIMAL";
-
-// Steps printed as [n/N]: check, download, verify, unpack, install, embuilder, mark.
-constexpr int k_setup_steps = 7;
 
 // Detail prefix of the finished install, used by the check and the mark step.
 constexpr const char *k_installed_at = "installed at ";
@@ -78,9 +78,8 @@ constexpr int k_share_full = 100;
 // A longer line is dropped so an unended one cannot grow the buffer.
 constexpr std::size_t k_emsdk_line_max = 16384;
 
-// One rung of the [n/N] ladder: its number and label, written once per step.
+// The label of a rung of the setup ladder; its number comes from rv_burner_setup_steps().
 struct ladder_step {
-    int number;
     const char *label;
 };
 
@@ -122,12 +121,12 @@ void report_share(progress_watch &watch, int share)
     if (!watch.size.empty()) {
         detail += " of " + watch.size;
     }
-    rv_burner_print_step(watch.step.number, watch.step.label, detail, k_setup_steps);
+    rv_burner_print_step(watch.step.label, detail);
 }
 
 void report_unknown_size(const progress_watch &watch)
 {
-    rv_burner_print_step(watch.step.number, watch.step.label, watch.name + ": size unknown", k_setup_steps);
+    rv_burner_print_step(watch.step.label, watch.name + ": size unknown");
 }
 
 bool is_digit_char(char c)
@@ -340,7 +339,8 @@ int install_emsdk(const std::filesystem::path &dir, ladder_step step)
     };
     const std::string enter = "cd " + shell_quote(dir.string()) + " && ";
     std::string output;
-    const int rc = run_child(enter + k_emsdk_script + " install " + k_emsdk_version, "emsdk install", output, on_output);
+    const int rc =
+        run_child(enter + k_emsdk_env + k_emsdk_script + " install " + k_emsdk_version, "emsdk install", output, on_output);
     if (RV_OK != rc) {
         return rc;
     }
@@ -378,7 +378,6 @@ int install_web()
         return dir_rc;
     }
 
-    // --- [1/7] check ---
     std::error_code ec;
     const bool installed = std::filesystem::exists(dir / k_ready_marker, ec);
     if (ec) {
@@ -387,11 +386,11 @@ int install_web()
     }
     if (installed) {
         const std::string detail = std::string("already ") + k_installed_at + dir.string() + ", nothing is downloaded";
-        rv_burner_print_step(1, "check", detail, k_setup_steps);
+        rv_burner_print_step("check", detail);
         return RV_OK;
     }
     const std::string check_detail = "not installed yet; installing once per user into " + dir.string();
-    rv_burner_print_step(1, "check", check_detail, k_setup_steps);
+    rv_burner_print_step("check", check_detail);
 
     std::filesystem::create_directories(dir.parent_path(), ec);
     if (ec) {
@@ -402,62 +401,56 @@ int install_web()
     const std::string url = std::string(k_emsdk_url_prefix) + k_emsdk_version + k_emsdk_url_suffix;
     const download_guard download{ dir.string() + k_download_suffix };
 
-    // --- [2/7] download ---
-    constexpr ladder_step download_step{ 2, "download" };
+    constexpr ladder_step download_step{ "download" };
     const std::string download_detail = url + ", the installer of the Emscripten compiler";
-    rv_burner_print_step(download_step.number, download_step.label, download_detail, k_setup_steps);
+    rv_burner_print_step(download_step.label, download_detail);
     int rc = download_archive(url, download.path, download_step);
     if (RV_OK != rc) {
         return rc;
     }
 
-    // --- [3/7] verify ---
     const std::string verify_detail =
         "sha256 " + std::string(k_emsdk_sha256) + ", a changed or replaced archive is rejected before it is unpacked or run";
-    rv_burner_print_step(3, "verify", verify_detail, k_setup_steps);
+    rv_burner_print_step("verify", verify_detail);
     rc = verify_archive(download.path);
     if (RV_OK != rc) {
         return rc;
     }
 
-    // --- [4/7] unpack ---
     const std::string unpack_detail = "emsdk scripts into " + dir.string();
-    rv_burner_print_step(4, "unpack", unpack_detail, k_setup_steps);
+    rv_burner_print_step("unpack", unpack_detail);
     rc = unpack_archive(download.path, dir);
     if (RV_OK != rc) {
         return rc;
     }
 
-    // --- [5/7] install ---
     const std::string install_detail = "emsdk " + std::string(k_emsdk_version) +
         " downloads the Emscripten compiler (clang for wasm, Binaryen, Emscripten, Node.js) and makes it current;"
         " the install itself takes a long time";
-    constexpr ladder_step install_step{ 5, "install" };
-    rv_burner_print_step(install_step.number, install_step.label, install_detail, k_setup_steps);
+    constexpr ladder_step install_step{ "install" };
+    rv_burner_print_step(install_step.label, install_detail);
     rc = install_emsdk(dir, install_step);
     if (RV_OK != rc) {
         return rc;
     }
 
-    // --- [6/7] embuilder ---
     const std::string embuilder_detail = std::string("prebuild ") + k_embuilder_target +
         " libraries: embuilder compiles libc and libc++ for wasm ahead of time, so the first web burn does not wait"
         " for them; the prebuild itself takes a long time" +
         k_silent_note;
-    rv_burner_print_step(6, "embuilder", embuilder_detail, k_setup_steps);
+    rv_burner_print_step("embuilder", embuilder_detail);
     rc = prebuild_libraries(dir);
     if (RV_OK != rc) {
         return rc;
     }
 
-    // --- [7/7] mark ---
     rc = write_ready_marker(dir);
     if (RV_OK != rc) {
         return rc;
     }
     const std::string mark_detail = std::string(k_installed_at) + dir.string() +
         ", written last so an interrupted install is never taken as complete; the next run skips the install";
-    rv_burner_print_step(7, "mark", mark_detail, k_setup_steps);
+    rv_burner_print_step("mark", mark_detail);
     return RV_OK;
 }
 
@@ -473,8 +466,9 @@ constexpr setup_tool k_tools[] = {
 } // namespace
 } // namespace rv_pdktools
 
-int rv_pdktools::rv_burner_setup_run(const rv_burner_options &options)
+static int rv_pdktools_setup_body(const rv_pdktools::rv_burner_options &options)
 {
+    using namespace rv_pdktools;
     for (const setup_tool &tool : k_tools) {
         if (options.operand == tool.name) {
             return tool.install();
@@ -487,6 +481,13 @@ int rv_pdktools::rv_burner_setup_run(const rv_burner_options &options)
     }
     rv_burner_print_error("unknown tool '" + options.operand + "'; known tools: " + known);
     return RV_ERR_INVAL;
+}
+
+int rv_pdktools::rv_burner_setup_run(const rv_burner_options &options)
+{
+    return rv_burner_run_with_progress(rv_burner_setup_steps(), [&] {
+        return rv_pdktools_setup_body(options);
+    });
 }
 
 int rv_pdktools::rv_burner_emscripten_dir(std::filesystem::path &dir, std::string &reason)

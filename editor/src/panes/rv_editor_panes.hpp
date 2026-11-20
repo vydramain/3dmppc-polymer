@@ -37,7 +37,7 @@ void rv_editor_fact(const char *label, const std::string &value, const rv_editor
 
 // Build, Run/Resume, Pause, Step, Stop and the session's state on one row that
 // wraps when narrow; Open Project without a project.
-void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 
 // "No project is open." and an Open Project button, for a pane's empty state.
 void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme);
@@ -60,6 +60,29 @@ void rv_editor_output_controls(rv_editor_app &app,
 
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+
+// What a code tile's status line or a file tab shows for the buffer `name` (inside `root` it is relative), fitted to
+// `width`: a path that does not fit keeps its end after "...", the modified marker stays at the end; `tooltip` is the
+// full path ("" for an Untitled buffer).
+struct rv_editor_code_text {
+    std::string shown;
+    std::string tooltip;
+};
+rv_editor_code_text rv_editor_code_status_text(const std::string &name, const std::string &root, bool modified, float width);
+rv_editor_code_text rv_editor_code_tab_text(const std::string &name, const std::string &root, bool modified, float width);
+
+// The swap-recovery ask of a code tile: in place of its grid while the file has a swap file, nothing otherwise (a
+// message and the Recover and Discard buttons, wrapped to the tile's width).
+enum class rv_editor_swap_view {
+    none,
+    recoverable,
+    in_use
+};
+struct rv_editor_swap_action {
+    bool recover = false;
+    bool discard = false;
+};
+rv_editor_swap_action rv_editor_code_swap_place(rv_editor_swap_view view, long long pid, const rv_editor_theme &theme);
 // This frame's keyboard as nvim keys.
 std::string rv_editor_nvim_keys();
 
@@ -180,6 +203,11 @@ void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv
 std::span<const std::string_view> rv_editor_hierarchy_kinds();
 const char *rv_editor_scene_kind_label(const std::string &kind);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// Where fields start beside labels `widest` px wide: that plus a gap (at least six font sizes), or 0 when it is more
+// than half the row and each field goes on a line below its label instead (rv_editor_pane_scene_inspector.cpp).
+float rv_editor_inspector_column(float widest);
+// After a label: the field follows on the same line at `column`, or stays on the line below when `column` is 0.
+void rv_editor_inspector_field_at(float column);
 // The snapshot's description records when it is loaded, else nullptr: the built-ins apply (rv_editor_pane_scene_fields.cpp).
 const std::vector<rv_pdkkit::ecs_component_record> *rv_editor_descs_records(const rv_editor_app &app);
 // The components of the object at `at`, each a section of its fields by their descriptions (rv_editor_pane_scene_fields.cpp).

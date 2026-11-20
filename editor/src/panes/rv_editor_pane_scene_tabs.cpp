@@ -126,7 +126,10 @@ void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_t
     }
     if (playing_this) {
         ImGui::SameLine();
-        rv_editor_label(rv_editor_text("pane_scene_tabs.status_playing"), rv_editor_label_kind::dim, theme);
+        rv_editor_label(rv_editor_text("pane_scene_tabs.status_playing"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::line);
     }
     if (rv_editor_scene_sound_last_error.path == tab.path && !rv_editor_scene_sound_last_error.text.empty()) {
         rv_editor_label(rv_editor_scene_sound_last_error.text.c_str(),

@@ -17,8 +17,6 @@ namespace rv_editor
 namespace
 {
 
-// A control strip's width, in font sizes.
-constexpr int rv_editor_strip_width_em = 20;
 // A pane kind without a view says so; the title fills the {}.
 constexpr const char *no_view_text_id = "shell_pane.no_view";
 // Hierarchy and inspector edit a pdkkit scene; a bare disc runs none, so they say why instead.
@@ -77,18 +75,13 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     case rv_editor_pane_kind::controls:
     case rv_editor_pane_kind::release_controls:
     case rv_editor_pane_kind::toolchest: {
-        // Measured each frame: a strip's minimum is what it drew.
-        const float top = ImGui::GetCursorPosY();
         if (kind == rv_editor_pane_kind::controls) {
-            rv_editor_pane_controls(shell.app, theme);
+            rv_editor_pane_controls(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         } else if (kind == rv_editor_pane_kind::toolchest) {
             rv_editor_pane_toolchest(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         } else {
             rv_editor_pane_release_controls(shell.app, theme);
         }
-        const float tall = ImGui::GetCursorPosY() - top - ImGui::GetStyle().ItemSpacing.y;
-        shell.strips[pane] = { static_cast<int32_t>(ImGui::GetFontSize() * rv_editor_strip_width_em),
-            static_cast<int32_t>(tall) };
         return;
     }
     case rv_editor_pane_kind::runtime_log:
@@ -112,23 +105,18 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         rv_editor_pane_files(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::code:
-        // A question about this tile's file sits over its text, not over the window.
-        if (pane == shell.closing) {
-            rv_editor_shell_ask_close(shell, theme);
-        } else if (pane == shell.save_as_pane && shell.save_as_buffer != 0 &&
-            shell.leaving == rv_editor_shell::rv_editor_leave::none) {
-            rv_editor_shell_ask_save_as(shell, theme);
+        // A question about this tile's file takes the tile in place of its text, not the window.
+        if (!rv_editor_shell_code_asks(shell, pane, theme)) {
+            rv_editor_pane_code(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         }
-        rv_editor_pane_code(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::review_changes:
         rv_editor_page_review(shell, theme);
         return;
     case rv_editor_pane_kind::terminal:
-        if (pane == shell.closing_terminal) {
-            rv_editor_shell_ask_terminal(shell, theme);
-        }
+        shell.app.terminals[pane].ending = pane == shell.closing_terminal;
         rv_editor_pane_terminal(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
+        rv_editor_shell_terminal_answered(shell, pane);
         return;
     case rv_editor_pane_kind::game:
         rv_editor_pane_game(shell.app, shell.renderer, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
@@ -144,6 +132,9 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         return;
     case rv_editor_pane_kind::test_case:
         rv_editor_pane_test_case(shell.app, theme);
+        return;
+    case rv_editor_pane_kind::new_project:
+        rv_editor_page_new_project(shell, theme);
         return;
     case rv_editor_pane_kind::open_project:
         rv_editor_page_open_project(shell, theme);

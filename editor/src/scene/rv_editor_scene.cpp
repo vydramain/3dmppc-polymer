@@ -10,9 +10,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
-#include "pdkkit/scene/rv_scene_migrate.hpp"
 #include "project/rv_editor_toml.hpp"
-#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -38,22 +36,8 @@ constexpr int id_hex_base = 16;
 // Buffer for formatting random scene object ID as hexadecimal via to_chars; size for uint32_t.
 constexpr size_t hex_id_buffer_bytes = 16;
 
-// The PDK version this editor writes; a scene of another version opens read-only, with it in the reason.
-constexpr uint32_t editor_version_major = static_cast<uint32_t>(RV_MPPC_VER_MAJOR);
-constexpr uint32_t editor_version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
-
 // Default preamble for new scene files.
 constexpr std::string_view scene_preamble = "# A scene: 3dmppc-editor's Scene layout edits it.\n\n";
-
-// Logs each line of a migration's notes (the fields it dropped) as a warning.
-void log_lines(std::string_view text)
-{
-    while (!text.empty()) {
-        const size_t end = text.find('\n');
-        RV_LOG_WARN(scene_log_tag, "{}", text.substr(0, end));
-        text = end == std::string_view::npos ? std::string_view() : text.substr(end + 1);
-    }
-}
 
 // One object of a parsed scene as the editor's model; its parent index is already in range.
 rv_editor_scene_object rv_editor_scene_object_from_pdk(const rv_pdkkit::rv_scene &pdk, const rv_pdkkit::rv_scene_object &p)
@@ -70,8 +54,6 @@ rv_editor_scene_object rv_editor_scene_object_from_pdk(const rv_pdkkit::rv_scene
 // the object, in object order.
 void rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdkkit::rv_scene &pdk)
 {
-    pdk.version_major = scene.version_major;
-    pdk.version_minor = scene.version_minor;
     pdk.preamble = scene.preamble;
     pdk.scene_extra = scene.scene_extra;
     pdk.other_sections = scene.other_sections;
@@ -98,26 +80,17 @@ void rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdkkit::rv_scene &p
 
 int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error)
 {
-    // An unreadable file gives an empty text, which would otherwise report a missing version.
+    // An unreadable file gives an empty text, which would otherwise parse as an empty scene.
     if (!std::ifstream(path, std::ios::binary)) {
         error = path.string() + ": cannot read";
         return RV_ERR_INVAL;
     }
     rv_pdkkit::rv_scene pdk;
-    const auto policy = rv_pdkkit::rv_scene_version_policy::keep;
-    if (rv_pdkkit::rv_scene_parse(rv_editor_file_text(path), path.string(), pdk, error, policy) != 0) {
+    if (rv_pdkkit::rv_scene_parse(rv_editor_file_text(path), path.string(), pdk, error) != 0) {
         return RV_ERR_INVAL;
     }
-    std::string notes;
-    if (rv_pdkkit::rv_scene_migrate(pdk, notes) != RV_OK) {
-        error = notes;
-        return RV_ERR_INVAL;
-    }
-    log_lines(notes);
     rv_editor_scene s;
     s.path = path;
-    s.version_major = pdk.version_major;
-    s.version_minor = pdk.version_minor;
     s.preamble = pdk.preamble;
     s.scene_extra = pdk.scene_extra;
     s.other_sections = pdk.other_sections;
@@ -135,12 +108,6 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
             return RV_ERR_INVAL;
         }
     }
-    // A version this editor does not read opens for reading only; save refuses it (rv_editor_scene_save).
-    const bool compatible = rv_pdklib::rv_version_compatible(s.version_major, s.version_minor);
-    s.read_only = compatible ?
-        std::string() :
-        rv_editor_text_format("pane_scene.read_only_version",
-            std::make_format_args(s.version_major, s.version_minor, editor_version_major, editor_version_minor));
     scene = std::move(s);
     return RV_OK;
 }

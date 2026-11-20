@@ -5,12 +5,14 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
+#include "pdklib/rv_progress/rv_progress.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 #include "rv_musbaker_mp3.hpp"
 #include "rv_musbaker_wav.hpp"
@@ -27,6 +29,9 @@ constexpr int RV_MUSBAKER_EXIT_USAGE = 2;
 // Prefix of every message. Fixed rather than the invoked name, so output does not
 // depend on the name the binary was copied under.
 constexpr const char *RV_MUSBAKER_PROGNAME = "mppcmusbaker";
+
+// The steps of a bake, in order: the plan and the [n/N] lines come from this one list.
+const std::vector<std::string> RV_MUSBAKER_STEPS = { "read", "write" };
 
 // Argc for `mppcmusbaker --version`: program name plus the one flag.
 constexpr int RV_MUSBAKER_ARGC_VERSION_CHECK = 2;
@@ -73,6 +78,27 @@ int report(const musbaker_error &error)
         rv_pdklib::rv_fprintf(stderr, "%s: %s\n", RV_MUSBAKER_PROGNAME, error.message.c_str());
     }
     return error.message.empty() ? RV_MUSBAKER_EXIT_USAGE : RV_MUSBAKER_EXIT_FAILURE;
+}
+
+// Set once the plan is out: from then on every way out, a throw included, owes an end line.
+bool plan_printed = false;
+
+// A failure once the plan is out: the protocol's end line, then the usual report.
+int fail_after_plan(const musbaker_error &error)
+{
+    const int code = report(error);
+    rv_pdklib::rv_progress_end_failed(RV_MUSBAKER_PROGNAME, error.message);
+    return code;
+}
+
+// Prints step n of the list above as its stage starts.
+void print_step(int n, const std::string &detail)
+{
+    rv_pdklib::rv_progress_step(RV_MUSBAKER_PROGNAME,
+        n,
+        static_cast<int>(RV_MUSBAKER_STEPS.size()),
+        RV_MUSBAKER_STEPS[n - 1],
+        detail);
 }
 
 // Fills `out` from argv. --help is not a failure: it sets out->help and succeeds.
@@ -147,16 +173,21 @@ int run(int argc, char **argv)
         return RV_MUSBAKER_EXIT_SUCCESS;
     }
 
+    rv_pdklib::rv_progress_plan(RV_MUSBAKER_PROGNAME, RV_MUSBAKER_STEPS);
+    plan_printed = true;
+
+    print_step(1, args.input);
     std::vector<uint8_t> pcm;
     std::string load_error;
     const bool is_mp3 = has_mp3_extension(args.input);
     const rv_err loaded = is_mp3 ? load_mp3_pcm(args.input, &pcm, &load_error) : load_wav_pcm(args.input, &pcm, &load_error);
     if (loaded != RV_OK) {
         error.message = load_error;
-        return report(error);
+        return fail_after_plan(error);
     }
+    print_step(2, args.output);
     if (write_file(args.output, pcm, &error) != RV_OK) {
-        return report(error);
+        return fail_after_plan(error);
     }
 
     std::printf("%s: %s -> %s (%zu samples, %zu bytes)\n",
@@ -165,6 +196,7 @@ int run(int argc, char **argv)
         args.output.c_str(),
         pcm.size() / sizeof(int16_t),
         pcm.size());
+    rv_pdklib::rv_progress_end_ok(RV_MUSBAKER_PROGNAME);
     return RV_MUSBAKER_EXIT_SUCCESS;
 }
 
@@ -177,5 +209,13 @@ int main(int argc, char **argv)
         rv_pdklib::rv_fprintf(stdout, "%s %d.%d\n", RV_MUSBAKER_PROGNAME, RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
         return RV_MUSBAKER_EXIT_SUCCESS;
     }
-    return run(argc, argv);
+    try {
+        return run(argc, argv);
+    } catch (const std::exception &e) {
+        rv_pdklib::rv_fprintf(stderr, "%s: %s\n", RV_MUSBAKER_PROGNAME, e.what());
+        if (plan_printed) {
+            rv_pdklib::rv_progress_end_failed(RV_MUSBAKER_PROGNAME, e.what());
+        }
+        return RV_MUSBAKER_EXIT_FAILURE;
+    }
 }

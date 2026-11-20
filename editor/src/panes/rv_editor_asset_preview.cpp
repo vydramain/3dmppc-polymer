@@ -223,7 +223,12 @@ void rv_editor_asset_preview(const rv_editor_asset *a,
     // Name and path: wraps to whatever width it is given.
     const auto header = [&]() {
         rv_editor_label(a->path.filename().string().c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        rv_editor_label(a->rel.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+        // The path keeps its tail; the whole of it is in the tooltip.
+        const std::string rel_tail = rv_editor_path_tail(a->rel, ImGui::GetContentRegionAvail().x);
+        rv_editor_label(rel_tail.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+        if (rel_tail != a->rel) {
+            rv_editor_item_tooltip(a->rel.c_str());
+        }
         rv_editor_separator();
     };
     // What the file is, and what the build map says it became on the disc.
@@ -257,7 +262,10 @@ void rv_editor_asset_preview(const rv_editor_asset *a,
             }
             if (playing_this) {
                 ImGui::SameLine();
-                rv_editor_label(rv_editor_text("asset_preview.status_playing"), rv_editor_label_kind::dim, theme);
+                rv_editor_label(rv_editor_text("asset_preview.status_playing"),
+                    rv_editor_label_kind::dim,
+                    theme,
+                    rv_editor_label_layout::line);
             }
             if (rv_editor_sound_last_error.path == a->path && !rv_editor_sound_last_error.text.empty()) {
                 rv_editor_label(rv_editor_sound_last_error.text.c_str(),
@@ -295,7 +303,10 @@ void rv_editor_asset_preview(const rv_editor_asset *a,
                 rv_editor_label_layout::wrap);
         }
         if (!rv_editor_project_on_disc(project, a->rel) && rv_editor_asset_belongs_on_disc(a->rel)) {
-            rv_editor_label(rv_editor_text("asset_preview.not_in_disc_toml"), rv_editor_label_kind::normal, theme);
+            rv_editor_label(rv_editor_text("asset_preview.not_in_disc_toml"),
+                rv_editor_label_kind::normal,
+                theme,
+                rv_editor_label_layout::line);
             ImGui::SameLine();
             if (rv_editor_button(rv_editor_text("asset_preview.button_add_to_disc"), theme)) {
                 std::string error;

@@ -1,6 +1,8 @@
 // Catalog section: tree, list, table, tab strip, splitter and pane headers.
 
 #include "catalog/rv_editor_catalog.hpp"
+
+#include <algorithm>
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -20,7 +22,14 @@ constexpr float splitter_min_pane_height_frames = 2.0f;
 // Catalog tile window display area height in frame heights (GetFrameHeight() multiplier)
 constexpr float catalog_tile_height_frames = 8.0f;
 
+// The width in font sizes from which the tile windows demo (two tiles side by side) is drawn.
+constexpr float catalog_tiles_min_width_em = 40.0f;
+
 // Catalog lists and well view height in frame heights (GetFrameHeight() multiplier)
+// The widest a catalog tab is, as the strip default.
+constexpr float catalog_tab_max_width = 240.0f;
+// The tree, the list and the table sit side by side from this width in font sizes; narrower they stack.
+constexpr float catalog_lists_wide_em = 30.0f;
 constexpr float catalog_view_height_frames = 6.0f;
 
 // Shelf-over-well demo well height in frame heights: shorter than the catalog tree,
@@ -163,9 +172,9 @@ void rv_editor_catalog_table(float height, const rv_editor_theme &t)
                 const rv_editor_label_kind cell_kind =
                     i == catalog_table_selected_row ? rv_editor_label_kind::on_selection : rv_editor_label_kind::normal;
                 rv_editor_table_cell();
-                rv_editor_label(rows[i][1], cell_kind, t);
+                rv_editor_label(rows[i][1], cell_kind, t, rv_editor_label_layout::line);
                 rv_editor_table_cell();
-                rv_editor_label(rows[i][2], cell_kind, t);
+                rv_editor_label(rows[i][2], cell_kind, t, rv_editor_label_layout::line);
             }
             rv_editor_table_end();
         }
@@ -179,7 +188,16 @@ void rv_editor_catalog_tabs(const rv_editor_theme &t)
         rv_editor_text("catalog_panes.tab_scene"),
         rv_editor_text("catalog_panes.tab_assets"),
         rv_editor_text("catalog_panes.tab_console_output") };
-    rv_editor_tab_strip("##tabs", labels, static_cast<int>(std::size(labels)), &rv_editor_pane_data.tab, t);
+    // Tabs that do not fit the row share it, each clipped to its part.
+    const float room = ImGui::GetContentRegionAvail().x / static_cast<float>(std::size(labels));
+    rv_editor_tab_strip("##tabs",
+        labels,
+        static_cast<int>(std::size(labels)),
+        &rv_editor_pane_data.tab,
+        t,
+        {},
+        nullptr,
+        std::min(room, catalog_tab_max_width));
 }
 
 void rv_editor_catalog_splitters(const rv_editor_theme &t)
@@ -247,6 +265,11 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
         return w;
     }();
     ImGui::SeparatorText(rv_editor_text("catalog_panes.section_tile_windows"));
+    // Two tiles with their minimum widths do not fit a narrow tile: the demo says so instead of scrolling.
+    if (ImGui::GetContentRegionAvail().x < catalog_tiles_min_width_em * ImGui::GetFontSize()) {
+        ImGui::TextWrapped("%s", rv_editor_text("catalog_panes.tile_windows_narrow"));
+        return;
+    }
     const ImVec2 at = ImGui::GetCursorScreenPos();
     const rv_editor_rect area{ static_cast<int>(at.x),
         static_cast<int>(at.y),
@@ -301,7 +324,9 @@ void rv_editor_catalog_headers(const rv_editor_theme &theme)
 void rv_editor_catalog_lists(const rv_editor_theme &theme)
 {
     const float height = ImGui::GetFrameHeight() * catalog_view_height_frames;
-    if (ImGui::BeginTable("##panes", catalog_panes_table_columns)) {
+    if (ImGui::BeginTable("##panes",
+            ImGui::GetContentRegionAvail().x >= catalog_lists_wide_em * ImGui::GetFontSize() ? catalog_panes_table_columns :
+                                                                                               1)) {
         ImGui::TableNextColumn();
         ImGui::BeginChild("##tree", ImVec2(0.0f, height), ImGuiChildFlags_Borders);
         rv_editor_catalog_tree(theme);

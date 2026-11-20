@@ -1,0 +1,10 @@
+[scene]
+
+[[object]]
+id = "b0000001"
+parent = "ffffffff"
+
+[[component]]
+object = "b0000001"
+name = "name"
+text = "orphan"

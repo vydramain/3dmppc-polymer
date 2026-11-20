@@ -56,11 +56,7 @@ rv_editor_item rv_editor_tile_add(const rv_editor_tile &tile, ImVec2 size, const
 // the letter over a line of text, whichever is larger.
 float rv_editor_tile_large_width(const rv_editor_tile &)
 {
-    const ImVec2 pad = ImGui::GetStyle().FramePadding;
-    const float line = ImGui::GetTextLineHeight();
-    const float ref_width = ImGui::CalcTextSize(tool_button_ref_label).x + pad.x * both_sides_mult;
-    const float line_height = line * tool_button_line_mult + pad.y * tool_button_line_mult;
-    return std::floor(std::max(ref_width, line_height));
+    return rv_editor_tile_large_side(ImGui::GetFont(), ImGui::GetFontSize());
 }
 
 bool rv_editor_tile_large_draw(const rv_editor_tile &tile, const rv_editor_theme &theme, const rv_editor_state &state)
@@ -111,7 +107,7 @@ float rv_editor_tile_medium_width(const rv_editor_tile &tile)
     const float pad = ImGui::GetStyle().FramePadding.x;
     const float code_w = ImGui::CalcTextSize(tile.code).x;
     const float label_w = ImGui::CalcTextSize(tile.label, rv_editor_label_end(tile.label)).x;
-    return pad * tile_medium_pad_mult + code_w + label_w;
+    return std::max(tile.min_width, pad * tile_medium_pad_mult + code_w + label_w);
 }
 
 bool rv_editor_tile_medium_draw(const rv_editor_tile &tile, const rv_editor_theme &theme, const rv_editor_state &state)
@@ -173,6 +169,14 @@ static_assert(std::size(tile_kinds) == static_cast<size_t>(rv_editor_tile_size::
     "tile_kinds needs one entry per rv_editor_tile_size");
 
 } // namespace
+
+float rv_editor_tile_large_side(ImFont *font, float size)
+{
+    const ImVec2 pad = ImGui::GetStyle().FramePadding;
+    const float ref_width = font->CalcTextSizeA(size, FLT_MAX, 0.0f, tool_button_ref_label).x + pad.x * both_sides_mult;
+    const float line_height = size * tool_button_line_mult + pad.y * tool_button_line_mult;
+    return std::floor(std::max(ref_width, line_height));
+}
 
 float rv_editor_tile_width(const rv_editor_tile &tile, rv_editor_tile_size size)
 {

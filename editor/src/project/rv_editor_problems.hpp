@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace rv_editor
 {
@@ -22,5 +23,7 @@ struct rv_editor_problem {
 // and mppcburner's "cannot compile '<file>': <chunk>:<line>: <text>". False for any
 // other line: an unknown format is never given a place it does not state.
 bool rv_editor_problem_parse(std::string_view text, const std::filesystem::path &root, rv_editor_problem &out);
+// Drops from `build` each problem with the file, line and message of one in `inspector`.
+void rv_editor_problems_drop_reported(std::vector<rv_editor_problem> &build, const std::vector<rv_editor_problem> &inspector);
 
 } // namespace rv_editor

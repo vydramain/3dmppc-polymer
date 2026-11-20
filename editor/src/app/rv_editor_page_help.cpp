@@ -34,9 +34,12 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pane_header(rv_editor_text("page_help.title"), true, theme);
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(rv_editor_text("page_help.filter_label"), rv_editor_label_kind::normal, theme);
+    rv_editor_label(rv_editor_text("page_help.filter_label"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::line);
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * filter_width_in_font_sizes);
+    ImGui::SetNextItemWidth(std::min(ImGui::GetFontSize() * filter_width_in_font_sizes, ImGui::GetContentRegionAvail().x));
     rv_editor_text_field("##filter", shell.help_filter, sizeof(shell.help_filter), theme);
     // A row stays when its command or its keys hold the filter, case aside.
     const auto holds = [&](const char *text) {
@@ -68,6 +71,12 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
         { "workspace.pane_code", "page_help.label_vim", "page_help.shortcut_vim" },
         { "shell_menu.help", "manual.start_label", "page_help.shortcut_f1" },
     };
+    bool any = false;
+    for (const auto &r : rows) {
+        any = any || holds(rv_editor_text(r.label_id)) || holds(rv_editor_text(r.keys_id));
+    }
+    // A line under the filter that is there with or without the words, so the table never moves.
+    rv_editor_message_line("##no_match", any ? "" : rv_editor_text("page_help.no_match"), 1, 0.0f, theme);
     if (!rv_editor_table_begin("##keys", help_columns, help_table_columns, help_table_style)) {
         return;
     }
@@ -83,13 +92,13 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
             last_group_text = group_text;
             rv_editor_table_row();
             rv_editor_table_cell();
-            rv_editor_label(group_text, rv_editor_label_kind::bright, theme);
+            rv_editor_label(group_text, rv_editor_label_kind::bright, theme, rv_editor_label_layout::line);
         }
         rv_editor_table_row();
         rv_editor_table_cell();
-        rv_editor_label(label_text, rv_editor_label_kind::normal, theme);
+        rv_editor_table_cell_text(label_text, theme);
         rv_editor_table_cell();
-        rv_editor_label(keys_text, rv_editor_label_kind::normal, theme);
+        rv_editor_table_cell_text(keys_text, theme);
     }
     rv_editor_table_end();
 }

@@ -1,15 +1,17 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <filesystem>
+#include <span>
 #include <string>
+#include <string_view>
 
 #include "build/rv_editor_build.hpp"
 #include "build/rv_editor_job.hpp"
-#include "build/rv_editor_setup_progress.hpp"
+#include "build/rv_editor_progress.hpp"
 #include "log/rv_editor_log.hpp"
 #include "project/rv_editor_project.hpp"
 
@@ -23,18 +25,59 @@ enum class rv_editor_export_kind : uint8_t {
     web,
 };
 
-// One finished export in the recent list: its kind, the path it was to write (a failed or cancelled export may not have
-// written it), how it ended and when update() noticed the end.
-struct rv_editor_export_record {
-    rv_editor_export_kind kind;
-    std::filesystem::path result;
-    rv_editor_build_state state;
-    std::chrono::system_clock::time_point ended;
+// What the Open button does with a finished export of a kind.
+enum class rv_editor_export_open_action : uint8_t {
+    folder,
+    browser,
 };
 
-// How many finished exports the Export pane lists: the pane shows three rows. The list lives in session memory
-// only, so a restart starts it empty.
-constexpr std::size_t rv_editor_export_recent_max = 3;
+// One row of the kinds table, one per rv_editor_export_kind in its order: what the Export tile draws and the job uses.
+struct rv_editor_export_kind_info {
+    rv_editor_export_kind kind;
+    // The kind's directory under <project>/export: mppcdisc, bundle, web.
+    std::string_view subdir;
+    bool needs_web_tools;
+    rv_editor_export_open_action open;
+    // Text ids (editor/texts/rv_editor_texts.toml) of the kind's name and one-line description.
+    std::string_view name_key;
+    std::string_view description_key;
+    // mppcburner --target value.
+    std::string_view target;
+    // -o is dest/<disc_id><output_suffix>; empty: -o is the destination directory itself.
+    std::string_view output_suffix;
+    // The result is dest/<result_name>; empty: the result is the output itself.
+    std::string_view result_name;
+    // A player is burnt with the firmware beside the burner's real binary (symlinks resolved), the file the
+    // burner packs; a missing one is refused before the burner starts.
+    bool needs_firmware;
+};
+
+// The kinds table.
+std::span<const rv_editor_export_kind_info> rv_editor_export_kinds();
+
+// <project_root>/export/<subdir of the kind>.
+std::filesystem::path rv_editor_export_default_dir(const std::filesystem::path &project_root, rv_editor_export_kind kind);
+
+// The destination path of each kind as the user edited it; a kind never edited gets its default directory.
+// One instance lives until the project closes (reset()).
+class rv_editor_export_paths
+{
+public:
+    std::string get(const std::filesystem::path &project_root, rv_editor_export_kind kind) const;
+    void set(rv_editor_export_kind kind, const std::string &path);
+    void reset();
+
+private:
+    std::array<std::string, 3> edited_;
+};
+
+// A file an export writes into its destination after it succeeded: its presence says the directory was made by an export.
+inline constexpr std::string_view rv_editor_export_mark_name = ".mppcexport";
+
+// Makes `dir` ready for a new export: a missing directory is created, an empty one or one holding the mark is
+// emptied (the mark goes too). RV_OK, or an rv_err code with the reason in `error` when the directory holds
+// anything without the mark (nothing is deleted then) or cannot be created or emptied.
+int rv_editor_export_prepare_dir(const std::filesystem::path &dir, std::string &error);
 
 // The export job: mppcburner in the background, writing one kind of export into the
 // destination directory chosen by the user. The job lives outside the UI: the
@@ -69,6 +112,11 @@ public:
     {
         return state_ == rv_editor_build_state::building || state_ == rv_editor_build_state::cancelling;
     }
+    // True while the started job is the web setup.
+    bool setup_job() const
+    {
+        return setup_job_;
+    }
     // The path the current or last export writes; the finished file or directory once state() is succeeded.
     // Empty after a setup.
     const std::filesystem::path &result() const
@@ -80,33 +128,37 @@ public:
     {
         return failure_reason_;
     }
-    // The web setup's ladder position from its last stderr line; step 0 (default) for an export or before any ladder line.
-    const rv_editor_setup_progress &setup_progress() const
+    // The number of the current or last run (an export or a web setup); 0 before the first one.
+    uint32_t run() const
     {
-        return setup_progress_;
+        return runs_;
     }
-    // The session's ended exports, oldest first: the newest is last, at most rv_editor_export_recent_max.
-    // Each keeps its end state: succeeded, failed or cancelled.
-    // A web setup is not listed.
-    const std::deque<rv_editor_export_record> &recent() const
+    // Whole seconds the current run has lasted, or the last one lasted.
+    int64_t seconds() const
     {
-        return recent_;
+        const auto end = busy() ? std::chrono::steady_clock::now() : ended_at_;
+        return std::chrono::duration_cast<std::chrono::seconds>(end - started_at_).count();
+    }
+    // The progress lines of the current or last run (an export or the web setup) as a tree; no runs before the first one.
+    const rv_editor_progress &progress() const
+    {
+        return job_.progress();
     }
 
 private:
     rv_editor_job job_;
     rv_editor_build_state state_ = rv_editor_build_state::idle;
     std::filesystem::path result_;
-    // The kind of the started export; set by start() and read when update() records its end.
-    rv_editor_export_kind kind_ = rv_editor_export_kind::disc;
     std::string failure_reason_;
     // The started operation's name in the log: "export" or "web setup".
     std::string label_;
-    // True while the started job is the web setup; only its stderr is read as the ladder.
     bool setup_job_ = false;
-    rv_editor_setup_progress setup_progress_;
     uint32_t runs_ = 0;
-    std::deque<rv_editor_export_record> recent_;
+    std::chrono::steady_clock::time_point started_at_{};
+    std::chrono::steady_clock::time_point ended_at_{};
 };
+
+// True while the running job is the web setup, from its first frame: the bar shows before any ladder line came.
+bool rv_editor_export_setup_bar_due(const rv_editor_export &exporter);
 
 } // namespace rv_editor

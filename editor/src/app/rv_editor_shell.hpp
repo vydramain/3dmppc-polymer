@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <map>
 #include <optional>
@@ -129,8 +130,8 @@ struct rv_editor_shell {
     // By slot: a starting tree whose Game tile keeps the screen's proportions until
     // a splitter is dragged; the tries left to settle, and the area at the last one.
     std::array<bool, editor_workspace_slots_count> game_fit{};
-    // By slot: true from a reset/fresh preset until the first splitter drag, whether
-    // or not the preset also fits the Game (Debug does not, but its strips still do).
+    // By slot: true from a reset/fresh preset until the first splitter drag; its
+    // strips are fit to their buttons meanwhile, and the Game while game_fit holds.
     std::array<bool, editor_workspace_slots_count> layout_untouched{};
     int game_fit_tries = game_fit_attempts;
     rv_editor_size game_fit_last{ 0, 0 };
@@ -206,8 +207,6 @@ struct rv_editor_shell {
     std::array<std::optional<rv_editor_tool>, settings_tools_count> settings_checks;
     int settings_browse = -1; // the field the browser is choosing for; -1: none
     rv_editor_browser settings_browser;
-    // What each strip of controls drew last frame: its minimum in the tree.
-    std::map<rv_editor_pane_id, rv_editor_size> strips;
     // The UI state, and the requests the panes queued for rv_editor_shell_ui_apply.
     rv_editor_ui ui;
     std::vector<rv_editor_ui_request> ui_requests;
@@ -218,6 +217,9 @@ inline constexpr rv_editor_layout_preset rv_editor_workspaces[] = { rv_editor_la
     rv_editor_layout_preset::scene,
     rv_editor_layout_preset::debug,
     rv_editor_layout_preset::burn };
+
+// Whether the starting tree of `preset` sizes its Game tile to the picture.
+bool rv_editor_preset_fits_game(rv_editor_layout_preset preset);
 
 // Shows layout `to` as the user left it. Nothing else changes.
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to);
@@ -308,15 +310,20 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
 // The start screen's pages that are drawn in a tab too: New Project
 // (rv_editor_shell_start_new.cpp) and Open Project (rv_editor_shell_start.cpp).
 void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &theme);
+// What the Directory field drew last, for tests.
+const rv_editor_path_probe &rv_editor_page_new_project_dir_probe();
 void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // Window > Terminal: the terminal in front, with the keyboard.
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell);
+// A build that did not start or failed: Problems in front with the keyboard, in the tile of the Output when it is
+// not in the layout yet (rv_editor_shell.cpp).
+void rv_editor_shell_focus_problems(rv_editor_shell &shell);
 // Window > Focus Next / Previous Pane: the next tile in reading order takes the keyboard.
 void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back);
 
 // A live shell's tile closes only after this question; drawn after the workspace.
-void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme &theme);
+void rv_editor_shell_terminal_answered(rv_editor_shell &shell, rv_editor_pane_id pane);
 
 // A new tile of `kind` beside the focused tile (or the first), half and half.
 void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind);
@@ -339,6 +346,15 @@ void rv_editor_shell_after_save(rv_editor_shell &shell);
 // A buffer's file as the project sees it: relative to the root when inside it,
 // "Untitled" without a name.
 std::string rv_editor_shell_buffer_label(const rv_editor_app &app, const std::string &name);
+// Saves `ids` (every modified buffer when empty). The outcome lands in
+// shell.save_failed, or shell.save_done when every file was written.
+void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &ids);
+// The scene first, as it saves at once; RV_OK on success or when already saved, RV_ERR_* on failure.
+int rv_editor_shell_save_scene(rv_editor_shell &shell);
+// Save As under a question or on its own: the path field, Save and Cancel.
+void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme &theme);
+// What did not save, and why; a Save As for each Untitled file among them.
+void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &theme, int lines);
 
 // A pane's title with its context (spec 6.1): what it shows, from which session,
 // build or candidate; nothing when the plain kind says it all.
@@ -360,12 +376,17 @@ bool rv_editor_shell_may_quit(rv_editor_shell &shell);
 // Review Changes as a tab while quitting, opening, building or running waits.
 void rv_editor_shell_ask_close(rv_editor_shell &shell, const rv_editor_theme &theme);
 void rv_editor_shell_ask_save_as(rv_editor_shell &shell, const rv_editor_theme &theme);
+// What a code tile asks instead of its grid (nvim keeps its size): the Unsaved Changes ask of the closing tile, Save As
+// of its tile. False when nothing is asked and the tile shows its grid.
+bool rv_editor_shell_code_asks(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_theme &theme);
 void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme);
 // Once a frame: Review Changes is a tab while something waits on unsaved files and
 // goes when nothing does; Save As whose code tile has gone is dropped.
 void rv_editor_shell_review_tab(rv_editor_shell &shell);
 // File > Settings: the tool paths of settings.toml.
 void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &theme);
+// What the override path field of tool `i` drew last, for tests.
+const rv_editor_path_probe &rv_editor_page_settings_path_probe(size_t i);
 // Once a frame: an Apply asked for saves settings.toml and finds the tools again; a failed save goes to settings_error.
 void rv_editor_shell_settings_apply(rv_editor_shell &shell);
 // Sets vsync as shell.pace asks on shell.renderer and sets shell.vsync_active from what SDL reports.
@@ -380,10 +401,8 @@ void rv_editor_shell_game_input(rv_editor_shell &shell);
 // rv_editor_pane_draw_fn for the window's workspace; `context` is the shell.
 void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_kind kind, const rv_editor_theme &theme);
 
-// shell.ws.minimums[pane]: `kind`'s minimum (rv_editor_shell_minimums.cpp), the
-// Game's own mode row and status line (`game_need`, measured by the pane itself
-// rather than the frame at 1x) when larger, a strip's measured height when that
-// is larger still; unset when every source gives none.
+// shell.ws.minimums[pane]: `kind`'s constant minimum (rv_editor_shell_minimums.cpp), never
+// what the pane drew or measured; unset when the kind has none. `game_need` is not read.
 void rv_editor_shell_set_minimum(rv_editor_shell &shell,
     rv_editor_pane_id pane,
     rv_editor_pane_kind kind,

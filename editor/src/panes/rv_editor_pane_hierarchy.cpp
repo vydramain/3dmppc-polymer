@@ -48,18 +48,22 @@ void rv_editor_hierarchy_move(rv_editor_app &app, const std::string &id, const s
     (void)rv_editor_app_request(app, request);
 }
 
-// The last move's refusal, with a Dismiss button that asks the app to clear it.
+// The last move's refusal in a place of its own, with a Dismiss button that asks the app to clear it; with no note
+// the place stays, empty, and Dismiss is disabled, so the tree below never moves.
 void rv_editor_hierarchy_note(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    if (app.scene_move_note.empty()) {
-        return;
-    }
-    rv_editor_label(app.scene_move_note.c_str(), rv_editor_label_kind::warning, theme, rv_editor_label_layout::wrap);
+    const bool has_note = !app.scene_move_note.empty();
+    rv_editor_message_line("##note", app.scene_move_note.c_str(), 2, 0.0f, theme, nullptr, rv_editor_label_kind::warning);
     const bool dismiss_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::dismiss_scene_note);
-    const char *dismiss_why = dismiss_pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
+    const char *dismiss_why = nullptr;
+    if (!has_note) {
+        dismiss_why = rv_editor_text("pane_hierarchy.no_note");
+    } else if (dismiss_pending) {
+        dismiss_why = rv_editor_text("app_why_not.request_pending");
+    }
     const bool dismiss_clicked =
         rv_editor_button(rv_editor_text("findings.dismiss"), theme, { rv_editor_look::live, dismiss_why });
-    if (dismiss_clicked) {
+    if (dismiss_clicked && has_note) {
         (void)rv_editor_app_request(app, { .kind = rv_editor_pane_request_kind::dismiss_scene_note });
     }
 }
@@ -159,7 +163,7 @@ void rv_editor_hierarchy_marks(const rv_editor_scene_object &o, const rv_editor_
         return;
     }
     ImGui::SameLine();
-    rv_editor_label(marks.c_str(), rv_editor_label_kind::dim, theme);
+    rv_editor_label(marks.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
 }
 
 // Context menu for a scene object: add children, duplicate, delete, reparent. Each item says why it cannot run.
@@ -239,7 +243,7 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
     if (drag && ImGui::BeginDragDropSource()) {
         ImGui::SetDragDropPayload(rv_editor_scene_payload, o.id.c_str(), o.id.size() + 1);
         const std::string move_label = rv_editor_text_format("pane_hierarchy.move_label", std::make_format_args(label));
-        rv_editor_label(move_label.c_str(), rv_editor_label_kind::normal, theme);
+        rv_editor_label(move_label.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
         ImGui::EndDragDropSource();
     }
     if (drag && ImGui::BeginDragDropTarget()) {
@@ -386,11 +390,11 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
     rv_editor_hierarchy_shelf(app, theme, ui);
     rv_editor_hierarchy_target(app, theme, ui);
 
+    rv_editor_hierarchy_note(app, theme);
     rv_editor_hierarchy_filter(doc, theme);
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const rv_editor_hierarchy_tree tree = rv_editor_hierarchy_build(doc);
     const auto body = [&]() {
-        rv_editor_hierarchy_note(app, theme);
         if (doc.hierarchy_query[0] != '\0') {
             rv_editor_hierarchy_matches(app, theme);
         } else {

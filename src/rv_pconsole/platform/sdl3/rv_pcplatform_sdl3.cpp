@@ -131,7 +131,7 @@ void log_display_bounds()
 }
 
 #ifdef __EMSCRIPTEN__
-// Page facts set on Module before main() by src/web/rv_web_pre.js; undefined reads as false.
+// Page facts set on Module before main() by the web pre-js parts (src/web/rv_web_pre.js); undefined reads as false.
 bool page_webhid_usable()
 {
     return EM_ASM_INT({ return Module.rvWebhidUsable ? 1 : 0; });
@@ -212,12 +212,10 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
     }
 
 #ifdef __EMSCRIPTEN__
-    // Browser facts: a missing WebHID or JSPI matters only when pads were wanted.
-    const bool webhid_refused = wants.gamepads && !page_webhid_usable();
+    // Browser facts. No WebHID is a plain fact, not a boot warning: no pad is known at boot.
     const bool save_load_refused = page_save_load_failed();
-    if (webhid_refused) {
-        platform->refused_ |= RV_PCPLATFORM_REFUSED_WEBHID;
-        RV_LOG_WARN("pcplatform", "browser has no WebHID or JSPI: pads read through the Gamepad API only");
+    if (wants.gamepads && !page_webhid_usable()) {
+        RV_LOG_INFO("pcplatform", "browser has no WebHID or JSPI: pads read through the Gamepad API only");
     }
     if (save_load_refused) {
         platform->refused_ |= RV_PCPLATFORM_REFUSED_SAVE_LOAD;

@@ -97,7 +97,7 @@ struct rv_editor_scene_camera {
     rv_pdklib::fx pitch = camera_pitch_default;
     rv_pdklib::fx distance = camera_distance_default;
     std::array<rv_pdklib::fx, 3> target{}; // raw Q20.12 x, y, z; the fx_vec3 accessors copy it unchanged
-    bool seeking = false; // Seek pressed: the next click picks the point to turn about
+    bool seeking = false;                  // Seek pressed: the next click picks the point to turn about
     bool operator==(const rv_editor_scene_camera &) const = default;
 };
 
@@ -178,6 +178,13 @@ struct rv_editor_code_tabs {
     std::string dropped;
 };
 
+// The answer to the question of ending a Terminal tile.
+enum class rv_editor_terminal_end_answer {
+    none,
+    end,
+    keep,
+};
+
 // A Terminal tile's shell, started when the tile is first drawn, and how many
 // lines above the screen the tile shows.
 struct rv_editor_terminal_view {
@@ -187,6 +194,8 @@ struct rv_editor_terminal_view {
     std::filesystem::path cwd;  // where the shell started
     bool focus_request = false; // Window > Terminal: take the keyboard next frame
     std::string paste;          // several lines waiting for Paste or Cancel
+    bool ending = false;        // the shell asks to end the tile: the tile draws the question in its ask place
+    rv_editor_terminal_end_answer end_answer = rv_editor_terminal_end_answer::none;
 };
 
 // What Observe reads: the table it lists and the paths pinned to watch, each a

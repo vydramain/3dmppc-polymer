@@ -6,9 +6,6 @@
 namespace rv_editor
 {
 
-namespace
-{
-
 // The colour a label kind draws in. No default: a new kind is a warning here.
 uint32_t rv_editor_label_colour(rv_editor_label_kind kind, const rv_editor_theme &theme)
 {
@@ -30,8 +27,6 @@ uint32_t rv_editor_label_colour(rv_editor_label_kind kind, const rv_editor_theme
     }
     return theme.text;
 }
-
-} // namespace
 
 void rv_editor_label(const char *text, rv_editor_label_kind kind, const rv_editor_theme &theme, rv_editor_label_layout layout)
 {

@@ -26,24 +26,26 @@ add_executable(mppcburner
   # the setup subcommand: pinned tools installed once per user, not shipped in the package
   rv_burner_setup/rv_burner_setup.cpp
 
+  # the sources check, run as [1/5] sources: mppcinspector on the disc's sources
+  rv_burner_sources/rv_burner_sources_check.cpp
+
   # shared by every phase
   rv_burner_common/rv_burner_archive.cpp
-  rv_burner_common/rv_burner_globs.cpp
   rv_burner_common/rv_burner_process.cpp
 
-  # [2/4] compile
+  # [3/5] compile
   rv_burner_compile/rv_burner_check.cpp
   rv_burner_compile/rv_burner_cmake.cpp
   rv_burner_compile/rv_burner_compile_sources.cpp
 
-  # [3/4] assets
+  # [4/5] assets
   rv_burner_assets/rv_burner_plan.cpp
   rv_burner_assets/rv_burner_baker_path.cpp
   rv_burner_assets/rv_burner_bake.cpp
   rv_burner_assets/rv_burner_bake_models.cpp
   rv_burner_assets/rv_burner_compile_scripts.cpp
 
-  # [4/4] burn
+  # [5/5] burn
   rv_burner_burn/rv_burner_burn.cpp
 
   # the .mppcdisc container itself, both sides: the burn phase writes it and the

@@ -7,6 +7,7 @@
 #include <chrono>
 
 #include "pdk/rv_err.h"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -134,6 +135,13 @@ int rv_editor_app_changed_files_apply(rv_editor_app &app)
         }
     }
     app.files.changed.clear();
+    // The project changed on disk: the inspector looks again, after the run that is under way.
+    std::string inspect_error;
+    if (app.inspect.request(app.project, app.tools, app.log, inspect_error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            rv_editor_text_format("inspect.not_started", std::make_format_args(inspect_error)));
+    }
     return RV_OK;
 }
 
@@ -142,6 +150,7 @@ int rv_editor_app_build_restart(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
@@ -156,6 +165,7 @@ int rv_editor_app_build_restart_saved(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     const int err = rv_editor_app_build_saved(app);

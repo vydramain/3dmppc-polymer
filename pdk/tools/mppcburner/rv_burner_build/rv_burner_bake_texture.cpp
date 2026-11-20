@@ -13,6 +13,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_burner_print.hpp"
+#include "rv_burner_steps.hpp"
 
 namespace fs = std::filesystem;
 
@@ -66,9 +67,7 @@ static int rv_burner_bake_texture_select(const rv_pdklib::rv_manifest &manifest,
     return RV_OK;
 }
 
-} // namespace rv_pdktools
-
-int rv_pdktools::rv_burner_bake_texture_run(const rv_burner_options &options)
+static int rv_burner_bake_texture_body(const rv_burner_options &options)
 {
     std::error_code ec;
     std::string error;
@@ -122,6 +121,15 @@ int rv_pdktools::rv_burner_bake_texture_run(const rv_burner_options &options)
         return RV_ERR_IO;
     }
 
+    rv_burner_print_step("texture", item.name);
     std::cout << item.name << "\n";
     return RV_OK;
 }
+
+int rv_burner_bake_texture_run(const rv_burner_options &options)
+{
+    return rv_burner_run_with_progress(rv_burner_bake_texture_steps(), [&] {
+        return rv_burner_bake_texture_body(options);
+    });
+}
+} // namespace rv_pdktools
