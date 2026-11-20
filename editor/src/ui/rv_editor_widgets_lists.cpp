@@ -40,9 +40,15 @@ rv_editor_list_result rv_editor_list_row(const char *id,
     ImGui::PushID(id);
     // The whole label: a row wider than its area scrolls it, and the Selectable spans max(label, area).
     // A `whole` row in a table gives the row its own width: ImGui widens a row to its label's width otherwise.
-    const float row_width = !style.whole ? 0.0f :
-        style.span_columns               ? ImGui::GetCurrentWindow()->ParentWorkRect.GetWidth() :
-                                           ImGui::GetContentRegionAvail().x;
+    // A table row that spans its columns is as wide as the area (the inner rect: fixed, whatever the scroll or the table
+    // of the last frame was), so its width never feeds back into the auto-fit of column 0; its highlight starts at the
+    // table's edge. A by_id row (row select) widens itself.
+    const ImGuiWindow *window = ImGui::GetCurrentWindow();
+    const bool in_table_span = style.span_columns && !style.by_id && ImGui::GetCurrentTable() != nullptr;
+    const float row_width = in_table_span ? window->InnerRect.GetWidth() :
+        !style.whole                      ? 0.0f :
+        style.span_columns                ? window->ParentWorkRect.GetWidth() :
+                                            ImGui::GetContentRegionAvail().x;
     const bool pressed = ImGui::Selectable(style.by_id ? label : (std::string(label) + "###row").c_str(),
         selected,
         flags,

@@ -82,16 +82,19 @@ bool rv_editor_table_begin(const char *id, const rv_editor_table_column *columns
 {
     const ImGuiTableFlags sizing =
         style.sizing == rv_editor_table_sizing::fixed_fit ? ImGuiTableFlags_SizingFixedFit : ImGuiTableFlags_SizingStretchProp;
-    // Fixed columns take their own width, so a table of them is as wide as they are, past its area when they are wider.
-    const ImGuiTableFlags fit_x = style.sizing == rv_editor_table_sizing::fixed_fit ?
-        ImGuiTableFlags_NoHostExtendX | ImGuiTableFlags_NoKeepColumnsVisible :
-        ImGuiTableFlags_None;
+    const bool fit = style.sizing == rv_editor_table_sizing::fixed_fit;
+    // Fixed columns take their own width, past the area when they are wider, so no column is squeezed to stay visible.
+    const ImGuiTableFlags fit_x = fit ? ImGuiTableFlags_NoKeepColumnsVisible : ImGuiTableFlags_None;
     const ImGuiTableFlags borders = style.borders ? ImGuiTableFlags_Borders : ImGuiTableFlags_None;
     const ImGuiTableFlags bands = style.row_bands ? ImGuiTableFlags_RowBg : ImGuiTableFlags_None;
-    if (!ImGui::BeginTable(id, count, sizing | fit_x | borders | bands)) {
+    // The table is as wide as the area or, when its columns are wider, as they were last frame: the bands then span the
+    // area and the columns keep their own widths.
+    const float own = ImGui::GetStateStorage()->GetFloat(ImGui::GetID(id), 0.0f);
+    const ImGuiWindow *host = ImGui::GetCurrentWindow(); // its padding is room too: the area ends at its inner edge
+    const ImVec2 outer(fit ? std::max(own, host->InnerRect.Max.x - ImGui::GetCursorScreenPos().x) : 0.0f, 0.0f);
+    if (!ImGui::BeginTable(id, count, sizing | fit_x | borders | bands, outer)) {
         return false;
     }
-    const bool fit = style.sizing == rv_editor_table_sizing::fixed_fit;
     for (int i = 0; i < count; ++i) {
         const bool fixed = fit || columns[i].width == rv_editor_table_width::fixed;
         const ImGuiTableColumnFlags width = fixed ? ImGuiTableColumnFlags_WidthFixed : ImGuiTableColumnFlags_WidthStretch;
@@ -111,7 +114,20 @@ bool rv_editor_table_begin(const char *id, const rv_editor_table_column *columns
 void rv_editor_table_end()
 {
     rv_editor_pinned_end();
+    const ImGuiTable *table = ImGui::GetCurrentTable();
+    const ImGuiID id = table->ID;
+    const bool fit = (table->Flags & ImGuiTableFlags_SizingMask_) == ImGuiTableFlags_SizingFixedFit;
     ImGui::EndTable();
+    // Relies on the ImGuiTable outliving EndTable (ColumnsAutoFitWidth, OuterRect), as ImGui does for NoHostExtendX.
+    if (!fit) {
+        return;
+    }
+    // EndTable has just summed the columns' widths (the table struct outlives it). The host scrolls by them at once,
+    // as NoHostExtendX would; the table itself is that wide from the next frame.
+    const float own = table->ColumnsAutoFitWidth;
+    ImGui::GetStateStorage()->SetFloat(id, own);
+    ImGuiWindow *window = ImGui::GetCurrentWindow();
+    window->DC.CursorMaxPos.x = std::max(window->DC.CursorMaxPos.x, table->OuterRect.Min.x + own);
 }
 
 void rv_editor_table_row()

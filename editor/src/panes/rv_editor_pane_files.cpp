@@ -169,6 +169,10 @@ void rv_editor_files_node(rv_editor_app &app,
         const char *code = rv_editor_glyph::other_file;
         uint32_t color = 0;
         rv_editor_files_chip(node, code, color);
+        // The folder colour is the highlight's own, so on the picked row the glyph is drawn in the bright text colour.
+        if (node.dir && !node.symlink && style.selected) {
+            color = theme.text_bright;
+        }
         // A row is one cell high: the stand-in is the code itself, in its colour.
         const float cell = ImGui::GetTextLineHeight();
         const ImVec2 at(ImGui::GetItemRectMin().x + ImGui::GetTreeNodeToLabelSpacing(),
