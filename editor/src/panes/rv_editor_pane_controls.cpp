@@ -302,6 +302,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         theme,
         app.project.open ? message.full : std::string());
     rv_editor_shelf_end();
+    // The shelf ends the tile: no spacing after it, as the height says.
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);
 }
 
 } // namespace rv_editor

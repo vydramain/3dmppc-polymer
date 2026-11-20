@@ -97,10 +97,10 @@ float rv_editor_transport_height(float width)
     const ui_font_scope font;
     const ImGuiStyle &style = ImGui::GetStyle();
     // The window's padding, the shelf's padding on both sides (the style's inner spacing is the theme's pad), the row of
-    // tiles (the slot is no taller), the status's two lines, and the spacing the tile's content ends with.
+    // tiles (the slot is no taller), the status's two lines.
     return style.WindowPadding.y + 2.0f * style.ItemInnerSpacing.y +
         rv_editor_transport_side(width, rv_editor_transport_column_min_width()) + style.ItemSpacing.y +
-        rv_editor_strip_status_height() + style.ItemSpacing.y;
+        rv_editor_strip_status_height();
 }
 
 } // namespace rv_editor

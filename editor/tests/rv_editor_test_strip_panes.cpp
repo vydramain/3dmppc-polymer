@@ -310,8 +310,8 @@ RV_EDITOR_TEST(rv_editor_test_strip_panes_a_message_is_a_strip_that_moves_nothin
 
 // R19: the minimum of the pane is a true minimum for every state (rule 1) and static: the shelf (the header), the area at
 // its floor, the strip at its tallest (three lines of text, one in the logs; a longer message scrolls inside; with the row of
-// the name field under them in Files) and a gap, whatever the messages are. Every state, with a message or without, fits whole
-// at it.
+// the name field under them in Files) and a gap (none after a log's strip), whatever the messages are. Every state, with a
+// message or without, fits whole at it.
 RV_EDITOR_TEST(rv_editor_test_strip_panes_minimum_is_the_shelf_the_floor_and_the_tallest_strip)
 {
     s13::load_texts();
@@ -321,7 +321,8 @@ RV_EDITOR_TEST(rv_editor_test_strip_panes_minimum_is_the_shelf_the_floor_and_the
         const auto min = stable_tiles::pane_minimum(gui, s.kind);
         float want = 0.0f;
         gui.frame([&] {
-            want = s.room_without_block() + strip_max(s) + ImGui::GetStyle().ItemSpacing.y;
+            // a log's strip is the last thing in the tile: no gap after it (S13.1a.2); other panes keep one
+            want = s.room_without_block() + strip_max(s) + (s.header ? 0.0f : ImGui::GetStyle().ItemSpacing.y);
         });
         if (std::fabs(min.h - want) > 1.5f) {
             std::fprintf(stderr, "  %s: the minimum is %.0f px high; shelf, floor, the tallest strip and a gap make %.0f\n", s.name.c_str(), min.h, want);

@@ -148,6 +148,8 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     const std::string tip = shown != nullptr && app.project.open ? rv_editor_release_number_tooltip(*shown) : std::string();
     rv_editor_strip_status(text, std::max(rv_editor_release_status_min_width(), ImGui::GetContentRegionAvail().x), theme, tip);
     rv_editor_shelf_end();
+    // The shelf ends the tile: no spacing after it, as the height says.
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);
 }
 
 } // namespace rv_editor

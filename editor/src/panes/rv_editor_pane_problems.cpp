@@ -114,8 +114,8 @@ std::string rv_editor_problems_level_tip(const rv_editor_problem &problem)
 
 rv_editor_size rv_editor_problems_minimum()
 {
-    // The strip at its tallest: three lines of text, a longer one scrolls inside it.
-    return rv_editor_tiled_minimum(rv_editor_problems_content_width(), rv_editor_tiled_strip_block(false));
+    // The strip at its tallest: one line of text, a longer one scrolls inside it.
+    return rv_editor_tiled_minimum(rv_editor_problems_content_width(), rv_editor_tiled_strip_block(false, 1));
 }
 
 void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
@@ -124,7 +124,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
     const std::vector<rv_editor_problem> problems =
         app.project.open ? rv_editor_gather_problems(app) : std::vector<rv_editor_problem>{};
     const rv_editor_message_say strip = rv_editor_problems_strip_of(app);
-    const float strip_h = rv_editor_message_strip_height(strip.text, strip.buttons, ImGui::GetContentRegionAvail().x);
+    const float strip_h = rv_editor_message_strip_height(strip.text, strip.buttons, ImGui::GetContentRegionAvail().x, false, 1);
 
     (void)rv_editor_tiled_area_begin("##problems_area", rv_editor_problems_content_width(), theme, {}, false, 0.0f, strip_h);
     // The icon, the place and the message, which wraps and takes what the first two leave.
@@ -187,7 +187,17 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_table_end();
     }
     rv_editor_tiled_area_end(theme);
-    const int pressed = rv_editor_message_strip("##strip", strip.text, strip.kind, strip.buttons, theme);
+    const int pressed = rv_editor_message_strip("##strip",
+        strip.text,
+        strip.kind,
+        strip.buttons,
+        theme,
+        0.0f,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        1);
     if (pressed == 0 && app.build_alert.kind != rv_editor_build_alert_kind::none) {
         rv_editor_app_build_alert_clear(app);
     } else if (pressed == 0) {

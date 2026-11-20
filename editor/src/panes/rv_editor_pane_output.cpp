@@ -225,7 +225,8 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, float h, c
         }
     }
     dl->PopClipRect();
-    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + h));
+    // The dummy's own spacing lands the cursor on the header's bottom: the area follows with no gap.
+    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + h - ImGui::GetStyle().ItemSpacing.y));
     ImGui::Dummy(ImVec2(0.0f, 0.0f));
 }
 
@@ -292,7 +293,7 @@ float rv_editor_output_content_width()
 
 rv_editor_size rv_editor_output_minimum()
 {
-    const float header = ImGui::GetTextLineHeight() + header_height_padding_px + ImGui::GetStyle().ItemSpacing.y;
+    const float header = ImGui::GetTextLineHeight() + header_height_padding_px;
     return rv_editor_tiled_minimum(rv_editor_output_content_width(),
         rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(false, 1) + header);
 }

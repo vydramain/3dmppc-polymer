@@ -117,9 +117,23 @@ rv_editor_message_say rv_editor_findings_say(const rv_editor_app &app, const std
 }
 
 // The strip under the area and what its button does.
-void rv_editor_findings_strip(rv_editor_app &app, const rv_editor_message_say &say, float width, const rv_editor_theme &theme)
+void rv_editor_findings_strip(rv_editor_app &app,
+    const rv_editor_message_say &say,
+    float width,
+    const rv_editor_theme &theme,
+    int max_lines)
 {
-    const int pressed = rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, width);
+    const int pressed = rv_editor_message_strip("##strip",
+        say.text,
+        say.kind,
+        say.buttons,
+        theme,
+        width,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        max_lines);
     if (pressed != 0) {
         return;
     }
@@ -239,7 +253,7 @@ void rv_editor_case_area(rv_editor_app &app, float strip_h, const rv_editor_them
 rv_editor_size rv_editor_findings_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_findings_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block());
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(false, 1));
 }
 
 rv_editor_size rv_editor_test_case_minimum()
@@ -310,7 +324,7 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     const rv_editor_message_say say = rv_editor_findings_say(app, rv_editor_case_result_line(f.results));
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_case_content_width());
     rv_editor_case_area(app, rv_editor_message_strip_height(say.text, say.buttons, strip_w), theme);
-    rv_editor_findings_strip(app, say, strip_w, theme);
+    rv_editor_findings_strip(app, say, strip_w, theme, 3);
 }
 
 void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
@@ -341,8 +355,8 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
 
     const rv_editor_message_say say = rv_editor_findings_say(app, std::string());
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_findings_content_width());
-    rv_editor_findings_area(app, rv_editor_message_strip_height(say.text, say.buttons, strip_w), theme);
-    rv_editor_findings_strip(app, say, strip_w, theme);
+    rv_editor_findings_area(app, rv_editor_message_strip_height(say.text, say.buttons, strip_w, false, 1), theme);
+    rv_editor_findings_strip(app, say, strip_w, theme, 1);
 }
 
 } // namespace rv_editor

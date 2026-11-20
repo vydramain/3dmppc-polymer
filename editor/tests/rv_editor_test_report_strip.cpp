@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <filesystem>
+#include <functional>
 #include <iterator>
 #include <fstream>
 #include <sstream>
@@ -13,9 +15,11 @@
 
 #include "app/rv_editor_shell.hpp"
 #include "imgui_internal.h"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
+#include "rv_editor_test_fits_whole.hpp"
 #include "rv_editor_test_s13.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
 
@@ -50,7 +54,8 @@ shot draw(s13::fixture &f, float w = pane_w, float h = pane_h, const std::string
                 s.top = ImGui::GetCursorScreenPos().y;
                 s.bottom = s.top + ImGui::GetContentRegionAvail().y;
                 s.pad = ImGui::GetStyle().FramePadding.x;
-                s.strip_h = rv_editor_message_strip_height(text, { "OK" }, ImGui::GetContentRegionAvail().x);
+                // the strip of a pane in the logs' tile says things in one line, a longer text scrolls inside it
+                s.strip_h = rv_editor_message_strip_height(text, { "OK" }, ImGui::GetContentRegionAvail().x, false, 1);
                 rv_editor_shell_pane(&f.shell, s13::pane, f.kind, stable_tiles::theme);
             },
             h);
@@ -389,4 +394,83 @@ RV_EDITOR_TEST(rv_editor_test_report_very_long_path_wraps_and_message_keeps_widt
         wrapped = wrapped || (area != nullptr && e.y0 >= area->y0 && e.y1 <= area->y1 && e.y1 - e.y0 > 1.5f * line);
     }
     RV_EDITOR_CHECK(wrapped);
+}
+
+// S13.1a.2: the strip of the Inspector Report is one line high, the 300 character reason of a failed build scrolls inside
+// it, is not cut with an ellipsis, and the strip stays the last thing at the pane's bottom.
+RV_EDITOR_TEST(rv_editor_test_report_long_alert_is_a_strip_of_one_line_that_scrolls)
+{
+    s13::load_texts();
+    rv_editor_test_imgui gui(true);
+    s13::fixture f(gui, rv_editor_pane_kind::inspector_report);
+    fail_build(f, s13::words(300));
+    const std::string text = rv_editor_problems_alert_text(f.app());
+    float one = 0.0f;
+    gui.frame([&] {
+        one = std::max(ImGui::GetFrameHeight(), ImGui::GetTextLineHeight() + 2.0f * ImGui::GetStyle().FramePadding.y);
+    });
+    for (const float w : { pane_w, stable_tiles::pane_minimum(gui, f.kind).w }) {
+        const shot s = draw(f, w, pane_h, text);
+        RV_EDITOR_CHECK(std::fabs(s.strip_h - one) < eps);
+        const auto *area = area_of(s);
+        RV_EDITOR_CHECK(area != nullptr);
+        if (area == nullptr) {
+            continue;
+        }
+        float y1 = 0.0f;
+        float y0 = 1.0e9f;
+        for (const auto &e : under_area(s)) {
+            if (e.label.substr(0, e.label.find("##")) == "OK") {
+                y0 = std::min(y0, e.y0);
+                y1 = std::max(y1, e.y1);
+            }
+        }
+        RV_EDITOR_CHECK(y1 > 0.0f && std::fabs(y1 - s.bottom) < eps && y1 - y0 <= one + eps);
+        for (const auto &e : s.record.entries) {
+            RV_EDITOR_CHECK(e.label.substr(0, e.label.find("##")).find("...") == std::string::npos);
+        }
+    }
+}
+
+// S13.1a.2: the minimum of the Inspector Report is the area at its floor, the strip of one line and the gap over it, the
+// same in every state (the strip's own height is the most it ever takes), and a failed build with a long reason, a closed
+// project and a plain table are each whole at it.
+RV_EDITOR_TEST(rv_editor_test_report_minimum_is_the_floor_and_a_strip_of_one_line)
+{
+    s13::load_texts();
+    rv_editor_test_imgui gui(true);
+    s13::fixture f(gui, rv_editor_pane_kind::inspector_report);
+    const auto min = stable_tiles::pane_minimum(gui, f.kind);
+    float want = 0.0f;
+    gui.frame([&] {
+        const ImGuiStyle &style = ImGui::GetStyle();
+        const float one = std::max(ImGui::GetFrameHeight(), ImGui::GetTextLineHeight() + 2.0f * style.FramePadding.y);
+        want = static_cast<float>(rv_editor_tiled_minimum(100.0f, 0.0f).h) + one + style.ItemSpacing.y;
+    });
+    if (std::fabs(min.h - want) > 1.5f) {
+        std::fprintf(stderr,
+            "  problems: the minimum is %.0f px high; the floor, one strip line and a gap make %.0f\n",
+            min.h,
+            want);
+    }
+    RV_EDITOR_CHECK(std::fabs(min.h - want) <= 1.5f);
+    const std::vector<std::function<void()>> states = {
+        [&] {
+            go(f, 3);
+        },
+        [&] {
+            fail_build(f, s13::words(300));
+        },
+        [&] {
+            go(f, 1);
+            f.app().project.open = false;
+        },
+    };
+    for (size_t i = 0; i < states.size(); ++i) {
+        const std::string bad = rv_editor_check_pane_states(gui, f.shell, f.kind, { states[i] }, min);
+        if (!bad.empty()) {
+            std::fprintf(stderr, "  problems state %zu at the minimum: %s\n", i, bad.c_str());
+        }
+        RV_EDITOR_CHECK(bad.empty());
+    }
 }

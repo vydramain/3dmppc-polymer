@@ -354,8 +354,9 @@ RV_EDITOR_TEST(rv_editor_test_s3_export_says_the_result_and_the_failure_in_a_str
 }
 
 // R19, S2's rule: the minimum of a pane with a strip is static, the same in every state: what the pane needs with nothing to
-// say (the shelf, the form, the area at its floor) plus the tallest strip (three lines, a longer text scrolls inside it) and
-// the gap. The least height at which the quiet state fits whole is found by halving; the minimum is that and the strip.
+// say (the shelf, the form, the area at its floor) plus the tallest strip (three lines, one in Findings; a longer text scrolls
+// inside it) and the gap. The least height at which the quiet state fits whole is found by halving; the minimum is that and the
+// strip.
 RV_EDITOR_TEST(rv_editor_test_s3_the_minimum_is_the_quiet_state_the_tallest_strip_and_a_gap)
 {
     s13::load_texts();
@@ -366,9 +367,11 @@ RV_EDITOR_TEST(rv_editor_test_s3_the_minimum_is_the_quiet_state_the_tallest_stri
         size_t state;
     };
     float strip_max = 0.0f;
+    float one_line = 0.0f; // Findings sits in the logs' tile: its strip is one line (S13.1a.2)
     float gap = 0.0f;
     gui.frame([&] {
         strip_max = rv_editor_message_strip_max_height(false);
+        one_line = rv_editor_message_strip_max_height(false, 1);
         gap = ImGui::GetStyle().ItemSpacing.y;
     });
     for (const quiet q : { quiet{ rv_editor_pane_kind::inspector, 2 },
@@ -388,7 +391,7 @@ RV_EDITOR_TEST(rv_editor_test_s3_the_minimum_is_the_quiet_state_the_tallest_stri
             const float mid = std::floor((lo + hi) / 2.0f);
             (fits(mid) ? hi : lo) = mid;
         }
-        const float want = hi + strip_max + gap;
+        const float want = hi + (q.kind == rv_editor_pane_kind::findings ? one_line : strip_max) + gap;
         if (std::fabs(min.h - want) > 1.5f) {
             std::fprintf(stderr,
                 "  %s: the minimum is %.0f px high; the quiet state (%.0f), the tallest strip and a gap make %.0f\n",
@@ -398,5 +401,37 @@ RV_EDITOR_TEST(rv_editor_test_s3_the_minimum_is_the_quiet_state_the_tallest_stri
                 want);
         }
         RV_EDITOR_CHECK(std::fabs(min.h - want) <= 1.5f);
+    }
+}
+
+// S13.1a.2: Findings sits in the logs' tile, so its strip is one line high: a long error scrolls inside it and no text is cut
+// with an ellipsis; the area's bottom rises by that one line and the gap.
+RV_EDITOR_TEST(rv_editor_test_s3_the_findings_strip_is_one_line_high_and_scrolls)
+{
+    s13::load_texts();
+    rv_editor_test_imgui gui(true);
+    sources src(gui);
+    const auto &s = src.of(rv_editor_pane_kind::findings);
+    float gap = 0.0f;
+    float one = 0.0f;
+    gui.frame([&] {
+        gap = ImGui::GetStyle().ItemSpacing.y;
+        one = rv_editor_message_strip_max_height(false, 1);
+    });
+    const auto quiet = s.draw(1, roomy_w, roomy_h);
+    const auto said = s.draw(2, roomy_w, roomy_h); // "cannot write: " and 300 characters
+    const float height = strip::strip_height(&quiet, said);
+    if (std::fabs(height - one) > 1.5f) {
+        std::fprintf(stderr, "  findings: the strip is %.1f px high, one line makes %.1f\n", height, one);
+    }
+    RV_EDITOR_CHECK(std::fabs(height - one) <= 1.5f);
+    const auto *a = strip::last_area(quiet);
+    const auto *c = strip::last_area(said);
+    RV_EDITOR_CHECK(a != nullptr && c != nullptr);
+    if (a != nullptr && c != nullptr) {
+        RV_EDITOR_CHECK(std::fabs((a->y1 - c->y1) - (one + gap)) <= 1.5f);
+    }
+    for (const auto &e : said.entries) {
+        RV_EDITOR_CHECK(e.label.substr(0, e.label.find("##")).find("...") == std::string::npos);
     }
 }

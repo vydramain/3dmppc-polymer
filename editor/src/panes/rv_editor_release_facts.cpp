@@ -115,7 +115,7 @@ float rv_editor_release_height(float width)
     const float side = rv_editor_transport_side(width, rv_editor_release_column_min_width(), release_buttons);
     // The squares' row (the action slot is no taller), then the status's two lines.
     return style.WindowPadding.y + 2.0f * style.ItemInnerSpacing.y + side + style.ItemSpacing.y +
-        rv_editor_strip_status_height() + style.ItemSpacing.y;
+        rv_editor_strip_status_height();
 }
 
 } // namespace rv_editor
