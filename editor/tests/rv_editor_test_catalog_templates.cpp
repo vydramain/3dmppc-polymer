@@ -3,6 +3,7 @@
 // a roomy one. In every state and at both sizes the tile fits whole.
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <set>
 #include <string>
@@ -111,6 +112,24 @@ RV_EDITOR_TEST(rv_editor_test_catalog_message_section_has_six_states)
 {
     load_texts();
     RV_EDITOR_CHECK(rv_editor_catalog_state_count(4) == 6);
+}
+
+// S1: section 4 is the message strip, not the box with its reserved place: its name says so, and the state "nothing to
+// say" draws no strip while a message state does.
+RV_EDITOR_TEST(rv_editor_test_catalog_message_section_is_the_strip)
+{
+    load_texts();
+    std::string name = rv_editor_catalog_section_name(4);
+    std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    RV_EDITOR_CHECK(name.find("strip") != std::string::npos);
+    RV_EDITOR_CHECK(name.find("box") == std::string::npos);
+    rv_editor_test_imgui gui(true);
+    const sizes z = tile_sizes(gui, 4);
+    const auto nothing = draw_tile(gui, 4, 0, z.roomy);
+    const auto error = draw_tile(gui, 4, 2, z.roomy);
+    RV_EDITOR_CHECK(error.entries.size() > nothing.entries.size());
 }
 
 // A roomy tile is larger than the minimum one on both axes, and the minimum is not empty.

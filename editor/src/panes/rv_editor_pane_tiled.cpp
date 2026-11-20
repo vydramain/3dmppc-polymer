@@ -87,9 +87,13 @@ bool rv_editor_tiled_area_begin(const char *id,
     const rv_editor_theme &theme,
     std::initializer_list<float> floors,
     bool facts,
-    float height)
+    float height,
+    float bottom)
 {
-    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    if (bottom > 0.0f) {
+        avail.y -= bottom + ImGui::GetStyle().ItemSpacing.y;
+    }
     const std::vector<float> all = rv_editor_tiled_floors(floors);
     float need = static_cast<float>(all.size() - 1) * ImGui::GetStyle().ItemSpacing.y;
     for (const float f : all) {

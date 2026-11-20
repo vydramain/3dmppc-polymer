@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "imgui_internal.h"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_item_hook.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -84,6 +85,30 @@ void rv_editor_message_text(const char *id,
     ImGui::PopID();
 }
 
+// The buttons side by side from `x` on one row at `y`; the index of the pressed one, else -1.
+static int rv_editor_message_buttons(float x,
+    float y,
+    const std::vector<std::string> &buttons,
+    const rv_editor_theme &theme,
+    const std::vector<rv_editor_state> *button_states,
+    const char *button_tooltip)
+{
+    int pressed = -1;
+    for (int i = 0; i < static_cast<int>(buttons.size()); ++i) {
+        ImGui::SetCursorScreenPos(ImVec2(x, y));
+        const bool has_state = button_states != nullptr && static_cast<size_t>(i) < button_states->size();
+        const rv_editor_state state = has_state ? (*button_states)[static_cast<size_t>(i)] : rv_editor_state{};
+        if (rv_editor_button(buttons[i].c_str(), theme, state)) {
+            pressed = i;
+        }
+        if (button_tooltip != nullptr && state.disabled == nullptr) {
+            rv_editor_item_tooltip(button_tooltip);
+        }
+        x += rv_editor_button_width(buttons[i].c_str()) + ImGui::GetStyle().ItemSpacing.x;
+    }
+    return pressed;
+}
+
 int rv_editor_message_box(const char *id,
     const std::string &text,
     rv_editor_label_kind kind,
@@ -131,20 +156,66 @@ int rv_editor_message_box(const char *id,
         ImGui::SetCursorScreenPos(ImVec2(min.x, row_y));
         lead(buttons_x - min.x - (buttons.empty() ? 0.0f : ImGui::GetStyle().ItemSpacing.x));
     }
-    for (int i = 0; i < static_cast<int>(buttons.size()); ++i) {
-        ImGui::SetCursorScreenPos(ImVec2(x, row_y));
-        const bool has_state = button_states != nullptr && static_cast<size_t>(i) < button_states->size();
-        const rv_editor_state state = has_state ? (*button_states)[static_cast<size_t>(i)] : rv_editor_state{};
-        if (rv_editor_button(buttons[i].c_str(), theme, state)) {
-            pressed = i;
-        }
-        if (button_tooltip != nullptr && state.disabled == nullptr) {
-            rv_editor_item_tooltip(button_tooltip);
-        }
-        x += rv_editor_button_width(buttons[i].c_str()) + ImGui::GetStyle().ItemSpacing.x;
+    if (const int hit = rv_editor_message_buttons(x, row_y, buttons, theme, button_states, button_tooltip); hit >= 0) {
+        pressed = hit;
     }
     ImGui::SetCursorScreenPos(ImVec2(min.x, row_y));
     ImGui::Dummy(ImVec2(width, row_h));
+    ImGui::PopID();
+    return pressed;
+}
+
+// The room the strip's text wraps in: the width less the padding and the buttons' row.
+static float rv_editor_strip_text_width(const std::vector<std::string> &buttons, float width)
+{
+    const float gap = buttons.empty() ? 0.0f : ImGui::GetStyle().ItemSpacing.x;
+    return std::max(1.0f, width - 2.0f * ImGui::GetStyle().FramePadding.x - rv_editor_message_row_width(buttons) - gap);
+}
+
+float rv_editor_message_strip_height(const std::string &text, const std::vector<std::string> &buttons, float width)
+{
+    if (text.empty()) {
+        return 0.0f;
+    }
+    const float wrapped = ImGui::CalcTextSize(text.c_str(), nullptr, false, rv_editor_strip_text_width(buttons, width)).y;
+    return std::max(ImGui::GetFrameHeight(), wrapped + 2.0f * ImGui::GetStyle().FramePadding.y);
+}
+
+int rv_editor_message_strip(const char *id,
+    const std::string &text,
+    rv_editor_label_kind kind,
+    const std::vector<std::string> &buttons,
+    const rv_editor_theme &theme,
+    float width,
+    const std::vector<rv_editor_state> *button_states)
+{
+    if (text.empty()) {
+        return -1;
+    }
+    ImGui::PushID(id);
+    const ImVec2 min = ImGui::GetCursorScreenPos();
+    const ImVec2 pad = ImGui::GetStyle().FramePadding;
+    const float w = width > 0.0f ? width : ImGui::GetContentRegionAvail().x;
+    const float h = rv_editor_message_strip_height(text, buttons, w);
+    ImGui::GetWindowDrawList()->AddRectFilled(min, ImVec2(min.x + w, min.y + h), rv_editor_col(theme.code_base));
+    ImGui::SetCursorScreenPos(ImVec2(min.x + pad.x, min.y + pad.y));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+        rv_editor_col(kind == rv_editor_label_kind::normal ? theme.code_text : rv_editor_label_colour(kind, theme)));
+    ImGui::PushTextWrapPos(min.x + pad.x + rv_editor_strip_text_width(buttons, w));
+    ImGui::TextUnformatted(text.c_str());
+    ImGui::PopTextWrapPos();
+    ImGui::PopStyleColor();
+    const int pressed = rv_editor_message_buttons(min.x + w - pad.x - rv_editor_message_row_width(buttons),
+        min.y,
+        buttons,
+        theme,
+        button_states,
+        nullptr);
+    ImGui::SetCursorScreenPos(min);
+    // One item of the whole strip, so its rectangle is seen whatever it is made of.
+    const ImRect frame(min, ImVec2(min.x + w, min.y + h));
+    ImGui::ItemSize(frame);
+    ImGui::ItemAdd(frame, ImGui::GetID("##strip"), nullptr, ImGuiItemFlags_NoNav);
     ImGui::PopID();
     return pressed;
 }

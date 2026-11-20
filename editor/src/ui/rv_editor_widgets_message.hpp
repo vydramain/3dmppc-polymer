@@ -61,4 +61,15 @@ int rv_editor_message_box(const char *id,
     const char *button_tooltip = nullptr,
     const std::vector<rv_editor_state> *button_states = nullptr);
 
+// The message strip: drawn only with a non-empty `text`, at the cursor under a content area; returns the pressed
+// button's index, else -1. `width` 0: the room left. Height: see rv_editor_message_strip_height (0 with no text).
+int rv_editor_message_strip(const char *id,
+    const std::string &text,
+    rv_editor_label_kind kind,
+    const std::vector<std::string> &buttons,
+    const rv_editor_theme &theme,
+    float width = 0.0f,
+    const std::vector<rv_editor_state> *button_states = nullptr);
+float rv_editor_message_strip_height(const std::string &text, const std::vector<std::string> &buttons, float width);
+
 } // namespace rv_editor

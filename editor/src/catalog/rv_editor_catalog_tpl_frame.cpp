@@ -1,4 +1,4 @@
-// Template sections of the Widget Catalog, part one: the tab row, the shelf, the list, the records and the message box.
+// Template sections of the Widget Catalog, part one: the tab row, the shelf, the list, the records and the message strip.
 
 #include <algorithm>
 #include <format>
@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "catalog/rv_editor_catalog_templates.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_content.hpp"
@@ -195,7 +196,7 @@ ImVec2 records_min(const rv_editor_theme &)
     return rv_editor_catalog_tpl_window(ImVec2(20.0f * ImGui::GetFontSize(), rv_editor_content_min_height()));
 }
 
-// --- message box --------------------------------------------------------------
+// --- message strip ------------------------------------------------------------
 
 const char *const message_states[] = { "st_message_1",
     "st_message_2",
@@ -224,16 +225,21 @@ void message_draw(int state, const rv_editor_theme &theme)
     } else if (state >= 2) {
         buttons = message_button_rows()[0];
     }
-    rv_editor_message_box("##box", texts[state], kinds[state], buttons, theme);
-    rv_editor_content_begin("##well", ImVec2(0.0f, 0.0f), theme);
+    const float strip = rv_editor_message_strip_height(texts[state], buttons, ImGui::GetContentRegionAvail().x);
+    (void)rv_editor_tiled_area_begin("##well", 0.0f, theme, {}, false, 0.0f, strip);
     rv_editor_list_row("##row", T("shelf_row_format"), theme);
-    rv_editor_content_end(theme);
+    rv_editor_tiled_area_end(theme);
+    rv_editor_message_strip("##strip", texts[state], kinds[state], buttons, theme);
 }
 
 ImVec2 message_min(const rv_editor_theme &)
 {
-    return rv_editor_catalog_tpl_window(ImVec2(rv_editor_message_box_min_width(message_button_rows()),
-        rv_editor_message_box_height() + ImGui::GetStyle().ItemSpacing.y + rv_editor_content_min_height()));
+    // The strip at the minimum width shows its longest text whole, with the buttons of its row.
+    const float w = rv_editor_message_box_min_width(message_button_rows());
+    const auto &rows = message_button_rows();
+    const float strip = std::max(rv_editor_message_strip_height(T("msg_long_error"), rows[0], w),
+        rv_editor_message_strip_height(T("msg_long_ask"), rows[1], w));
+    return rv_editor_catalog_tpl_window(ImVec2(w, strip + ImGui::GetStyle().ItemSpacing.y + rv_editor_content_min_height()));
 }
 
 } // namespace
