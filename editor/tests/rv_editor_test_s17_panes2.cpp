@@ -28,9 +28,6 @@ constexpr size_t checks_first = 2;
 constexpr size_t checks_last = 4;
 constexpr size_t observe_pins = 5;
 constexpr size_t observe_long = 6;
-constexpr size_t session_live = 2;
-constexpr size_t session_ended = 3;
-constexpr size_t session_crashed = 4;
 constexpr size_t session_long = 5;
 constexpr size_t check_count = 8;
 
@@ -178,9 +175,9 @@ RV_EDITOR_TEST(rv_editor_test_s17_observe_facts_are_whole_and_pins_and_keys_are_
     RV_EDITOR_CHECK(one_width_in_area(keys));
 }
 
-// R16, R2: Session's facts and marks are whole, however long (the profile, the disc, a long mark), in the content area, and
-// how a session ended is said in the message box.
-RV_EDITOR_TEST(rv_editor_test_s17_session_values_are_whole_and_the_end_is_said_in_the_box)
+// R16, R8: Session's facts and Notes are whole, however long (the profile, the disc, a long mark), in the one content area;
+// there is no message box, how a session ended is a note.
+RV_EDITOR_TEST(rv_editor_test_s17_session_values_are_whole_and_the_end_is_a_note)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -188,9 +185,7 @@ RV_EDITOR_TEST(rv_editor_test_s17_session_values_are_whole_and_the_end_is_said_i
     RV_EDITOR_CHECK(!areas(r).empty());
     RV_EDITOR_CHECK(shows_whole(gui, r, solid(path_chars, 'f')));
     RV_EDITOR_CHECK(shows_whole(gui, r, solid(path_chars, 'd')));
-    RV_EDITOR_CHECK(shows_whole(gui, r, "1. " + s13::words(300)));
-    fixture f(gui, rv_editor_pane_kind::session);
-    const int live = box_drawn(f, session_live);
-    RV_EDITOR_CHECK(box_drawn(f, session_ended) > live);
-    RV_EDITOR_CHECK(box_drawn(f, session_crashed) > live);
+    RV_EDITOR_CHECK(shows_whole(gui, r, "Mark, frame 0: " + s13::words(300)));
+    RV_EDITOR_CHECK(texts(r).empty());
+    RV_EDITOR_CHECK(areas(r).size() == 1);
 }

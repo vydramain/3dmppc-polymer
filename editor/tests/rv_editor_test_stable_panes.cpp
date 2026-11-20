@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "imgui_internal.h"
+#include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_pane_state.hpp"
@@ -263,6 +264,9 @@ namespace
 struct session_fixture {
     tall_gui &g;
     rv_editor_app app;
+    rv_editor_ui state;
+    std::vector<rv_editor_ui_request> requests;
+    const rv_editor_ui_port ui{ state, requests };
     fs::path where;
     bool ready = false;
     session_fixture(tall_gui &gui, const char *name, bool rich)
@@ -292,7 +296,7 @@ struct session_fixture {
     rv_editor_probe_record draw(float w = width)
     {
         return settled(g, w, [this] {
-            rv_editor_pane_session(app, theme);
+            rv_editor_pane_session(app, theme, ui);
         });
     }
 };

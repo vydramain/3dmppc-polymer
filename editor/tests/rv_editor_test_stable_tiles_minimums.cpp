@@ -35,14 +35,10 @@ RV_EDITOR_TEST(rv_editor_test_toolchest_fits_its_minimum_in_every_state)
     std::string error;
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
     rv_editor_test_imgui gui;
-    // The debug mark row, with and without a mark.
+    // The debug Toolchest (Restart only: the marks are in Session's Notes), with a mark made in a session it does not show.
     rv_editor_shell debug;
     debug.app.preset = rv_editor_layout_preset::debug;
-    check_fits(gui, debug, rv_editor_pane_kind::toolchest, "debug, no mark");
-    debug.app.marks.push_back("m");
-    check_fits(gui, debug, rv_editor_pane_kind::toolchest, "debug, a short mark");
-    debug.app.marks.push_back("a mark with a rather long description of the moment it names");
-    check_fits(gui, debug, rv_editor_pane_kind::toolchest, "debug, a mark");
+    check_fits(gui, debug, rv_editor_pane_kind::toolchest, "debug");
     // The scene document's tools.
     rv_editor_shell scene;
     scene.app.preset = rv_editor_layout_preset::scene;

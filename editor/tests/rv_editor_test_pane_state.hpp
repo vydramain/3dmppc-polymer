@@ -199,6 +199,8 @@ struct fake_console_options {
     std::string disc_hex = "64697363"; // the disc name, hex encoded as the protocol sends it ("disc")
     uint32_t build_number = 1;
     const char *mode = "running"; // "paused": the session reads as paused
+    std::string stderr_line;      // the one line the stand-in writes to its stderr at once (none when empty)
+    std::string stderr_on_keys;   // the one line it writes to its stderr when asked "keys alpha" (none when empty)
 };
 
 // Starts a session of `app` on a stand-in console and waits until it is connected; false when it did not.
@@ -215,13 +217,16 @@ inline bool start_fake_session(rv_editor::rv_editor_app &app, const fs::path &wh
         (o.with_lua ? "1000" : "0");
     const fs::path script = where / "console.sh";
     write_script(script,
-        "while read -r id verb rest; do\n"
-        "  case \"$verb $rest\" in\n"
-        "    \"status \") echo \"$id ok " +
+        (o.stderr_line.empty() ? std::string() : "echo '" + o.stderr_line + "' >&2\n") +
+            "while read -r id verb rest; do\n"
+            "  case \"$verb $rest\" in\n"
+            "    \"status \") echo \"$id ok " +
             status +
             "\";;\n"
             "    \"keys \") echo \"$id ok count=3 shown=3 keys=s616c706861:table,s62657461:number,i1:string\";;\n"
-            "    \"keys alpha\") echo \"$id ok count=1 shown=1 keys=s78:number\";;\n"
+            "    \"keys alpha\") " +
+            (o.stderr_on_keys.empty() ? std::string() : "echo '" + o.stderr_on_keys + "' >&2; ") +
+            "echo \"$id ok count=1 shown=1 keys=s78:number\";;\n"
             "    get*) echo \"$id ok found=1 type=number value=5\";;\n"
             "    \"reload entry\") echo \"$id ok entry_revision=2 entry_hash=h2 lua_used=11\";;\n"
             "    quit*) echo \"$id ok\"; exit 0;;\n"

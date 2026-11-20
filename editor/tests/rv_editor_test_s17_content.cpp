@@ -19,11 +19,11 @@ using namespace rv_editor_test::s17;
 namespace
 {
 
-// The kinds that say something to the user in a message box (Checks is a table alone, the empty pane has no state).
+// The kinds that say something to the user in a message box (Checks is a table alone, Session has Notes in place of a
+// block, the empty pane has no state).
 const rv_editor_pane_kind boxed[] = { rv_editor_pane_kind::export_,
     rv_editor_pane_kind::candidate,
     rv_editor_pane_kind::observe,
-    rv_editor_pane_kind::session,
     rv_editor_pane_kind::build_result };
 
 void report(const char *kind, const char *state, const std::string &bad)

@@ -3,13 +3,17 @@
 
 #include "panes/rv_editor_panes.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <format>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "imgui.h"
 
+#include "app/rv_editor_shell.hpp"
+#include "panes/rv_editor_pane_mark_tools.hpp"
 #include "panes/rv_editor_pane_say.hpp"
 #include "panes/rv_editor_pane_tiled.hpp"
 #include "platform/rv_editor_process.hpp"
@@ -27,6 +31,9 @@ namespace
 
 // Maximum number of stderr lines to retain in a session log.
 constexpr size_t max_stderr_lines = 8;
+
+// "HH:MM:SS" is the first 8 characters of a clock.
+constexpr size_t clock_chars = 8;
 
 // Seconds in a minute for time display conversion.
 constexpr long long seconds_per_minute = 60;
@@ -47,41 +54,25 @@ std::vector<const rv_editor_log_line *> rv_editor_session_stderr(const rv_editor
     return out;
 }
 
-// The widest row: the message box with the widest of its button rows.
+// The Notes title row's controls: the note field and the three buttons.
+float rv_editor_session_controls_width()
+{
+    return rv_editor_mark_tools_min_width(rv_editor_theme_olive, false);
+}
+
+// The widest row: the message box, or the Notes title with its controls.
 float rv_editor_session_content_width()
 {
-    return rv_editor_message_box_min_width(
-        { { rv_editor_text("panes.open_project_box") }, { rv_editor_text("pane_session.open_full_log") } });
+    // The area's frame on both sides and its vertical bar.
+    const rv_editor_theme &theme = rv_editor_theme_olive;
+    return std::max(rv_editor_message_box_min_width({ { rv_editor_text("panes.open_project_box") } }),
+        rv_editor_content_section_min_width(rv_editor_text("pane_session.notes_title"), rv_editor_session_controls_width()) +
+            2.0f * static_cast<float>(theme.pad_px * theme.scale) + ImGui::GetStyle().ScrollbarSize);
 }
 
-// What the box says: that there was no session yet, or how the one that ended did (Open Full Log when it kept a log);
-// a live session has nothing to say.
-void rv_editor_session_say(rv_editor_app &app, const rv_editor_theme &theme, float width)
-{
-    const rv_editor_session &s = app.session;
-    std::string text;
-    auto kind = rv_editor_label_kind::normal;
-    std::string file;
-    if (s.number() == 0) {
-        text = rv_editor_text("pane_session.no_session_yet");
-    } else if (!s.live()) {
-        const bool bad = s.state() == rv_editor_run_state::crashed || s.state() == rv_editor_run_state::refused;
-        const auto session_number = s.number();
-        const auto end_reason = s.end_reason();
-        text = rv_editor_text_format("pane_session.session_ended_format", std::make_format_args(session_number, end_reason));
-        kind = bad ? rv_editor_label_kind::error : rv_editor_label_kind::info;
-        file = app.log_files.path_for(s.pid());
-    }
-    const std::vector<std::string> buttons =
-        file.empty() ? std::vector<std::string>{} : std::vector<std::string>{ rv_editor_text("pane_session.open_full_log") };
-    if (rv_editor_message_box("##say", text, kind, buttons, theme, width) == 0) {
-        app.open_requests.push_back({ file, 0 });
-    }
-}
-
-// The process, its exit, what was still waiting for an answer, the last confirmed reply and its recent stderr, once a
-// session has ended: rows of the facts.
-void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, const rv_editor_theme &theme)
+// The process, its exit, what was still waiting for an answer and the last confirmed reply, once a session has ended:
+// rows of the facts.
+void rv_editor_session_summary(const rv_editor_session &s, const rv_editor_theme &theme)
 {
     std::string exit_line = rv_editor_exit_text(s.exit_status());
     if (s.output_cut()) {
@@ -107,14 +98,6 @@ void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, c
         c.verb.empty() ? rv_editor_text("pane_session.last_confirmed_empty") :
                          (c.verb + " at frame " + std::to_string(c.frame) + ", " + rv_editor_clock(c.at)).c_str(),
         theme);
-    const std::vector<const rv_editor_log_line *> err_lines = rv_editor_session_stderr(app.log, s.pid());
-    const char *stderr_key = rv_editor_text("pane_session.last_stderr_lines");
-    if (err_lines.empty()) {
-        rv_editor_facts_row(stderr_key, rv_editor_text("pane_session.last_stderr_lines_empty"), theme);
-    }
-    for (const rv_editor_log_line *line : err_lines) {
-        rv_editor_facts_row(stderr_key, line->text.c_str(), theme);
-    }
 }
 
 // The session's own facts, every row there with "-" when it has no value.
@@ -175,43 +158,80 @@ void rv_editor_session_rows(rv_editor_app &app, const rv_editor_session &s, cons
 
 rv_editor_size rv_editor_session_minimum()
 {
-    return rv_editor_tiled_minimum(rv_editor_session_content_width(),
-        rv_editor_tiled_box_block(),
-        { rv_editor_tiled_floor(), rv_editor_tiled_floor() });
+    return rv_editor_tiled_minimum(rv_editor_session_content_width(), 0.0f, { rv_editor_tiled_floor() });
 }
 
-void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
+std::vector<rv_editor_note> rv_editor_session_notes(const rv_editor_app &app)
+{
+    const rv_editor_session &s = app.session;
+    if (s.number() == 0) {
+        return {};
+    }
+    const auto at = [](std::chrono::system_clock::time_point t) {
+        return rv_editor_clock(t).substr(0, clock_chars);
+    };
+    const auto number = s.number();
+    const auto build = s.build_number();
+    std::vector<std::pair<std::chrono::system_clock::time_point, std::string>> events{ { s.started_at(),
+        rv_editor_text_format("pane_session.note_started_format",
+            std::make_format_args(number, build, app.session_profile)) } };
+    for (const rv_editor_mark &m : app.marks) {
+        events.emplace_back(m.at, rv_editor_text_format("pane_session.note_mark_format", std::make_format_args(m.text)));
+    }
+    for (const rv_editor_log_line *line : rv_editor_session_stderr(app.log, s.pid())) {
+        events.emplace_back(rv_editor_log_time(*line), line->text);
+    }
+    if (!s.live()) {
+        std::string reason = s.end_reason();
+        const std::string exit = rv_editor_exit_text(s.exit_status());
+        if (reason.find(exit) == std::string::npos) {
+            reason += " (" + exit + ")";
+        }
+        events.emplace_back(s.ended_at(),
+            rv_editor_text_format("pane_session.note_ended_format", std::make_format_args(number, reason)));
+    }
+    // By time, so a mark stands between the lines around it; equal times keep start, marks, stderr, end.
+    std::ranges::stable_sort(events, {}, &decltype(events)::value_type::first);
+    std::vector<rv_editor_note> notes;
+    for (auto &[time, text] : events) {
+        notes.push_back({ at(time), std::move(text) });
+    }
+    return notes;
+}
+
+void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     const rv_editor_session &s = app.session;
     const float width = rv_editor_session_content_width();
-    const bool shown = !rv_editor_say_no_project(app, theme, width);
-    if (shown) {
-        rv_editor_session_say(app, theme, width);
+    if (rv_editor_say_no_project(app, theme, width)) {
+        return;
     }
-    const bool has_session = shown && s.number() != 0;
-    (void)rv_editor_tiled_area_begin("##facts_area",
-        width,
-        theme,
-        { rv_editor_tiled_floor(), rv_editor_tiled_floor() },
-        has_session);
+    const bool has_session = s.number() != 0;
+    (void)rv_editor_tiled_area_begin("##area", width, theme, { rv_editor_tiled_floor() }, has_session);
     if (has_session) {
         if (!s.live()) {
-            rv_editor_session_summary(app, s, theme);
+            rv_editor_session_summary(s, theme);
         }
         rv_editor_session_rows(app, s, theme);
-    } else if (shown) {
-        rv_editor_content_empty_row(rv_editor_text("pane_session.facts_empty"), theme);
+        rv_editor_facts_table_end();
     }
-    rv_editor_tiled_area_end(theme);
-
-    (void)rv_editor_tiled_area_begin("##marks_area", width, theme);
-    if (shown && app.marks.empty()) {
-        rv_editor_content_empty_row(rv_editor_text("pane_session.marks_help"), theme);
+    rv_editor_content_section_begin(rv_editor_text("pane_session.notes_title"), rv_editor_session_controls_width(), theme);
+    (void)rv_editor_mark_tools(app, theme, ui, false);
+    rv_editor_content_section_end(theme);
+    const std::string file = s.number() != 0 && !s.live() ? app.log_files.path_for(s.pid()) : std::string();
+    const std::vector<rv_editor_note> notes = rv_editor_session_notes(app);
+    if (notes.empty()) {
+        rv_editor_content_empty_row(rv_editor_text("pane_session.no_session_yet"), theme);
     }
-    for (size_t i = 0; shown && i < app.marks.size(); ++i) {
-        const std::string mark_text = std::format("{}. {}", i + 1, app.marks[i]);
-        ImGui::TextUnformatted(mark_text.c_str());
+    for (const rv_editor_note &note : notes) {
+        const std::string line = note.time + " " + note.text;
+        ImGui::TextUnformatted(line.c_str());
         rv_editor_say_whole_text();
+    }
+    if (!file.empty()) {
+        if (ImGui::Button(rv_editor_text("pane_session.open_full_log"))) {
+            app.open_requests.push_back({ file, 0 });
+        }
     }
     rv_editor_tiled_area_end(theme);
 }

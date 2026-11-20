@@ -166,7 +166,7 @@ struct strip_states {
 } // namespace
 
 // R14, R5: the minimum is computed from the template at its limits, never from the state: six small buttons, the
-// slot and the mark note, and the longest message are all inside it.
+// slot and the longest message are all inside it (the mark note is in Session's Notes, not here).
 RV_EDITOR_TEST(rv_editor_test_transport_min_width_holds_the_longest_message)
 {
     std::string error;
@@ -177,9 +177,8 @@ RV_EDITOR_TEST(rv_editor_test_transport_min_width_holds_the_longest_message)
         const ImGuiStyle &style = ImGui::GetStyle();
         const float buttons_w = 6.0f * ImGui::GetFrameHeight() + 5.0f * style.ItemSpacing.x;
         const float message_w = ImGui::CalcTextSize(longest_message.c_str()).x;
-        // The right column holds the slot and the note field at its hint's width; the mark tiles are not in the strip.
-        const float slot_w = rv_editor_controls_action_slot_width(theme) + style.ItemSpacing.x +
-            ImGui::CalcTextSize(rv_editor_text("pane_toolchest.mark_placeholder")).x + 2.0f * style.FramePadding.x;
+        // The right column holds the slot; neither the mark tiles nor the note field are in the strip.
+        const float slot_w = rv_editor_controls_action_slot_width(theme);
         RV_EDITOR_CHECK(w >= buttons_w + style.ItemSpacing.x + message_w);
         RV_EDITOR_CHECK(w >= buttons_w + style.ItemSpacing.x + slot_w);
     });
@@ -420,8 +419,8 @@ bool has_label(const rv_editor_probe_record &r, const std::string &part)
 
 } // namespace
 
-// R14 (user decision): Mark, Capture and Report are not in Runtime Controls at any width; the note field is.
-RV_EDITOR_TEST(rv_editor_test_transport_has_no_mark_tiles_but_the_note_field)
+// R10: Mark, Capture, Report and the note field are not in Runtime Controls at any width.
+RV_EDITOR_TEST(rv_editor_test_transport_has_no_mark_tiles_and_no_note_field)
 {
     std::string error;
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
@@ -439,12 +438,12 @@ RV_EDITOR_TEST(rv_editor_test_transport_has_no_mark_tiles_but_the_note_field)
             }
             RV_EDITOR_CHECK(find(r, name.c_str()) == nullptr);
         }
-        RV_EDITOR_CHECK(has_label(r, "mark_note"));
+        RV_EDITOR_CHECK(!has_label(r, "mark_note"));
     }
 }
 
-// R14: the note field shares the row with the Cancel Build slot, the message line is under both, and both rows are
-// inside the tile's height, large buttons or small.
+// R14: the message line is under the Cancel Build slot and both rows are inside the tile's height, large buttons or
+// small; no note field is in the strip.
 RV_EDITOR_TEST(rv_editor_test_transport_right_column_is_two_rows)
 {
     std::string error;
@@ -457,40 +456,29 @@ RV_EDITOR_TEST(rv_editor_test_transport_right_column_is_two_rows)
     for (const float width : { 400.0f, labels_from, 900.0f, 1280.0f }) {
         const auto r = draw_settled(gui, shell, width, 400.0f);
         const auto *slot = find(r, cancel.c_str());
-        const rv_editor_probe_entry *note = nullptr;
         const rv_editor_probe_entry *message = nullptr;
         for (const auto &e : r.entries) {
-            if (e.label.find("mark_note") != std::string::npos) {
-                note = &e;
-            } else if (e.label.find("message") != std::string::npos) {
+            if (e.label.find("message") != std::string::npos) {
                 message = &e;
             }
         }
         RV_EDITOR_CHECK(slot != nullptr);
-        RV_EDITOR_CHECK(note != nullptr);
+        RV_EDITOR_CHECK(!has_label(r, "mark_note"));
         RV_EDITOR_CHECK(message != nullptr);
-        if (slot == nullptr || note == nullptr || message == nullptr) {
+        if (slot == nullptr || message == nullptr) {
             continue;
         }
         const float height = std::max(strip_height(gui, width), 1.0f);
-        if (note->y0 != slot->y0 || message->y0 < slot->y1) {
-            std::fprintf(stderr,
-                "  width %.0f: slot y %.1f, note y %.1f, message y %.1f\n",
-                width,
-                slot->y0,
-                note->y0,
-                message->y0);
+        if (message->y0 < slot->y1) {
+            std::fprintf(stderr, "  width %.0f: slot y %.1f-%.1f, message y %.1f\n", width, slot->y0, slot->y1, message->y0);
         }
-        RV_EDITOR_CHECK(std::fabs(note->y0 - slot->y0) <= 0.5f);
-        RV_EDITOR_CHECK(note->x0 >= slot->x1);
-        RV_EDITOR_CHECK(message->y0 >= std::max(slot->y1, note->y1));
+        RV_EDITOR_CHECK(message->y0 >= slot->y1);
         RV_EDITOR_CHECK(message->y1 <= height + 0.5f);
-        RV_EDITOR_CHECK(note->y1 <= height + 0.5f);
     }
 }
 
-// R14: the tiles stay in the Toolchest.
-RV_EDITOR_TEST(rv_editor_test_toolchest_keeps_mark_capture_report)
+// R10: the Debug Toolchest keeps Restart only; Mark, Capture, Report and the note field moved to Session.
+RV_EDITOR_TEST(rv_editor_test_toolchest_keeps_restart_without_mark_capture_report)
 {
     std::string error;
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
@@ -504,9 +492,11 @@ RV_EDITOR_TEST(rv_editor_test_toolchest_keeps_mark_capture_report)
     };
     rv_editor_probe_draw(gui, 800.0f, body, 300.0f);
     const auto r = rv_editor_probe_draw(gui, 800.0f, body, 300.0f);
+    const std::string restart = rv_editor_text("pane_toolchest.restart_button");
+    RV_EDITOR_CHECK(find(r, restart.c_str()) != nullptr);
     for (const char *key : mark_keys) {
         const std::string name = rv_editor_text(key);
-        RV_EDITOR_CHECK(find(r, name.c_str()) != nullptr);
+        RV_EDITOR_CHECK(find(r, name.c_str()) == nullptr);
     }
-    RV_EDITOR_CHECK(has_label(r, "mark_note"));
+    RV_EDITOR_CHECK(!has_label(r, "mark_note"));
 }

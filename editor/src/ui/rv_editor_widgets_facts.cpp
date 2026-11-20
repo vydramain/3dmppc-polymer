@@ -37,6 +37,7 @@ void rv_editor_facts_table_end()
 {
     if (rv_editor_facts_table_open) {
         rv_editor_table_end();
+        rv_editor_facts_table_open = false;
     }
 }
 

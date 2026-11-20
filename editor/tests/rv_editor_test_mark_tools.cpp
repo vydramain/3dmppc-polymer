@@ -1,5 +1,5 @@
-// The mark tools row: Runtime Controls draws Mark, Capture and Report, the Session Toolchest adds Restart; every
-// tile has the same top and bottom, and the row stays inside the shelf. The hint in Session names Runtime Controls.
+// The mark tools row, drawn on the title row of Session's Notes: Mark, Capture and Report; every tile has the same top
+// and bottom, and the row stays inside its shelf. Session's help line no longer sends to Runtime Controls.
 
 #include <string>
 
@@ -50,19 +50,18 @@ void check_row(bool with_restart, size_t count)
 
 } // namespace
 
-RV_EDITOR_TEST(rv_editor_test_marks_help_names_runtime_controls)
+// The note field and the three buttons moved into Session: its texts do not send the player to Runtime Controls or the
+// Toolchest for them.
+RV_EDITOR_TEST(rv_editor_test_session_texts_do_not_name_runtime_controls_for_marks)
 {
-    const std::string help = rv_editor_text("pane_session.marks_help");
-    RV_EDITOR_CHECK(help.find("Runtime Controls") != std::string::npos);
-    RV_EDITOR_CHECK(help.find("Toolchest") == std::string::npos);
+    for (const char *key : { "pane_session.marks_help", "pane_session.facts_empty", "pane_session.no_session_yet" }) {
+        const std::string text = rv_editor_text(key);
+        RV_EDITOR_CHECK(text.find("Runtime Controls") == std::string::npos);
+        RV_EDITOR_CHECK(text.find("Toolchest") == std::string::npos);
+    }
 }
 
 RV_EDITOR_TEST(rv_editor_test_mark_tools_without_restart_has_three_tiles)
 {
     check_row(false, 3);
-}
-
-RV_EDITOR_TEST(rv_editor_test_mark_tools_with_restart_has_four_tiles)
-{
-    check_row(true, 4);
 }

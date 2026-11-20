@@ -76,7 +76,28 @@ float rv_editor_mark_field_min_width()
     return ImGui::CalcTextSize(rv_editor_text("pane_toolchest.mark_placeholder")).x + 2.0f * ImGui::GetStyle().FramePadding.x;
 }
 
+// The Restart tile; a restart in progress says so in place of the no-session reason.
+void rv_editor_restart_button(rv_editor_app &app, const rv_editor_tile &tile, const rv_editor_theme &theme)
+{
+    const bool pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::restart);
+    const char *why = pending ? rv_editor_text("app_why_not.restart_pending") :
+                                (app.session.live() ? nullptr : rv_editor_text("pane_toolchest.no_session"));
+    if (rv_editor_tile_button(tile, rv_editor_tile_size::small, theme, { rv_editor_look::live, why })) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::restart });
+    }
+}
+
 } // namespace
+
+void rv_editor_restart_tool(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    rv_editor_restart_button(app, rv_editor_make_mark_tiles(theme).restart, theme);
+}
+
+float rv_editor_restart_tool_width(const rv_editor_theme &theme)
+{
+    return rv_editor_tile_width(rv_editor_make_mark_tiles(theme).restart, rv_editor_tile_size::small);
+}
 
 float rv_editor_mark_tools_min_width(const rv_editor_theme &theme, bool with_restart)
 {
@@ -126,9 +147,6 @@ rv_editor_mark_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_
     const char *no_report = s.number() != 0 ? nullptr : rv_editor_text("pane_toolchest.no_report");
     const bool report_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::report_problem);
     const char *report_why = report_pending ? rv_editor_text("app_why_not.request_pending") : no_report;
-    // A restart in progress says so in place of the no-session reason.
-    const bool restart_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::restart);
-    const char *restart_why = restart_pending ? rv_editor_text("app_why_not.restart_pending") : no_session;
     const rv_editor_mark_tiles tiles = rv_editor_make_mark_tiles(theme);
 
     // The field takes what is left of the row after the small tiles and their gaps, but not less than its hint.
@@ -165,9 +183,7 @@ rv_editor_mark_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_
     track();
     if (with_restart) {
         ImGui::SameLine();
-        if (rv_editor_tile_button(tiles.restart, rv_editor_tile_size::small, theme, { rv_editor_look::live, restart_why })) {
-            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::restart });
-        }
+        rv_editor_restart_button(app, tiles.restart, theme);
         track();
     }
     return rects;

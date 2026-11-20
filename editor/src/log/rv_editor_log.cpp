@@ -57,9 +57,14 @@ rv_editor_log_level rv_editor_log_level_of(std::string_view text)
 
 } // namespace
 
+std::chrono::system_clock::time_point rv_editor_log_time(const rv_editor_log_line &line)
+{
+    return rv_editor_log_start().wall + std::chrono::milliseconds(line.ms);
+}
+
 std::string rv_editor_log_stamp(const rv_editor_log_line &line, bool ms)
 {
-    const auto wall = rv_editor_log_start().wall + std::chrono::milliseconds(line.ms);
+    const auto wall = rv_editor_log_time(line);
     const std::time_t t = std::chrono::system_clock::to_time_t(wall);
     std::tm tm{};
     localtime_r(&t, &tm);

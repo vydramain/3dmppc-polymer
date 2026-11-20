@@ -165,8 +165,8 @@ bool drawn_label(const rv_editor_probe_record &r, const std::string &name)
 
 } // namespace
 
-// S7.2 at 1280x720: the Debug Toolchest's leaf holds Mark, Capture and Report.
-RV_EDITOR_TEST(rv_editor_test_debug_toolchest_draws_marks_at_1280x720)
+// S8 at 1280x720: the Debug Toolchest's leaf holds Restart; Mark, Capture, Report and the note field are in Session's Notes.
+RV_EDITOR_TEST(rv_editor_test_debug_toolchest_draws_restart_without_the_marks_at_1280x720)
 {
     std::string error;
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
@@ -183,13 +183,19 @@ RV_EDITOR_TEST(rv_editor_test_debug_toolchest_draws_marks_at_1280x720)
     };
     rv_editor_probe_draw(gui, static_cast<float>(tile.w), body, static_cast<float>(tile.h));
     const auto r = rv_editor_probe_draw(gui, static_cast<float>(tile.w), body, static_cast<float>(tile.h));
+    const std::string restart = rv_editor_text("pane_toolchest.restart_button");
+    if (!drawn_label(r, restart)) {
+        std::fprintf(stderr, "  '%s' is not drawn in the %dx%d Toolchest\n", restart.c_str(), tile.w, tile.h);
+    }
+    RV_EDITOR_CHECK(drawn_label(r, restart));
     for (const char *key : toolchest_mark_keys) {
         const std::string name = rv_editor_text(key);
-        if (!drawn_label(r, name)) {
-            std::fprintf(stderr, "  '%s' is not drawn in the %dx%d Toolchest\n", name.c_str(), tile.w, tile.h);
+        if (drawn_label(r, name)) {
+            std::fprintf(stderr, "  '%s' is drawn in the Toolchest\n", name.c_str());
         }
-        RV_EDITOR_CHECK(drawn_label(r, name));
+        RV_EDITOR_CHECK(!drawn_label(r, name));
     }
+    RV_EDITOR_CHECK(!drawn_label(r, "mark_note"));
 }
 
 // Root: the upper row over the log; the row: the Game column beside the session tabs; the column: controls over Game.

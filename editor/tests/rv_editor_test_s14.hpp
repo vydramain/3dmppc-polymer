@@ -251,16 +251,10 @@ struct states {
         add("all passed").app.release.candidates.push_back(candidate(3, true));
     }
 
-    // debug without marks, with a short and with a long mark, scene tools, no scene.
+    // debug (Restart only), scene tools, no scene.
     void toolchest()
     {
-        add("debug, no mark").app.preset = rv_editor_layout_preset::debug;
-        auto &short_mark = add("debug, a mark").app;
-        short_mark.preset = rv_editor_layout_preset::debug;
-        short_mark.marks.push_back("m");
-        auto &long_mark = add("debug, a long mark").app;
-        long_mark.preset = rv_editor_layout_preset::debug;
-        long_mark.marks.push_back(std::string(160, 'm'));
+        add("debug").app.preset = rv_editor_layout_preset::debug;
         auto &scene = add("scene tools").app;
         scene.preset = rv_editor_layout_preset::scene;
         scene.scene = std::make_unique<rv_editor_scene_doc>();

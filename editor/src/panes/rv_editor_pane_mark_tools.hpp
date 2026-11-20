@@ -1,5 +1,4 @@
-// The row "note field + Mark Moment / Capture Frame / Report Issue [+ Restart]" shared by the Session
-// Toolchest (with Restart) and Runtime Controls (without it).
+// The row "note field + Mark Moment / Capture Frame / Report Issue [+ Restart]" on the title row of Session's Notes.
 
 #pragma once
 
@@ -25,6 +24,10 @@ struct rv_editor_tile_rect {
 // order: Mark, Capture, Report [, Restart].
 std::vector<rv_editor_tile_rect>
 rv_editor_mark_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui, bool with_restart);
+
+// Restart alone, the Debug Toolchest's one tool, and its width.
+void rv_editor_restart_tool(rv_editor_app &app, const rv_editor_theme &theme);
+float rv_editor_restart_tool_width(const rv_editor_theme &theme);
 
 // The row's note field alone, `width` wide, with the one draft the row shares; its least width is its hint's.
 void rv_editor_mark_note(rv_editor_app &app, const rv_editor_theme &theme, float width);

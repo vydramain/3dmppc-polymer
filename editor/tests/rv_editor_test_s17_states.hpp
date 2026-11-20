@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "app/rv_editor_app_findings.hpp"
 #include "rv_editor_test_s17.hpp"
 
 namespace rv_editor_test
@@ -301,7 +302,7 @@ inline void fixture::session_states()
             [this, long_disc] {
                 live_session(long_disc);
                 app().session_profile = solid(path_chars, 'f');
-                app().marks = { s13::words(300) };
+                RV_EDITOR_CHECK(rv_editor_app_add_mark(app(), s13::words(300)) == RV_OK);
             },
             true,
             -1 },

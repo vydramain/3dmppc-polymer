@@ -4,7 +4,6 @@
 
 #include "imgui.h"
 #include "panes/rv_editor_pane_controls.hpp"
-#include "panes/rv_editor_pane_mark_tools.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -37,9 +36,8 @@ struct ui_font_scope {
 float rv_editor_transport_column_min_width()
 {
     const ui_font_scope font;
-    const float slot = rv_editor_controls_action_slot_width(rv_editor_theme_olive) + ImGui::GetStyle().ItemSpacing.x +
-        rv_editor_mark_note_min_width();
-    // The column's two rows are as wide as the column: the slot with the note, or the longest message, whichever is wider.
+    const float slot = rv_editor_controls_action_slot_width(rv_editor_theme_olive);
+    // The column's two rows are as wide as the column: the slot or the longest message, whichever is wider.
     return std::max(slot, ImGui::CalcTextSize(longest_message).x);
 }
 

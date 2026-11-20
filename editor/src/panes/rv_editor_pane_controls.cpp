@@ -8,7 +8,6 @@
 
 #include "imgui.h"
 
-#include "panes/rv_editor_pane_mark_tools.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -230,8 +229,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         }
     }
 
-    // The action slot and the mark note follow the transport buttons on the bar's one row; the tile's minimum
-    // width (rv_editor_transport_min_width) holds them all.
+    // The action slot follows the transport buttons on the bar's one row; the tile's minimum
+    // width (rv_editor_transport_min_width) holds them both.
     const rv_editor_action_kind action = rv_editor_action_for(s, app.build.busy(), !badge_label.empty());
     const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme, rv_editor_transport_column_min_width());
     if (clicked.build) {
@@ -255,7 +254,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     if (clicked.build_restart) {
         rv_editor_app_build_restart(app);
     }
-    // The right column beside the tiles has two rows: the action slot with the mark note, then the message row. The
+    // The right column beside the tiles has two rows: the action slot, then the message row. The
     // slot is always drawn, at the one width, in a clipping area, so what it holds never moves the items after it.
     const float slot_w = rv_editor_controls_action_slot_width(theme);
     ImGui::SameLine();
@@ -265,14 +264,6 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_action_draw(app, action, badge_label, badge_kind, theme);
     ImGui::EndChild();
     ImGui::PopStyleColor();
-    ImGui::SameLine();
-    // The note fills the column's first row. With small buttons the column is never narrower than its least width, so
-    // the strip's minimum is real; with large ones the column takes what the 640 px row leaves it.
-    const bool small_buttons =
-        rv_editor_transport_side(ImGui::GetWindowWidth(), rv_editor_transport_column_min_width()) <= ImGui::GetFrameHeight();
-    const float note_floor = small_buttons ? rv_editor_transport_column_min_width() - slot_w - ImGui::GetStyle().ItemSpacing.x :
-                                             rv_editor_mark_note_min_width();
-    rv_editor_mark_note(app, theme, std::max(note_floor, ImGui::GetContentRegionAvail().x));
 
     rv_editor_controls_message_text message = rv_editor_controls_message({ action == rv_editor_action_kind::force_stop,
         s.hung(),

@@ -50,6 +50,12 @@ struct rv_editor_app_descriptions {
     std::string shown_text;    // the state text last logged; empty when no text applies
 };
 
+// One Mark Moment: when it was made and what Notes says of it, "frame 812: the door opens late".
+struct rv_editor_mark {
+    std::chrono::system_clock::time_point at;
+    std::string text;
+};
+
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them.
 struct rv_editor_app {
@@ -101,7 +107,7 @@ struct rv_editor_app {
     // The session in Debug: the profile it started with, and Mark Moment's marks,
     // "frame 812: the door opens late".
     std::string session_profile;
-    std::vector<std::string> marks;
+    std::vector<rv_editor_mark> marks;
     // The first log line of the latest build job, for its diagnostics.
     uint64_t build_first_seq = 0;
     // Why the last build did not start or failed, for the ask area at the top of Problems; none otherwise.

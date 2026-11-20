@@ -169,8 +169,17 @@ uint64_t rv_editor_game_keys();
 
 // The running session's facts and its persistent Lua state, read-only.
 void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme);
-// What ran, from which build and profile, for how long, and how it ended.
-void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme);
+// What ran, from which build and profile, for how long, and how it ended: one content area, the facts, then Notes.
+void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+
+// One line of Session's Notes: the clock time "HH:MM:SS" and the text.
+struct rv_editor_note {
+    std::string time;
+    std::string text;
+};
+// The Notes of the session in `app`, oldest first: its start, the marks, the stderr lines of its process and, once it
+// ended, its end with the exit code. Empty before any session ran.
+std::vector<rv_editor_note> rv_editor_session_notes(const rv_editor_app &app);
 
 // Capture Frame and Record Finding: local files with the session's facts (T-09, T-10).
 void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme);

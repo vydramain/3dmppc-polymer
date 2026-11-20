@@ -253,26 +253,17 @@ RV_EDITOR_TEST(rv_editor_test_release_controls_cancel_build_exists_without_a_bui
     RV_EDITOR_CHECK(tooltip_over_item(gui, idle, rv_editor_pane_kind::release_controls, 800.0f, cancel));
 }
 
-// The Toolchest strip is as tall in the debug mark row (without and with marks, short and long), the scene tools and
-// the no-scene text, at one width and at a narrow one.
+// The Toolchest strip is as tall in the debug row (Restart; the marks are not shown here), the scene tools and the
+// no-scene text, at one width and at a narrow one.
 RV_EDITOR_TEST(rv_editor_test_toolchest_strip_height_same_in_every_state)
 {
     std::string error;
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == 0);
     rv_editor_test_imgui gui;
-    const std::string long_mark(160, 'm');
     for (const float width : { 300.0f, 500.0f, 900.0f }) {
         rv_editor_shell debug;
         debug.app.preset = rv_editor_layout_preset::debug;
         const float none = draw_pane(gui, debug, rv_editor_pane_kind::toolchest, width).content_height;
-        debug.app.marks.push_back("m");
-        RV_EDITOR_CHECK(draw_pane(gui, debug, rv_editor_pane_kind::toolchest, width).content_height == none);
-        debug.app.marks.push_back(long_mark);
-        const float long_height = draw_pane(gui, debug, rv_editor_pane_kind::toolchest, width).content_height;
-        if (long_height != none) {
-            std::fprintf(stderr, "  toolchest width %.0f: no mark %.1f, long mark %.1f\n", width, none, long_height);
-        }
-        RV_EDITOR_CHECK(long_height == none);
         rv_editor_shell scene;
         scene.app.preset = rv_editor_layout_preset::scene;
         scene.app.scene = std::make_unique<rv_editor_scene_doc>();
