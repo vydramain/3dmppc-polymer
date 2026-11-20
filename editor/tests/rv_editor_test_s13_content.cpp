@@ -151,7 +151,7 @@ RV_EDITOR_TEST(rv_editor_test_s13_problems_say_a_failure_in_the_message_box_and_
 {
     load_texts();
     rv_editor_test_imgui gui(true);
-    fixture f(gui, rv_editor_pane_kind::problems);
+    fixture f(gui, rv_editor_pane_kind::inspector_report);
     // 0 no project, 1 empty, 2 build failed, 3 problems, 4 building.
     std::vector<shot> r;
     for (size_t i = 0; i < f.states.size(); ++i) {
@@ -208,7 +208,7 @@ RV_EDITOR_TEST(rv_editor_test_s13_problems_level_column_is_pinned_to_the_left_ed
 {
     load_texts();
     rv_editor_test_imgui gui(true);
-    fixture f(gui, rv_editor_pane_kind::problems);
+    fixture f(gui, rv_editor_pane_kind::inspector_report);
     const auto min = stable_tiles::pane_minimum(gui, f.kind);
     RV_EDITOR_CHECK(min.w > 0.0f);
     const rv_editor_probe_record before = at_minimum(gui, f, 3);

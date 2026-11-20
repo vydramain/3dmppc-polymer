@@ -60,7 +60,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     case rv_editor_pane_kind::build_result:
         rv_editor_pane_build_result(shell.app, theme);
         return;
-    case rv_editor_pane_kind::problems:
+    case rv_editor_pane_kind::inspector_report:
         rv_editor_pane_problems(shell.app, theme);
         return;
     case rv_editor_pane_kind::search:

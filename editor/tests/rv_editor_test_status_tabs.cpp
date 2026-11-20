@@ -245,7 +245,7 @@ RV_EDITOR_TEST(rv_editor_test_tile_content_same_with_one_and_two_tabs)
     }();
     RV_EDITOR_CHECK(one.size.y > 0.0f);
 
-    const rv_editor_pane_id b = rv_editor_pane_add(f.ws.panes, rv_editor_pane_kind::problems);
+    const rv_editor_pane_id b = rv_editor_pane_add(f.ws.panes, rv_editor_pane_kind::inspector_report);
     RV_EDITOR_CHECK(rv_editor_tile_insert(f.ws.layout, f.leaf(), b, rv_editor_tile_dock::tab) == f.leaf());
     draw_workspace(gui, f);
     RV_EDITOR_CHECK(f.ws.layout.nodes[f.leaf()].leaf.tabs.size() == 2);
@@ -265,7 +265,7 @@ RV_EDITOR_TEST(rv_editor_test_tile_content_same_with_many_tabs)
     draw_workspace(gui, f);
     const ImVec2 size = f.size;
     for (int i = 1; i < tab_count; ++i) {
-        const rv_editor_pane_id p = rv_editor_pane_add(f.ws.panes, rv_editor_pane_kind::problems);
+        const rv_editor_pane_id p = rv_editor_pane_add(f.ws.panes, rv_editor_pane_kind::inspector_report);
         rv_editor_tile_insert(f.ws.layout, f.leaf(), p, rv_editor_tile_dock::tab);
     }
     draw_workspace(gui, f);

@@ -59,7 +59,7 @@ namespace fs = std::filesystem;
 inline constexpr rv_editor_theme theme = rv_editor_theme_olive;
 inline constexpr float wide = 420.0f;
 inline constexpr float narrow = 230.0f;
-inline constexpr const char *result_buttons[] = { "Open Folder", "Open in Browser", "Show in Problems" };
+inline constexpr const char *result_buttons[] = { "Open Folder", "Open in Browser", "Show in Inspector Report" };
 inline constexpr const char *action_buttons[] = { "Export", "Cancel" };
 
 inline fs::path scratch(const char *name)

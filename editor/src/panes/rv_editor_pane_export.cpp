@@ -412,7 +412,8 @@ rv_editor_size rv_editor_export_minimum()
 {
     const float row = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
     const float rows = 2.0f * row + rv_editor_message_text_height() + ImGui::GetStyle().ItemSpacing.y;
-    return rv_editor_tiled_minimum(rv_editor_export_content_width(),
+    // The result shelf sits straight in the window, so its right WindowPadding.x counts too.
+    return rv_editor_tiled_minimum(rv_editor_export_content_width() + ImGui::GetStyle().WindowPadding.x,
         rows + 2.0f * rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
 }
 

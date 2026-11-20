@@ -68,7 +68,7 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, code_game_ratio);
     // The controls are a strip as tall as their buttons: the game takes the rest.
     b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 1.0f);
-    b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::inspector_report, output, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::terminal, output, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::search, output, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, output);
@@ -87,6 +87,7 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
     const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, scene_assets_ratio);
     b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::output, assets, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::inspector_report, assets, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, assets);
     // The controls are a strip as tall as their buttons: the assets take the rest.
     const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, assets, rv_editor_tile_dock::bottom, 1.0f);
@@ -108,6 +109,7 @@ void rv_editor_preset_debug(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::observe, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::test_case, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::inspector_report, log, rv_editor_tile_dock::tab, 0.0f);
     // A tab, not a strip: the layout tests fix the log leaf.
     b.add(rv_editor_pane_kind::toolchest, log, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, session);
@@ -127,6 +129,7 @@ void rv_editor_preset_burn(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::game, release, rv_editor_tile_dock::bottom, 0.0f);
     b.add(rv_editor_pane_kind::export_, candidate, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::inspector_report, log, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, candidate);
     (void)rv_editor_tile_activate(b.layout, log);
 }

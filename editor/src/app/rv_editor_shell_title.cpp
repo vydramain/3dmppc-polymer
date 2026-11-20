@@ -141,7 +141,7 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
     case rv_editor_pane_kind::scene:
         title = title_scene(app);
         break;
-    case rv_editor_pane_kind::problems:
+    case rv_editor_pane_kind::inspector_report:
         title = title_problems(app);
         break;
     case rv_editor_pane_kind::output:

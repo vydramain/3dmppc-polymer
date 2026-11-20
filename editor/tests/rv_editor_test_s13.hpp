@@ -40,7 +40,7 @@ inline const std::vector<rv_editor_pane_kind> &kinds()
         rv_editor_pane_kind::runtime_log,
         rv_editor_pane_kind::build_log,
         rv_editor_pane_kind::terminal,
-        rv_editor_pane_kind::problems,
+        rv_editor_pane_kind::inspector_report,
         rv_editor_pane_kind::search };
     return all;
 }
@@ -56,7 +56,7 @@ inline const char *name_of(rv_editor_pane_kind kind)
         return "build_log";
     case rv_editor_pane_kind::terminal:
         return "terminal";
-    case rv_editor_pane_kind::problems:
+    case rv_editor_pane_kind::inspector_report:
         return "problems";
     default:
         return "search";
@@ -135,7 +135,7 @@ struct fixture {
         case rv_editor_pane_kind::terminal:
             terminal_states();
             break;
-        case rv_editor_pane_kind::problems:
+        case rv_editor_pane_kind::inspector_report:
             problems_states();
             break;
         case rv_editor_pane_kind::search:

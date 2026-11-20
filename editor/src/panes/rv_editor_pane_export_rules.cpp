@@ -72,7 +72,7 @@ rv_editor_export_result_view rv_editor_export_result_make(rv_editor_build_state 
 
 void rv_editor_export_show_problems(rv_editor_app &app)
 {
-    app.show_request = rv_editor_pane_kind::problems;
+    app.show_request = rv_editor_pane_kind::inspector_report;
 }
 
 } // namespace rv_editor

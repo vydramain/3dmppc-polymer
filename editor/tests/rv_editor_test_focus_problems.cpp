@@ -65,8 +65,8 @@ rv_editor_pane_id find_pane(const rv_editor_shell &s, rv_editor_pane_kind kind)
 // Problems is in one leaf, is that leaf's active tab, the leaf has the keyboard, and no tile appeared.
 void check_focused(const rv_editor_shell &s, size_t leaves_before)
 {
-    RV_EDITOR_CHECK(pane_count(s, rv_editor_pane_kind::problems) == 1);
-    const rv_editor_pane_id problems = find_pane(s, rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(pane_count(s, rv_editor_pane_kind::inspector_report) == 1);
+    const rv_editor_pane_id problems = find_pane(s, rv_editor_pane_kind::inspector_report);
     if (problems == rv_editor_tile_none) {
         return;
     }
@@ -99,42 +99,46 @@ RV_EDITOR_TEST(rv_editor_test_focus_problems_code)
     check_focused(shell, leaves);
     const rv_editor_pane_id output = find_pane(shell, rv_editor_pane_kind::output);
     RV_EDITOR_CHECK(rv_editor_tile_find(shell.ws.layout, output) ==
-        rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::problems)));
+        rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::inspector_report)));
 }
 
-// Scene: no Problems; it is added as a tab of the Assets tile, where the Output is.
+// Scene: the Inspector Report is a tab of the Assets tile (S5: every layout starts with it), where the Output is.
 RV_EDITOR_TEST(rv_editor_test_focus_problems_scene)
 {
     rv_editor_shell shell;
     init_shell(shell, rv_editor_layout_preset::scene);
-    RV_EDITOR_CHECK(pane_count(shell, rv_editor_pane_kind::problems) == 0);
+    RV_EDITOR_CHECK(pane_count(shell, rv_editor_pane_kind::inspector_report) == 1);
     const size_t leaves = leaf_count(shell.ws.layout);
     rv_editor_shell_focus_problems(shell);
     check_focused(shell, leaves);
     const rv_editor_pane_id output = find_pane(shell, rv_editor_pane_kind::output);
     RV_EDITOR_CHECK(rv_editor_tile_find(shell.ws.layout, output) ==
-        rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::problems)));
+        rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::inspector_report)));
 }
 
-// Debug and Burn have no Output: Problems is added where rv_editor_shell_show puts a pane, no new tile.
+// Debug and Burn (S5): the Inspector Report is a tab of the log tile, Runtime Log and Build Log; it comes to the front there.
 RV_EDITOR_TEST(rv_editor_test_focus_problems_debug)
 {
     rv_editor_shell shell;
     init_shell(shell, rv_editor_layout_preset::debug);
-    RV_EDITOR_CHECK(pane_count(shell, rv_editor_pane_kind::problems) == 0);
+    RV_EDITOR_CHECK(pane_count(shell, rv_editor_pane_kind::inspector_report) == 1);
     const size_t leaves = leaf_count(shell.ws.layout);
     rv_editor_shell_focus_problems(shell);
     check_focused(shell, leaves);
+    RV_EDITOR_CHECK(rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::runtime_log)) ==
+        rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::inspector_report)));
 }
 
 RV_EDITOR_TEST(rv_editor_test_focus_problems_burn)
 {
     rv_editor_shell shell;
     init_shell(shell, rv_editor_layout_preset::burn);
-    RV_EDITOR_CHECK(pane_count(shell, rv_editor_pane_kind::problems) == 0);
+    RV_EDITOR_CHECK(pane_count(shell, rv_editor_pane_kind::inspector_report) == 1);
     const size_t leaves = leaf_count(shell.ws.layout);
     rv_editor_shell_focus_problems(shell);
     check_focused(shell, leaves);
+    RV_EDITOR_CHECK(rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::build_log)) ==
+        rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::inspector_report)));
 }
 
 // Problems already in a tile away from the Output is activated where it is, not added again.
@@ -142,13 +146,13 @@ RV_EDITOR_TEST(rv_editor_test_focus_problems_keeps_existing_tab)
 {
     rv_editor_shell shell;
     init_shell(shell, rv_editor_layout_preset::debug);
-    rv_editor_shell_show_pane(shell, rv_editor_pane_kind::problems, false);
-    const rv_editor_pane_id before = find_pane(shell, rv_editor_pane_kind::problems);
+    rv_editor_shell_show_pane(shell, rv_editor_pane_kind::inspector_report, false);
+    const rv_editor_pane_id before = find_pane(shell, rv_editor_pane_kind::inspector_report);
     rv_editor_shell_show_pane(shell, rv_editor_pane_kind::findings, false);
     const size_t leaves = leaf_count(shell.ws.layout);
     rv_editor_shell_focus_problems(shell);
     check_focused(shell, leaves);
-    RV_EDITOR_CHECK(find_pane(shell, rv_editor_pane_kind::problems) == before);
+    RV_EDITOR_CHECK(find_pane(shell, rv_editor_pane_kind::inspector_report) == before);
 }
 
 namespace

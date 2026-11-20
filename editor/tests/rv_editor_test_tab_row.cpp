@@ -109,7 +109,7 @@ struct tile_fixture {
         ws.layout = rv_editor_layout_make(a);
         ws.focused_leaf = ws.layout.root;
         for (int i = 1; i < tabs; ++i) {
-            const rv_editor_pane_id p = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::problems);
+            const rv_editor_pane_id p = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::inspector_report);
             rv_editor_tile_insert(ws.layout, ws.layout.root, p, rv_editor_tile_dock::tab);
         }
         ws.layout.nodes[ws.layout.root].leaf.active = 0;

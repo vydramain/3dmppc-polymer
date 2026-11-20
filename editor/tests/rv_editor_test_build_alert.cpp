@@ -140,7 +140,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_refused_by_why_not_build)
     RV_EDITOR_CHECK(rv_editor_app_build(app) == RV_ERR_BUSY);
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::not_started);
     RV_EDITOR_CHECK(app.build_alert.reason == why);
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
     // R7: the log line is what it was.
     RV_EDITOR_CHECK(count_lines(app, lv_warn, "not built: " + why) == 1);
 }
@@ -154,7 +154,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_refused_by_burner_problem_in_build_sav
     RV_EDITOR_CHECK(rv_editor_app_build_saved(app) == RV_ERR_BUSY);
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::not_started);
     RV_EDITOR_CHECK(app.build_alert.reason == app.tools.burner.problem);
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
 }
 
 RV_EDITOR_TEST(rv_editor_test_build_alert_start_error_is_the_reason)
@@ -166,7 +166,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_start_error_is_the_reason)
     RV_EDITOR_CHECK(rv_editor_app_build_saved(app) != RV_OK);
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::not_started);
     RV_EDITOR_CHECK(app.build_alert.reason == why);
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
     RV_EDITOR_CHECK(count_lines(app, lv_error, "cannot build: " + why) == 1);
 }
 
@@ -180,7 +180,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_run_that_must_build_is_refused_with_th
     RV_EDITOR_CHECK(rv_editor_app_run_saved(app) == RV_ERR_BUSY);
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::not_started);
     RV_EDITOR_CHECK(app.build_alert.reason == app.tools.burner.problem);
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
     RV_EDITOR_CHECK(count_lines(app, lv_warn, "not run: " + app.tools.burner.problem) == 1);
 }
 
@@ -212,7 +212,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_run_entry_that_must_build_is_refused_w
     RV_EDITOR_CHECK(rv_editor_app_run(app) == RV_ERR_BUSY);
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::not_started);
     RV_EDITOR_CHECK(app.build_alert.reason == app.tools.burner.problem);
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
     RV_EDITOR_CHECK(count_lines(app, lv_warn, "not run: " + app.tools.burner.problem) == 1);
 }
 
@@ -238,7 +238,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_build_and_restart_refused)
     RV_EDITOR_CHECK(rv_editor_app_build_restart_saved(app) == RV_ERR_BUSY);
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::not_started);
     RV_EDITOR_CHECK(app.build_alert.reason == "no baker directory");
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
 }
 
 RV_EDITOR_TEST(rv_editor_test_build_alert_candidate_start_refused)
@@ -250,7 +250,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_candidate_start_refused)
     RV_EDITOR_CHECK(rv_editor_app_build_candidate(app) == RV_ERR_BUSY);
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::not_started);
     RV_EDITOR_CHECK(app.build_alert.reason == "mppcburner is gone");
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
     RV_EDITOR_CHECK(!app.release.building);
 }
 
@@ -260,7 +260,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_refused_sets_text_directly)
     rv_editor_app_build_alert_refused(app, "because");
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::not_started);
     RV_EDITOR_CHECK(app.build_alert.reason == "because");
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
 }
 
 // --- a build job ends -----------------------------------------------------------------------------------------
@@ -275,7 +275,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_failed_job_sets_alert_from_its_log)
     rv_editor_app_build_alert_ended(app, rv_editor_build_state::failed, "exit code 1");
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::failed);
     RV_EDITOR_CHECK(app.build_alert.reason == "error: the sources check found 1 error");
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
 }
 
 RV_EDITOR_TEST(rv_editor_test_build_alert_failed_job_without_errors_says_exit_text)
@@ -359,7 +359,7 @@ RV_EDITOR_TEST(rv_editor_test_build_alert_run_waiting_for_failed_build_adds_one_
     // The Run's own refusal does not replace the burner's reason nor ask twice.
     RV_EDITOR_CHECK(app.build_alert.kind == rv_editor_build_alert_kind::failed);
     RV_EDITOR_CHECK(app.build_alert.reason == "error: compile failed");
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
     size_t not_run = 0;
     for (const rv_editor_log_line &l : app.log.lines()) {
         not_run += l.source == src_editor && l.text.rfind("not run:", 0) == 0 ? 1 : 0;

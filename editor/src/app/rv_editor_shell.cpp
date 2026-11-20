@@ -148,15 +148,26 @@ void rv_editor_shell_focus_problems(rv_editor_shell &shell)
         return std::pair<uint32_t, rv_editor_pane_id>{ rv_editor_tile_none, 0 };
     };
     rv_editor_pane_id pane = 0;
-    if (const auto at = find(rv_editor_pane_kind::problems); at.first != rv_editor_tile_none) {
+    if (const auto at = find(rv_editor_pane_kind::inspector_report); at.first != rv_editor_tile_none) {
         pane = at.second;
         (void)rv_editor_tile_activate(ws.layout, pane);
-    } else if (const auto out = find(rv_editor_pane_kind::output); out.first != rv_editor_tile_none) {
-        pane = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::problems);
-        rv_editor_tile_insert(ws.layout, out.first, pane, rv_editor_tile_dock::tab);
-        (void)rv_editor_tile_activate(ws.layout, pane);
     } else {
-        pane = rv_editor_shell_show(ws, rv_editor_pane_kind::problems);
+        bool placed = false;
+        // Never a strip: the report joins the tile of the logs.
+        for (const rv_editor_pane_kind logs :
+            { rv_editor_pane_kind::output, rv_editor_pane_kind::runtime_log, rv_editor_pane_kind::build_log }) {
+            const auto log = find(logs);
+            if (log.first != rv_editor_tile_none) {
+                pane = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::inspector_report);
+                rv_editor_tile_insert(ws.layout, log.first, pane, rv_editor_tile_dock::tab);
+                (void)rv_editor_tile_activate(ws.layout, pane);
+                placed = true;
+                break;
+            }
+        }
+        if (!placed) {
+            pane = rv_editor_shell_show(ws, rv_editor_pane_kind::inspector_report);
+        }
     }
     const uint32_t leaf = rv_editor_tile_find(ws.layout, pane);
     if (leaf != rv_editor_tile_none) {

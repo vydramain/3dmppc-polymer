@@ -112,7 +112,7 @@ RV_EDITOR_TEST(rv_editor_test_export_tile_show_in_problems)
     rv_editor_app app;
     RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::empty);
     rv_editor_export_show_problems(app);
-    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::problems);
+    RV_EDITOR_CHECK(app.show_request == rv_editor_pane_kind::inspector_report);
 }
 
 RV_EDITOR_TEST(rv_editor_test_export_tile_kind_items_follow_the_table)

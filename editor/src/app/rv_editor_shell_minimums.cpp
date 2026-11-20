@@ -133,7 +133,7 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
         const ui_font_scope scope;
         return rv_editor_terminal_minimum();
     }
-    case rv_editor_pane_kind::problems: {
+    case rv_editor_pane_kind::inspector_report: {
         const ui_font_scope scope;
         return rv_editor_problems_minimum();
     }

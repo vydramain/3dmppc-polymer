@@ -92,7 +92,7 @@ RV_EDITOR_TEST(rv_editor_test_single_tab_tile_draws_its_tab)
     const auto one = draw();
     const ImVec2 one_size = size;
     RV_EDITOR_CHECK(find_part(one, "##tab") != nullptr);
-    const rv_editor_pane_id b = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::problems);
+    const rv_editor_pane_id b = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::inspector_report);
     rv_editor_tile_insert(ws.layout, ws.layout.root, b, rv_editor_tile_dock::tab);
     const auto two = draw();
     RV_EDITOR_CHECK(find_part(two, "##tab") != nullptr);

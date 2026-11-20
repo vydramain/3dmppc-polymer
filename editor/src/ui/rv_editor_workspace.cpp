@@ -56,7 +56,7 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         return rv_editor_text("workspace.pane_output");
     case rv_editor_pane_kind::terminal:
         return rv_editor_text("workspace.pane_terminal");
-    case rv_editor_pane_kind::problems:
+    case rv_editor_pane_kind::inspector_report:
         return rv_editor_text("workspace.pane_problems");
     case rv_editor_pane_kind::search:
         return rv_editor_text("workspace.pane_search");

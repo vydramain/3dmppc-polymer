@@ -102,7 +102,7 @@ RV_EDITOR_TEST(rv_editor_test_s22_1_problems_table_spans_the_area)
 {
     s13::load_texts();
     rv_editor_test_imgui gui(true);
-    s13::fixture f(gui, rv_editor_pane_kind::problems);
+    s13::fixture f(gui, rv_editor_pane_kind::inspector_report);
     f.states[1](); // a project, nothing found
     (void)s13::settled(f, wide_w, wide_h);
     const std::string bad_empty = table_reach(drawn_table(5));
@@ -121,7 +121,7 @@ RV_EDITOR_TEST(rv_editor_test_s22_1_problems_table_in_the_code_layout_spans_the_
 {
     s13::load_texts();
     rv_editor_test_imgui gui(true);
-    s13::fixture f(gui, rv_editor_pane_kind::problems);
+    s13::fixture f(gui, rv_editor_pane_kind::inspector_report);
     f.states[1](); // a project, no build, no alert
     f.shell.ws.panes = {};
     rv_editor_layout_preset_make(rv_editor_layout_preset::code, f.shell.ws.panes, f.shell.ws.layout);
@@ -129,7 +129,7 @@ RV_EDITOR_TEST(rv_editor_test_s22_1_problems_table_in_the_code_layout_spans_the_
     for (rv_editor_tile_node &node : f.shell.ws.layout.nodes) { // the Problems tab is the one shown
         for (size_t i = 0; i < node.leaf.tabs.size(); ++i) {
             if (node.kind == rv_editor_tile_kind::leaf &&
-                f.shell.ws.panes.panes[node.leaf.tabs[i]].kind == rv_editor_pane_kind::problems) {
+                f.shell.ws.panes.panes[node.leaf.tabs[i]].kind == rv_editor_pane_kind::inspector_report) {
                 node.leaf.active = static_cast<uint32_t>(i);
             }
         }
@@ -416,7 +416,7 @@ RV_EDITOR_TEST(rv_editor_test_s22_1_problems_scroll_width_does_not_grow)
     s13::load_texts();
     rv_editor_test_imgui gui(true);
     rv_editor_theme_apply(stable_tiles::theme, ImGui::GetStyle());
-    s13::fixture f(gui, rv_editor_pane_kind::problems);
+    s13::fixture f(gui, rv_editor_pane_kind::inspector_report);
     f.states[1]();
     f.app().problems.push_back({ f.where / "a_rather_long_file_name_to_scroll_sideways.cpp",
         3,

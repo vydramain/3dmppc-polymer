@@ -43,8 +43,11 @@ RV_EDITOR_TEST(rv_editor_test_layout_burn_tree)
     }
     const rv_editor_tile_split root = l.nodes[l.root].split;
 
-    // Logs: the build log (+ runtime log) alone as the bottom leaf.
-    RV_EDITOR_CHECK(is_leaf_of(l, p, root.second, { rv_editor_pane_kind::build_log, rv_editor_pane_kind::runtime_log }));
+    // Logs: the build log (+ runtime log, Inspector Report) alone as the bottom leaf.
+    RV_EDITOR_CHECK(is_leaf_of(l,
+        p,
+        root.second,
+        { rv_editor_pane_kind::build_log, rv_editor_pane_kind::runtime_log, rv_editor_pane_kind::inspector_report }));
 
     // Work area: candidate (+ Export) beside a column of release controls over the game.
     RV_EDITOR_CHECK(is_split(l, root.first, rv_editor_axis::x));

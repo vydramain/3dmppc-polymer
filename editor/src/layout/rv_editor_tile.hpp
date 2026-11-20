@@ -50,7 +50,7 @@ enum class rv_editor_pane_kind : uint32_t {
     run_config,
     output,
     terminal,
-    problems,
+    inspector_report,
     search,
     toolchest,
     runtime_log,      // Output over the runtime's stderr alone
