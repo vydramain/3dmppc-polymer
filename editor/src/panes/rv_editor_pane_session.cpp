@@ -189,12 +189,18 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_session_say(app, theme, width);
     }
     const bool has_session = shown && s.number() != 0;
-    (void)rv_editor_tiled_area_begin("##facts_area", width, theme, { rv_editor_tiled_floor(), rv_editor_tiled_floor() }, true);
+    (void)rv_editor_tiled_area_begin("##facts_area",
+        width,
+        theme,
+        { rv_editor_tiled_floor(), rv_editor_tiled_floor() },
+        has_session);
     if (has_session) {
         if (!s.live()) {
             rv_editor_session_summary(app, s, theme);
         }
         rv_editor_session_rows(app, s, theme);
+    } else if (shown) {
+        rv_editor_content_empty_row(rv_editor_text("pane_session.facts_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
 

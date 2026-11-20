@@ -423,14 +423,22 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
         { rv_editor_tiled_floor(), rv_editor_tiled_floor(), rv_editor_tiled_floor() });
     rv_editor_candidate_list(app, theme);
     rv_editor_tiled_area_end(theme);
-    (void)rv_editor_tiled_area_begin("##facts_area", width, theme, { rv_editor_tiled_floor(), rv_editor_tiled_floor() }, true);
+    (void)rv_editor_tiled_area_begin("##facts_area",
+        width,
+        theme,
+        { rv_editor_tiled_floor(), rv_editor_tiled_floor() },
+        c != nullptr);
     if (c != nullptr) {
         rv_editor_candidate_facts(app, *c, theme);
+    } else if (app.project.open) {
+        rv_editor_content_empty_row(rv_editor_text("pane_candidate.facts_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
     (void)rv_editor_tiled_area_begin("##checks_area", width, theme);
     if (c != nullptr) {
         rv_editor_candidate_checks(app, *c, theme);
+    } else if (app.project.open) {
+        rv_editor_content_empty_row(rv_editor_text("pane_candidate.checks_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
 }

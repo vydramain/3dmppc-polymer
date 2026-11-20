@@ -478,9 +478,11 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         width,
         theme,
         { rv_editor_tiled_floor(), rv_editor_tiled_floor(), rv_editor_tiled_floor() },
-        true);
+        machine);
     if (machine) {
         rv_editor_observe_facts(s, theme);
+    } else {
+        rv_editor_content_empty_row(rv_editor_text("pane_observe.facts_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
     (void)rv_editor_tiled_area_begin("##pins_area", width, theme, { rv_editor_tiled_floor(), rv_editor_tiled_floor() });
@@ -490,11 +492,15 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_label_kind::dim,
             theme,
             rv_editor_label_layout::wrap);
+    } else {
+        rv_editor_content_empty_row(rv_editor_text("pane_observe.pins_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
     (void)rv_editor_tiled_area_begin("##keys_area", width, theme);
     if (lua && keys != nullptr && keys->ok) {
         rv_editor_observe_keys(app, rows, theme);
+    } else {
+        rv_editor_content_empty_row(rv_editor_text("pane_observe.keys_empty"), theme);
     }
     rv_editor_tiled_area_end(theme);
 }

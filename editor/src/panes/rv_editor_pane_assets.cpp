@@ -256,7 +256,10 @@ void rv_editor_assets_shelf(rv_editor_app &app, const std::vector<std::string> &
         names.push_back(f.c_str());
     }
     ui.folder = std::min(ui.folder, static_cast<int>(folders.size()) - 1);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * folder_filter_width_em);
+    // Never narrower than the chosen name, its padding and the arrow button.
+    const float folder_text = ImGui::CalcTextSize(names[static_cast<size_t>(ui.folder)]).x;
+    ImGui::SetNextItemWidth(std::max(ImGui::GetFontSize() * folder_filter_width_em,
+        folder_text + 2.0f * ImGui::GetStyle().FramePadding.x + ImGui::GetFrameHeight()));
     rv_editor_dropdown("##folder", &ui.folder, names.data(), static_cast<int>(names.size()), theme);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * folder_filter_width_em);
@@ -328,8 +331,8 @@ void rv_editor_assets_table(rv_editor_app &app,
     rv_editor_table_end();
 }
 
-// The resources as icon cells: the picture or the kind's icon over the file's name, which the cell clips (the tooltip
-// has the whole name).
+// The resources as icon cells: the picture or the kind's icon over the file's whole name; the cells are as wide as the
+// longest name (the area scrolls).
 void rv_editor_assets_grid(rv_editor_app &app,
     SDL_Renderer *renderer,
     const std::vector<const rv_editor_asset *> &shown,
@@ -341,7 +344,10 @@ void rv_editor_assets_grid(rv_editor_app &app,
         rv_editor_content_empty_row(empty_message, theme);
         return;
     }
-    const float cell = ImGui::GetFontSize() * icon_cell_size_em;
+    float cell = ImGui::GetFontSize() * icon_cell_size_em;
+    for (const rv_editor_asset *a : shown) {
+        cell = std::max(cell, ImGui::CalcTextSize(a->path.filename().string().c_str()).x + icon_label_margin_px);
+    }
     const float art = ImGui::GetFontSize() * icon_glyph_size_em;
     const int columns = std::max(1, static_cast<int>(ImGui::GetContentRegionAvail().x / cell));
     ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -383,12 +389,9 @@ void rv_editor_assets_grid(rv_editor_app &app,
             dl->AddText(ImGui::GetFont(), size, glyph_pos, rv_editor_col(color), code);
         }
         const std::string label = a.path.filename().string();
-        const float room = cell - icon_label_margin_px;
-        const float lw = std::min(ImGui::CalcTextSize(label.c_str()).x, room);
+        const float lw = ImGui::CalcTextSize(label.c_str()).x;
         const ImVec2 label_at(p0.x + (cell - lw) * center_offset_ratio, at.y + art + icon_label_y_offset_px);
-        dl->PushClipRect(label_at, ImVec2(label_at.x + room, label_at.y + ImGui::GetTextLineHeight()), true);
         dl->AddText(label_at, rv_editor_col(theme.text), label.c_str());
-        dl->PopClipRect();
         ImGui::PopID();
     }
 }
