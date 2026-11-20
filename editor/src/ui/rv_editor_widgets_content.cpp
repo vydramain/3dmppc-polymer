@@ -38,6 +38,18 @@ float rv_editor_content_frame_px(const rv_editor_theme &theme)
     return static_cast<float>(theme.pad_px * theme.scale);
 }
 
+// Mixed public and private Selectable flags: the int cast avoids -Wdeprecated-enum-enum-conversion.
+constexpr ImGuiSelectableFlags inert_row_flags = static_cast<ImGuiSelectableFlags>(
+    static_cast<int>(ImGuiSelectableFlags_Disabled) | static_cast<int>(ImGuiSelectableFlags_NoPadWithHalfSpacing));
+
+// Where an open section's title row starts and how high it is.
+struct rv_editor_section_row {
+    ImVec2 pos;
+    float height;
+};
+
+std::vector<rv_editor_section_row> rv_editor_section_rows;
+
 } // namespace
 
 float rv_editor_content_min_height()
@@ -93,9 +105,7 @@ void rv_editor_content_empty_row(const char *text, const rv_editor_theme &theme)
 {
     // A disabled Selectable, not a Text: the row is an item with an id, like the rows it stands for.
     ImGui::PushStyleColor(ImGuiCol_TextDisabled, rv_editor_col(theme.code_subtext));
-    ImGui::Selectable((std::string(text) + "###empty").c_str(),
-        false,
-        ImGuiSelectableFlags_Disabled | ImGuiSelectableFlags_NoPadWithHalfSpacing);
+    ImGui::Selectable((std::string(text) + "###empty").c_str(), false, inert_row_flags);
     ImGui::PopStyleColor();
 }
 
@@ -164,6 +174,33 @@ rv_editor_record_result rv_editor_record_row(const char *id,
     part("##status", pill_x, pos.y, pill_x + status_w);
     ImGui::PopID();
     return result;
+}
+
+float rv_editor_content_section_min_width(const char *title, float controls_width)
+{
+    return ImGui::CalcTextSize(title).x + ImGui::GetStyle().ItemSpacing.x + controls_width;
+}
+
+void rv_editor_content_section_begin(const char *title, float controls_width, const rv_editor_theme &theme)
+{
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const float height = ImGui::GetFrameHeight();
+    rv_editor_section_rows.push_back({ pos, height });
+    // The title is a disabled Selectable over the full width, centred in a row as high as the controls.
+    ImGui::PushStyleColor(ImGuiCol_TextDisabled, rv_editor_col(theme.code_text));
+    ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
+    ImGui::Selectable((std::string(title) + "###title").c_str(), false, inert_row_flags, ImVec2(0.0f, height));
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor();
+    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCurrentWindow()->InnerRect.Max.x - controls_width, pos.y));
+}
+
+void rv_editor_content_section_end(const rv_editor_theme &)
+{
+    const rv_editor_section_row row = rv_editor_section_rows.back();
+    rv_editor_section_rows.pop_back();
+    ImGui::SetCursorScreenPos(ImVec2(row.pos.x, row.pos.y + row.height + ImGui::GetStyle().ItemSpacing.y));
+    ImGui::Dummy(ImVec2(0.0f, 0.0f));
 }
 
 } // namespace rv_editor

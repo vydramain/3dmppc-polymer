@@ -34,6 +34,7 @@ extern const rv_editor_catalog_template rv_editor_catalog_template_transport;
 extern const rv_editor_catalog_template rv_editor_catalog_template_picture;
 extern const rv_editor_catalog_template rv_editor_catalog_template_facts;
 extern const rv_editor_catalog_template rv_editor_catalog_template_status;
+extern const rv_editor_catalog_template rv_editor_catalog_template_sections;
 
 // The text of `key` in [catalog_templates].
 const char *rv_editor_catalog_tpl_text(const char *key);

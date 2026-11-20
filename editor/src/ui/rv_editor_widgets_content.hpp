@@ -22,6 +22,14 @@ void rv_editor_content_end(const rv_editor_theme &theme);
 // they are with rows; in a table, call it after rv_editor_table_row and rv_editor_table_cell.
 void rv_editor_content_empty_row(const char *text, const rv_editor_theme &theme);
 
+// A titled section inside one content area (call between rv_editor_content_begin and _end). The title row is a band over
+// the area's full inner width: `title` at the left, and the cursor left on the same row at the right, where the caller
+// draws its controls (a field, buttons) in `controls_width` pixels. _end moves the cursor below the row. The section's
+// minimum width is the title plus a gap plus the controls; an area narrower than it is the caller's to avoid.
+float rv_editor_content_section_min_width(const char *title, float controls_width);
+void rv_editor_content_section_begin(const char *title, float controls_width, const rv_editor_theme &theme);
+void rv_editor_content_section_end(const rv_editor_theme &theme);
+
 // The widest status word a record list shows, mark included: the width of the pinned status column.
 float rv_editor_record_status_width(const char *const words[], int count);
 

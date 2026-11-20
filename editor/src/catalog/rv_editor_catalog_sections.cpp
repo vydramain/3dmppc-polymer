@@ -27,6 +27,7 @@ const rv_editor_catalog_template *const templates[] = {
     &rv_editor_catalog_template_picture,
     &rv_editor_catalog_template_facts,
     &rv_editor_catalog_template_status,
+    &rv_editor_catalog_template_sections,
 };
 constexpr int section_total = static_cast<int>(std::size(templates));
 

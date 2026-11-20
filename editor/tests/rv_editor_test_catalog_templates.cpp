@@ -25,9 +25,9 @@ namespace
 {
 
 constexpr rv_editor_theme theme = rv_editor_theme_olive;
-constexpr int sections = 11;
+constexpr int sections = 12;
 // The states of each template as the templates page lists them.
-constexpr int state_counts[sections] = { 4, 3, 4, 4, 6, 4, 4, 5, 4, 3, 6 };
+constexpr int state_counts[sections] = { 4, 3, 4, 4, 6, 4, 4, 5, 4, 3, 6, 3 };
 
 void load_texts()
 {
@@ -86,7 +86,7 @@ bool has_size(const rv_editor_probe_record &r, ImVec2 size)
 
 } // namespace
 
-// R18: eleven sections, named, each with the states of its template.
+// R18: twelve sections, named, each with the states of its template.
 RV_EDITOR_TEST(rv_editor_test_catalog_has_a_section_per_template)
 {
     load_texts();
