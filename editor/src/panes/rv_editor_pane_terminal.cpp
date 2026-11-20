@@ -238,40 +238,27 @@ float rv_editor_terminal_content_width()
             { rv_editor_text("pane_terminal.start_again") } });
 }
 
-// What the terminal says in the message box, whatever it takes: the shell's end question, several pasted lines to look at,
-// or that the shell ended or never started. Each has its buttons; a running shell with nothing to ask says nothing. The
-// box is there either way, so the screen never moves.
-void rv_editor_terminal_say(rv_editor_terminal_view &view, const rv_editor_theme &theme)
+// What the terminal says in the strip under the screen, whatever it takes: the shell's end question, several pasted lines to
+// look at, or that the shell ended or never started. Each has its buttons; a running shell with nothing to ask says nothing
+// and has no strip.
+struct rv_editor_terminal_say_text {
+    std::string text;
+    rv_editor_label_kind kind = rv_editor_label_kind::normal;
+    std::vector<std::string> buttons;
+};
+
+rv_editor_terminal_say_text rv_editor_terminal_say(const rv_editor_terminal_view &view)
 {
-    const float width = rv_editor_terminal_content_width();
     if (view.ending) {
-        const int pressed = rv_editor_message_box("##say",
-            rv_editor_text("shell_menu.ask_terminal_message"),
+        return { rv_editor_text("shell_menu.ask_terminal_message"),
             rv_editor_label_kind::normal,
-            { rv_editor_text("shell_menu.ask_terminal_end"), rv_editor_text("shell_menu.ask_terminal_keep") },
-            theme,
-            width);
-        if (pressed >= 0) {
-            view.end_answer = pressed == 0 ? rv_editor_terminal_end_answer::end : rv_editor_terminal_end_answer::keep;
-        }
-        return;
+            { rv_editor_text("shell_menu.ask_terminal_end"), rv_editor_text("shell_menu.ask_terminal_keep") } };
     }
     if (!view.paste.empty() && view.term != nullptr) {
-        // Every pasted line is in the box, to look at before it runs.
-        const std::string lines = std::string(rv_editor_text("pane_terminal.paste_lines_info")) + "\n" + view.paste;
-        const int pressed = rv_editor_message_box("##say",
-            lines,
+        // Every pasted line is in the strip, to look at before it runs.
+        return { std::string(rv_editor_text("pane_terminal.paste_lines_info")) + "\n" + view.paste,
             rv_editor_label_kind::normal,
-            { rv_editor_text("pane_terminal.paste"), rv_editor_text("pane_terminal.cancel") },
-            theme,
-            width);
-        if (pressed == 0) {
-            rv_editor_term_type(*view.term, view.paste);
-        }
-        if (pressed >= 0) {
-            view.paste.clear();
-        }
-        return;
+            { rv_editor_text("pane_terminal.paste"), rv_editor_text("pane_terminal.cancel") } };
     }
     std::string why;
     if (!view.error.empty()) {
@@ -280,10 +267,25 @@ void rv_editor_terminal_say(rv_editor_terminal_view &view, const rv_editor_theme
         const std::string ended_msg = view.term->ended();
         why = rv_editor_text_format("pane_terminal.shell_ended", std::make_format_args(ended_msg));
     }
-    const std::vector<std::string> again =
-        why.empty() ? std::vector<std::string>{} : std::vector<std::string>{ rv_editor_text("pane_terminal.start_again") };
-    const auto kind = view.error.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error;
-    if (rv_editor_message_box("##say", why, kind, again, theme, width) == 0) {
+    return { why,
+        view.error.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
+        why.empty() ? std::vector<std::string>{} : std::vector<std::string>{ rv_editor_text("pane_terminal.start_again") } };
+}
+
+// What the pressed button of that strip does.
+void rv_editor_terminal_answer(rv_editor_terminal_view &view, int pressed)
+{
+    if (pressed < 0) {
+        return;
+    }
+    if (view.ending) {
+        view.end_answer = pressed == 0 ? rv_editor_terminal_end_answer::end : rv_editor_terminal_end_answer::keep;
+    } else if (!view.paste.empty() && view.term != nullptr) {
+        if (pressed == 0) {
+            rv_editor_term_type(*view.term, view.paste);
+        }
+        view.paste.clear();
+    } else if (pressed == 0) {
         view = {};
     }
 }
@@ -401,7 +403,7 @@ void rv_editor_terminal_screen(rv_editor_app &app,
 
 rv_editor_size rv_editor_terminal_minimum()
 {
-    return rv_editor_tiled_minimum(rv_editor_terminal_content_width(), rv_editor_tiled_box_block());
+    return rv_editor_tiled_minimum(rv_editor_terminal_content_width(), rv_editor_tiled_strip_block());
 }
 
 void rv_editor_pane_terminal(rv_editor_app &app,
@@ -410,13 +412,16 @@ void rv_editor_pane_terminal(rv_editor_app &app,
     const rv_editor_ui_port &ui)
 {
     rv_editor_terminal_view &view = app.terminals[pane];
-    rv_editor_terminal_say(view, theme);
+    const rv_editor_terminal_say_text say = rv_editor_terminal_say(view);
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_terminal_content_width());
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
     // The area is measured in the UI font like the minimum; the screen in it is in the code font.
-    (void)rv_editor_tiled_area_begin("##screen", rv_editor_terminal_content_width(), theme);
+    (void)rv_editor_tiled_area_begin("##screen", rv_editor_terminal_content_width(), theme, {}, false, 0.0f, strip_h);
     rv_editor_font_code_push();
     rv_editor_terminal_screen(app, view, theme, ui);
     rv_editor_font_code_pop();
     rv_editor_tiled_area_end(theme);
+    rv_editor_terminal_answer(view, rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w));
 }
 
 } // namespace rv_editor

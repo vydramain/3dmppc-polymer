@@ -354,19 +354,20 @@ void rv_editor_run_actions(rv_editor_app &app,
     }
 }
 
-// The message box: the profile file's error, the edited profile's problem and the session's note, or nothing.
-void rv_editor_run_box(rv_editor_app &app, const std::string &problem, const rv_editor_theme &theme)
+// What the strip under the area says: the profile file's error, the edited profile's problem and the session's note, or
+// nothing (empty text).
+struct rv_editor_run_say_text {
+    std::string text;
+    rv_editor_label_kind kind = rv_editor_label_kind::normal;
+    std::vector<std::string> buttons;
+};
+
+rv_editor_run_say_text rv_editor_run_say(const rv_editor_app &app, const std::string &problem)
 {
     if (!app.project.open) {
-        if (rv_editor_message_box("##note",
-                rv_editor_text("panes.no_project_open_message"),
-                rv_editor_label_kind::normal,
-                { rv_editor_text("panes.open_project_box") },
-                theme,
-                rv_editor_run_content_width()) == 0) {
-            app.open_folder_request = true;
-        }
-        return;
+        return { rv_editor_text("panes.no_project_open_message"),
+            rv_editor_label_kind::normal,
+            { rv_editor_text("panes.open_project_box") } };
     }
     std::string text;
     if (!app.run_config.error.empty()) {
@@ -380,19 +381,14 @@ void rv_editor_run_box(rv_editor_app &app, const std::string &problem, const rv_
         text = rv_editor_text_format("pane_run_config.session_active", std::make_format_args(session_num));
     }
     const bool error = !app.run_config.error.empty() || !problem.empty();
-    (void)rv_editor_message_box("##note",
-        text,
-        error ? rv_editor_label_kind::error : rv_editor_label_kind::normal,
-        {},
-        theme,
-        rv_editor_run_content_width());
+    return { text, error ? rv_editor_label_kind::error : rv_editor_label_kind::normal, {} };
 }
 
 } // namespace
 
 rv_editor_size rv_editor_run_config_minimum()
 {
-    rv_editor_size size = rv_editor_tiled_minimum(rv_editor_run_content_width(), rv_editor_tiled_box_block());
+    rv_editor_size size = rv_editor_tiled_minimum(rv_editor_run_content_width(), rv_editor_tiled_strip_block());
     // The row of buttons under the area.
     size.h += static_cast<int32_t>(std::ceil(ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y));
     return size;
@@ -408,8 +404,12 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
     }
     const rv_editor_run_profile edited = rv_editor_run_form_profile(run_form_draft);
     const std::string problem = have_profile ? rv_editor_app_profile_problem(app, edited) : std::string();
-    rv_editor_run_box(app, problem, theme);
-    const float height = ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeight() - ImGui::GetStyle().ItemSpacing.y;
+    const rv_editor_run_say_text say = rv_editor_run_say(app, problem);
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_run_content_width());
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
+    // The area leaves the strip and the row of buttons under it.
+    const float height = ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeight() - ImGui::GetStyle().ItemSpacing.y -
+        (strip_h > 0.0f ? strip_h + ImGui::GetStyle().ItemSpacing.y : 0.0f);
     (void)rv_editor_tiled_area_begin("##run_area", rv_editor_run_content_width(), theme, {}, false, height);
     if (have_profile) {
         rv_editor_run_fields(app, theme);
@@ -418,6 +418,9 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_content_empty_row(rv_editor_text("panes.no_project_open_message"), theme);
     }
     rv_editor_tiled_area_end(theme);
+    if (rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w) == 0 && !app.project.open) {
+        app.open_folder_request = true;
+    }
     rv_editor_run_actions(app, edited, problem, theme);
 }
 

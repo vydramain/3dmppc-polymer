@@ -1,6 +1,7 @@
 // Output, Terminal, Problems and Search keep every block, button and message line in its place whatever the state says:
 // two states drawn at the same width have the same rectangles; a path cell shows the path's end with an ellipsis.
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -16,6 +17,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_layout_probe.hpp"
+#include "rv_editor_test_strip.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -88,6 +90,30 @@ void same_frames(rv_editor_test_imgui &gui, const char *what, const rv_editor_pr
         box_h = rv_editor_message_box_height();
     });
     same(what, frames_only(a, box_h), frames_only(b, box_h));
+}
+
+// For the panes that say things in a strip under their area (the logs, Terminal, Search): the two draws agree on everything
+// above the shorter area's bottom edge, where the area's own frame is cut at the edge; the strip and its gap are what may
+// differ, and the items inside the areas.
+void same_above_strip(const char *what, const rv_editor_probe_record &a, const rv_editor_probe_record &b)
+{
+    const auto *area_a = strip::last_area(a);
+    const auto *area_b = strip::last_area(b);
+    float cut = 1.0e9f;
+    cut = area_a != nullptr ? std::min(cut, area_a->y1) : cut;
+    cut = area_b != nullptr ? std::min(cut, area_b->y1) : cut;
+    const auto above = [cut](const rv_editor_probe_record &r) {
+        rv_editor_probe_record out;
+        for (auto e : r.entries) {
+            if (e.in_scroll || e.y0 >= cut - 0.5f) {
+                continue;
+            }
+            e.y1 = e.y1 > cut - 0.5f ? 0.0f : e.y1;
+            out.entries.push_back(e);
+        }
+        return out;
+    };
+    same(what, above(a), above(b));
 }
 
 std::string long_text(size_t size)
@@ -252,7 +278,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_output_no_lines_note)
     none.outputs[pane].run_pid = 7;
     none.outputs[pane].run_label = "Build #1, pid 7";
     none.outputs[pane].hide_before = none.log.revision() + 1;
-    same("run without lines", draw_output(gui, with_lines), draw_output(gui, none));
+    same_above_strip("run without lines", draw_output(gui, with_lines), draw_output(gui, none));
 }
 
 RV_EDITOR_TEST(rv_editor_test_stable_s9_output_hidden_counts_note)
@@ -268,7 +294,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_output_hidden_counts_note)
     hidden.log.add(rv_editor_log_source::runtime, rv_editor_log_level::warning, "careful");
     add_info(plain, 3);
     add_info(hidden, 3);
-    same("hidden errors and warnings", draw_output(gui, plain), draw_output(gui, hidden));
+    same_above_strip("hidden errors and warnings", draw_output(gui, plain), draw_output(gui, hidden));
 }
 
 RV_EDITOR_TEST(rv_editor_test_stable_s9_output_dropped_note)
@@ -286,7 +312,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_output_dropped_note)
     // Only the last five lines are shown, in both.
     kept.outputs[pane].hide_before = kept.log.revision() - 4;
     dropped.outputs[pane].hide_before = dropped.log.revision() - 4;
-    same("dropped lines", draw_output(gui, kept), draw_output(gui, dropped));
+    same_above_strip("dropped lines", draw_output(gui, kept), draw_output(gui, dropped));
 }
 
 RV_EDITOR_TEST(rv_editor_test_stable_s9_output_exported_note)
@@ -298,7 +324,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_output_exported_note)
     add_info(plain, 3);
     add_info(exported, 3);
     exported.outputs[pane].exported = std::string(root_dir) + "/" + long_relative();
-    same_frames(gui, "last export", draw_output(gui, plain), draw_output(gui, exported));
+    same_above_strip("last export", draw_output(gui, plain), draw_output(gui, exported));
 }
 
 RV_EDITOR_TEST(rv_editor_test_stable_s9_output_source_label)
@@ -344,7 +370,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_terminal_shell_alive_and_ended)
     RV_EDITOR_CHECK(alive.app.terminals[pane].term != nullptr && alive.app.terminals[pane].term->running());
     setenv("SHELL", "/bin/true", 1);
     RV_EDITOR_CHECK(wait_ended(gui, ended));
-    same_frames(gui, "shell alive and ended", a, draw_terminal(gui, ended));
+    same_above_strip("shell alive and ended", a, draw_terminal(gui, ended));
     setenv("SHELL", "/bin/sh", 1);
 }
 
@@ -357,7 +383,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_terminal_paste_ask)
     const auto closed = draw_terminal(gui, t);
     RV_EDITOR_CHECK(t.app.terminals[pane].term != nullptr);
     t.app.terminals[pane].paste = "first line\nsecond line " + long_text(300) + "\nthird line";
-    same_frames(gui, "paste ask closed and open", closed, draw_terminal(gui, t));
+    same_above_strip("paste ask closed and open", closed, draw_terminal(gui, t));
 }
 
 // --- Problems ----------------------------------------------------------------------------------------------------
@@ -419,7 +445,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_search_result_notes)
         noted.project_search.result.hits.push_back(
             { std::filesystem::path(noted.project.root) / "src/a.cpp", static_cast<int32_t>(i + 1), 4, "int needle = 0;" });
     }
-    same_frames(gui, "results with the scope and stopped notes", draw_search(gui, plain), draw_search(gui, noted));
+    same_above_strip("results with the scope and stopped notes", draw_search(gui, plain), draw_search(gui, noted));
 }
 
 RV_EDITOR_TEST(rv_editor_test_stable_s9_search_path_cell_shows_the_whole_relative_path)

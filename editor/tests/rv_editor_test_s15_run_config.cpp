@@ -1,4 +1,4 @@
-// S15, R13, AC14: Run Config is a message box, a list of profiles in a content area and the form (S6): a label never
+// S15, R13, AC14: Run Config is a list of profiles in a content area and the form (S6), with no message block: a label never
 // meets its field, a value or a path is shown whole (a path inside the project from its root, "src/..."), the error
 // line of a field and the button row keep their places with an error and without one.
 
@@ -11,6 +11,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s15.hpp"
+#include "rv_editor_test_strip.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 using namespace rv_editor;
@@ -49,13 +50,16 @@ std::vector<ImVec2> form_sizes(rv_editor_test_imgui &gui, rv_editor_pane_kind ki
     return { ImVec2(min.w, roomy_h), ImVec2(roomy_w, roomy_h) };
 }
 
-// The record without what is inside a content area: a state's values and errors scroll there, the frames stay.
+// The record without what is inside a content area: a state's values and errors scroll there, and the area's own frame
+// is as high as the strip under it leaves; what is above and under the area stays.
 rv_editor_probe_record frames_of(const rv_editor_probe_record &r)
 {
     rv_editor_probe_record out;
     out.content_height = r.content_height;
+    const auto *area = strip::first_area(r);
     for (const auto &e : r.entries) {
-        if (!e.in_scroll) {
+        const bool in_area = area != nullptr && e.y0 >= area->y0 - 0.5f && e.y0 < area->y1 - 0.5f;
+        if (!e.in_scroll && !in_area) {
             out.entries.push_back(e);
         }
     }
@@ -202,20 +206,25 @@ RV_EDITOR_TEST(rv_editor_test_s15_run_config_a_path_outside_the_project_is_shown
     }
 }
 
-// AC14: a profile error and the problem of the edited profile are the box's text; the fields, the error line under
-// Runtime and the three buttons are where they are without them, and the line is reserved under Runtime.
+// AC14, R2: a profile error and the problem of the edited profile are the strip's text; the fields, the error line under
+// Runtime and the three buttons are where they are without them, and the line is reserved under Runtime. The clean pane
+// has no window of the old message box.
 RV_EDITOR_TEST(rv_editor_test_s15_run_config_error_and_buttons_keep_their_places)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
     fixture f(gui, rv_editor_pane_kind::run_config);
     float line = 0.0f;
+    float gap = 0.0f;
+    float frame_h = 0.0f;
     gui.frame([&] {
         line = ImGui::GetTextLineHeight();
+        gap = ImGui::GetStyle().ItemSpacing.y;
+        frame_h = ImGui::GetFrameHeight();
     });
     for (const ImVec2 size : form_sizes(gui, f.kind)) {
         const auto clean = snap(f, clean_state, size.x, size.y);
-        RV_EDITOR_CHECK(message_box(clean) != nullptr);
+        RV_EDITOR_CHECK(!strip::has_message_window(clean));
         for (const size_t state : { error_state, problem_state }) {
             const auto r = snap(f, state, size.x, size.y);
             const std::string moved = same_items(frames_of(clean), frames_of(r), anchors());
@@ -223,8 +232,12 @@ RV_EDITOR_TEST(rv_editor_test_s15_run_config_error_and_buttons_keep_their_places
                 std::fprintf(stderr, "  run_config state %zu at %.0fx%.0f: %s\n", state, size.x, size.y, moved.c_str());
             }
             RV_EDITOR_CHECK(moved.empty());
-            RV_EDITOR_CHECK(windows_difference(clean, r).empty());
-            RV_EDITOR_CHECK(r.drawn > clean.drawn); // the error is the box's text
+            RV_EDITOR_CHECK(!strip::has_message_window(r));
+            const std::string bad = strip::strip_problems(&clean, r, size, gap, frame_h); // the error is the strip's text
+            if (!bad.empty()) {
+                std::fprintf(stderr, "  run_config state %zu at %.0fx%.0f: %s\n", state, size.x, size.y, bad.c_str());
+            }
+            RV_EDITOR_CHECK(bad.empty());
         }
         const auto *runtime = find_id(clean, "##Runtime");
         const auto *cwd = find_id(clean, "##Working dir");

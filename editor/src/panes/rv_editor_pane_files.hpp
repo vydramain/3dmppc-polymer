@@ -20,7 +20,7 @@ void rv_editor_files_ask(rv_editor_files_view &view,
     const std::filesystem::path &target,
     const std::string &name);
 
-// The widest row of the tile: the shelf, or the message box with its name field. Call inside a frame.
+// The widest row of the tile: the shelf, or the strip with its name field. Call inside a frame.
 float rv_editor_files_content_width();
 
 // The size the card of a folder's delete needs. Call inside a frame.
@@ -29,8 +29,14 @@ ImVec2 rv_editor_files_card_min_size();
 // The card of a folder's delete in place of the tile's content; false (nothing drawn) when no such question is open.
 bool rv_editor_files_card(rv_editor_app &app, rv_editor_pane_id pane, rv_editor_files_view &view, const rv_editor_theme &theme);
 
-// The message box: a short question, the project's absence, or nothing.
-void rv_editor_files_box(rv_editor_app &app, rv_editor_pane_id pane, rv_editor_files_view &view, const rv_editor_theme &theme);
+// The strip under the tree: a short question, the project's absence, or nothing (height 0). Its height in `width`, and it
+// drawn there.
+float rv_editor_files_strip_height(rv_editor_app &app, rv_editor_files_view &view, float width);
+void rv_editor_files_strip(rv_editor_app &app,
+    rv_editor_pane_id pane,
+    rv_editor_files_view &view,
+    float width,
+    const rv_editor_theme &theme);
 
 // The shelf: new file and folder, rename, delete and refresh.
 void rv_editor_files_shelf(rv_editor_app &app,

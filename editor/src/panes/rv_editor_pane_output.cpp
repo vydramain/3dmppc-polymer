@@ -293,7 +293,7 @@ rv_editor_size rv_editor_output_minimum()
 {
     const float header = ImGui::GetTextLineHeight() + header_height_padding_px + ImGui::GetStyle().ItemSpacing.y;
     return rv_editor_tiled_minimum(rv_editor_output_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block() + header);
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block() + header);
 }
 
 void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
@@ -350,7 +350,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         (void)rv_editor_output_export(app, shown, view.exported);
     }
 
-    // What the lines do not say is the message box's, whose place is there with or without a note.
+    // What the lines do not say is the strip's under the lines, drawn only with a note.
     std::string notes;
     const auto note = [&notes](const std::string &text) {
         notes += (notes.empty() ? "" : "  ") + text;
@@ -371,7 +371,8 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     const auto notes_kind = hidden_errors != 0 ? rv_editor_label_kind::error :
         hidden_warnings != 0                   ? rv_editor_label_kind::warning :
                                                  rv_editor_label_kind::normal;
-    (void)rv_editor_message_box("##notes", notes, notes_kind, {}, theme, rv_editor_output_content_width());
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_output_content_width());
+    const float strip_h = rv_editor_message_strip_height(notes, {}, strip_w);
 
     // The header's height is the UI font's; the lines draw in the code font and the header takes its cell width from it.
     const float header_h = ImGui::GetTextLineHeight() + header_height_padding_px;
@@ -384,7 +385,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     const float at_message = at_source + cell * view.columns[message_column_index];
 
     // The area is measured in the UI font like the minimum; its rows are in the code font.
-    (void)rv_editor_tiled_area_begin("##lines", rv_editor_output_content_width(), theme);
+    (void)rv_editor_tiled_area_begin("##lines", rv_editor_output_content_width(), theme, {}, false, 0.0f, strip_h);
     rv_editor_font_code_push();
     const float line_h = ImGui::GetTextLineHeight();
     // Less the half cell each row starts in by, and as much again on the right.
@@ -490,6 +491,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     }
     rv_editor_font_code_pop();
     rv_editor_tiled_area_end(theme);
+    (void)rv_editor_message_strip("##strip", notes, notes_kind, {}, theme, strip_w);
 }
 
 } // namespace rv_editor

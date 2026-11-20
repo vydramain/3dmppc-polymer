@@ -61,15 +61,28 @@ int rv_editor_message_box(const char *id,
     const char *button_tooltip = nullptr,
     const std::vector<rv_editor_state> *button_states = nullptr);
 
+// The strip's input field: the box's, in the button row left of the buttons; Enter in it presses button 0 while that button
+// is active.
+using rv_editor_message_strip_field = rv_editor_message_box_field;
+
 // The message strip: drawn only with a non-empty `text`, at the cursor under a content area; returns the pressed
 // button's index, else -1. `width` 0: the room left. Height: see rv_editor_message_strip_height (0 with no text).
+// With a `field` or a `lead` (drawn in the room left of the buttons, told its width) the strip is two rows: the text, then
+// the field or lead and the buttons; pass `second_row` true to the height then.
 int rv_editor_message_strip(const char *id,
     const std::string &text,
     rv_editor_label_kind kind,
     const std::vector<std::string> &buttons,
     const rv_editor_theme &theme,
     float width = 0.0f,
-    const std::vector<rv_editor_state> *button_states = nullptr);
-float rv_editor_message_strip_height(const std::string &text, const std::vector<std::string> &buttons, float width);
+    const std::vector<rv_editor_state> *button_states = nullptr,
+    const rv_editor_message_strip_field *field = nullptr,
+    const std::function<void(float)> &lead = nullptr);
+// The tallest a strip gets: three lines of text (a longer one scrolls inside), and with `second_row` the row under them.
+float rv_editor_message_strip_max_height(bool second_row = false);
+float rv_editor_message_strip_height(const std::string &text,
+    const std::vector<std::string> &buttons,
+    float width,
+    bool second_row = false);
 
 } // namespace rv_editor

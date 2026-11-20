@@ -18,6 +18,10 @@ float rv_editor_tiled_shelf_block();
 // The message box and the spacing under it.
 float rv_editor_tiled_box_block();
 
+// The tallest message strip a pane can show and the spacing above it: what a pane's minimum keeps under the area.
+// `second_row`: the strip has a field or a lead item in a row of its own.
+float rv_editor_tiled_strip_block(bool second_row = false);
+
 // A shelf's width round a row of `items` px: its padding on both sides.
 float rv_editor_tiled_shelf_width(float items);
 

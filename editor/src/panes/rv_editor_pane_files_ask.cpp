@@ -219,24 +219,56 @@ bool rv_editor_files_card(rv_editor_app &app, rv_editor_pane_id pane, rv_editor_
     return true;
 }
 
-// The message box: a short question (with the name field for a new name), or the project's absence, or nothing.
-void rv_editor_files_box(rv_editor_app &app, rv_editor_pane_id pane, rv_editor_files_view &view, const rv_editor_theme &theme)
+namespace
 {
-    const rv_editor_files_request_row *row = rv_editor_files_question(app, view);
-    const float width = rv_editor_files_content_width();
-    if (row == nullptr) {
-        const bool open = app.files.is_open();
-        const int pressed = rv_editor_message_box("##ask",
-            open ? std::string() : std::string(rv_editor_text("panes.no_project_open_message")),
+
+// What the strip under the tree says: a short question (with the name field for a new name), or the project's absence, or
+// nothing (empty text).
+struct rv_editor_files_say_text {
+    std::string text;
+    rv_editor_label_kind kind = rv_editor_label_kind::normal;
+    std::vector<std::string> buttons;
+    bool named = false; // the name field in a row of its own
+};
+
+rv_editor_files_say_text rv_editor_files_say(rv_editor_app &app, rv_editor_files_view &view)
+{
+    if (rv_editor_files_question(app, view) == nullptr) {
+        if (app.files.is_open()) {
+            return {};
+        }
+        return { rv_editor_text("panes.no_project_open_message"),
             rv_editor_label_kind::normal,
-            open ? std::vector<std::string>{} : std::vector<std::string>{ rv_editor_text("panes.open_project_box") },
-            theme,
-            width);
+            { rv_editor_text("panes.open_project_box") } };
+    }
+    return { rv_editor_files_question_text(view),
+        view.error.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
+        rv_editor_files_question_buttons(view),
+        view.dialog != dialog_kind::remove };
+}
+
+} // namespace
+
+float rv_editor_files_strip_height(rv_editor_app &app, rv_editor_files_view &view, float width)
+{
+    const rv_editor_files_say_text say = rv_editor_files_say(app, view);
+    return rv_editor_message_strip_height(say.text, say.buttons, width, say.named);
+}
+
+void rv_editor_files_strip(rv_editor_app &app,
+    rv_editor_pane_id pane,
+    rv_editor_files_view &view,
+    float width,
+    const rv_editor_theme &theme)
+{
+    const rv_editor_files_say_text say = rv_editor_files_say(app, view);
+    const rv_editor_files_request_row *row = rv_editor_files_question(app, view);
+    if (row == nullptr) {
+        const int pressed = rv_editor_message_strip("##ask", say.text, say.kind, say.buttons, theme, width);
         app.open_folder_request = app.open_folder_request || pressed == 0;
         return;
     }
-    const bool named = view.dialog != dialog_kind::remove;
-    rv_editor_message_box_field field;
+    rv_editor_message_strip_field field;
     field.buf = view.name;
     field.size = sizeof(view.name);
     field.hint = rv_editor_text("pane_files.name");
@@ -244,16 +276,8 @@ void rv_editor_files_box(rv_editor_app &app, rv_editor_pane_id pane, rv_editor_f
     view.opening = false;
     const char *waiting = rv_editor_app_request_pending(app, row->kind) ? rv_editor_text("app_why_not.files_pending") : nullptr;
     const std::vector<rv_editor_state> states(2, rv_editor_state{ rv_editor_look::live, waiting });
-    const int pressed = rv_editor_message_box("##ask",
-        rv_editor_files_question_text(view),
-        view.error.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
-        rv_editor_files_question_buttons(view),
-        theme,
-        width,
-        named ? &field : nullptr,
-        nullptr,
-        nullptr,
-        &states);
+    const int pressed =
+        rv_editor_message_strip("##ask", say.text, say.kind, say.buttons, theme, width, &states, say.named ? &field : nullptr);
     rv_editor_files_answer(app, pane, view, *row, pressed);
 }
 

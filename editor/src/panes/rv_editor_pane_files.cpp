@@ -221,8 +221,9 @@ void rv_editor_files_node(rv_editor_app &app,
 
 rv_editor_size rv_editor_files_minimum()
 {
-    rv_editor_size size =
-        rv_editor_tiled_minimum(rv_editor_files_content_width(), rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
+    // The tallest strip is the question with its name field in a row under the text.
+    rv_editor_size size = rv_editor_tiled_minimum(rv_editor_files_content_width(),
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(true));
     // The card of a folder's delete replaces the content: the tile holds it whole too.
     const ImVec2 card = rv_editor_files_card_min_size();
     const ImGuiStyle &style = ImGui::GetStyle();
@@ -238,14 +239,21 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
         return;
     }
     rv_editor_files_shelf(app, pane, view, ui, theme);
-    rv_editor_files_box(app, pane, view, theme);
-    (void)rv_editor_tiled_area_begin("##files_area", rv_editor_files_content_width(), theme);
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_files_content_width());
+    (void)rv_editor_tiled_area_begin("##files_area",
+        rv_editor_files_content_width(),
+        theme,
+        {},
+        false,
+        0.0f,
+        rv_editor_files_strip_height(app, view, strip_w));
     if (app.files.is_open()) {
         rv_editor_files_node(app, view, app.files.root(), ui, theme);
     } else {
         rv_editor_content_empty_row(rv_editor_text("pane_files.no_project_open"), theme);
     }
     rv_editor_tiled_area_end(theme);
+    rv_editor_files_strip(app, pane, view, strip_w, theme);
 }
 
 } // namespace rv_editor

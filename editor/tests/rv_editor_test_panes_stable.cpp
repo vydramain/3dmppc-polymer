@@ -4,6 +4,7 @@
 
 #include <unistd.h>
 
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -18,6 +19,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "rv_editor_test_panes_stable.hpp"
+#include "rv_editor_test_strip.hpp"
 
 using namespace rv_editor;
 using namespace rv_editor_test;
@@ -49,23 +51,37 @@ RV_EDITOR_TEST(rv_editor_test_run_config_paths_inside_the_root_are_relative)
     check_paths(gui, app, world.inner.string());
 }
 
-// AC9: a profile error, a problem of the edited profile do not move the form or the buttons.
+// AC9, R2: a profile error and a problem of the edited profile are a strip under the area: the form's top and the buttons stay,
+// the area gives up its bottom.
 RV_EDITOR_TEST(rv_editor_test_run_config_error_and_problem_keep_the_place)
 {
     load_texts();
     rv_editor_test_imgui gui;
     rv_editor_app app;
     run_open(app, "/tmp");
+    float gap = 0.0f;
+    float frame_h = 0.0f;
+    gui.frame([&] {
+        gap = ImGui::GetStyle().ItemSpacing.y;
+        frame_h = ImGui::GetFrameHeight();
+    });
+    const ImVec2 huge(1.0e6f, 1.0e6f);
     run_draw(gui, app, width);
     const rv_editor_probe_record clean = run_draw(gui, app, width);
-    const std::vector<std::string> anchors = { "##Name", rv_editor_text("pane_run_config.apply_label") };
+    RV_EDITOR_CHECK(!strip::has_message_window(clean));
     app.run_config.error = "project.toml: " + long_words();
-    const rv_editor_probe_record with_error = run_draw(gui, app, width);
-    RV_EDITOR_CHECK(stable(outside_areas(clean, anchors), outside_areas(with_error, anchors), anchors).empty());
+    const std::string first = strip::strip_problems(&clean, run_draw(gui, app, width), huge, gap, frame_h);
+    if (!first.empty()) {
+        std::fprintf(stderr, "  run_config error: %s\n", first.c_str());
+    }
+    RV_EDITOR_CHECK(first.empty());
     app.run_config.error.clear();
     app.run_config.profiles[0].runtime = "/nonexistent/" + std::string(80, 'r');
-    const rv_editor_probe_record with_problem = run_draw(gui, app, width);
-    RV_EDITOR_CHECK(stable(outside_areas(clean, anchors), outside_areas(with_problem, anchors), anchors).empty());
+    const std::string bad = strip::strip_problems(&clean, run_draw(gui, app, width), huge, gap, frame_h);
+    if (!bad.empty()) {
+        std::fprintf(stderr, "  run_config problem: %s\n", bad.c_str());
+    }
+    RV_EDITOR_CHECK(bad.empty());
 }
 
 // --- Project ------------------------------------------------------------------------------------------------------
@@ -93,22 +109,29 @@ void project_open(rv_editor_app &app)
 
 } // namespace
 
-// AC9: a manifest error, a tool's problem and a settings error do not move what follows them.
+// AC9, R2: a manifest error, a tool's problem and a settings error are a strip under the areas and move nothing above it.
 RV_EDITOR_TEST(rv_editor_test_project_error_lines_keep_the_place)
 {
     load_texts();
     rv_editor_test_imgui gui;
     rv_editor_app app;
     project_open(app);
+    float gap = 0.0f;
+    float frame_h = 0.0f;
+    gui.frame([&] {
+        gap = ImGui::GetStyle().ItemSpacing.y;
+        frame_h = ImGui::GetFrameHeight();
+    });
+    const ImVec2 huge(1.0e6f, 1.0e6f);
     project_draw(gui, app);
     const rv_editor_probe_record clean = project_draw(gui, app);
-    const std::vector<std::string> anchors = { rv_editor_text("panes.look_for_tools_button") };
+    RV_EDITOR_CHECK(!strip::has_message_window(clean));
     app.project.manifest_error = "disc.toml:3: " + long_words();
-    RV_EDITOR_CHECK(stable(clean, project_draw(gui, app), anchors).empty());
+    RV_EDITOR_CHECK(strip::strip_problems(&clean, project_draw(gui, app), huge, gap, frame_h).empty());
     app.project.manifest_error.clear();
     app.tools.burner.problem = "cannot run the burner: " + long_words();
-    RV_EDITOR_CHECK(stable(clean, project_draw(gui, app), anchors).empty());
+    RV_EDITOR_CHECK(strip::strip_problems(&clean, project_draw(gui, app), huge, gap, frame_h).empty());
     app.tools.burner.problem.clear();
     app.tools.settings_error = "settings.toml:2: " + long_words();
-    RV_EDITOR_CHECK(stable(clean, project_draw(gui, app), anchors).empty());
+    RV_EDITOR_CHECK(strip::strip_problems(&clean, project_draw(gui, app), huge, gap, frame_h).empty());
 }

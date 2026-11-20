@@ -82,30 +82,38 @@ std::string rv_editor_project_trouble(const rv_editor_app &app)
     return out;
 }
 
-void rv_editor_project_box(rv_editor_app &app, const rv_editor_theme &theme)
+// What the strip under the records says: what is wrong (with Look for Tools Again), or that no project is open.
+struct rv_editor_project_say_text {
+    std::string text;
+    rv_editor_label_kind kind = rv_editor_label_kind::normal;
+    std::vector<std::string> buttons;
+};
+
+rv_editor_project_say_text rv_editor_project_say(const rv_editor_app &app)
 {
     const std::string trouble = rv_editor_project_trouble(app);
     const bool open = app.project.open;
-    const std::string text = !trouble.empty() ? trouble :
-        open                                  ? std::string() :
-                                                rv_editor_text("panes.no_project_open_message");
+    if (trouble.empty() && open) {
+        return {};
+    }
     std::vector<std::string> buttons = { rv_editor_text("panes.look_for_tools_button") };
     if (!open) {
         buttons.emplace_back(rv_editor_text("panes.open_project_box"));
     }
+    return { !trouble.empty() ? trouble : std::string(rv_editor_text("panes.no_project_open_message")),
+        trouble.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
+        buttons };
+}
+
+void rv_editor_project_strip(rv_editor_app &app,
+    const rv_editor_project_say_text &say,
+    float width,
+    const rv_editor_theme &theme)
+{
     const bool running = app.build.busy() || app.session.live();
     const std::vector<rv_editor_state> states = { rv_editor_state{ rv_editor_look::live,
         running ? rv_editor_text("panes.tools_not_while_running") : nullptr } };
-    const int pressed = rv_editor_message_box("##note",
-        text,
-        trouble.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
-        buttons,
-        theme,
-        rv_editor_project_content_width(),
-        nullptr,
-        nullptr,
-        nullptr,
-        &states);
+    const int pressed = rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, width, &states);
     if (pressed == 0 && !app.build.busy() && !app.session.live()) {
         rv_editor_app_init(app);
     } else if (pressed == 1) {
@@ -113,7 +121,7 @@ void rv_editor_project_box(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-void rv_editor_project_facts(const rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_project_facts(const rv_editor_app &app, float strip_h, const rv_editor_theme &theme)
 {
     const rv_editor_project &p = app.project;
     const bool open = p.open;
@@ -123,7 +131,8 @@ void rv_editor_project_facts(const rv_editor_app &app, const rv_editor_theme &th
     // The facts list is as tall as its rows, but leaves the records their floor.
     const float rows = static_cast<float>(fact_rows);
     const float natural = rv_editor_tiled_rows_floor(rows, ImGui::GetTextLineHeightWithSpacing());
-    const float room = ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y - rv_editor_tiled_floor();
+    const float room = ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y - rv_editor_tiled_floor() -
+        (strip_h > 0.0f ? strip_h + ImGui::GetStyle().ItemSpacing.y : 0.0f);
     (void)rv_editor_tiled_area_begin("##facts_area",
         rv_editor_project_content_width(),
         theme,
@@ -140,9 +149,9 @@ void rv_editor_project_facts(const rv_editor_app &app, const rv_editor_theme &th
     rv_editor_tiled_area_end(theme);
 }
 
-void rv_editor_project_tools(const rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_project_tools(const rv_editor_app &app, float strip_h, const rv_editor_theme &theme)
 {
-    (void)rv_editor_tiled_area_begin("##tools_area", rv_editor_project_content_width(), theme);
+    (void)rv_editor_tiled_area_begin("##tools_area", rv_editor_project_content_width(), theme, {}, false, 0.0f, strip_h);
     const char *words[] = { rv_editor_text("panes.tool_status_ok"), rv_editor_text("panes.tool_status_problem") };
     rv_editor_record_style style;
     style.status_width = rv_editor_record_status_width(words, 2);
@@ -174,8 +183,8 @@ void rv_editor_project_tools(const rv_editor_app &app, const rv_editor_theme &th
 
 rv_editor_size rv_editor_project_minimum()
 {
-    // The box, the facts list at its floor and the records.
-    const float above = rv_editor_tiled_box_block();
+    // The tallest strip, the facts list at its floor and the records.
+    const float above = rv_editor_tiled_strip_block();
     return rv_editor_tiled_minimum(rv_editor_project_content_width(),
         above,
         { rv_editor_tiled_floor(), rv_editor_tiled_floor() });
@@ -183,9 +192,12 @@ rv_editor_size rv_editor_project_minimum()
 
 void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    rv_editor_project_box(app, theme);
-    rv_editor_project_facts(app, theme);
-    rv_editor_project_tools(app, theme);
+    const rv_editor_project_say_text say = rv_editor_project_say(app);
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_project_content_width());
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
+    rv_editor_project_facts(app, strip_h, theme);
+    rv_editor_project_tools(app, strip_h, theme);
+    rv_editor_project_strip(app, say, strip_w, theme);
 }
 
 } // namespace rv_editor

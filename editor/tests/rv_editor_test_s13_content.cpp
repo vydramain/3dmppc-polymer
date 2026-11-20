@@ -1,7 +1,7 @@
 // S13, R4/R19/R20, AC5: what each converted pane puts where. The logs keep their lines in a content area under a shelf
-// and a message box; Problems keeps a build failure in the message box (no ask place), the summary over the table at one
-// place, the table in the content area and its level column pinned; Search has its shelf, message box and table;
-// Terminal has no reserve for its questions and says them, and that its shell ended, in the message box.
+// and a header, with no message block (a message is the strip under the area, see the strip tests); Problems keeps a build
+// failure in the message box (no ask place), the summary over the table at one place, the table in the content area and its
+// level column pinned; Search has its shelf and its table, Terminal its screen at the top: neither reserves a message block.
 
 #include <cstdio>
 #include <string>
@@ -11,6 +11,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s13.hpp"
+#include "rv_editor_test_strip.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
 
 using namespace rv_editor;
@@ -105,9 +106,9 @@ void report(const char *what, const std::string &bad)
 
 } // namespace
 
-// AC5: a log at its minimum shows three rows and the horizontal bar in the content area, under the shelf and a message
-// box that holds the notes, in every state.
-RV_EDITOR_TEST(rv_editor_test_s13_logs_keep_their_lines_in_a_content_area_under_a_message_box)
+// AC5, R1: a log at its minimum shows three rows and the horizontal bar in the content area, under the shelf and the
+// header, with no message block in any state; the states without a message draw the area at one rectangle.
+RV_EDITOR_TEST(rv_editor_test_s13_logs_keep_their_lines_in_a_content_area_under_the_shelf)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -120,10 +121,9 @@ RV_EDITOR_TEST(rv_editor_test_s13_logs_keep_their_lines_in_a_content_area_under_
         rv_editor_probe_record first;
         for (size_t i = 0; i < f.states.size(); ++i) {
             const auto r = at_minimum(gui, f, i);
-            const std::string bad = has_box_over_area(r);
-            report(name_of(kind), bad);
-            RV_EDITOR_CHECK(bad.empty());
+            RV_EDITOR_CHECK(!strip::has_message_window(r));
             const auto *area = content_area(r);
+            RV_EDITOR_CHECK(area != nullptr);
             if (area != nullptr) {
                 if (area->y1 - area->y0 < rows_h) {
                     std::fprintf(stderr,
@@ -135,9 +135,10 @@ RV_EDITOR_TEST(rv_editor_test_s13_logs_keep_their_lines_in_a_content_area_under_
                 }
                 RV_EDITOR_CHECK(area->y1 - area->y0 >= rows_h);
             }
+            // States 0 and 1 (an open project, lines) say nothing: the same windows.
             if (i == 0) {
                 first = r;
-            } else {
+            } else if (i == 1) {
                 report(name_of(kind), windows_difference(first, r));
                 RV_EDITOR_CHECK(windows_difference(first, r).empty());
             }
@@ -249,9 +250,9 @@ RV_EDITOR_TEST(rv_editor_test_s13_problems_level_column_is_pinned_to_the_left_ed
     RV_EDITOR_CHECK(pinned > 0);
 }
 
-// Search: the shelf with the query, the message box with what the search says, and the hits in the content area, in
-// every state with a project.
-RV_EDITOR_TEST(rv_editor_test_s13_search_has_a_shelf_a_message_box_and_a_table_in_the_area)
+// Search: the shelf with the query and the hits in the content area, in every state with a project: no message block
+// between them, the area at the same top whatever the state says (what it says is the strip under it).
+RV_EDITOR_TEST(rv_editor_test_s13_search_has_a_shelf_and_a_table_in_the_area_with_no_block)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -260,18 +261,16 @@ RV_EDITOR_TEST(rv_editor_test_s13_search_has_a_shelf_a_message_box_and_a_table_i
     std::vector<shot> r;
     for (size_t i = 0; i < f.states.size(); ++i) {
         r.push_back(at_minimum(gui, f, i));
-        RV_EDITOR_CHECK(!has_ask_place(r.back()));
+        RV_EDITOR_CHECK(!strip::has_message_window(r.back()));
         if (i == 0) {
             continue;
         }
-        const std::string bad = has_box_over_area(r.back());
-        report("search", bad);
-        RV_EDITOR_CHECK(bad.empty());
+        RV_EDITOR_CHECK(content_area(r.back()) != nullptr);
         const rv_editor_probe_entry *query = nullptr;
         for (const auto &e : r.back().entries) {
             query = query == nullptr && e.label.compare(0, 7, "##query") == 0 ? &e : query;
         }
-        RV_EDITOR_CHECK(query != nullptr && message_box(r.back()) != nullptr && query->y1 <= message_box(r.back())->y0);
+        RV_EDITOR_CHECK(query != nullptr && content_area(r.back()) != nullptr && query->y1 <= content_area(r.back())->y0);
     }
     RV_EDITOR_CHECK(r.size() == 5);
     if (r.size() != 5) {
@@ -280,26 +279,27 @@ RV_EDITOR_TEST(rv_editor_test_s13_search_has_a_shelf_a_message_box_and_a_table_i
     RV_EDITOR_CHECK(shows_row_in(r[3], content_area(r[3])));
     RV_EDITOR_CHECK(shows_row_in(r[4], content_area(r[4])));
     for (size_t i = 2; i < r.size(); ++i) {
-        const std::string moved = same_rect(message_box(r[1]), message_box(r[i]), "message box");
-        report("search", moved);
-        RV_EDITOR_CHECK(moved.empty());
+        const auto *a = content_area(r[1]);
+        const auto *b = content_area(r[i]);
+        RV_EDITOR_CHECK(a != nullptr && b != nullptr);
+        if (a != nullptr && b != nullptr) {
+            RV_EDITOR_CHECK(a->x0 == b->x0 && a->y0 == b->y0 && a->x1 == b->x1);
+        }
     }
-    // The warning of no matches is drawn in the box: more than the empty note of a search not yet run.
-    RV_EDITOR_CHECK(r[2].box_drawn != r[1].box_drawn);
 }
 
-// R19, R20: the Terminal reserves no room for its questions: its screen sits right under a message box one box high, and
-// the ended shell, the paste question and the end question are what the box says.
-RV_EDITOR_TEST(rv_editor_test_s13_terminal_has_no_reserve_and_asks_in_the_message_box)
+// R19, R20: the Terminal reserves no room for its questions or a message: its screen is at the top of the tile in every
+// state, with no window of the old box, and starts at one place whatever the state says.
+RV_EDITOR_TEST(rv_editor_test_s13_terminal_has_no_reserve_and_its_screen_stays_at_the_top)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
     fixture f(gui, rv_editor_pane_kind::terminal);
-    float box_h = 0.0f;
-    float frame_h = 0.0f;
+    float pad = 0.0f;
+    float gap = 0.0f;
     gui.frame([&] {
-        box_h = rv_editor_message_box_height();
-        frame_h = ImGui::GetFrameHeight();
+        pad = ImGui::GetStyle().WindowPadding.y;
+        gap = ImGui::GetStyle().ItemSpacing.y;
     });
     // 0 running, 1 not started, 2 ended, 3 paste question, 4 end question.
     std::vector<shot> r;
@@ -307,21 +307,14 @@ RV_EDITOR_TEST(rv_editor_test_s13_terminal_has_no_reserve_and_asks_in_the_messag
     for (size_t i = 0; i < f.states.size(); ++i) {
         f.states[i]();
         r.push_back(snap(f, 600.0f, tall));
-        RV_EDITOR_CHECK(!has_ask_place(r.back()));
-        const std::string bad = has_box_over_area(r.back());
-        report("terminal", bad);
-        RV_EDITOR_CHECK(bad.empty());
+        RV_EDITOR_CHECK(!strip::has_message_window(r.back()));
         const auto *area = content_area(r.back());
+        RV_EDITOR_CHECK(area != nullptr);
         if (area != nullptr) {
-            // The old reserve was twelve lines of ask; the screen starts under one box and what is around it.
-            if (area->y0 > box_h + 3.0f * frame_h) {
-                std::fprintf(stderr,
-                    "  terminal state %zu: the screen starts %.0f px down, a box is %.0f\n",
-                    i,
-                    area->y0,
-                    box_h);
+            if (area->y0 > pad + gap + 0.5f) {
+                std::fprintf(stderr, "  terminal state %zu: the screen starts %.0f px down, the tile's padding is %.0f\n", i, area->y0, pad);
             }
-            RV_EDITOR_CHECK(area->y0 <= box_h + 3.0f * frame_h);
+            RV_EDITOR_CHECK(area->y0 <= pad + gap + 0.5f);
         }
     }
     RV_EDITOR_CHECK(r.size() == 5);
@@ -329,16 +322,11 @@ RV_EDITOR_TEST(rv_editor_test_s13_terminal_has_no_reserve_and_asks_in_the_messag
         return;
     }
     for (size_t i = 1; i < r.size(); ++i) {
-        const std::string moved = same_rect(content_area(r[0]), content_area(r[i]), "content area");
-        report("terminal", moved);
-        RV_EDITOR_CHECK(moved.empty());
-        const std::string box = same_rect(message_box(r[0]), message_box(r[i]), "message box");
-        report("terminal", box);
-        RV_EDITOR_CHECK(box.empty());
-    }
-    // A running shell with nothing to ask says nothing; each of the three says something in the box.
-    const int quiet = r[0].box_drawn;
-    for (const size_t i : { size_t(1), size_t(2), size_t(3), size_t(4) }) {
-        RV_EDITOR_CHECK(r[i].box_drawn > quiet);
+        const auto *a = content_area(r[0]);
+        const auto *b = content_area(r[i]);
+        RV_EDITOR_CHECK(a != nullptr && b != nullptr);
+        if (a != nullptr && b != nullptr) {
+            RV_EDITOR_CHECK(a->x0 == b->x0 && a->y0 == b->y0 && a->x1 == b->x1);
+        }
     }
 }

@@ -13,6 +13,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s15.hpp"
+#include "rv_editor_test_strip.hpp"
 
 using namespace rv_editor;
 using namespace rv_editor_test;
@@ -54,11 +55,20 @@ std::string box_over_area(const rv_editor_probe_record &r)
     return "";
 }
 
+// "" when the record has content areas and no window of the old message box; else what is wrong.
+std::string areas_without_block(const rv_editor_probe_record &r)
+{
+    if (areas(r).empty()) {
+        return "no content area";
+    }
+    return strip::has_message_window(r) ? "a window of the old message box is still drawn" : "";
+}
+
 } // namespace
 
-// R16, R10, R11: Project in every state has the box above its areas; the tools are seven records in the areas and the
+// R16, R10, R11: Project in every state has its areas and no message block above them; the tools are seven records in the areas and the
 // facts list is the first area, whose row menu copies a fact.
-RV_EDITOR_TEST(rv_editor_test_s15_project_has_a_box_facts_and_tool_records)
+RV_EDITOR_TEST(rv_editor_test_s15_project_has_facts_and_tool_records_and_no_block)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -66,7 +76,7 @@ RV_EDITOR_TEST(rv_editor_test_s15_project_has_a_box_facts_and_tool_records)
     for (const ImVec2 size : tile_sizes(gui, f.kind, ImVec2(roomy_w, roomy_h))) {
         for (size_t i = 0; i < f.states.size(); ++i) {
             const auto r = snap(f, i, size.x, size.y);
-            const std::string bad = box_over_area(r);
+            const std::string bad = areas_without_block(r);
             report("project", bad);
             RV_EDITOR_CHECK(bad.empty());
             int records = 0;
@@ -78,26 +88,34 @@ RV_EDITOR_TEST(rv_editor_test_s15_project_has_a_box_facts_and_tool_records)
             }
             // At the minimum the areas show what fits; at a roomy size all seven are there.
             RV_EDITOR_CHECK(size.x != roomy_w || records == tool_records);
-            RV_EDITOR_CHECK(find_text(r, rv_editor_text("panes.look_for_tools_button")) != nullptr);
+            // The button rides in the strip, so only a state with a message has it.
+            RV_EDITOR_CHECK((i == 1 || i == 5) || find_text(r, rv_editor_text("panes.look_for_tools_button")) != nullptr);
         }
     }
 }
 
-// R11: a manifest error, a tool that cannot run and a settings error are the box's text, each drawn where the idle
-// project has an empty box.
-RV_EDITOR_TEST(rv_editor_test_s15_project_says_what_is_wrong_in_the_box)
+// R11, R2: a manifest error, a tool that cannot run and a settings error are the strip's text, under the last area, with
+// Look for Tools Again in its row; the idle project has no strip and no block, and the facts list stays at the top.
+RV_EDITOR_TEST(rv_editor_test_s15_project_says_what_is_wrong_in_a_strip)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
     fixture f(gui, rv_editor_pane_kind::project);
+    float gap = 0.0f;
+    float frame_h = 0.0f;
+    gui.frame([&] {
+        gap = ImGui::GetStyle().ItemSpacing.y;
+        frame_h = ImGui::GetFrameHeight();
+    });
     const auto idle = snap(f, 1, roomy_w, roomy_h);
+    RV_EDITOR_CHECK(!strip::has_message_window(idle));
     for (const size_t i : { size_t(2), size_t(3), size_t(4) }) {
         const auto r = snap(f, i, roomy_w, roomy_h);
-        RV_EDITOR_CHECK(message_box(r) != nullptr && message_box(idle) != nullptr);
-        if (r.drawn <= idle.drawn) {
-            std::fprintf(stderr, "  project state %zu: the box draws %d, the idle box %d\n", i, r.drawn, idle.drawn);
-        }
-        RV_EDITOR_CHECK(r.drawn > idle.drawn);
+        RV_EDITOR_CHECK(!strip::has_message_window(r));
+        const std::string bad = strip::strip_problems(&idle, r, ImVec2(roomy_w, roomy_h), gap, frame_h);
+        report("project strip", bad);
+        RV_EDITOR_CHECK(bad.empty());
+        RV_EDITOR_CHECK(find_text(r, rv_editor_text("panes.look_for_tools_button")) != nullptr);
     }
 }
 

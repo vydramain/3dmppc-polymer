@@ -11,6 +11,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s15.hpp"
+#include "rv_editor_test_strip.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 using namespace rv_editor;
@@ -222,6 +223,17 @@ void check_places(rv_editor_pane_kind kind, const std::vector<std::string> &anch
     for (const ImVec2 size : tile_sizes(gui, kind, ImVec2(roomy_w, roomy_h))) {
         const auto none = show(f, no_project_state, size.x, size.y);
         const auto open = show(f, with_project_state, size.x, size.y);
+        if (kind == rv_editor_pane_kind::run_config) {
+            // R2: "No project is open" is a strip under the area, which gives up its bottom: the top, the shelf and what
+            // stands under the area are the same with a project.
+            const std::string top = strip::same_top(none, open);
+            const std::string moved = same_items(strip::outside_area(none), strip::outside_area(open), anchors);
+            if (!top.empty() || !moved.empty()) {
+                std::fprintf(stderr, "  %s: %s %s\n", name_of(kind), top.c_str(), moved.c_str());
+            }
+            RV_EDITOR_CHECK(top.empty() && moved.empty());
+            continue;
+        }
         const std::string frames = windows_difference(none, open);
         if (!frames.empty()) {
             std::fprintf(stderr, "  %s: %s\n", name_of(kind), frames.c_str());

@@ -95,27 +95,27 @@ void rv_editor_search_list(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_table_end();
 }
 
-// What the search says in the message box and how: "No project is open." with its button, the note of the last search, or
-// nothing searched yet.
-void rv_editor_search_say(rv_editor_app &app, const rv_editor_theme &theme)
+// What the search says in the strip under the hits and how: "No project is open." with its button, the note of the last
+// search, or nothing searched yet.
+struct rv_editor_search_say_text {
+    std::string text;
+    rv_editor_label_kind kind = rv_editor_label_kind::normal;
+    std::vector<std::string> buttons;
+};
+
+rv_editor_search_say_text rv_editor_search_say(const rv_editor_app &app)
 {
     const rv_editor_search_view &s = app.project_search;
     if (!app.project.open) {
-        if (rv_editor_message_box("##note",
-                rv_editor_text("panes.no_project_open_message"),
-                rv_editor_label_kind::normal,
-                { rv_editor_text("panes.open_project_box") },
-                theme,
-                rv_editor_search_content_width()) == 0) {
-            app.open_folder_request = true;
-        }
-        return;
+        return { rv_editor_text("panes.no_project_open_message"),
+            rv_editor_label_kind::normal,
+            { rv_editor_text("panes.open_project_box") } };
     }
     std::string note;
     if (s.searched.empty()) {
-        note = rv_editor_text_format("pane_search.nothing_searched", std::make_format_args(rv_editor_search_skipped));
-        (void)rv_editor_message_box("##note", note, rv_editor_label_kind::normal, {}, theme, rv_editor_search_content_width());
-        return;
+        return { rv_editor_text_format("pane_search.nothing_searched", std::make_format_args(rv_editor_search_skipped)),
+            rv_editor_label_kind::normal,
+            {} };
     }
     const rv_editor_search_result &r = s.result;
     // The scope stated with the result, so an empty one says where it did not look.
@@ -139,8 +139,7 @@ void rv_editor_search_say(rv_editor_app &app, const rv_editor_theme &theme)
         const bool show_limited = r.skipped_dirs != 0 && !s.searched_all;
         note += std::string("  ") + rv_editor_text(show_limited ? "pane_search.no_match_limited" : "pane_search.no_match_full");
     }
-    const auto note_kind = r.hits.empty() ? rv_editor_label_kind::warning : rv_editor_label_kind::normal;
-    (void)rv_editor_message_box("##note", note, note_kind, {}, theme, rv_editor_search_content_width());
+    return { note, r.hits.empty() ? rv_editor_label_kind::warning : rv_editor_label_kind::normal, {} };
 }
 
 } // namespace
@@ -148,7 +147,7 @@ void rv_editor_search_say(rv_editor_app &app, const rv_editor_theme &theme)
 rv_editor_size rv_editor_search_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_search_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block());
 }
 
 void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
@@ -187,10 +186,15 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
         s.searched_all = s.all;
     }
 
-    rv_editor_search_say(app, theme);
-    (void)rv_editor_tiled_area_begin("##hits_area", rv_editor_search_content_width(), theme);
+    const rv_editor_search_say_text say = rv_editor_search_say(app);
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_search_content_width());
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
+    (void)rv_editor_tiled_area_begin("##hits_area", rv_editor_search_content_width(), theme, {}, false, 0.0f, strip_h);
     rv_editor_search_list(app, theme);
     rv_editor_tiled_area_end(theme);
+    if (rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w) == 0) {
+        app.open_folder_request = true;
+    }
 }
 
 } // namespace rv_editor

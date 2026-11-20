@@ -47,6 +47,11 @@ float rv_editor_tiled_box_block()
     return rv_editor_message_box_height() + ImGui::GetStyle().ItemSpacing.y;
 }
 
+float rv_editor_tiled_strip_block(bool second_row)
+{
+    return rv_editor_message_strip_max_height(second_row) + ImGui::GetStyle().ItemSpacing.y;
+}
+
 float rv_editor_tiled_shelf_width(float items)
 {
     return items + shelf_pad_sides * ImGui::GetStyle().FramePadding.x;

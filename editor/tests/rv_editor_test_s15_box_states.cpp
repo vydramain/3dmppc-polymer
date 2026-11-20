@@ -3,6 +3,7 @@
 // question (while its request waits) give theirs.
 
 #include <cmath>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -110,9 +111,16 @@ bool same_rect_of(const rv_editor_probe_entry &a, const rv_editor_probe_entry &b
 }
 
 // A fixture state drawn, then hovering the button `label` and asking whether the tooltip gives `reason`.
-bool says_on_hover(fixture &f, size_t state, const std::string &label, const std::string &reason)
+bool says_on_hover(fixture &f,
+    size_t state,
+    const std::string &label,
+    const std::string &reason,
+    const std::function<void()> &extra = {})
 {
     f.states[state]();
+    if (extra) {
+        extra();
+    }
     const auto r = f.settled(roomy_w, roomy_h);
     const auto *b = button_of(r, label);
     RV_EDITOR_CHECK(b != nullptr);
@@ -199,7 +207,8 @@ RV_EDITOR_TEST(rv_editor_test_s15_box_button_with_a_reason_keeps_its_place_and_s
     RV_EDITOR_CHECK(!tooltip_says(gui, reason_text));
 }
 
-// Project: Look for Tools Again is disabled while a build runs, with the reason; it keeps its place.
+// Project: Look for Tools Again is disabled while a build runs, with the reason; it keeps its place. The button stands in the
+// message strip, so the project has a message (a manifest error) in both states.
 RV_EDITOR_TEST(rv_editor_test_s15_project_look_for_tools_is_disabled_while_a_build_runs)
 {
     load_texts();
@@ -207,17 +216,22 @@ RV_EDITOR_TEST(rv_editor_test_s15_project_look_for_tools_is_disabled_while_a_bui
     fixture f(gui, rv_editor_pane_kind::project);
     const std::string label = rv_editor_text("panes.look_for_tools_button");
     const std::string reason = rv_editor_text("panes.tools_not_while_running");
+    const auto trouble = [&f] {
+        f.app().project.manifest_error = "disc.toml:3: broken";
+    };
     f.states[1]();
+    trouble();
     const auto idle = f.settled(roomy_w, roomy_h);
     const auto *idle_button = button_of(idle, label);
     RV_EDITOR_CHECK(idle_button != nullptr);
-    RV_EDITOR_CHECK(idle_button == nullptr || !says_on_hover(f, 1, label, reason));
+    RV_EDITOR_CHECK(idle_button == nullptr || !says_on_hover(f, 1, label, reason, trouble));
     f.states[5]();
+    trouble();
     const auto busy = f.settled(roomy_w, roomy_h);
     const auto *busy_button = button_of(busy, label);
     RV_EDITOR_CHECK(busy_button != nullptr);
     RV_EDITOR_CHECK(idle_button != nullptr && busy_button != nullptr && same_rect_of(*idle_button, *busy_button));
-    RV_EDITOR_CHECK(says_on_hover(f, 5, label, reason));
+    RV_EDITOR_CHECK(says_on_hover(f, 5, label, reason, trouble));
     RV_EDITOR_CHECK(f.app().build.busy());
 }
 

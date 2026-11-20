@@ -179,39 +179,58 @@ RV_EDITOR_TEST(rv_editor_test_message_strip_buttons_share_the_texts_row)
     RV_EDITOR_CHECK(p.strip_h < 2.0f * ImGui::GetFrameHeight());
 }
 
-// The height follows the text: a long text at a narrow width wraps into more lines, whole, with no bar of its own.
+// The height follows the text up to three lines of it: a long text at a narrow width is capped there, and scrolls inside.
 RV_EDITOR_TEST(rv_editor_test_message_strip_height_wraps_the_text)
 {
     rv_editor_test_imgui gui;
-    float short_h = 0, long_h = 0, narrow_h = 0, none_h = -1;
+    float short_h = 0, medium_h = 0, long_h = 0, narrow_h = 0, none_h = -1, three_h = 0;
+    const std::string medium = "word0 word1 word2 word3 word4 word5 word6";
     gui.frame([&] {
         short_h = rv_editor_message_strip_height(short_text, actions, width);
+        medium_h = rv_editor_message_strip_height(medium, actions, width);
         long_h = rv_editor_message_strip_height(long_text(), actions, width);
         narrow_h = rv_editor_message_strip_height(long_text(), actions, width / 2.0f);
         none_h = rv_editor_message_strip_height("", actions, width);
+        three_h = std::max(ImGui::GetFrameHeight(), 3.0f * ImGui::GetTextLineHeight() + 2.0f * ImGui::GetStyle().FramePadding.y);
     });
     RV_EDITOR_CHECK(none_h == 0.0f);
     RV_EDITOR_CHECK(short_h > 0.0f);
-    RV_EDITOR_CHECK(long_h > short_h);
-    RV_EDITOR_CHECK(narrow_h > long_h);
+    RV_EDITOR_CHECK(medium_h > short_h);                // two lines: higher
+    RV_EDITOR_CHECK(medium_h <= three_h + 0.5f);
+    RV_EDITOR_CHECK(std::fabs(long_h - three_h) < 0.5f); // more than three lines: the cap
+    RV_EDITOR_CHECK(std::fabs(narrow_h - three_h) < 0.5f);
 }
 
-// R19: a long text is shown whole: the strip is as high as it says, fits the tile, has no scroll bar or ellipsis.
-RV_EDITOR_TEST(rv_editor_test_message_strip_long_text_fits_whole)
+// R19: a text of up to three lines is shown whole; a longer one is three lines high with a vertical scroll inside the strip
+// (not cut with "..."), the buttons in the strip, and the strip fits the tile.
+RV_EDITOR_TEST(rv_editor_test_message_strip_long_text_scrolls_inside_three_lines)
 {
     rv_editor_test_imgui gui;
     const auto p = draw_pane(gui, long_text(), width, 400.0f);
     const rect s = span(p.record, p.strip_from);
+    float three_h = 0.0f;
+    gui.frame([&] {
+        three_h = std::max(ImGui::GetFrameHeight(), 3.0f * ImGui::GetTextLineHeight() + 2.0f * ImGui::GetStyle().FramePadding.y);
+    });
     RV_EDITOR_CHECK(s.any);
+    RV_EDITOR_CHECK(std::fabs(p.strip_h - three_h) < 0.5f);
     RV_EDITOR_CHECK(std::fabs((s.y1 - s.y0) - p.strip_h) < 0.5f);
-    RV_EDITOR_CHECK(p.strip_h > 2.0f * ImGui::GetFrameHeight());
-    for (const auto &e : p.record.entries) {
-        RV_EDITOR_CHECK(!e.scrollbar || e.scroll_area);
+    for (const auto &name : actions) {
+        const auto *b = find(p.record, name);
+        RV_EDITOR_CHECK(b != nullptr && b->y0 >= s.y0 - 0.5f && b->y1 <= s.y1 + 0.5f && b->x1 <= s.x1 + 0.5f);
     }
-    for (size_t i = p.strip_from; i < p.record.entries.size(); ++i) {
-        RV_EDITOR_CHECK(!p.record.entries[i].scrollbar);
+    // A window inside the strip scrolls vertically: the text is longer than its room.
+    bool scrolls = false;
+    for (const ImGuiWindow *w : ImGui::GetCurrentContext()->Windows) {
+        scrolls = scrolls || (w->ScrollMax.y > 0.0f && w->Pos.y >= s.y0 - 0.5f && w->Pos.y + w->Size.y <= s.y1 + 0.5f);
     }
+    RV_EDITOR_CHECK(scrolls);
     RV_EDITOR_CHECK(rv_editor_fits_whole(p.record, ImRect(0, 0, width, 400.0f)).empty());
+    // Up to three lines are whole, with no scroll anywhere in the strip.
+    const auto q = draw_pane(gui, "word0 word1 word2 word3 word4 word5 word6", width, 400.0f);
+    for (const ImGuiWindow *w : ImGui::GetCurrentContext()->Windows) {
+        RV_EDITOR_CHECK(!(w->ScrollMax.y > 0.0f && w->Pos.y >= span(q.record, q.strip_from).y0 - 0.5f));
+    }
 }
 
 // The strip returns the index of the button pressed, else -1; a disabled button is never returned.

@@ -13,6 +13,7 @@
 #include "rv_editor_test_fits_whole.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s15.hpp"
+#include "rv_editor_test_strip.hpp"
 
 using namespace rv_editor;
 using namespace rv_editor_test;
@@ -57,7 +58,7 @@ std::string run_states(rv_editor_test_imgui &gui, rv_editor_pane_kind kind, stab
         if (!have_first) {
             first = record;
             have_first = true;
-        } else if (const std::string moved = windows_difference(first, record); !moved.empty()) {
+        } else if (const std::string moved = (kind == rv_editor_pane_kind::assets || kind == rv_editor_pane_kind::findings || kind == rv_editor_pane_kind::test_case ? windows_difference(first, record) : strip::same_top(first, record)); !moved.empty()) {
             return state + moved;
         }
     }
