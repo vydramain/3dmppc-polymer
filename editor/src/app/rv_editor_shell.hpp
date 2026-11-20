@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -47,9 +48,6 @@ struct rv_editor_start {
     bool browsing = false; // Directory's browser is open beside the form
     rv_editor_browser browser;
 };
-
-// Frames the Game view gets to settle its fit after a layout change.
-constexpr int game_fit_attempts = 8;
 
 // Settings: number of tool paths checked in the Toolchain (baker, burner, console, player)
 constexpr size_t settings_tools_count = 4;
@@ -129,13 +127,11 @@ struct rv_editor_shell {
     rv_editor_workspace ws;
     std::array<rv_editor_layout, editor_workspace_slots_count> trees;
     // By slot: a starting tree whose Game tile keeps the screen's proportions until
-    // a splitter is dragged; the tries left to settle, and the area at the last one.
+    // a splitter is dragged.
     std::array<bool, editor_workspace_slots_count> game_fit{};
     // By slot: true from a reset/fresh preset until the first splitter drag; its
     // strips are fit to their buttons meanwhile, and the Game while game_fit holds.
     std::array<bool, editor_workspace_slots_count> layout_untouched{};
-    int game_fit_tries = game_fit_attempts;
-    rv_editor_size game_fit_last{ 0, 0 };
     rv_editor_layout_preset active = rv_editor_layout_preset::code;
     rv_editor_app app;
     SDL_Window *window = nullptr;
@@ -235,6 +231,16 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
 // screen, by the split under or over it, else beside it, until the user drags a
 // splitter; a strip of controls keeps its height. Saved trees are left as they are.
 void rv_editor_shell_fit_game(rv_editor_shell &shell);
+
+// Sets `ws.layout` so the Game's picture area (`area` now, in `ws.rects`) is the largest whole number of the screen's
+// aspect steps the other tiles' minimums let by (rv_editor_shell_game_fit.cpp); `strip_like` tells the tiles that keep
+// their pixels. A target size smaller than that maximum would cap the step count in there.
+void rv_editor_fit_game_tree(rv_editor_workspace &ws,
+    rv_editor_pane_id game,
+    rv_editor_size area,
+    int32_t screen_w,
+    int32_t screen_h,
+    const std::function<bool(uint32_t)> &strip_like);
 
 // Once a frame: switches layout if Assets asked for one (see rv_editor_shell_frame_start).
 void rv_editor_shell_take_layout_request(rv_editor_shell &shell);

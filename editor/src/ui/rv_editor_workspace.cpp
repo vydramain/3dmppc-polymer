@@ -404,6 +404,8 @@ int rv_editor_workspace_draw(rv_editor_workspace &ws,
     // below their minimums, so every control stays reachable.
     const uint32_t shown = ws.layout.maximized_leaf < ws.layout.nodes.size() ? ws.layout.maximized_leaf : ws.layout.root;
     const rv_editor_size need = rv_editor_tile_min_size(ws.layout, shown, m, pane_min);
+    ws.tile_metrics = m;
+    ws.pane_min = pane_min;
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const rv_editor_rect placed{ static_cast<int>(origin.x),

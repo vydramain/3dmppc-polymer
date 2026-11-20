@@ -396,6 +396,9 @@ struct rv_editor_workspace {
     std::map<rv_editor_pane_id, rv_editor_size> minimums;
     // What a leaf adds around its body (the "##pane" window: frame, header, tab strip), as the last draw measured it.
     rv_editor_size body_chrome{ 0, 0 };
+    // What the last draw placed with: the tile metrics and every pane's minimum (empty before the first draw).
+    rv_editor_tile_metrics tile_metrics{ 0, { 0, 0 }, 0 };
+    std::vector<rv_editor_size> pane_min;
     // Each node's rectangle at the last draw, by node index; a splitter was dragged.
     std::vector<rv_editor_rect> rects;
     bool dragged = false;

@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <numeric>
 #include <string>
 #include <system_error>
 
@@ -92,38 +91,6 @@ bool rv_editor_strip_leaf(const rv_editor_workspace &ws, uint32_t node)
         }
     }
     return true;
-}
-
-// Walks up from `node` to find a split on `axis` whose sibling is not a strip,
-// adjusts `node`'s ratio by `delta` (positive grow, negative shrink). When
-// `guard_bottom_sibling` and `delta > 0`, skips taking height from bottom row.
-// Placement clamps results to panes' minimums; returns RV_OK or RV_ERR_NOENT if no ancestor has space.
-int rv_editor_shell_grow_game(rv_editor_workspace &ws,
-    uint32_t node,
-    rv_editor_axis axis,
-    int32_t delta,
-    bool guard_bottom_sibling)
-{
-    for (uint32_t parent = ws.layout.nodes[node].parent; parent != rv_editor_tile_none;
-        node = parent, parent = ws.layout.nodes[parent].parent) {
-        const rv_editor_tile_split &split = ws.layout.nodes[parent].split;
-        const uint32_t sibling = node == split.first ? split.second : split.first;
-        if (ws.layout.nodes[parent].kind != rv_editor_tile_kind::split || split.axis != axis ||
-            rv_editor_strip_leaf(ws, sibling) || (guard_bottom_sibling && delta > 0 && sibling == split.second)) {
-            continue;
-        }
-        const rv_editor_rect &a = ws.rects[split.first];
-        const rv_editor_rect &b = ws.rects[split.second];
-        const int32_t first = axis == rv_editor_axis::x ? a.w : a.h;
-        const int32_t total = first + (axis == rv_editor_axis::x ? b.w : b.h);
-        if (total <= 0) {
-            continue;
-        }
-        const int32_t want = first + (node == split.first ? delta : -delta);
-        (void)rv_editor_tile_set_ratio(ws.layout, parent, static_cast<float>(want) / static_cast<float>(total));
-        return RV_OK;
-    }
-    return RV_ERR_NOENT;
 }
 
 // The transport strips (Runtime and Release Controls): their height follows the width they are drawn at.
@@ -249,7 +216,6 @@ void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
     // The Game's area and the rectangles are the other tree's until the next draw.
     shell.ui.game_area = { 0, 0 };
     shell.ws.rects.clear();
-    shell.game_fit_tries = game_fit_attempts;
 }
 
 void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_preset preset)
@@ -258,7 +224,6 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
     shell.ws.focused_leaf = rv_editor_tile_none;
     shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
     shell.layout_untouched[rv_editor_workspace_slot(preset)] = true;
-    shell.game_fit_tries = game_fit_attempts;
     shell.ui.game_area = { 0, 0 };
 }
 
@@ -293,52 +258,25 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
         shell.game_fit[slot] = false;
         shell.layout_untouched[slot] = false;
     }
-    const rv_editor_layout &layout = shell.ws.layout;
+    rv_editor_workspace &ws = shell.ws;
     const rv_editor_size area = shell.ui.game_area;
     // Nothing drawn yet (the start screen, no project, a tree just shown): wait.
-    if (!shell.game_fit[slot] || area.w <= 0 || area.h <= 0 || layout.maximized_leaf != rv_editor_tile_none ||
-        shell.ws.rects.size() != layout.nodes.size()) {
+    if (!shell.game_fit[slot] || area.w <= 0 || area.h <= 0 || ws.layout.maximized_leaf != rv_editor_tile_none ||
+        ws.rects.size() != ws.layout.nodes.size()) {
         return;
     }
-    uint32_t node = rv_editor_tile_none;
-    for (size_t i = 0; i < shell.ws.panes.panes.size() && node == rv_editor_tile_none; ++i) {
-        if (shell.ws.panes.panes[i].kind == rv_editor_pane_kind::game) {
-            node = rv_editor_tile_find(layout, static_cast<rv_editor_pane_id>(i));
+    for (size_t i = 0; i < ws.panes.panes.size(); ++i) {
+        if (ws.panes.panes[i].kind == rv_editor_pane_kind::game) {
+            rv_editor_fit_game_tree(ws,
+                static_cast<rv_editor_pane_id>(i),
+                area,
+                shell.app.project.screen_w,
+                shell.app.project.screen_h,
+                [&ws](uint32_t n) {
+                    return rv_editor_strip_leaf(ws, n) || rv_editor_strip_row(ws, n);
+                });
+            return;
         }
-    }
-    if (node == rv_editor_tile_none) {
-        return;
-    }
-    // Aspect ratio steps: gcd-reduced from screen dimensions.
-    // Fit finds the largest whole-step size (min of width/height divisions) that fits.
-    const int64_t sw = std::max<int64_t>(1, shell.app.project.screen_w);
-    const int64_t sh = std::max<int64_t>(1, shell.app.project.screen_h);
-    const int64_t step_w = sw / std::gcd(sw, sh);
-    const int64_t step_h = sh / std::gcd(sw, sh);
-    const int64_t w_steps = static_cast<int64_t>(area.w) / step_w;
-    const int64_t h_steps = static_cast<int64_t>(area.h) / step_h;
-    const int64_t gcd_val = std::gcd(sw, sh);
-    const int64_t steps = std::max(gcd_val, std::min(w_steps, h_steps));
-    const int32_t delta_w = static_cast<int32_t>(steps * step_w - area.w);
-    const int32_t delta_h = static_cast<int32_t>(steps * step_h - area.h);
-    if (delta_w == 0 && delta_h == 0) {
-        shell.game_fit_tries = game_fit_attempts;
-        return;
-    }
-    // Eight tries to settle, then the tree is left alone: minimums may allow no exact fit.
-    if (shell.game_fit_tries == 0) {
-        shell.game_fit[slot] = false;
-        return;
-    }
-    --shell.game_fit_tries;
-    // Width first; if stuck, try height. Guard bottom row only when growing height.
-    const bool held = area.w == shell.game_fit_last.w && area.h == shell.game_fit_last.h;
-    shell.game_fit_last = area;
-    if (delta_w != 0 && !held && rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::x, delta_w, false) == RV_OK) {
-        return;
-    }
-    if (delta_h != 0) {
-        (void)rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::y, delta_h, true);
     }
 }
 
