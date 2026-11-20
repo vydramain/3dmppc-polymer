@@ -31,9 +31,11 @@ struct rv_editor_message_say {
     std::vector<std::string> buttons;
 };
 
-// The narrowest strip: the widest of `button_rows` side by side plus 30 characters of text per line, and `field_chars`
-// characters of an input field that shares the button row (0: no field).
-float rv_editor_message_strip_min_width(const std::vector<std::vector<std::string>> &button_rows, int field_chars = 0);
+// The narrowest strip: the widest of `button_rows` side by side plus `text_chars` (30) characters of text per line, and
+// `field_chars` characters of an input field that shares the button row (0: no field).
+float rv_editor_message_strip_min_width(const std::vector<std::vector<std::string>> &button_rows,
+    int field_chars = 0,
+    float text_chars = 30.0f);
 
 // The strip's input field, in the button row left of the buttons; Enter in it presses button 0 while that button is active.
 // Its ImGui label is "##field". `focus` takes the keyboard focus for this frame (a question just asked).

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -31,7 +32,7 @@ namespace
 
 // The most doomed entries a question lists, and the characters of the name field at its narrowest.
 constexpr size_t dialog_doomed_max = 12;
-constexpr int name_field_chars = 16;
+constexpr int name_field_chars = 7;
 
 using dialog_kind = rv_editor_files_view::rv_editor_files_dialog;
 
@@ -143,6 +144,24 @@ std::vector<std::string> rv_editor_files_card_buttons()
     return { rv_editor_text("pane_files.delete_button"), rv_editor_text("pane_files.cancel_button") };
 }
 
+// The strip's widest row at the narrowest: a row of buttons, or OK and Cancel with the name field.
+float rv_editor_files_strip_row_width()
+{
+    const ImGuiStyle &style = ImGui::GetStyle();
+    const auto row = [&](const std::vector<std::string> &buttons) {
+        float w = static_cast<float>(buttons.size() - 1) * style.ItemSpacing.x;
+        for (const std::string &b : buttons) {
+            w += rv_editor_button_width(b.c_str());
+        }
+        return w;
+    };
+    const float field = static_cast<float>(name_field_chars) * ImGui::CalcTextSize("0").x + 2.0f * style.FramePadding.x;
+    return std::max({ row(rv_editor_files_card_buttons()),
+        row({ rv_editor_text("panes.open_project_box") }),
+        row({ rv_editor_text("pane_files.ok_button"), rv_editor_text("pane_files.cancel_button") }) + style.ItemSpacing.x +
+            field });
+}
+
 } // namespace
 
 // The directory a new entry goes into: `sel` when it is a directory,
@@ -194,11 +213,7 @@ void rv_editor_files_ask(rv_editor_files_view &view,
 float rv_editor_files_content_width()
 {
     return std::max(rv_editor_tiled_shelf_width(rv_editor_files_shelf_items()),
-        rv_editor_message_strip_min_width(
-            { { rv_editor_text("pane_files.ok_button"), rv_editor_text("pane_files.cancel_button") },
-                { rv_editor_text("pane_files.delete_button"), rv_editor_text("pane_files.cancel_button") },
-                { rv_editor_text("panes.open_project_box") } },
-            name_field_chars));
+        rv_editor_tiled_shelf_width(rv_editor_files_strip_row_width()));
 }
 
 // The delete of a folder: its list is the card's text; the card takes the tile's content.
@@ -225,31 +240,39 @@ namespace
 // What the strip under the tree says: a short question (with the name field for a new name), or the project's absence, or
 // nothing (empty text).
 struct rv_editor_files_say_text : rv_editor_message_say {
-    bool named = false; // the name field in a row of its own
+    bool named = false;      // the name field in a row of its own
+    bool second_row = false; // the buttons in a row under the text: a field, or a strip too narrow for the text beside them
 };
 
-rv_editor_files_say_text rv_editor_files_say(rv_editor_app &app, rv_editor_files_view &view)
+rv_editor_files_say_text rv_editor_files_say(rv_editor_app &app, rv_editor_files_view &view, float width)
 {
+    const auto narrow = [width](const std::vector<std::string> &buttons) {
+        return width < rv_editor_message_strip_min_width({ buttons });
+    };
     if (rv_editor_files_question(app, view) == nullptr) {
         if (app.files.is_open()) {
             return {};
         }
-        return { { rv_editor_text("panes.no_project_open_message"),
-            rv_editor_label_kind::normal,
-            { rv_editor_text("panes.open_project_box") } } };
+        const std::vector<std::string> buttons = { rv_editor_text("panes.open_project_box") };
+        return { { rv_editor_text("panes.no_project_open_message"), rv_editor_label_kind::normal, buttons },
+            false,
+            narrow(buttons) };
     }
+    const bool named = view.dialog != dialog_kind::remove;
+    const std::vector<std::string> buttons = rv_editor_files_question_buttons(view);
     return { { rv_editor_files_question_text(view),
                  view.error.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
-                 rv_editor_files_question_buttons(view) },
-        view.dialog != dialog_kind::remove };
+                 buttons },
+        named,
+        named || narrow(buttons) };
 }
 
 } // namespace
 
 float rv_editor_files_strip_height(rv_editor_app &app, rv_editor_files_view &view, float width)
 {
-    const rv_editor_files_say_text say = rv_editor_files_say(app, view);
-    return rv_editor_message_strip_height(say.text, say.buttons, width, say.named);
+    const rv_editor_files_say_text say = rv_editor_files_say(app, view, width);
+    return rv_editor_message_strip_height(say.text, say.buttons, width, say.second_row);
 }
 
 void rv_editor_files_strip(rv_editor_app &app,
@@ -258,10 +281,13 @@ void rv_editor_files_strip(rv_editor_app &app,
     float width,
     const rv_editor_theme &theme)
 {
-    const rv_editor_files_say_text say = rv_editor_files_say(app, view);
+    const rv_editor_files_say_text say = rv_editor_files_say(app, view, width);
     const rv_editor_files_request_row *row = rv_editor_files_question(app, view);
+    // A second row without a field carries the buttons only.
+    const std::function<void(float)> lead = say.second_row && !say.named ? [](float) {} : std::function<void(float)>();
     if (row == nullptr) {
-        const int pressed = rv_editor_message_strip("##ask", say.text, say.kind, say.buttons, theme, width);
+        const int pressed =
+            rv_editor_message_strip("##ask", say.text, say.kind, say.buttons, theme, width, nullptr, nullptr, lead);
         app.open_folder_request = app.open_folder_request || pressed == 0;
         return;
     }
@@ -273,8 +299,15 @@ void rv_editor_files_strip(rv_editor_app &app,
     view.opening = false;
     const char *waiting = rv_editor_app_request_pending(app, row->kind) ? rv_editor_text("app_why_not.files_pending") : nullptr;
     const std::vector<rv_editor_state> states(2, rv_editor_state{ rv_editor_look::live, waiting });
-    const int pressed =
-        rv_editor_message_strip("##ask", say.text, say.kind, say.buttons, theme, width, &states, say.named ? &field : nullptr);
+    const int pressed = rv_editor_message_strip("##ask",
+        say.text,
+        say.kind,
+        say.buttons,
+        theme,
+        width,
+        &states,
+        say.named ? &field : nullptr,
+        lead);
     rv_editor_files_answer(app, pane, view, *row, pressed);
 }
 

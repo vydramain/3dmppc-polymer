@@ -262,7 +262,8 @@ RV_EDITOR_TEST(rv_editor_test_layout_fit_small_window_scrolls)
     for (const preset_case &c : presets) {
         rv_editor_shell shell;
         make(shell, c.preset);
-        const drawn d = draw(gui, shell, 800, 500);
+        const drawn d = draw(gui, shell, 600, 400);
+        RV_EDITOR_CHECK(d.tree.w > 600 || d.tree.h > 400); // the window is under the sum of the minimums
         RV_EDITOR_CHECK(d.found_scroll);
         RV_EDITOR_CHECK(d.scroll_max.x > 0.5f || d.scroll_max.y > 0.5f);
         RV_EDITOR_CHECK(leaves_under_minimum(shell, d, c.name) == 0);

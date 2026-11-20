@@ -7,12 +7,14 @@
 #include <string>
 
 #include "app/rv_editor_shell.hpp"
+#include "font/rv_editor_font.hpp"
 #include "imgui_internal.h"
 #include "panes/rv_editor_pane_tiled.hpp"
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s15.hpp"
 #include "rv_editor_test_strip.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
 
 using namespace rv_editor;
 using namespace rv_editor_test;
@@ -94,6 +96,9 @@ RV_EDITOR_TEST(rv_editor_test_s15_files_short_questions_are_asked_in_the_strip)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
+    // The minimum, the measures and the drawing all in the one style the panel is drawn in.
+    rv_editor_theme_apply(stable_tiles::theme, ImGui::GetStyle());
+    ImGui::GetStyle().FontSizeBase = rv_editor_font_ui()->LegacySize;
     fixture f(gui, rv_editor_pane_kind::files);
     float char_w = 0.0f;
     float gap = 0.0f;
@@ -106,7 +111,8 @@ RV_EDITOR_TEST(rv_editor_test_s15_files_short_questions_are_asked_in_the_strip)
     const std::string ok = rv_editor_text("pane_files.ok_button");
     const std::string del = rv_editor_text("pane_files.delete_button");
     const std::string cancel = rv_editor_text("pane_files.cancel_button");
-    for (const ImVec2 size : tile_sizes(gui, f.kind, ImVec2(roomy_w, roomy_h))) {
+    const auto sizes = tile_sizes(gui, f.kind, ImVec2(roomy_w, roomy_h));
+    for (const ImVec2 &size : sizes) {
         f.states[tree_state]();
         const auto idle = f.settled(size.x, size.y);
         for (const size_t state : { new_file_state, rename_state, delete_file_state }) {
@@ -120,20 +126,36 @@ RV_EDITOR_TEST(rv_editor_test_s15_files_short_questions_are_asked_in_the_strip)
             RV_EDITOR_CHECK(area != nullptr && confirm != nullptr && no != nullptr);
             RV_EDITOR_CHECK(!strip::has_message_window(r));
             {
-                const std::string bad = strip::strip_problems(&idle, r, size, gap, frame_h);
+                // At the minimum the area keeps its floor (3 rows) and the tallest strip lies in the bottom window padding:
+                // there the strip only has to be whole inside the tile with nothing above it moved; the area's bottom yields
+                // exactly the strip and its gap only where the area has room to give.
+                const bool at_min = &size == &sizes.front() && sizes.size() > 1;
+                const std::string bad = strip::strip_problems(at_min ? nullptr : &idle, r, size, gap, frame_h);
                 report("question", bad);
                 RV_EDITOR_CHECK(bad.empty());
+                if (at_min) {
+                    std::string moved = strip::same_top(idle, r);
+                    for (const auto &e : idle.entries) {
+                        const auto *top = strip::first_area(idle);
+                        if (moved.empty() && !e.in_scroll && e.id != 0 && top != nullptr && e.y1 <= top->y0 + 0.5f) {
+                            moved = strip::stays(e, r, "an item above the area");
+                        }
+                    }
+                    report("question at the minimum", moved);
+                    RV_EDITOR_CHECK(moved.empty());
+                }
             }
             if (area == nullptr || confirm == nullptr || no == nullptr) {
                 continue;
             }
             RV_EDITOR_CHECK(confirm->y0 >= area->y1 && no->y0 >= area->y1 && confirm->y0 == no->y0);
-            RV_EDITOR_CHECK(confirm->x1 <= no->x0 && no->x1 <= size.x);
+            RV_EDITOR_CHECK(confirm->x1 <= no->x0 && no->x1 <= size.x && confirm->y1 <= size.y && no->y1 <= size.y);
             if (named) {
                 RV_EDITOR_CHECK(field != nullptr);
                 if (field != nullptr) {
-                    RV_EDITOR_CHECK(field->y0 >= area->y1 && field->y0 < confirm->y1 && field->x1 <= confirm->x0 && field->x0 >= 0.0f);
-                    RV_EDITOR_CHECK(field->x1 - field->x0 >= 10.0f * char_w);
+                    RV_EDITOR_CHECK(field->y0 >= area->y1 && field->y0 < confirm->y1 && field->x1 <= confirm->x0 &&
+                        field->x0 >= 0.0f && field->y1 <= size.y);
+                    RV_EDITOR_CHECK(field->x1 - field->x0 >= 7.0f * char_w);
                 }
             } else {
                 RV_EDITOR_CHECK(field == nullptr);

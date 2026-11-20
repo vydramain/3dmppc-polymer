@@ -18,8 +18,6 @@ namespace
 
 // Text lines the area shows whole.
 constexpr float text_lines = 2.0f;
-// Characters of text per line the narrowest box keeps.
-constexpr float min_chars = 30.0f;
 // Padding edges around the text (one per side).
 constexpr float padding_sides = 2.0f;
 
@@ -52,14 +50,16 @@ float rv_editor_message_text_height()
     return text_lines * ImGui::GetTextLineHeight() + padding_sides * ImGui::GetStyle().WindowPadding.y;
 }
 
-float rv_editor_message_strip_min_width(const std::vector<std::vector<std::string>> &button_rows, int field_chars)
+float rv_editor_message_strip_min_width(const std::vector<std::vector<std::string>> &button_rows,
+    int field_chars,
+    float text_chars)
 {
     float widest = 0.0f;
     for (const auto &row : button_rows) {
         widest = std::max(widest, rv_editor_message_row_width(row));
     }
-    // The text area's padding on both sides and its vertical bar come on top of the 30 characters.
-    const float text = widest + min_chars * ImGui::CalcTextSize("0").x + std::floor(ImGui::GetStyle().ScrollbarSize) +
+    // The text area's padding on both sides and its vertical bar come on top of the characters.
+    const float text = widest + text_chars * ImGui::CalcTextSize("0").x + std::floor(ImGui::GetStyle().ScrollbarSize) +
         padding_sides * ImGui::GetStyle().WindowPadding.x;
     if (field_chars <= 0) {
         return text;

@@ -62,7 +62,10 @@ constexpr float table_floor_rows = 5.0f;
 constexpr int refresh_period_seconds = 1;
 
 // Folder and filter field width in font size units.
-constexpr float folder_filter_width_em = 9.0f;
+constexpr float folder_filter_width_em = 8.0f;
+
+// Characters of text per line the strip keeps at the narrowest, two fewer than a strip's usual so the tile fits the Scene row.
+constexpr float assets_text_chars = 28.0f;
 
 // The tallest the selected picture is shown under the resources, in font size units.
 constexpr float preview_picture_height_em = 12.0f;
@@ -216,7 +219,7 @@ std::vector<std::vector<std::string>> rv_editor_assets_button_rows()
 float rv_editor_assets_content_width()
 {
     return std::max(rv_editor_tiled_shelf_width(rv_editor_assets_shelf_items()),
-        rv_editor_message_strip_min_width(rv_editor_assets_button_rows()));
+        rv_editor_message_strip_min_width(rv_editor_assets_button_rows(), 0, assets_text_chars));
 }
 
 // The folder and the filter; Refresh in Game is always there.
