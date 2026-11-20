@@ -282,7 +282,9 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_output_no_lines_note)
     same_above_strip("run without lines", draw_output(gui, with_lines), draw_output(gui, none));
 }
 
-RV_EDITOR_TEST(rv_editor_test_stable_s9_output_hidden_counts_note)
+// S4: lines hidden by a filter are not a note under a log that shows lines: the draw with hidden errors and warnings is the
+// draw without them, the strip included (the area ends at the same pixel).
+RV_EDITOR_TEST(rv_editor_test_stable_s9_output_hidden_lines_are_no_note_while_one_is_shown)
 {
     rv_editor_test_imgui gui(true);
     setup();
@@ -295,7 +297,13 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_output_hidden_counts_note)
     hidden.log.add(rv_editor_log_source::runtime, rv_editor_log_level::warning, "careful");
     add_info(plain, 3);
     add_info(hidden, 3);
-    same_above_strip("hidden errors and warnings", draw_output(gui, plain), draw_output(gui, hidden));
+    const auto a = draw_output(gui, plain);
+    const auto b = draw_output(gui, hidden);
+    same_above_strip("hidden errors and warnings", a, b);
+    const auto *area_a = strip::last_area(a);
+    const auto *area_b = strip::last_area(b);
+    RV_EDITOR_CHECK(area_a != nullptr && area_b != nullptr);
+    RV_EDITOR_CHECK(area_a != nullptr && area_b != nullptr && area_a->y1 == area_b->y1);
 }
 
 RV_EDITOR_TEST(rv_editor_test_stable_s9_output_dropped_note)

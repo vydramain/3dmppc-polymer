@@ -62,7 +62,9 @@ void rv_editor_search_list(rv_editor_app &app, const rv_editor_theme &theme)
     if (r.hits.empty()) {
         rv_editor_table_row();
         rv_editor_table_cell();
-        rv_editor_content_empty_row(rv_editor_text("pane_search.empty_row"), theme);
+        const std::string &asked = app.project_search.searched;
+        const std::string no_match = rv_editor_text_format("pane_search.no_match_row", std::make_format_args(asked));
+        (void)rv_editor_content_empty_row(asked.empty() ? rv_editor_text("pane_search.empty_row") : no_match.c_str(), theme);
     }
     ImGuiListClipper clipper;
     clipper.Begin(static_cast<int>(r.hits.size()));

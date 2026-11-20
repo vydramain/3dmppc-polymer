@@ -291,6 +291,7 @@ void rv_editor_assets_shelf(rv_editor_app &app, const std::vector<std::string> &
 void rv_editor_assets_table(rv_editor_app &app,
     const std::vector<const rv_editor_asset *> &shown,
     const char *empty_message,
+    char *clear_filter,
     const rv_editor_ui_port &ui_port,
     const rv_editor_theme &theme)
 {
@@ -307,7 +308,11 @@ void rv_editor_assets_table(rv_editor_app &app,
     if (shown.empty()) {
         rv_editor_table_row();
         rv_editor_table_cell();
-        rv_editor_content_empty_row(empty_message, theme);
+        if (rv_editor_content_empty_row(empty_message,
+                theme,
+                clear_filter != nullptr ? rv_editor_text("pane_assets.clear_filter") : nullptr)) {
+            clear_filter[0] = '\0';
+        }
     }
     for (const rv_editor_asset *a : shown) {
         rv_editor_table_row();
@@ -337,11 +342,16 @@ void rv_editor_assets_grid(rv_editor_app &app,
     SDL_Renderer *renderer,
     const std::vector<const rv_editor_asset *> &shown,
     const char *empty_message,
+    char *clear_filter,
     const rv_editor_ui_port &ui_port,
     const rv_editor_theme &theme)
 {
     if (shown.empty()) {
-        rv_editor_content_empty_row(empty_message, theme);
+        if (rv_editor_content_empty_row(empty_message,
+                theme,
+                clear_filter != nullptr ? rv_editor_text("pane_assets.clear_filter") : nullptr)) {
+            clear_filter[0] = '\0';
+        }
         return;
     }
     float cell = ImGui::GetFontSize() * icon_cell_size_em;
@@ -486,13 +496,16 @@ void rv_editor_pane_assets(rv_editor_app &app,
     }
 
     (void)rv_editor_tiled_area_begin("##assets_area", rv_editor_assets_content_width(), theme);
+    const std::string filtered = rv_editor_text_format("pane_assets.no_match_filter", std::make_format_args(ui.filter));
     const char *empty_message = !app.project.open ? rv_editor_text("panes.no_project_open_message") :
         files.empty()                             ? rv_editor_text("pane_assets.no_resources") :
-                                                    rv_editor_text("pane_assets.no_match_filter");
+        ui.filter[0] == '\0'                      ? rv_editor_text("pane_assets.no_match_folder") :
+                                                    filtered.c_str();
+    char *clear_filter = app.project.open && !files.empty() && ui.filter[0] != '\0' ? ui.filter : nullptr;
     if (ui.details) {
-        rv_editor_assets_table(app, shown, empty_message, ui_port, theme);
+        rv_editor_assets_table(app, shown, empty_message, clear_filter, ui_port, theme);
     } else {
-        rv_editor_assets_grid(app, renderer, shown, empty_message, ui_port, theme);
+        rv_editor_assets_grid(app, renderer, shown, empty_message, clear_filter, ui_port, theme);
     }
     rv_editor_asset_picture_show(picture, ImGui::GetContentRegionAvail().x, ImGui::GetFontSize() * preview_picture_height_em);
     rv_editor_tiled_area_end(theme);

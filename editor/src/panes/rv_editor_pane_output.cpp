@@ -131,20 +131,21 @@ std::string rv_editor_output_lower(std::string s)
     return s;
 }
 
-// The view's own choice of lines: sources, level, search.
-bool rv_editor_output_passes(const rv_editor_output_view &view, const rv_editor_log_line &line, const std::string &needle)
+// What keeps a line of the view's run (all of them when no run is picked) out of sight, the first of the filters in the order
+// they stand (the enum's), or `none`.
+rv_editor_output_filter
+rv_editor_output_hider(const rv_editor_output_view &view, const rv_editor_log_line &line, const std::string &needle)
 {
-    if (view.run_pid != 0) {
-        if (line.pid != view.run_pid) {
-            return false;
-        }
-    } else if (!view.show[static_cast<size_t>(line.source)]) {
-        return false;
+    if (view.run_pid == 0 && !view.show[static_cast<size_t>(line.source)]) {
+        return rv_editor_output_filter::source;
     }
     if (line.level < view.level) {
-        return false;
+        return rv_editor_output_filter::level;
     }
-    return needle.empty() || rv_editor_output_lower(line.text).find(needle) != std::string::npos;
+    if (!needle.empty() && rv_editor_output_lower(line.text).find(needle) == std::string::npos) {
+        return rv_editor_output_filter::find;
+    }
+    return line.seq < view.hide_before ? rv_editor_output_filter::clear_view : rv_editor_output_filter::none;
 }
 
 // The line as Copy and Export write it, pid and channel named after the source.
@@ -312,19 +313,20 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     // The lines, and what the filters keep out of sight.
     const std::string needle = rv_editor_output_lower(view.search);
     std::vector<const rv_editor_log_line *> shown;
-    size_t hidden_errors = 0;
-    size_t hidden_warnings = 0;
+    auto first_hider = rv_editor_output_filter::none;
     size_t run_lines = 0;
+    size_t in_view = 0;
     for (const rv_editor_log_line &line : log.lines()) {
         run_lines += line.pid == view.run_pid ? 1 : 0;
-        if (line.seq < view.hide_before) {
-            continue;
+        if (view.run_pid != 0 && line.pid != view.run_pid) {
+            continue; // another run's: not this view's, so not counted as hidden
         }
-        if (rv_editor_output_passes(view, line, needle)) {
+        ++in_view;
+        const rv_editor_output_filter hider = rv_editor_output_hider(view, line, needle);
+        if (hider == rv_editor_output_filter::none) {
             shown.push_back(&line);
-        } else if (line.source != rv_editor_log_source::protocol) {
-            hidden_errors += line.level == rv_editor_log_level::error ? 1 : 0;
-            hidden_warnings += line.level == rv_editor_log_level::warning ? 1 : 0;
+        } else {
+            first_hider = std::min(first_hider, hider);
         }
     }
     const auto picked = [&view](const rv_editor_log_line &line) {
@@ -358,9 +360,6 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     if (view.run_pid != 0 && run_lines == 0) {
         note(rv_editor_text_format("pane_output.status_no_lines", std::make_format_args(view.run_label)));
     }
-    if (hidden_errors + hidden_warnings != 0) {
-        note(rv_editor_text_format("pane_output.status_hidden", std::make_format_args(hidden_errors, hidden_warnings)));
-    }
     if (log.dropped() != 0) {
         const unsigned long long dropped = log.dropped();
         note(rv_editor_text_format("pane_output.info_dropped", std::make_format_args(dropped)));
@@ -368,9 +367,6 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     if (!view.exported.empty()) {
         note(std::string(rv_editor_text("pane_output.label_exported")) + ": " + view.exported);
     }
-    const auto notes_kind = hidden_errors != 0 ? rv_editor_label_kind::error :
-        hidden_warnings != 0                   ? rv_editor_label_kind::warning :
-                                                 rv_editor_label_kind::normal;
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_output_content_width());
     const float strip_h = rv_editor_message_strip_height(notes, {}, strip_w);
 
@@ -452,7 +448,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         ImGui::Dummy(ImVec2(0.0f, h));
     };
     if (shown.empty()) {
-        rv_editor_content_empty_row(rv_editor_text("pane_output.empty_row"), theme);
+        rv_editor_output_empty_row(view, in_view, first_hider, theme);
     } else if (view.wrap) {
         // Rows of different heights: those out of sight only take their room.
         const float top = ImGui::GetScrollY();
@@ -491,7 +487,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     }
     rv_editor_font_code_pop();
     rv_editor_tiled_area_end(theme);
-    (void)rv_editor_message_strip("##strip", notes, notes_kind, {}, theme, strip_w);
+    (void)rv_editor_message_strip("##strip", notes, rv_editor_label_kind::normal, {}, theme, strip_w);
 }
 
 } // namespace rv_editor

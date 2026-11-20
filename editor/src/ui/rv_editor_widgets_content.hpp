@@ -20,7 +20,8 @@ void rv_editor_content_end(const rv_editor_theme &theme);
 
 // The empty state: one dim line of `text` where the first row would be. Column headers are the caller's and stay as
 // they are with rows; in a table, call it after rv_editor_table_row and rv_editor_table_cell.
-void rv_editor_content_empty_row(const char *text, const rv_editor_theme &theme);
+// `button`, when not null, is a button in the same row (a filter's reset); true when it was pressed.
+bool rv_editor_content_empty_row(const char *text, const rv_editor_theme &theme, const char *button = nullptr);
 
 // A titled section inside one content area (call between rv_editor_content_begin and _end). The title row is a band over
 // the area's full inner width: `title` at the left, and the cursor left on the same row at the right, where the caller

@@ -57,6 +57,22 @@ void rv_editor_output_controls(rv_editor_app &app,
     bool &exporting,
     const rv_editor_theme &theme);
 
+// The filters of a log view, in the order the empty row names the first of them that hid the lines.
+enum class rv_editor_output_filter {
+    source,
+    level,
+    find,
+    clear_view,
+    none
+};
+
+// The empty row of a log: no lines at all, or `total` lines all hidden, `first` the first filter that hid any, with the
+// button that resets it (pressed: the view is changed).
+void rv_editor_output_empty_row(rv_editor_output_view &view,
+    size_t total,
+    rv_editor_output_filter first,
+    const rv_editor_theme &theme);
+
 // The width of that row with Find at its minimum. Call inside a frame.
 float rv_editor_output_controls_width();
 

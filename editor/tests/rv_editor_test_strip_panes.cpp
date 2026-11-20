@@ -65,19 +65,20 @@ struct bench {
             s.shelf = true;
             s.header = true;
             s.rows = false;
-            // Lines, no filter, nothing exported: a log with nothing to say. The exported file and the hidden lines say it.
+            // Lines, no filter, nothing exported: a log with nothing to say. Only the exported file says something: lines
+            // hidden by a filter are the empty row's (S4), not a strip's.
             s.quiet = [&f] {
                 f.states[1]();
                 f.app().outputs[s13::pane].search[0] = '\0';
                 f.app().outputs[s13::pane].exported.clear();
             };
             s.say = { [&f] {
-                         f.states[1]();
-                         f.app().outputs[s13::pane].exported = (f.where / "export.log").string();
-                     },
-                [&f] {
-                    f.states[2]();
-                } };
+                f.states[1]();
+                f.app().outputs[s13::pane].exported = (f.where / "export.log").string();
+            } };
+            s.extra = { [&f] {
+                f.states[2]();
+            } };
             s.draw = [&f](float w, float h) {
                 return s13::settled(f, w, h);
             };

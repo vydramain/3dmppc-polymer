@@ -101,12 +101,24 @@ void rv_editor_content_end(const rv_editor_theme &theme)
     ImGui::PopID();
 }
 
-void rv_editor_content_empty_row(const char *text, const rv_editor_theme &theme)
+bool rv_editor_content_empty_row(const char *text, const rv_editor_theme &theme, const char *button)
 {
-    // A disabled Selectable, not a Text: the row is an item with an id, like the rows it stands for.
+    // A disabled Selectable, not a Text: the row is an item with an id, like the rows it stands for. With a button the row
+    // is as high as the button, and the button stands over the row's end of text.
+    const bool with_button = button != nullptr;
+    const ImVec2 start = ImGui::GetCursorPos();
     ImGui::PushStyleColor(ImGuiCol_TextDisabled, rv_editor_col(theme.code_subtext));
-    ImGui::Selectable((std::string(text) + "###empty").c_str(), false, inert_row_flags);
+    ImGui::Selectable((std::string(text) + "###empty").c_str(),
+        false,
+        inert_row_flags | ImGuiSelectableFlags_AllowOverlap,
+        ImVec2(0.0f, with_button ? ImGui::GetFrameHeight() : 0.0f));
     ImGui::PopStyleColor();
+    if (!with_button) {
+        return false;
+    }
+    ImGui::SetCursorPos(ImVec2(start.x + ImGui::CalcTextSize(text).x + 3.0f * ImGui::GetStyle().ItemSpacing.x, start.y));
+    ImGui::SetNextItemAllowOverlap();
+    return rv_editor_button(button, theme);
 }
 
 float rv_editor_record_status_width(const char *const words[], int count)
