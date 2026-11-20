@@ -46,40 +46,38 @@ RV_EDITOR_TEST(rv_editor_test_empty_row_search_tells_no_match_from_not_asked)
 // --- Assets ----------------------------------------------------------------------------------------------------------
 
 // A filter that hid every file: the row says it (names the filter text) with a button that clears it and the files come
-// back; a project with no resources says so with no button. In the list and in the icon view.
+// back; a project with no resources says so with no button. In the table, the only view of Assets.
 RV_EDITOR_TEST(rv_editor_test_empty_row_assets_filter_hid_every_file_and_the_reset_button_shows_them)
 {
     s13::load_texts();
     rv_editor_test_imgui gui(true);
-    for (const bool details : { true, false }) {
+    {
         s15::fixture f(gui, rv_editor_pane_kind::assets);
         f.states[1](); // a project with no resources
-        f.app().assets_ui.details = details;
         const record none = f.settled(width, height);
         const entry *none_row = empty_row(none);
         RV_EDITOR_CHECK(none_row != nullptr);
         RV_EDITOR_CHECK(none_row != nullptr && row_button(none, *none_row) == nullptr);
 
         f.states[2](); // five files, a filter that matches none
-        f.app().assets_ui.details = details;
         std::snprintf(f.app().assets_ui.filter, sizeof(f.app().assets_ui.filter), "%s", "zzz");
         const record hidden = f.settled(width, height);
         const entry *row = empty_row(hidden);
         RV_EDITOR_CHECK(row != nullptr);
         if (row == nullptr) {
-            continue;
+            return;
         }
         const entry *button = row_button(hidden, *row);
         const std::string text = row_text(*row);
         if (button == nullptr || !has(text, "zzz") || (none_row != nullptr && text == row_text(*none_row))) {
-            report(details ? "assets list" : "assets icons",
+            report("assets table",
                 "filter hid every file: row says '" + text + "', button " + (button != nullptr ? "yes" : "no"));
         }
         RV_EDITOR_CHECK(button != nullptr);
         RV_EDITOR_CHECK(has(text, "zzz"));
         RV_EDITOR_CHECK(none_row == nullptr || text != row_text(*none_row));
         if (button == nullptr) {
-            continue;
+            return;
         }
         f.click(*button, width, height);
         const record after = f.settled(width, height);

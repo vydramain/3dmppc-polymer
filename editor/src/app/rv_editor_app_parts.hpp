@@ -164,11 +164,10 @@ inline void rv_editor_camera_set_target_fx(rv_editor_scene_camera &c, const rv_p
     c.target = { value.x, value.y, value.z };
 }
 
-// Assets' own view: the folder shown (0: all), the filter, icons or details.
+// Assets' own view: the folder shown (0: all), the filter.
 struct rv_editor_assets_ui {
     int folder = 0;
     char filter[short_text_field_size] = {};
-    bool details = false;
 };
 
 // The files a code tile has shown, one tab each, and the one its Close Tab let

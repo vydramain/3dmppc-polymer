@@ -52,8 +52,8 @@ RV_EDITOR_TEST(rv_editor_test_assets_refresh_is_present_without_a_selection)
     const std::string refresh = rv_editor_text("pane_assets.refresh");
     RV_EDITOR_CHECK(find(none, refresh) != nullptr);
 
-    // Click the one asset's cell: down, then up, a frame each.
-    const rv_editor_probe_entry *cell = find(none, "##cell");
+    // Click the one asset's row: down, then up, a frame each.
+    const rv_editor_probe_entry *cell = find_part(none, "###row");
     RV_EDITOR_CHECK(cell != nullptr);
     if (cell != nullptr) {
         ImGuiIO &io = ImGui::GetIO();
@@ -66,7 +66,7 @@ RV_EDITOR_TEST(rv_editor_test_assets_refresh_is_present_without_a_selection)
         io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
         const rv_editor_probe_record selected = draw();
         RV_EDITOR_CHECK(find(selected, refresh) != nullptr);
-        RV_EDITOR_CHECK(stable(none, selected, { refresh, "##cell" }, true).empty());
+        RV_EDITOR_CHECK(stable(none, selected, { refresh, "###row" }, true).empty());
     }
     fs::remove_all(dir);
 }

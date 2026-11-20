@@ -1,4 +1,4 @@
-// S22, found in the live editor with the real fonts: Assets shows the whole name under every tile of the grid and a folder
+// S22, found in the live editor with the real fonts: Assets has a folder
 // drop-down as wide as its text (R2); the areas of Session, Release Candidate and Observe without data say what will appear
 // there and how (R4).
 
@@ -34,29 +34,6 @@ void make_long_names(const s15::fs::path &root)
 }
 
 } // namespace
-
-// R2: the name under a tile is drawn whole, not cut to the tile: every one of the 75 letters of the three names is drawn.
-RV_EDITOR_TEST(rv_editor_test_s22_assets_grid_draws_the_whole_name_of_every_tile)
-{
-    s15::load_texts();
-    rv_editor_test_imgui gui(true);
-    s15::fixture f(gui, rv_editor_pane_kind::assets);
-    const auto root = f.where / "long";
-    make_long_names(root);
-    f.open_project(root);
-    f.app().assets_ui.filter[0] = '\0';
-    f.app().assets_ui.folder = 0;
-    f.app().assets_ui.details = false;
-    int letters = 0;
-    for (const int n : name_chars) {
-        letters += n;
-    }
-    for (const float width : { roomy_w, 600.0f }) {
-        const int drawn = s15::glyph_counts(f, width, roomy_h, "Z")[0];
-        std::fprintf(stderr, "  width %.0f: %d of %d letters drawn\n", width, drawn, letters);
-        RV_EDITOR_CHECK(drawn == letters);
-    }
-}
 
 // R2: the folder drop-down is not narrower than the text it shows (the value "All folders" and a long folder name), at
 // the pane's minimum and at a roomy size.

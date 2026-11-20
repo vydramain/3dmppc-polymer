@@ -192,14 +192,14 @@ RV_EDITOR_TEST(rv_editor_test_s15_project_facts_row_menu_copies_a_fact)
     RV_EDITOR_CHECK(known);
 }
 
-// R8, R11, R9: Assets is a shelf (folder, filter, Details, Refresh in one row), a message strip under the resources in a
-// content area as a grid of cells or as a table of rows, in every state.
+// R8, R11, R9: Assets is a shelf (folder, filter, Refresh in one row), a message strip under the resources in a
+// content area as a table of rows, in every state.
 RV_EDITOR_TEST(rv_editor_test_s15_assets_have_a_shelf_a_strip_and_the_resources_in_an_area)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
     fixture f(gui, rv_editor_pane_kind::assets);
-    // 0 no project, 1 empty, 2 no matches, 3 grid, 4 table, 5-8 previews.
+    // 0 no project, 1 empty, 2 no matches, 3 table, 4 table of one folder, 5-8 previews.
     for (const ImVec2 size : tile_sizes(gui, f.kind, ImVec2(roomy_w, roomy_h))) {
         for (size_t i = 0; i < f.states.size(); ++i) {
             const auto r = snap(f, i, size.x, size.y);
@@ -210,32 +210,24 @@ RV_EDITOR_TEST(rv_editor_test_s15_assets_have_a_shelf_a_strip_and_the_resources_
             const auto *area = s3::areas(r).empty() ? nullptr : s3::areas(r)[0];
             const auto *folder = find_id(r, "##folder");
             const auto *filter = find_id(r, "##filter");
-            const auto *details = find_text(r, rv_editor_text("pane_assets.details"));
             const auto *refresh = find_text(r, rv_editor_text("pane_assets.refresh"));
-            RV_EDITOR_CHECK(folder != nullptr && filter != nullptr && details != nullptr && refresh != nullptr);
-            if (area != nullptr && folder != nullptr && filter != nullptr && details != nullptr && refresh != nullptr) {
+            RV_EDITOR_CHECK(folder != nullptr && filter != nullptr && refresh != nullptr);
+            if (area != nullptr && folder != nullptr && filter != nullptr && refresh != nullptr) {
                 RV_EDITOR_CHECK(folder->y1 <= area->y0 && filter->y1 <= area->y0 && refresh->y1 <= area->y0);
                 RV_EDITOR_CHECK(std::abs(folder->y0 - filter->y0) <= 1.0f);
-                RV_EDITOR_CHECK(details->y0 < area->y0 && refresh->x0 > filter->x1); // one row, in this order
+                RV_EDITOR_CHECK(refresh->y0 < area->y0 && refresh->x0 > filter->x1); // one row, in this order
             }
         }
     }
-    const auto grid = snap(f, 3, roomy_w, roomy_h);
-    const auto table = snap(f, 4, roomy_w, roomy_h);
-    const auto *area = content_area(grid);
+    const auto table = snap(f, 3, roomy_w, roomy_h);
     const auto *table_area = content_area(table);
-    RV_EDITOR_CHECK(area != nullptr && table_area != nullptr);
-    if (area != nullptr && table_area != nullptr) {
-        int cells = 0;
-        for (const auto &e : grid.entries) {
-            cells += e.label == "##cell" && inside(e, *area) ? 1 : 0;
-        }
-        RV_EDITOR_CHECK(cells == 5);
-        RV_EDITOR_CHECK(labelled_in(table, *table_area, "###row") >= 5);
+    RV_EDITOR_CHECK(table_area != nullptr);
+    if (table_area != nullptr) {
+        RV_EDITOR_CHECK(labelled_in(table, *table_area, "###row") == 5);
     }
 }
 
-// R4: no resources and a filter without matches say so in the area's first row, which a grid with resources does not
+// R4: no resources and a filter without matches say so in the area's first row, which a table with resources does not
 // have.
 RV_EDITOR_TEST(rv_editor_test_s15_assets_empty_states_say_so_in_the_area)
 {

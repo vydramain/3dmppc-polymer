@@ -1,14 +1,11 @@
-// Assets: the project's resource files as an IRIX Icon Catalog: a
-// picture or a kind icon with a short label, or a list with details; a folder
-// and a filter. What each file is called on the disc comes from the burner's map
+// Assets: the project's resource files as a table of Name, Type, Size and Folder;
+// a folder and a filter. What each file is called on the disc comes from the burner's map
 // of the last build, never from a rule of the editor's.
 
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
-#include <cfloat>
 #include <chrono>
-#include <cmath>
 #include <map>
 #include <string>
 #include <system_error>
@@ -37,7 +34,7 @@ namespace rv_editor
 namespace
 {
 
-// Columns of the assets table: file, kind, on disc, size.
+// Columns of the assets table: name, type, size, folder.
 constexpr int assets_table_columns = 4;
 
 // What the catalog shows, read again at most once a second, and the map of the build it names.
@@ -58,6 +55,9 @@ struct rv_editor_assets_cache {
     double sound_seconds = 0.0;
 };
 
+// The table's floor: its header and this many rows whole at the tile's minimum.
+constexpr float table_floor_rows = 5.0f;
+
 // Assets list refresh rate: rescan at most once per second.
 constexpr int refresh_period_seconds = 1;
 
@@ -67,44 +67,13 @@ constexpr float folder_filter_width_em = 9.0f;
 // The tallest the selected picture is shown under the resources, in font size units.
 constexpr float preview_picture_height_em = 12.0f;
 
-// Horizontal centering: half the gap for centering on both axes (0.5 = symmetric centering).
-constexpr float center_offset_ratio = 0.5f;
-
-// Icon cell dimensions in font size units.
-constexpr float icon_cell_size_em = 5.5f;
-constexpr float icon_glyph_size_em = 3.0f;
-
-// Icon cell: bottom margin added to button height (space for label clearance in pixels).
-constexpr float icon_cell_padding_px = 4.0f;
-
-// Icon glyph: initial size in font units before fit scaling.
-constexpr float icon_glyph_initial_size_em = 2.0f;
-
-// Icon glyph: max scale as fraction of art width (0.9 * art width to prevent overflow).
-constexpr float icon_glyph_scale_max = 0.9f;
-
-// Icon art: top margin in the cell before glyph is drawn (pixels).
-constexpr float icon_art_y_offset_px = 2.0f;
-
-// Icon label: offset below glyph and cell height (pixels).
-constexpr float icon_label_y_offset_px = 2.0f;
-
-// Icon label: margin kept free at the cell's right edge (pixels).
-constexpr float icon_label_margin_px = 4.0f;
-
 // File extensions and special markers.
 constexpr std::string_view png_extension = ".png";
 constexpr std::string_view scene_toml_suffix = ".scene.toml";
 
-// Selection highlight: alpha opacity of the background rect.
-constexpr float selection_highlight_alpha = 0.35f;
-
 // Folder names: excluded from assets or navigation.
 constexpr std::string_view build_folder = "build";
 constexpr std::string_view src_folder = "src";
-
-// Table and label markers.
-constexpr std::string_view entry_not_on_disc = "-";
 
 rv_editor_assets_cache rv_editor_assets;
 
@@ -227,13 +196,12 @@ rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_a
 namespace
 {
 
-// The shelf's items: folder, filter, Details and Refresh, with the gap before each.
+// The shelf's items: folder, filter and Refresh, with the gap before each.
 float rv_editor_assets_shelf_items()
 {
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     return 2.0f * ImGui::GetFontSize() * folder_filter_width_em +
-        rv_editor_checkbox_width(rv_editor_text("pane_assets.details")) +
-        rv_editor_button_width(rv_editor_text("pane_assets.refresh")) + 3.0f * gap;
+        rv_editor_button_width(rv_editor_text("pane_assets.refresh")) + 2.0f * gap;
 }
 
 // The strip's button rows over the states: a sound's Play and Stop with Add to Disc, or Open Project.
@@ -251,7 +219,7 @@ float rv_editor_assets_content_width()
         rv_editor_message_strip_min_width(rv_editor_assets_button_rows()));
 }
 
-// The folder, the filter, and the view: icons or a list with details; Refresh in Game is always there.
+// The folder and the filter; Refresh in Game is always there.
 void rv_editor_assets_shelf(rv_editor_app &app, const std::vector<std::string> &folders, const rv_editor_theme &theme)
 {
     rv_editor_assets_ui &ui = app.assets_ui;
@@ -270,8 +238,6 @@ void rv_editor_assets_shelf(rv_editor_app &app, const std::vector<std::string> &
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * folder_filter_width_em);
     rv_editor_text_field("##filter", ui.filter, sizeof(ui.filter), theme);
     rv_editor_item_tooltip(rv_editor_text("pane_assets.filter_tooltip"));
-    ImGui::SameLine();
-    rv_editor_checkbox(rv_editor_text("pane_assets.details"), &ui.details, theme);
     ImGui::SameLine();
     const bool has_selection = app.project.open && !rv_editor_assets.selected.empty();
     const std::filesystem::path file = has_selection ? app.project.root / rv_editor_assets.selected : std::filesystem::path();
@@ -292,6 +258,11 @@ void rv_editor_assets_shelf(rv_editor_app &app, const std::vector<std::string> &
     rv_editor_shelf_end();
 }
 
+float rv_editor_assets_floor()
+{
+    return rv_editor_tiled_rows_floor(table_floor_rows + 1.0f, rv_editor_tiled_table_pitch());
+}
+
 // The resources as a table of rows.
 void rv_editor_assets_table(rv_editor_app &app,
     const std::vector<const rv_editor_asset *> &shown,
@@ -301,10 +272,10 @@ void rv_editor_assets_table(rv_editor_app &app,
     const rv_editor_theme &theme)
 {
     const rv_editor_table_column columns[assets_table_columns] = {
-        { rv_editor_text("pane_assets.table_file") },
-        { rv_editor_text("pane_assets.table_kind"), rv_editor_table_width::fixed },
-        { rv_editor_text("pane_assets.table_on_disc") },
+        { rv_editor_text("pane_assets.table_name") },
+        { rv_editor_text("pane_assets.table_type"), rv_editor_table_width::fixed },
         { rv_editor_text("pane_assets.table_size"), rv_editor_table_width::fixed },
+        { rv_editor_text("pane_assets.table_folder") },
     };
     const rv_editor_table_style table_style{ .row_bands = true, .header = true, .sizing = rv_editor_table_sizing::fixed_fit };
     if (!rv_editor_table_begin("##assets", columns, assets_table_columns, table_style)) {
@@ -322,93 +293,32 @@ void rv_editor_assets_table(rv_editor_app &app,
     for (const rv_editor_asset *a : shown) {
         rv_editor_table_row();
         rv_editor_table_cell();
-        const rv_editor_list_style row_style{ .selected = a->rel == rv_editor_assets.selected,
-            .span_columns = true,
-            .whole = true };
+        // Not spanning the columns: a spanning row is as wide as the area, which the first column then takes as its width.
+        const bool selected = a->rel == rv_editor_assets.selected;
+        const rv_editor_list_style row_style{ .selected = selected, .whole = true };
         rv_editor_list_row(a->rel.c_str(), a->rel.c_str(), theme, row_style);
         rv_editor_asset_item(app, *a, ui_port);
-        const auto entry = rv_editor_assets.map.find(a->rel);
-        rv_editor_table_cell();
-        rv_editor_table_cell_text(entry == rv_editor_assets.map.end() ? entry_not_on_disc.data() : entry->second.kind.c_str(),
-            theme);
-        rv_editor_table_cell();
-        rv_editor_table_cell_text(entry == rv_editor_assets.map.end() ? rv_editor_text("pane_assets.not_on_disc") :
-                                                                        entry->second.name.c_str(),
-            theme);
-        rv_editor_table_cell();
+        // The highlight of the selected row carries on over the other cells, as the row itself is only the Name's.
+        const auto next_cell = [selected] {
+            rv_editor_table_cell();
+            if (selected) {
+                ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, ImGui::GetColorU32(ImGuiCol_Header));
+            }
+        };
+        next_cell();
+        // The kind of file is the code of its icon in Files (Im, Sn, Fi, ...), in its colour.
+        const char *code = rv_editor_glyph::other_file;
+        uint32_t color = 0;
+        rv_editor_file_chip(a->path, code, color);
+        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(color));
+        rv_editor_table_cell_text(code, theme);
+        ImGui::PopStyleColor();
+        next_cell();
         rv_editor_label(std::to_string(a->size).c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+        next_cell();
+        rv_editor_table_cell_text(a->folder.c_str(), theme);
     }
     rv_editor_table_end();
-}
-
-// The resources as icon cells: the picture or the kind's icon over the file's whole name; the cells are as wide as the
-// longest name (the area scrolls).
-void rv_editor_assets_grid(rv_editor_app &app,
-    SDL_Renderer *renderer,
-    const std::vector<const rv_editor_asset *> &shown,
-    const char *empty_message,
-    char *clear_filter,
-    const rv_editor_ui_port &ui_port,
-    const rv_editor_theme &theme)
-{
-    if (shown.empty()) {
-        if (rv_editor_content_empty_row(empty_message,
-                theme,
-                clear_filter != nullptr ? rv_editor_text("pane_assets.clear_filter") : nullptr)) {
-            clear_filter[0] = '\0';
-        }
-        return;
-    }
-    float cell = ImGui::GetFontSize() * icon_cell_size_em;
-    for (const rv_editor_asset *a : shown) {
-        cell = std::max(cell, ImGui::CalcTextSize(a->path.filename().string().c_str()).x + icon_label_margin_px);
-    }
-    const float art = ImGui::GetFontSize() * icon_glyph_size_em;
-    const int columns = std::max(1, static_cast<int>(ImGui::GetContentRegionAvail().x / cell));
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    for (size_t i = 0; i < shown.size(); ++i) {
-        const rv_editor_asset &a = *shown[i];
-        if (i % static_cast<size_t>(columns) != 0) {
-            ImGui::SameLine();
-        }
-        ImGui::PushID(a.rel.c_str());
-        const ImVec2 p0 = ImGui::GetCursorScreenPos();
-        ImGui::InvisibleButton("##cell", ImVec2(cell, art + ImGui::GetTextLineHeightWithSpacing() + icon_cell_padding_px));
-        rv_editor_asset_item(app, a, ui_port);
-        if (a.rel == rv_editor_assets.selected) {
-            dl->AddRectFilled(p0, ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Header, selection_highlight_alpha));
-        }
-        if (ImGui::IsItemHovered()) {
-            dl->AddRect(p0, ImGui::GetItemRectMax(), rv_editor_col(theme.selection));
-        }
-        const ImVec2 at(p0.x + (cell - art) * center_offset_ratio, p0.y + icon_art_y_offset_px);
-        const rv_editor_icon picture = rv_editor_asset_picture(renderer, a);
-        if (picture.id != ImTextureID{}) {
-            const float k = std::min(art / static_cast<float>(picture.w), art / static_cast<float>(picture.h));
-            const ImVec2 size(picture.w * k, picture.h * k);
-            const ImVec2 q0(at.x + (art - size.x) * center_offset_ratio, at.y + (art - size.y) * center_offset_ratio);
-            dl->AddImage(picture.id, q0, ImVec2(q0.x + size.x, q0.y + size.y));
-        } else {
-            // The file's code, sized down from twice the font until it fits the tile's width.
-            const char *code = rv_editor_glyph::other_file;
-            uint32_t color = 0;
-            rv_editor_file_chip(a.path, code, color);
-            float size = ImGui::GetFontSize() * icon_glyph_initial_size_em;
-            float w = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, code).x;
-            if (w > art * icon_glyph_scale_max) {
-                size *= art * icon_glyph_scale_max / w;
-                w = art * icon_glyph_scale_max;
-            }
-            const ImVec2 glyph_pos(std::floor(at.x + (art - w) * center_offset_ratio),
-                std::floor(at.y + (art - size) * center_offset_ratio));
-            dl->AddText(ImGui::GetFont(), size, glyph_pos, rv_editor_col(color), code);
-        }
-        const std::string label = a.path.filename().string();
-        const float lw = ImGui::CalcTextSize(label.c_str()).x;
-        const ImVec2 label_at(p0.x + (cell - lw) * center_offset_ratio, at.y + art + icon_label_y_offset_px);
-        dl->AddText(label_at, rv_editor_col(theme.text), label.c_str());
-        ImGui::PopID();
-    }
 }
 
 // The selected resource's sound duration: read once per selection, refreshed only if the file changed since.
@@ -429,7 +339,8 @@ double rv_editor_assets_seconds(const rv_editor_asset &selected)
 rv_editor_size rv_editor_assets_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_assets_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block());
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(),
+        { rv_editor_assets_floor() });
 }
 
 void rv_editor_pane_assets(rv_editor_app &app,
@@ -482,18 +393,20 @@ void rv_editor_pane_assets(rv_editor_app &app,
     }
     const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
 
-    (void)rv_editor_tiled_area_begin("##assets_area", rv_editor_assets_content_width(), theme, {}, false, 0.0f, strip_h);
+    (void)rv_editor_tiled_area_begin("##assets_area",
+        rv_editor_assets_content_width(),
+        theme,
+        { rv_editor_assets_floor() },
+        false,
+        0.0f,
+        strip_h);
     const std::string filtered = rv_editor_text_format("pane_assets.no_match_filter", std::make_format_args(ui.filter));
     const char *empty_message = !app.project.open ? rv_editor_text("panes.no_project_open_message") :
         files.empty()                             ? rv_editor_text("pane_assets.no_resources") :
         ui.filter[0] == '\0'                      ? rv_editor_text("pane_assets.no_match_folder") :
                                                     filtered.c_str();
     char *clear_filter = app.project.open && !files.empty() && ui.filter[0] != '\0' ? ui.filter : nullptr;
-    if (ui.details) {
-        rv_editor_assets_table(app, shown, empty_message, clear_filter, ui_port, theme);
-    } else {
-        rv_editor_assets_grid(app, renderer, shown, empty_message, clear_filter, ui_port, theme);
-    }
+    rv_editor_assets_table(app, shown, empty_message, clear_filter, ui_port, theme);
     rv_editor_asset_picture_show(picture, ImGui::GetContentRegionAvail().x, ImGui::GetFontSize() * preview_picture_height_em);
     rv_editor_tiled_area_end(theme);
     const int pressed = rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w, &states);

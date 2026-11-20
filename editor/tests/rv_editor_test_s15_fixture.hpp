@@ -269,23 +269,22 @@ struct fixture {
         };
     }
 
-    // The resources of `where/full` as the cells of the grid, in the order Assets sorts them: gfx/hero.png,
+    // The resources of `where/full` as the rows of the table, in the order Assets sorts them: gfx/hero.png,
     // models/ship.glb, notes/readme.txt, notes/<long>.txt, sfx/beep.wav.
     void select_asset(size_t index, float width, float height)
     {
-        app().assets_ui.details = false;
         const auto record = settled(width, height);
         size_t seen = 0;
         for (const auto &e : record.entries) {
-            if (e.label == "##cell" && seen++ == index) {
+            if (e.label.ends_with("###row") && seen++ == index) {
                 click(e, width, height);
                 break;
             }
         }
     }
 
-    // --- Assets: no project, empty, filter without matches, grid, table, then the preview of a picture, a sound, a
-    // model and a text.
+    // --- Assets: no project, empty, filter without matches, the table, the table of one folder, then the preview of a picture,
+    // a sound, a model and a text.
     void assets_states()
     {
         const auto in_full = [this] {
@@ -309,11 +308,10 @@ struct fixture {
             },
             [this, in_full] {
                 in_full();
-                app().assets_ui.details = false;
             },
             [this, in_full] {
                 in_full();
-                app().assets_ui.details = true;
+                app().assets_ui.folder = 1;
             },
             [this, in_full] {
                 in_full();
