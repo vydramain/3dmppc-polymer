@@ -109,7 +109,7 @@ RV_EDITOR_TEST(rv_editor_test_s22_empty_areas_of_session_candidate_and_observe_s
         size_t area_count;
     };
     for (const empty_state &s : { empty_state{ rv_editor_pane_kind::session, 1, 2 },
-             empty_state{ rv_editor_pane_kind::candidate, 1, 3 },
+             empty_state{ rv_editor_pane_kind::candidate, 1, 1 },
              empty_state{ rv_editor_pane_kind::observe, 1, 3 } }) {
         const auto r = s17::at_roomy(gui, s.kind, s.state);
         const auto areas = s17::areas(r);

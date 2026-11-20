@@ -22,9 +22,8 @@ bool rv_editor_facts_table_open = false; // false while the area is clipped away
 
 } // namespace
 
-void rv_editor_facts_begin(const char *id, ImVec2 size, const rv_editor_theme &theme)
+void rv_editor_facts_table_begin()
 {
-    rv_editor_content_begin(id, size, theme);
     rv_editor_facts_rows = 0;
     const rv_editor_table_column columns[] = {
         { "", rv_editor_table_width::fixed, 0.0f, 0.0f, true },
@@ -32,6 +31,19 @@ void rv_editor_facts_begin(const char *id, ImVec2 size, const rv_editor_theme &t
     };
     rv_editor_facts_table_open =
         rv_editor_table_begin("##facts", columns, 2, { false, false, false, rv_editor_table_sizing::fixed_fit });
+}
+
+void rv_editor_facts_table_end()
+{
+    if (rv_editor_facts_table_open) {
+        rv_editor_table_end();
+    }
+}
+
+void rv_editor_facts_begin(const char *id, ImVec2 size, const rv_editor_theme &theme)
+{
+    rv_editor_content_begin(id, size, theme);
+    rv_editor_facts_table_begin();
 }
 
 rv_editor_facts_row_result rv_editor_facts_row(const char *key, const char *value, const rv_editor_theme &theme)
@@ -74,9 +86,7 @@ rv_editor_facts_row_result rv_editor_facts_row(const char *key, const char *valu
 
 void rv_editor_facts_end(const rv_editor_theme &theme)
 {
-    if (rv_editor_facts_table_open) {
-        rv_editor_table_end();
-    }
+    rv_editor_facts_table_end();
     rv_editor_content_end(theme);
 }
 

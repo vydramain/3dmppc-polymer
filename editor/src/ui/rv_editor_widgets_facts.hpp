@@ -13,6 +13,10 @@ namespace rv_editor
 // Opens the facts area; `size` works as for rv_editor_content_begin. Always pair with rv_editor_facts_end.
 void rv_editor_facts_begin(const char *id, ImVec2 size, const rv_editor_theme &theme);
 
+// The facts table alone, for a facts section inside a content area that holds more than facts. Always pair them.
+void rv_editor_facts_table_begin();
+void rv_editor_facts_table_end();
+
 // Where a fact's key and value were drawn, in screen pixels; the value's rectangle is as wide as its whole text.
 struct rv_editor_facts_row_result {
     ImVec2 key_min, key_max;

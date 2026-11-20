@@ -385,8 +385,7 @@ void rv_editor_candidate_facts(const rv_editor_app &app, const rv_editor_candida
 rv_editor_size rv_editor_candidate_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_candidate_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block(),
-        { rv_editor_tiled_floor(), rv_editor_tiled_floor(), rv_editor_tiled_floor() });
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_box_block());
 }
 
 rv_editor_size rv_editor_checks_minimum()
@@ -417,24 +416,26 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
     if (!rv_editor_say_no_project(app, theme, width)) {
         rv_editor_candidate_say(app, c, theme, width);
     }
-    (void)rv_editor_tiled_area_begin("##list_area",
-        width,
-        theme,
-        { rv_editor_tiled_floor(), rv_editor_tiled_floor(), rv_editor_tiled_floor() });
+    // One area: the candidates, the chosen one's facts and its checks are its sections.
+    (void)rv_editor_tiled_area_begin("##area", width, theme);
+    rv_editor_content_section_begin(rv_editor_text("pane_candidate.candidates_title"), 0.0f, theme);
+    rv_editor_content_section_end(theme);
     rv_editor_candidate_list(app, theme);
-    rv_editor_tiled_area_end(theme);
-    (void)rv_editor_tiled_area_begin("##facts_area",
-        width,
-        theme,
-        { rv_editor_tiled_floor(), rv_editor_tiled_floor() },
-        c != nullptr);
+    const auto num = c != nullptr ? std::to_string(c->number) : std::string();
+    const std::string facts_title = c != nullptr ?
+        rv_editor_text_format("pane_candidate.facts_title", std::make_format_args(num)) :
+        std::string(rv_editor_text("pane_candidate.candidate_row"));
+    rv_editor_content_section_begin(facts_title.c_str(), 0.0f, theme);
+    rv_editor_content_section_end(theme);
     if (c != nullptr) {
+        rv_editor_facts_table_begin();
         rv_editor_candidate_facts(app, *c, theme);
+        rv_editor_facts_table_end();
     } else if (app.project.open) {
         rv_editor_content_empty_row(rv_editor_text("pane_candidate.facts_empty"), theme);
     }
-    rv_editor_tiled_area_end(theme);
-    (void)rv_editor_tiled_area_begin("##checks_area", width, theme);
+    rv_editor_content_section_begin(rv_editor_text("pane_candidate.checks_separator"), 0.0f, theme);
+    rv_editor_content_section_end(theme);
     if (c != nullptr) {
         rv_editor_candidate_checks(app, *c, theme);
     } else if (app.project.open) {

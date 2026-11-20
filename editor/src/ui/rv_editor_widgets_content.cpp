@@ -189,7 +189,8 @@ void rv_editor_content_section_begin(const char *title, float controls_width, co
     // The title is a disabled Selectable over the full width, centred in a row as high as the controls.
     ImGui::PushStyleColor(ImGuiCol_TextDisabled, rv_editor_col(theme.code_text));
     ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
-    ImGui::Selectable((std::string(title) + "###title").c_str(), false, inert_row_flags, ImVec2(0.0f, height));
+    // The title is its own id, so the sections of one area do not share one.
+    ImGui::Selectable(title, false, inert_row_flags, ImVec2(0.0f, height));
     ImGui::PopStyleVar();
     ImGui::PopStyleColor();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCurrentWindow()->InnerRect.Max.x - controls_width, pos.y));

@@ -1,5 +1,5 @@
 // S17 review findings: Export without a project keeps its whole form and both shelves (inactive, with a reason), and the
-// three areas of Candidate share the free height equally.
+// the one area of Candidate takes the free height.
 
 #include <cmath>
 #include <cstdio>
@@ -115,20 +115,15 @@ RV_EDITOR_TEST(rv_editor_test_s17_export_buttons_without_a_project_are_inactive_
     RV_EDITOR_CHECK(!fs::exists(f.where / "export", ec));
 }
 
-// R20, AC21: in a roomy tile the list, the facts and the checks of Candidate get equal shares of the free height.
-RV_EDITOR_TEST(rv_editor_test_s17_candidate_areas_share_the_free_height_equally)
+// S10 (R20 rewritten): Candidate is one content area, and in a roomy tile it takes the free height.
+RV_EDITOR_TEST(rv_editor_test_s17_candidate_is_one_area_taking_the_free_height)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
     const auto r = at_roomy(gui, rv_editor_pane_kind::candidate, candidate_several);
     const auto a = areas(r);
-    RV_EDITOR_CHECK(a.size() == 3);
-    if (a.size() == 3) {
-        const float h0 = a[0]->y1 - a[0]->y0;
-        for (const auto *e : a) {
-            const float h = e->y1 - e->y0;
-            report(std::fabs(h - h0) > 2.0f ? "area heights " + std::to_string(h0) + " and " + std::to_string(h) : "");
-            RV_EDITOR_CHECK(std::fabs(h - h0) <= 2.0f);
-        }
+    RV_EDITOR_CHECK(a.size() == 1);
+    if (a.size() == 1) {
+        RV_EDITOR_CHECK(a[0]->y1 - a[0]->y0 > roomy_h * 0.6f);
     }
 }

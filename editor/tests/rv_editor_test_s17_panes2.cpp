@@ -102,7 +102,7 @@ RV_EDITOR_TEST(rv_editor_test_s17_candidate_checks_are_a_table_in_a_content_area
     const auto rows = labelled(r, "##check");
     RV_EDITOR_CHECK(rows.size() == check_count);
     RV_EDITOR_CHECK(one_width_in_area(rows));
-    RV_EDITOR_CHECK(areas(r).size() >= 2); // the facts and the checks have an area each
+    RV_EDITOR_CHECK(areas(r).size() == 1); // S10: the records, the facts and the checks are sections of one area
 }
 
 // R8, R11: the decision buttons are on a shelf (not in an area), in one row, each in one rectangle in every state with a
