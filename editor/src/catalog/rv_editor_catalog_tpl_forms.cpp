@@ -7,12 +7,12 @@
 
 #include "catalog/rv_editor_catalog_templates.hpp"
 #include "panes/rv_editor_pane_controls.hpp"
-#include "panes/rv_editor_pane_mark_tools.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_content.hpp"
 #include "ui/rv_editor_widgets_form.hpp"
 #include "ui/rv_editor_widgets_mode.hpp"
+#include "ui/rv_editor_widgets_strip_status.hpp"
 
 namespace rv_editor
 {
@@ -142,22 +142,15 @@ void transport_draw(int state, const rv_editor_theme &theme)
         T("transport_running"),
         T("transport_paused"),
         T("transport_failed") };
-    const rv_editor_label_kind kinds[] = { rv_editor_label_kind::dim,
-        rv_editor_label_kind::warning,
-        rv_editor_label_kind::normal,
-        rv_editor_label_kind::normal,
-        rv_editor_label_kind::error };
     rv_editor_shelf_begin("##strip", theme);
     rv_editor_transport_bar(buttons, theme, rv_editor_transport_column_min_width());
     ImGui::SameLine();
     ImGui::BeginGroup();
     rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, { .disabled = building ? nullptr : nothing });
-    ImGui::SameLine();
-    static char note[64] = "";
-    ImGui::SetNextItemWidth(std::max(rv_editor_mark_note_min_width(), ImGui::GetContentRegionAvail().x));
-    rv_editor_text_field("##note", note, sizeof(note), theme);
-    rv_editor_label(messages[state], kinds[state], theme, rv_editor_label_layout::line);
     ImGui::EndGroup();
+    rv_editor_strip_status(messages[state],
+        std::max(rv_editor_transport_status_min_width(), ImGui::GetContentRegionAvail().x),
+        theme);
     rv_editor_shelf_end();
 }
 

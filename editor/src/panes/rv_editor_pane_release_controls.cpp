@@ -1,5 +1,5 @@
 // Release Controls strip: the transport template with five squares (Build, Run, Run in Player, Stop and Export Report), then
-// a column of two rows: the action slot (Force Stop or Cancel Build) and the message row with the facts and the open checks.
+// the action slot (Force Stop or Cancel Build); under them all, a status with the facts and the first open check.
 
 #include "panes/rv_editor_panes.hpp"
 
@@ -18,112 +18,11 @@
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_status.hpp"
+#include "ui/rv_editor_widgets_strip_status.hpp"
 #include "ui/rv_editor_widgets_tile.hpp"
 
 namespace rv_editor
 {
-
-namespace
-{
-
-// Text of the "+N" chip: how many open checks the row has no room for.
-std::string rv_editor_more_text(size_t rest)
-{
-    const int count = static_cast<int>(rest);
-    return rv_editor_text_format("pane_candidate.more_not_passed", std::make_format_args(count));
-}
-
-// The checks of `c` that do not count as Passed, after the facts on the row: chips while each still fits `width`, and
-// nothing at all when not even the first element does. A "+N" chip takes the rest; its hover lists their names. Hovering a
-// chip anywhere shows its note (what was seen) or, without one, what a Passed claims.
-void rv_editor_checks_content(const rv_editor_candidate &c, float width, const rv_editor_theme &theme)
-{
-    const auto counts = [&c](const rv_editor_check &check) {
-        return check.state == rv_editor_check_state::passed && rv_editor_check_valid(c, check);
-    };
-    if (std::all_of(c.checks.begin(), c.checks.end(), counts)) {
-        const char *all = rv_editor_text("pane_candidate.all_checks_passed");
-        if (ImGui::CalcTextSize(all).x <= width) {
-            ImGui::SameLine();
-            rv_editor_label(all, rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
-        }
-        return;
-    }
-    std::vector<const rv_editor_check *> open;
-    for (const rv_editor_check &check : c.checks) {
-        if (!counts(check)) {
-            open.push_back(&check);
-        }
-    }
-    const char *label = rv_editor_text("pane_candidate.not_passed_label");
-    float used = ImGui::CalcTextSize(label).x;
-    if (used > width) {
-        return;
-    }
-    ImGui::SameLine();
-    rv_editor_label(label, rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
-    const float gap = ImGui::GetStyle().ItemSpacing.x;
-    const size_t count = open.size();
-    // Upper bound of the "+N" chip's width: its text at the full count is the widest it gets.
-    const float more_room = gap + ImGui::CalcTextSize(rv_editor_more_text(count).c_str()).x;
-    size_t shown = 0;
-    for (; shown < count; ++shown) {
-        const rv_editor_check &check = *open[shown];
-        // A chip is kept only with room left for the "+N" chip when checks remain after it.
-        const size_t rest = count - shown - 1;
-        const float chip = gap + rv_editor_status_width(check.name, rv_editor_check_lamp(c, check), theme);
-        const float more = rest == 0 ? 0.0f : more_room;
-        if (used + chip + more > width) {
-            break;
-        }
-        used += chip;
-        ImGui::SameLine();
-        ImGui::BeginGroup();
-        rv_editor_status(check.name, rv_editor_check_lamp(c, check), theme, false);
-        ImGui::EndGroup();
-        rv_editor_item_tooltip(check.note.empty() ? check.passes_when : check.note.c_str());
-    }
-    if (shown < count && used + more_room <= width) {
-        std::string names;
-        for (size_t i = shown; i < count; ++i) {
-            if (!names.empty()) {
-                names += '\n';
-            }
-            names += open[i]->name;
-        }
-        const std::string more = rv_editor_more_text(count - shown);
-        ImGui::SameLine();
-        ImGui::BeginGroup();
-        rv_editor_label(more.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
-        ImGui::EndGroup();
-        rv_editor_item_tooltip(names.c_str());
-    }
-}
-
-// The message row, a window of one size in every state that clips what it holds: the facts, then the open checks as chips
-// in what the facts leave. Hovering the facts shows the sha256.
-void rv_editor_release_message(const rv_editor_release_facts &facts,
-    const rv_editor_candidate *shown,
-    float width,
-    const rv_editor_theme &theme)
-{
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::BeginChild("##message",
-        ImVec2(width, ImGui::GetTextLineHeight()),
-        ImGuiChildFlags_None,
-        ImGuiWindowFlags_NoScrollbar);
-    rv_editor_label(facts.first_line.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
-    const std::string tip = shown != nullptr ? rv_editor_release_number_tooltip(*shown) : facts.first_line;
-    rv_editor_item_tooltip(tip.c_str());
-    if (shown != nullptr && facts.second_line) {
-        const float gap = ImGui::GetStyle().ItemSpacing.x;
-        rv_editor_checks_content(*shown, width - ImGui::CalcTextSize(facts.first_line.c_str()).x - gap, theme);
-    }
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-}
-
-} // namespace
 
 rv_editor_size rv_editor_release_controls_minimum()
 {
@@ -133,10 +32,6 @@ rv_editor_size rv_editor_release_controls_minimum()
 
 void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    if (!app.project.open) {
-        rv_editor_open_project_row(app, theme);
-        return;
-    }
     // Only controls, no separate content: the whole pane is a shelf.
     rv_editor_shelf_begin("##shelf", theme);
 
@@ -246,12 +141,12 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
-    // Never narrower than the longest facts: the tile's minimum is real.
-    rv_editor_release_message(facts,
-        shown,
-        std::max(rv_editor_release_column_min_width(), ImGui::GetContentRegionAvail().x),
-        theme);
     ImGui::EndGroup();
+    // The status under the squares and the slot, as wide as the tile; its minimum width wraps the longest facts into its two
+    // lines.
+    const std::string text = app.project.open ? facts.first_line : rv_editor_text("panes.status_no_project");
+    const std::string tip = shown != nullptr && app.project.open ? rv_editor_release_number_tooltip(*shown) : std::string();
+    rv_editor_strip_status(text, std::max(rv_editor_release_status_min_width(), ImGui::GetContentRegionAvail().x), theme, tip);
     rv_editor_shelf_end();
 }
 

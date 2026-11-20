@@ -215,7 +215,7 @@ struct states {
         auto &building = add("building").app;
         script_build(building,
             where,
-            "echo 'mppcburner: [plan] a b c' >&2\necho 'mppcburner: [2/3] xxxxxxxxxxxxxxxx' >&2\nsleep 30\n");
+            "echo 'mppcburner: [plan] a xxxxxxxxxxxxxxxx c' >&2\necho 'mppcburner: [2/3] xxxxxxxxxxxxxxxx' >&2\nsleep 30\n");
         std::string error;
         for (int i = 0; i < 100 && building.build.progress().runs.empty(); ++i) {
             building.build.update(building.log, error);
@@ -438,12 +438,12 @@ inline bool inside(const rv_editor_probe_entry &e, const rv_editor_probe_entry &
 }
 
 // "" when both records have the same items in the same rectangles, in order, leaving out what lies inside the action slot
-// (`##action`) and the message row (`##message`): their windows are compared, what they hold changes with the state.
+// (`##action`) and the message row (`##status`): their windows are compared, what they hold changes with the state.
 inline std::string outer_difference(const rv_editor_probe_record &a, const rv_editor_probe_record &b)
 {
     const auto outer = [](const rv_editor_probe_record &r) {
         std::vector<rv_editor_probe_entry> out;
-        const rv_editor_probe_entry *boxes[] = { child_named(r, "##action"), child_named(r, "##message") };
+        const rv_editor_probe_entry *boxes[] = { child_named(r, "##action"), child_named(r, "##status") };
         for (const auto &e : r.entries) {
             bool held = false;
             for (const auto *box : boxes) {

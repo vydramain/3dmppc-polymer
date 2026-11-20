@@ -1,4 +1,4 @@
-// Runtime Controls: the transport bar, its action slot and the message row.
+// Runtime Controls: the transport bar, its action slot and the status under them.
 
 #include "panes/rv_editor_pane_controls.hpp"
 
@@ -12,6 +12,7 @@
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_steps.hpp"
+#include "ui/rv_editor_widgets_strip_status.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -50,6 +51,23 @@ rv_editor_controls_message_text rv_editor_controls_message(const rv_editor_contr
             why + " " + rv_editor_text("panes.restart_loses_state") };
     }
     return {};
+}
+
+std::string rv_editor_controls_status(const rv_editor_controls_status_input &in)
+{
+    if (!in.project_open) {
+        return rv_editor_text("panes.status_no_project");
+    }
+    const char *state = rv_editor_run_state_name(in.run_state);
+    const uint32_t number = in.session_number;
+    std::string text =
+        number == 0 ? std::string(state) : rv_editor_text_format("panes.status_session", std::make_format_args(state, number));
+    // The message wins over the build's step, as it did on the message line.
+    std::string more = rv_editor_controls_message(in.message).brief;
+    if (more.empty() && in.build_number != 0 && !in.build_step.empty()) {
+        more = rv_editor_text_format("panes.status_build", std::make_format_args(in.build_number, in.build_step));
+    }
+    return more.empty() ? text : rv_editor_text_format("panes.status_join", std::make_format_args(text, more));
 }
 
 namespace
@@ -127,18 +145,6 @@ const char *rv_editor_why_not_reload_shown(const rv_editor_app &app)
     return rv_editor_app_why_not_reload(app);
 }
 
-// One reserved single line, `width` wide (0 = what remains of the row): `text`
-// clips rather than wraps, so this row never splits into two. Hovering shows
-// `full`, or `text` in full when `full` is empty.
-void rv_editor_reserved_line(const char *id,
-    const std::string &text,
-    float width,
-    const rv_editor_theme &theme,
-    const std::string &full = {})
-{
-    rv_editor_message_line(id, text.c_str(), 1, width, theme, full.c_str());
-}
-
 } // namespace
 
 float rv_editor_controls_action_slot_width(const rv_editor_theme &theme)
@@ -157,10 +163,6 @@ float rv_editor_controls_action_slot_width(const rv_editor_theme &theme)
 void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
 {
     const rv_editor_session &s = app.session;
-    if (!app.project.open) {
-        rv_editor_open_project_row(app, theme);
-        return;
-    }
     // Only controls, no separate content: the whole pane is a shelf.
     rv_editor_shelf_begin("##shelf", theme);
     // Reload's target while the session is live: the running build's map says
@@ -254,8 +256,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     if (clicked.build_restart) {
         rv_editor_app_build_restart(app);
     }
-    // The right column beside the tiles has two rows: the action slot, then the message row. The
-    // slot is always drawn, at the one width, in a clipping area, so what it holds never moves the items after it.
+    // The action slot beside the tiles is always drawn, at the one width, in a clipping area, so what it holds never moves the
+    // items after it.
     const float slot_w = rv_editor_controls_action_slot_width(theme);
     ImGui::SameLine();
     ImGui::BeginGroup();
@@ -265,7 +267,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::EndChild();
     ImGui::PopStyleColor();
 
-    rv_editor_controls_message_text message = rv_editor_controls_message({ action == rv_editor_action_kind::force_stop,
+    const rv_editor_controls_message_text message = rv_editor_controls_message({ action == rv_editor_action_kind::force_stop,
         s.hung(),
         s.uncertain(),
         detail,
@@ -273,15 +275,32 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         offer_build_restart,
         !can_reload,
         plan.reason });
-    // A build's steps fill the line when nothing more urgent does.
-    if (message.brief.empty() && (app.build.busy() || app.build.state() == rv_editor_build_state::failed)) {
-        message.brief = rv_editor_steps_compact(app.build.progress());
-    }
-
-    // The second row is the message alone, never narrower than the longest message; the facts and the profile live elsewhere.
-    const float message_w = std::max(rv_editor_transport_column_min_width(), ImGui::GetContentRegionAvail().x);
-    rv_editor_reserved_line("##message", message.brief, message_w, theme, message.full);
     ImGui::EndGroup();
+    // The status under the buttons and the slot, as wide as the tile; its minimum width wraps the longest status into two
+    // lines.
+    const bool build_shown = app.build.busy() || app.build.state() == rv_editor_build_state::failed;
+    // A build without a step to name (failed before one) says its state instead.
+    std::string step = build_shown ? rv_editor_steps_compact(app.build.progress()) : std::string();
+    if (build_shown && step.empty()) {
+        step = rv_editor_build_state_name(app.build.state());
+    }
+    const std::string status = rv_editor_controls_status({ app.project.open,
+        s.state(),
+        s.number(),
+        build_shown ? app.build.number() : 0,
+        step,
+        { action == rv_editor_action_kind::force_stop,
+            s.hung(),
+            s.uncertain(),
+            detail,
+            outcome,
+            offer_build_restart,
+            !can_reload,
+            plan.reason } });
+    rv_editor_strip_status(status,
+        std::max(rv_editor_transport_status_min_width(), ImGui::GetContentRegionAvail().x),
+        theme,
+        app.project.open ? message.full : std::string());
     rv_editor_shelf_end();
 }
 

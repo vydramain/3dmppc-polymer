@@ -1,6 +1,6 @@
 // S14, R14, AC15: Release Controls is the transport template with five buttons: Build, Run, Run in Player, Stop and Export
-// Report, then a right column of the action slot (Cancel Build or Force Stop) and a message row that holds the facts and
-// the chips of the open checks, constant in size and clipping what does not fit. Under 640 px the buttons are small and
+// Report, then a right column of the action slot (Cancel Build or Force Stop) and a status line with the facts and the first
+// check not passed, constant in size and clipping what does not fit. Under 640 px the buttons are small and
 // carry no visible label, from 640 px they are large with one.
 
 #include <algorithm>
@@ -127,9 +127,9 @@ RV_EDITOR_TEST(rv_editor_test_s14_release_height_is_the_height_of_its_strip_at_e
         draw_at(gui, *all.shells[all.project_from], kind, labels_from - 1.0f, 400.0f).content_height);
 }
 
-// R14, R2: the message row is a window of one rectangle in every state; the longest facts (a building candidate with a six
-// digit number) fit it whole at the minimum width, and the chips of the open checks lie inside it.
-RV_EDITOR_TEST(rv_editor_test_s14_release_message_row_holds_the_longest_facts_and_the_chips)
+// R14, R11: the status is a window of one rectangle in every state; the longest facts (a building candidate with a six
+// digit number) wrap whole into its two lines at the minimum width.
+RV_EDITOR_TEST(rv_editor_test_s14_release_status_line_holds_the_longest_facts)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -138,9 +138,9 @@ RV_EDITOR_TEST(rv_editor_test_s14_release_message_row_holds_the_longest_facts_an
     RV_EDITOR_CHECK(min.w > 0.0f);
     const rv_editor_candidate longest = candidate(999999, false);
     const std::string facts = rv_editor_release_facts_make(&longest, rv_editor_release_building::candidate).first_line;
-    float need = 0.0f;
+    float two = 0.0f;
     gui.frame([&] {
-        need = ImGui::CalcTextSize(facts.c_str()).x;
+        two = 2.0f * ImGui::GetTextLineHeight();
     });
     for (const float width : { min.w, labels_from, 1280.0f }) {
         if (width < min.w) {
@@ -150,9 +150,9 @@ RV_EDITOR_TEST(rv_editor_test_s14_release_message_row_holds_the_longest_facts_an
         rv_editor_probe_record first_record;
         for (size_t i = all.project_from; i < all.shells.size(); ++i) {
             const auto r = draw_at(gui, *all.shells[i], kind, width, 400.0f);
-            const auto *row = child_named(r, "##message");
+            const auto *row = child_named(r, "##status");
             if (row == nullptr) {
-                std::fprintf(stderr, "  width %.0f, state '%s': no message row window\n", width, all.names[i].c_str());
+                std::fprintf(stderr, "  width %.0f, state '%s': no status line window\n", width, all.names[i].c_str());
             }
             RV_EDITOR_CHECK(row != nullptr);
             if (row == nullptr) {
@@ -160,10 +160,10 @@ RV_EDITOR_TEST(rv_editor_test_s14_release_message_row_holds_the_longest_facts_an
             }
             if (first == nullptr) {
                 first_record = r;
-                first = child_named(first_record, "##message");
+                first = child_named(first_record, "##status");
             } else if (row->x0 != first->x0 || row->y0 != first->y0 || row->x1 != first->x1 || row->y1 != first->y1) {
                 std::fprintf(stderr,
-                    "  width %.0f, state '%s': message row %s became %s\n",
+                    "  width %.0f, state '%s': status line %s became %s\n",
                     width,
                     all.names[i].c_str(),
                     rv_editor_probe_detail::rect(*first).c_str(),
@@ -172,20 +172,21 @@ RV_EDITOR_TEST(rv_editor_test_s14_release_message_row_holds_the_longest_facts_an
             if (first != nullptr) {
                 RV_EDITOR_CHECK(row->x0 == first->x0 && row->y0 == first->y0 && row->x1 == first->x1 && row->y1 == first->y1);
             }
-            if (row->x1 - row->x0 < need) {
+            float need = 0.0f;
+            const float room = row->x1 - row->x0;
+            gui.frame([&] {
+                need = ImGui::CalcTextSize(facts.c_str(), nullptr, false, room).y;
+            });
+            if (need > two + 0.5f) {
                 std::fprintf(stderr,
-                    "  width %.0f, state '%s': message row %.1f px, longest facts %.1f px\n",
+                    "  width %.0f, state '%s': status %.1f px wide, the longest facts need %.1f px high of %.1f\n",
                     width,
                     all.names[i].c_str(),
-                    row->x1 - row->x0,
-                    need);
+                    room,
+                    need,
+                    two);
             }
-            RV_EDITOR_CHECK(row->x1 - row->x0 >= need);
-            for (const auto &e : r.entries) {
-                if (e.y0 >= row->y0 && e.y1 <= row->y1 && e.x0 >= row->x0 && &e != row) {
-                    RV_EDITOR_CHECK(e.x1 <= row->x1 + 0.5f); // the chips stay in the row
-                }
-            }
+            RV_EDITOR_CHECK(need <= two + 0.5f);
         }
     }
 }

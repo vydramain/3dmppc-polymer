@@ -1,5 +1,5 @@
 // The transport strip (Runtime Controls): one row of fixed height whose button size follows only the width, a
-// minimum that holds the longest message, the same rectangles in every state.
+// minimum that holds the slot and wraps the longest message into the status's two lines, the same rectangles in every state.
 
 #include <sys/stat.h>
 
@@ -33,7 +33,7 @@ namespace
 constexpr auto controls = rv_editor_pane_kind::controls;
 constexpr float labels_from = 640.0f; // R14: buttons carry labels from this width, by width alone
 
-// The longest message a state can show: build number up to 6 digits, step up to 99/99, name up to 16 characters.
+// The longest status a state can show: a build number up to 6 digits, a step name up to 16 characters.
 const std::string longest_message = "Build #999999 step 99/99: " + std::string(16, 'x');
 
 rv_editor_probe_record draw_settled(rv_editor_test_imgui &gui, rv_editor_shell &shell, float width, float height = 300.0f)
@@ -165,8 +165,8 @@ struct strip_states {
 
 } // namespace
 
-// R14, R5: the minimum is computed from the template at its limits, never from the state: six small buttons, the
-// slot and the longest message are all inside it (the mark note is in Session's Notes, not here).
+// R14, R5: the minimum is computed from the template at its limits, never from the state: six small buttons and the
+// slot are inside it; the status wraps its text, so it sets no width of its own (the mark note is in Session's Notes).
 RV_EDITOR_TEST(rv_editor_test_transport_min_width_holds_the_longest_message)
 {
     std::string error;
@@ -176,10 +176,8 @@ RV_EDITOR_TEST(rv_editor_test_transport_min_width_holds_the_longest_message)
         const float w = rv_editor_transport_min_width();
         const ImGuiStyle &style = ImGui::GetStyle();
         const float buttons_w = 6.0f * ImGui::GetFrameHeight() + 5.0f * style.ItemSpacing.x;
-        const float message_w = ImGui::CalcTextSize(longest_message.c_str()).x;
         // The right column holds the slot; neither the mark tiles nor the note field are in the strip.
         const float slot_w = rv_editor_controls_action_slot_width(theme);
-        RV_EDITOR_CHECK(w >= buttons_w + style.ItemSpacing.x + message_w);
         RV_EDITOR_CHECK(w >= buttons_w + style.ItemSpacing.x + slot_w);
     });
 }
@@ -354,7 +352,7 @@ RV_EDITOR_TEST(rv_editor_test_transport_fits_whole_in_every_state)
     RV_EDITOR_CHECK(!rv_editor_check_pane_states(gui, *states.shells[0], controls, { [] {} }, narrow).empty());
 }
 
-// R2, R14: the right column is as wide as the longest message at every width around the label threshold (the build
+// R2, R14: the status wraps the longest message into its two lines at every width around the label threshold (the build
 // number and the step cannot be forged here, so the width of the message row is checked against the template).
 RV_EDITOR_TEST(rv_editor_test_transport_message_row_holds_the_longest_message)
 {
@@ -367,29 +365,37 @@ RV_EDITOR_TEST(rv_editor_test_transport_message_row_holds_the_longest_message)
     if (min <= 0.0f) {
         return;
     }
-    float need = 0.0f;
+    float two = 0.0f;
     gui.frame([&] {
-        need = ImGui::CalcTextSize(longest_message.c_str()).x;
+        two = 2.0f * ImGui::GetTextLineHeight();
     });
     for (const float width : { min, labels_from - 1.0f, labels_from, labels_from + 1.0f, 900.0f, 1280.0f }) {
         rv_editor_shell &shell = *states.shells[1];
         const auto r = draw_settled(gui, shell, width, 400.0f);
         const rv_editor_probe_entry *message = nullptr;
         for (const auto &e : r.entries) {
-            if (e.label.find("##message") != std::string::npos) {
+            if (e.label.find("##status") != std::string::npos) {
                 message = &e;
             }
         }
         RV_EDITOR_CHECK(message != nullptr);
         if (message != nullptr) {
-            if (message->x1 - message->x0 < need) {
+            // The status is two text lines high; the longest build text wraps whole into them.
+            float need = 0.0f;
+            const float room = message->x1 - message->x0;
+            gui.frame([&] {
+                need = ImGui::CalcTextSize(longest_message.c_str(), nullptr, false, room).y;
+            });
+            if (need > two + 0.5f || std::fabs((message->y1 - message->y0) - two) > 0.5f) {
                 std::fprintf(stderr,
-                    "  width %.0f: message row %.1f px, longest message %.1f px\n",
+                    "  width %.0f: status %.1f px wide, %.1f high; the longest text needs %.1f high\n",
                     width,
-                    message->x1 - message->x0,
+                    room,
+                    message->y1 - message->y0,
                     need);
             }
-            RV_EDITOR_CHECK(message->x1 - message->x0 >= need);
+            RV_EDITOR_CHECK(need <= two + 0.5f);
+            RV_EDITOR_CHECK(std::fabs((message->y1 - message->y0) - two) <= 0.5f);
         }
         const minimum tile{ width, std::ceil(strip_height(gui, width)) };
         const std::string bad = rv_editor_check_pane_states(gui, shell, controls, { [] {} }, tile);
@@ -458,7 +464,7 @@ RV_EDITOR_TEST(rv_editor_test_transport_right_column_is_two_rows)
         const auto *slot = find(r, cancel.c_str());
         const rv_editor_probe_entry *message = nullptr;
         for (const auto &e : r.entries) {
-            if (e.label.find("message") != std::string::npos) {
+            if (e.label.find("##status") != std::string::npos) {
                 message = &e;
             }
         }
