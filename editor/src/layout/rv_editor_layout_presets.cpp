@@ -16,24 +16,22 @@ constexpr float code_sidebar_ratio = 0.16f;
 constexpr float code_output_ratio = 0.60f;
 // Code preset: right game panel ratio.
 constexpr float code_game_ratio = 0.60f;
-// Scene preset: left sidebar ratio.
-constexpr float scene_sidebar_ratio = 0.16f;
-// Scene preset: top toolchest ratio above hierarchy.
-constexpr float scene_toolchest_ratio = 0.29f;
-// Scene preset: right game panel ratio.
-constexpr float scene_game_ratio = 0.62f;
-// Scene preset: bottom inspector ratio below game.
-constexpr float scene_inspector_ratio = 0.52f;
+// Scene preset: left column (Scene, Assets, strip) share of the width.
+constexpr float scene_left_ratio = 0.58f;
+// Scene preset: Game share of the right column's height; Hierarchy and Inspector take the rest.
+constexpr float scene_game_ratio = 0.26f;
+// Scene preset: Hierarchy share of the right column below the Game.
+constexpr float scene_hierarchy_ratio = 0.50f;
 // Scene preset: center assets panel ratio.
 constexpr float scene_assets_ratio = 0.55f;
+// Scene preset: Runtime Controls share of the strip along the bottom, the Toolchest takes the rest.
+constexpr float scene_controls_ratio = 0.68f;
 // Debug preset: game and session share above the runtime log.
 constexpr float debug_log_ratio = 0.71f;
 // Debug preset: game share beside the session column.
 constexpr float debug_column_ratio = 0.68f;
-// Burn preset: candidate share of the left column, the logs take the rest.
+// Burn preset: work area (candidate and release column) share of the height; the build log strip takes the rest.
 constexpr float burn_log_ratio = 0.60f;
-// Burn preset: left column (candidate and logs) share of the width; the Game's fit then sets its own width.
-constexpr float burn_column_ratio = 0.45f;
 
 // Builds a tree by inserting panes next to panes already placed.
 struct rv_editor_preset_builder {
@@ -76,54 +74,57 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
     (void)rv_editor_tile_activate(b.layout, output);
 }
 
-// Toolchest over Hierarchy down the left and Game over Inspector down the right,
-// both full height so the Inspector keeps its rows at 1280x720; between them the
-// Scene over a tile of Assets, Files and Console Output (Assets in front) above
-// Runtime Controls.
+// Two columns, so the tree's minimum fits 1280 px: on the left the Scene over a tile of
+// Assets, Files and Console Output (Assets in front) over a strip of Runtime Controls
+// beside the Toolchest; on the right the Game over Hierarchy over Inspector.
 void rv_editor_preset_scene(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id scene = 0;
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, scene_left_ratio);
     const rv_editor_pane_id hierarchy =
-        b.add(rv_editor_pane_kind::hierarchy, scene, rv_editor_tile_dock::left, scene_sidebar_ratio);
-    b.add(rv_editor_pane_kind::toolchest, hierarchy, rv_editor_tile_dock::top, scene_toolchest_ratio);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, scene_game_ratio);
-    b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, scene_inspector_ratio);
+        b.add(rv_editor_pane_kind::hierarchy, game, rv_editor_tile_dock::bottom, scene_game_ratio);
+    b.add(rv_editor_pane_kind::inspector, hierarchy, rv_editor_tile_dock::bottom, scene_hierarchy_ratio);
     const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, scene_assets_ratio);
     b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::output, assets, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, assets);
     // The controls are a strip as tall as their buttons: the assets take the rest.
-    b.add(rv_editor_pane_kind::controls, assets, rv_editor_tile_dock::bottom, 1.0f);
+    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, assets, rv_editor_tile_dock::bottom, 1.0f);
+    b.add(rv_editor_pane_kind::toolchest, controls, rv_editor_tile_dock::right, scene_controls_ratio);
 }
 
-// Debug: the session in front. Runtime Controls as a strip across the top; below
-// it the Game beside Session, Observe and Test Case, the Runtime Log, Findings and
-// Toolchest along the bottom. Code, Files and the Terminal open from Window > New Tile.
+// Debug: the Game column (Runtime Controls strip over the Game) beside Session, Observe
+// and Test Case, the Runtime Log, Findings and Toolchest along the bottom. Code, Files
+// and the Terminal open from Window > New Tile.
 void rv_editor_preset_debug(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
-    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, controls, rv_editor_tile_dock::bottom, 0.0f);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, log, rv_editor_tile_dock::top, debug_log_ratio);
-    const rv_editor_pane_id session = b.add(rv_editor_pane_kind::session, game, rv_editor_tile_dock::right, debug_column_ratio);
+    const rv_editor_pane_id log =
+        b.add(rv_editor_pane_kind::runtime_log, controls, rv_editor_tile_dock::bottom, debug_log_ratio);
+    const rv_editor_pane_id session =
+        b.add(rv_editor_pane_kind::session, controls, rv_editor_tile_dock::right, debug_column_ratio);
+    // The controls are a strip as tall as their buttons: the game takes the rest.
+    b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 1.0f);
     b.add(rv_editor_pane_kind::observe, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::test_case, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
-    // A tab, not a strip: the layout tests fix the Game's split and the log leaf.
+    // A tab, not a strip: the layout tests fix the log leaf.
     b.add(rv_editor_pane_kind::toolchest, log, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, session);
     (void)rv_editor_tile_activate(b.layout, log);
 }
 
-// Burn: the release controls as a full-width strip on top; under it the candidate
-// (Export beside it, Candidate in front) over the build log (Playtest Log beside
-// it, Build Log in front) on the left, and the Game the whole remaining height
-// on the right. The Game goes in before the build log so it spans the column.
+// Burn: the candidate (Export beside it, Candidate in front) and the release controls
+// over the Game, in one row on top; the build log (Runtime Log beside it, Build Log in
+// front) as a strip across the full width at the bottom.
 void rv_editor_preset_burn(rv_editor_preset_builder &b)
 {
-    const rv_editor_pane_id controls = 0;
-    const rv_editor_pane_id candidate = b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
-    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, burn_column_ratio);
+    const rv_editor_pane_id candidate = 0;
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, burn_log_ratio);
+    // The release column is as wide as its controls and the Game need; the candidate takes the rest.
+    const rv_editor_pane_id release = b.add(rv_editor_pane_kind::release_controls, candidate, rv_editor_tile_dock::right, 1.0f);
+    // The release controls are a strip as tall as their buttons: the game takes the rest.
+    b.add(rv_editor_pane_kind::game, release, rv_editor_tile_dock::bottom, 0.0f);
     b.add(rv_editor_pane_kind::export_, candidate, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, candidate);
@@ -153,7 +154,7 @@ void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane
     if (preset == rv_editor_layout_preset::scene) {
         first = rv_editor_pane_kind::scene;
     } else if (preset == rv_editor_layout_preset::burn) {
-        first = rv_editor_pane_kind::release_controls;
+        first = rv_editor_pane_kind::candidate;
     } else if (preset == rv_editor_layout_preset::debug) {
         first = rv_editor_pane_kind::controls;
     }

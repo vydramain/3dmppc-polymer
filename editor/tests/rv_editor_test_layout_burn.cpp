@@ -1,5 +1,5 @@
-// The Burn preset's tree: release controls as a full-width strip on top; under it the candidate (with Export) over
-// the logs on the left, and the game spanning the whole remaining height on the right.
+// The Burn preset's tree: the candidate (with Export) beside the release controls over the game, on top; the logs
+// as one strip across the full width at the bottom.
 
 #include "layout/rv_editor_tile.hpp"
 #include "rv_editor_test.hpp"
@@ -36,30 +36,30 @@ RV_EDITOR_TEST(rv_editor_test_layout_burn_tree)
     rv_editor_layout l;
     rv_editor_layout_preset_make(rv_editor_layout_preset::burn, p, l);
 
-    // Root: vertical stack, the release controls strip on top.
+    // Root: the work area on top, the logs strip across the full width below it.
     RV_EDITOR_CHECK(is_split(l, l.root, rv_editor_axis::y));
     if (!is_split(l, l.root, rv_editor_axis::y)) {
         return;
     }
     const rv_editor_tile_split root = l.nodes[l.root].split;
-    RV_EDITOR_CHECK(is_leaf_of(l, p, root.first, { rv_editor_pane_kind::release_controls }));
 
-    // Below: side by side.
-    RV_EDITOR_CHECK(is_split(l, root.second, rv_editor_axis::x));
-    if (!is_split(l, root.second, rv_editor_axis::x)) {
+    // Logs: the build log (+ runtime log) alone as the bottom leaf.
+    RV_EDITOR_CHECK(is_leaf_of(l, p, root.second, { rv_editor_pane_kind::build_log, rv_editor_pane_kind::runtime_log }));
+
+    // Work area: candidate (+ Export) beside a column of release controls over the game.
+    RV_EDITOR_CHECK(is_split(l, root.first, rv_editor_axis::x));
+    if (!is_split(l, root.first, rv_editor_axis::x)) {
         return;
     }
-    const rv_editor_tile_split body = l.nodes[root.second].split;
+    const rv_editor_tile_split work = l.nodes[root.first].split;
+    RV_EDITOR_CHECK(is_leaf_of(l, p, work.first, { rv_editor_pane_kind::candidate, rv_editor_pane_kind::export_ }));
 
-    // Right: the game alone, the whole remaining height.
-    RV_EDITOR_CHECK(is_leaf_of(l, p, body.second, { rv_editor_pane_kind::game }));
-
-    // Left: candidate (+ Export) over the build log (+ runtime log).
-    RV_EDITOR_CHECK(is_split(l, body.first, rv_editor_axis::y));
-    if (!is_split(l, body.first, rv_editor_axis::y)) {
+    // Right column: the release controls strip over the game alone.
+    RV_EDITOR_CHECK(is_split(l, work.second, rv_editor_axis::y));
+    if (!is_split(l, work.second, rv_editor_axis::y)) {
         return;
     }
-    const rv_editor_tile_split column = l.nodes[body.first].split;
-    RV_EDITOR_CHECK(is_leaf_of(l, p, column.first, { rv_editor_pane_kind::candidate, rv_editor_pane_kind::export_ }));
-    RV_EDITOR_CHECK(is_leaf_of(l, p, column.second, { rv_editor_pane_kind::build_log, rv_editor_pane_kind::runtime_log }));
+    const rv_editor_tile_split right = l.nodes[work.second].split;
+    RV_EDITOR_CHECK(is_leaf_of(l, p, right.first, { rv_editor_pane_kind::release_controls }));
+    RV_EDITOR_CHECK(is_leaf_of(l, p, right.second, { rv_editor_pane_kind::game }));
 }

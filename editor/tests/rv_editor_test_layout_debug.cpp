@@ -1,4 +1,4 @@
-// The Debug starting layout: no Session Toolchest, Runtime Controls across the top, the Game as wide as its picture.
+// The Debug starting layout: no Session Toolchest, Runtime Controls over the Game column, the Game as wide as its picture.
 
 #include <algorithm>
 
@@ -58,7 +58,7 @@ constexpr int settle_frames = 40;
 
 // Places Debug in a window of `w` x `h` the way the shell does, frame by frame, with the Game's area measured from
 // its rectangle; returns the width left beside a 320x240 picture in Fit, or -1 when the tree has no Game.
-int game_side_bands(int32_t w, int32_t h, int32_t &controls_w)
+int game_side_bands(int32_t w, int32_t h, int32_t &controls_w, int32_t &game_w)
 {
     rv_editor_shell shell;
     rv_editor_layout_preset_make(rv_editor_layout_preset::debug, shell.ws.panes, shell.ws.layout);
@@ -99,6 +99,7 @@ int game_side_bands(int32_t w, int32_t h, int32_t &controls_w)
         shell.ui.game_area = area;
         // Pane 0 is the Runtime Controls: the preset starts from it.
         controls_w = rects[rv_editor_tile_find(shell.ws.layout, 0)].w;
+        game_w = g.w;
         rv_editor_shell_frame_start(shell);
     }
     const rv_editor_game_view view =
@@ -191,16 +192,30 @@ RV_EDITOR_TEST(rv_editor_test_debug_toolchest_draws_marks_at_1280x720)
     }
 }
 
+// Root: the upper row over the log; the row: the Game column beside the session tabs; the column: controls over Game.
 RV_EDITOR_TEST(rv_editor_test_debug_layout_controls_across_the_top)
 {
     rv_editor_pane_registry panes;
     rv_editor_layout layout;
     rv_editor_layout_preset_make(rv_editor_layout_preset::debug, panes, layout);
     RV_EDITOR_CHECK(is_split(layout, layout.root, rv_editor_axis::y));
-    const rv_editor_tile_split &root = layout.nodes[layout.root].split;
-    // The top child is the controls leaf alone: a strip as wide as the window.
-    RV_EDITOR_CHECK(layout.nodes[root.first].kind == rv_editor_tile_kind::leaf);
-    RV_EDITOR_CHECK(kinds_of(panes, layout, root.first) == std::vector<rv_editor_pane_kind>{ rv_editor_pane_kind::controls });
+    if (!is_split(layout, layout.root, rv_editor_axis::y)) {
+        return;
+    }
+    const uint32_t middle = layout.nodes[layout.root].split.first;
+    RV_EDITOR_CHECK(is_split(layout, middle, rv_editor_axis::x));
+    if (!is_split(layout, middle, rv_editor_axis::x)) {
+        return;
+    }
+    const uint32_t column = layout.nodes[middle].split.first;
+    RV_EDITOR_CHECK(is_split(layout, column, rv_editor_axis::y));
+    if (!is_split(layout, column, rv_editor_axis::y)) {
+        return;
+    }
+    const rv_editor_tile_split &strip = layout.nodes[column].split;
+    // The strip is the controls leaf alone, above the Game leaf alone: one column, not a window-wide bar.
+    RV_EDITOR_CHECK(kinds_of(panes, layout, strip.first) == std::vector<rv_editor_pane_kind>{ rv_editor_pane_kind::controls });
+    RV_EDITOR_CHECK(kinds_of(panes, layout, strip.second) == std::vector<rv_editor_pane_kind>{ rv_editor_pane_kind::game });
 }
 
 RV_EDITOR_TEST(rv_editor_test_debug_layout_game_beside_session_over_log)
@@ -209,24 +224,23 @@ RV_EDITOR_TEST(rv_editor_test_debug_layout_game_beside_session_over_log)
     rv_editor_layout layout;
     rv_editor_layout_preset_make(rv_editor_layout_preset::debug, panes, layout);
     RV_EDITOR_CHECK(is_split(layout, layout.root, rv_editor_axis::y));
-    const uint32_t rest = layout.nodes[layout.root].split.second;
-    // Below the strip: the Game beside the session column, then the log along the bottom.
-    RV_EDITOR_CHECK(is_split(layout, rest, rv_editor_axis::y));
-    if (!is_split(layout, rest, rv_editor_axis::y)) {
+    if (!is_split(layout, layout.root, rv_editor_axis::y)) {
         return;
     }
-    const uint32_t middle = layout.nodes[rest].split.first;
-    const uint32_t bottom = layout.nodes[rest].split.second;
+    const uint32_t middle = layout.nodes[layout.root].split.first;
+    const uint32_t bottom = layout.nodes[layout.root].split.second;
+    // The Game column (controls over Game) beside the session tabs, then the log tabs along the bottom.
     RV_EDITOR_CHECK(is_split(layout, middle, rv_editor_axis::x));
     if (is_split(layout, middle, rv_editor_axis::x)) {
         const rv_editor_tile_split &row = layout.nodes[middle].split;
-        RV_EDITOR_CHECK(kinds_of(panes, layout, row.first) == std::vector<rv_editor_pane_kind>{ rv_editor_pane_kind::game });
+        RV_EDITOR_CHECK(is_split(layout, row.first, rv_editor_axis::y));
         RV_EDITOR_CHECK(leaf_has(panes, layout, row.second, rv_editor_pane_kind::session));
         RV_EDITOR_CHECK(leaf_has(panes, layout, row.second, rv_editor_pane_kind::observe));
         RV_EDITOR_CHECK(leaf_has(panes, layout, row.second, rv_editor_pane_kind::test_case));
     }
     RV_EDITOR_CHECK(leaf_has(panes, layout, bottom, rv_editor_pane_kind::runtime_log));
     RV_EDITOR_CHECK(leaf_has(panes, layout, bottom, rv_editor_pane_kind::findings));
+    RV_EDITOR_CHECK(leaf_has(panes, layout, bottom, rv_editor_pane_kind::toolchest));
 }
 
 RV_EDITOR_TEST(rv_editor_test_preset_fits_game_for_debug_and_burn)
@@ -240,8 +254,11 @@ RV_EDITOR_TEST(rv_editor_test_debug_layout_game_has_no_wide_side_bands)
     const rv_editor_size windows[] = { { 1280, 720 }, { 1280, 480 } };
     for (const rv_editor_size &win : windows) {
         int32_t controls_w = 0;
-        const int bands = game_side_bands(win.w, win.h, controls_w);
+        int32_t game_w = 0;
+        const int bands = game_side_bands(win.w, win.h, controls_w, game_w);
         RV_EDITOR_CHECK(bands >= 0 && bands <= 16);
-        RV_EDITOR_CHECK(controls_w == win.w);
+        // The strip is as wide as the Game column, not as the window.
+        RV_EDITOR_CHECK(controls_w == game_w);
+        RV_EDITOR_CHECK(controls_w < win.w);
     }
 }
