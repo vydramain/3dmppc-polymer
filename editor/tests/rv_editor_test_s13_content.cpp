@@ -1,7 +1,8 @@
 // S13, R4/R19/R20, AC5: what each converted pane puts where. The logs keep their lines in a content area under a shelf
-// and a header, with no message block (a message is the strip under the area, see the strip tests); Problems keeps a build
-// failure in the message box (no ask place), the summary over the table at one place, the table in the content area and its
-// level column pinned; Search has its shelf and its table, Terminal its screen at the top: neither reserves a message block.
+// S13, R4/R19/R20, AC5: what each converted pane puts where. The logs keep their lines in a content area under a shelf
+// and a header, with no message block (a message is the strip under the area, see the strip tests); the Inspector Report
+// keeps the table in the content area at the pane's top and a build failure in a strip under it (no box, no ask place);
+// Search has its shelf and its table, Terminal its screen at the top: neither reserves a message block.
 
 #include <cstdio>
 #include <string>
@@ -20,8 +21,6 @@ using namespace rv_editor_test::s13;
 
 namespace
 {
-
-constexpr size_t pinned_band_lines = 6;
 
 // What the box's text window drew in the frame just ended: the draw commands of the window and its children.
 int drawn_indices(const rv_editor_probe_entry *box)
@@ -80,23 +79,6 @@ bool shows_row_in(const rv_editor_probe_record &r, const rv_editor_probe_entry *
     return false;
 }
 
-// "" when the pane has a message box above a content area and no ask place; else what is wrong.
-std::string has_box_over_area(const rv_editor_probe_record &r)
-{
-    const auto *box = message_box(r);
-    const auto *area = content_area(r);
-    if (box == nullptr) {
-        return "no message box";
-    }
-    if (area == nullptr) {
-        return "no content area";
-    }
-    if (has_ask_place(r)) {
-        return "an ask place is still drawn";
-    }
-    return box->y1 <= area->y0 ? "" : "the message box is not above the content area";
-}
-
 void report(const char *what, const std::string &bad)
 {
     if (!bad.empty()) {
@@ -146,9 +128,9 @@ RV_EDITOR_TEST(rv_editor_test_s13_logs_keep_their_lines_in_a_content_area_under_
     }
 }
 
-// R20: a build failure is in the message box with no ask place, and every state keeps the summary over the table at the
-// same place and the table in the content area.
-RV_EDITOR_TEST(rv_editor_test_s13_problems_say_a_failure_in_the_message_box_and_keep_the_table_in_the_area)
+// R5, R20: the Inspector Report has no message box, no ask place and no summary line over the table: every state has the
+// table's content area at the pane's top, and a failure is a strip under it that moves nothing above it.
+RV_EDITOR_TEST(rv_editor_test_s13_problems_say_a_failure_in_a_strip_and_keep_the_table_in_the_area)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -158,96 +140,26 @@ RV_EDITOR_TEST(rv_editor_test_s13_problems_say_a_failure_in_the_message_box_and_
     for (size_t i = 0; i < f.states.size(); ++i) {
         r.push_back(at_minimum(gui, f, i));
         RV_EDITOR_CHECK(!has_ask_place(r.back()));
-        if (i >= 1) {
-            const std::string bad = has_box_over_area(r.back());
-            report("problems", bad);
-            RV_EDITOR_CHECK(bad.empty());
-        }
+        RV_EDITOR_CHECK(message_box(r.back()) == nullptr);
+        RV_EDITOR_CHECK(content_area(r.back()) != nullptr);
     }
     RV_EDITOR_CHECK(r.size() == 5);
     if (r.size() != 5) {
         return;
     }
-    // The failure's text is the box's: its text window draws more than it does without a failure.
-    RV_EDITOR_CHECK(r[2].box_drawn > r[1].box_drawn);
-    // The area is where it was whatever the state says, and the problems are rows in it.
+    // The area starts where it started whatever the state says; only its bottom gives way to a strip.
     for (size_t i = 1; i < r.size(); ++i) {
-        const std::string moved = same_rect(content_area(r[1]), content_area(r[i]), "content area");
-        report("problems", moved);
-        RV_EDITOR_CHECK(moved.empty());
+        const auto *first = content_area(r[1]);
+        const auto *area = content_area(r[i]);
+        if (first == nullptr || area == nullptr) {
+            continue;
+        }
+        const bool same_top = first->x0 == area->x0 && first->y0 == area->y0 && first->x1 == area->x1;
+        report("problems", same_top ? "" : "the content area moved");
+        RV_EDITOR_CHECK(same_top);
     }
     RV_EDITOR_CHECK(shows_row_in(r[3], content_area(r[3])));
     RV_EDITOR_CHECK(shows_row_in(r[4], content_area(r[4])));
-    // The summary (the last text above the area, below the box) is one place with problems, idle or building.
-    float box_h = 0.0f;
-    gui.frame([&] {
-        box_h = rv_editor_message_box_height();
-    });
-    const auto summary = [box_h](const rv_editor_probe_record &rec) -> const rv_editor_probe_entry * {
-        const auto *area = content_area(rec);
-        const auto *box = message_box(rec);
-        const rv_editor_probe_entry *found = nullptr;
-        for (const auto &e : rec.entries) {
-            const bool text = e.label.empty() && !e.scroll_area;
-            const bool in_box = box != nullptr && e.y0 >= box->y0 && e.y1 <= box->y0 + box_h;
-            if (text && area != nullptr && !in_box && e.y1 <= area->y0 + 0.5f && (found == nullptr || e.y1 >= found->y1)) {
-                found = &e;
-            }
-        }
-        return found;
-    };
-    const auto *idle = summary(r[3]);
-    const auto *busy = summary(r[4]);
-    RV_EDITOR_CHECK(idle != nullptr && busy != nullptr);
-    if (idle != nullptr && busy != nullptr) {
-        RV_EDITOR_CHECK(idle->x0 == busy->x0 && idle->y0 == busy->y0 && idle->y1 == busy->y1);
-    }
-}
-
-// R4, R10: the level column of the Problems table stays at the left edge of the area while the table scrolls sideways.
-RV_EDITOR_TEST(rv_editor_test_s13_problems_level_column_is_pinned_to_the_left_edge)
-{
-    load_texts();
-    rv_editor_test_imgui gui(true);
-    fixture f(gui, rv_editor_pane_kind::inspector_report);
-    const auto min = stable_tiles::pane_minimum(gui, f.kind);
-    RV_EDITOR_CHECK(min.w > 0.0f);
-    const rv_editor_probe_record before = at_minimum(gui, f, 3);
-    const auto *area = content_area(before);
-    RV_EDITOR_CHECK(area != nullptr);
-    if (area == nullptr) {
-        return;
-    }
-    const rv_editor_probe_entry *inner = nullptr;
-    for (const auto &e : before.entries) {
-        inner = is_area_scroll(e) ? &e : inner;
-    }
-    ImGuiWindow *w = inner != nullptr ? ImGui::FindWindowByName(inner->label.c_str()) : nullptr;
-    RV_EDITOR_CHECK(w != nullptr && w->ScrollMax.x > 0.0f); // the long message and path need the horizontal bar
-    if (w == nullptr) {
-        return;
-    }
-    w->Scroll.x = w->ScrollMax.x;
-    const auto after = settled(f, min.w, min.h);
-    float line = 0.0f;
-    gui.frame([&] {
-        line = ImGui::GetTextLineHeight();
-    });
-    int pinned = 0;
-    for (const auto &e : after.entries) {
-        if (e.label.find('/') != std::string::npos || e.label == "##track" || e.x1 - e.x0 < 1.0f || !inside(e, *area)) {
-            continue;
-        }
-        if (e.x0 >= area->x0 && e.x0 < area->x0 + pinned_band_lines * line) {
-            for (const auto &b : before.entries) {
-                pinned += b.x0 == e.x0 && b.y0 == e.y0 && b.x1 == e.x1 && b.y1 == e.y1 ? 1 : 0;
-            }
-        }
-    }
-    if (pinned == 0) {
-        std::fprintf(stderr, "  problems: nothing stays at the left edge after scrolling the table sideways\n");
-    }
-    RV_EDITOR_CHECK(pinned > 0);
 }
 
 // Search: the shelf with the query and the hits in the content area, in every state with a project: no message block

@@ -105,12 +105,12 @@ RV_EDITOR_TEST(rv_editor_test_s22_1_problems_table_spans_the_area)
     s13::fixture f(gui, rv_editor_pane_kind::inspector_report);
     f.states[1](); // a project, nothing found
     (void)s13::settled(f, wide_w, wide_h);
-    const std::string bad_empty = table_reach(drawn_table(5));
+    const std::string bad_empty = table_reach(drawn_table(3));
     report("problems, none", bad_empty);
     RV_EDITOR_CHECK(bad_empty.empty());
     f.app().problems.push_back({ f.where / "a.cpp", 3, 5, true, "expected ';'", "build" });
     (void)s13::settled(f, wide_w, wide_h);
-    const std::string bad_some = table_reach(drawn_table(5));
+    const std::string bad_some = table_reach(drawn_table(3));
     report("problems, short rows", bad_some);
     RV_EDITOR_CHECK(bad_some.empty());
 }
@@ -164,7 +164,7 @@ RV_EDITOR_TEST(rv_editor_test_s22_1_problems_table_in_the_code_layout_spans_the_
             static_cast<float>(win_w),
             static_cast<float>(win_h));
     }
-    const ImGuiTable *t = drawn_table(5);
+    const ImGuiTable *t = drawn_table(3);
     RV_EDITOR_CHECK(t != nullptr);
     float area = 0.0f; // the right edge of the content area, whose scroll window holds the table
     for (ImGuiWindow *w : ImGui::GetCurrentContext()->Windows) {
@@ -410,7 +410,7 @@ RV_EDITOR_TEST(rv_editor_test_s22_1_spanning_row_does_not_grow_the_scroll_width)
     RV_EDITOR_CHECK(bad.empty());
 }
 
-// R6, Problems: one long problem, the pane scrolled to its far right in every frame, keeps the scroll width.
+// R6, Problems: one long problem, the pane scrolled to its far right in every frame, never gets a scroll width.
 RV_EDITOR_TEST(rv_editor_test_s22_1_problems_scroll_width_does_not_grow)
 {
     s13::load_texts();
@@ -426,12 +426,12 @@ RV_EDITOR_TEST(rv_editor_test_s22_1_problems_scroll_width_does_not_grow)
         "build" });
     const std::vector<float> maxes = scroll_max_by_frame(
         gui,
-        5,
+        3,
         [&] {
             rv_editor_shell_pane(&f.shell, s13::pane, f.kind, stable_tiles::theme);
         },
         40);
-    const std::string bad = scroll_growth(maxes, 40);
-    report("problems", bad);
-    RV_EDITOR_CHECK(bad.empty());
+    // R6: the table has no horizontal scroll at all, so there is nothing to grow (the first frames settle the sizes)
+    RV_EDITOR_CHECK(maxes.size() == 40);
+    RV_EDITOR_CHECK(*std::max_element(maxes.begin() + std::min<size_t>(3, maxes.size()), maxes.end()) < 0.5f);
 }

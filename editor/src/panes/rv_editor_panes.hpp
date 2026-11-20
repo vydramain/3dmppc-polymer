@@ -208,6 +208,13 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme);
 // The latest build's diagnostics with a place, opening it.
 void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme);
 
+// The text of the strip under the Inspector Report's table: "Build #N failed: <reason>" (N is the build's number), the
+// refusal's own words for a build that did not start; empty when app.build_alert is none.
+std::string rv_editor_problems_alert_text(const rv_editor_app &app);
+
+// The tooltip of a finding's level icon: its level (error or warning) and its source.
+std::string rv_editor_problems_level_tip(const rv_editor_problem &problem);
+
 // Find in Project: the query, its scope, and each place, opening it.
 void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
 

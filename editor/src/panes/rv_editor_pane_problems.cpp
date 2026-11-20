@@ -10,12 +10,14 @@
 #include <vector>
 
 #include "imgui.h"
+#include "imgui_internal.h"
 
 #include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_content.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
+#include "ui/rv_editor_widgets_status.hpp"
 
 namespace rv_editor
 {
@@ -30,12 +32,8 @@ constexpr std::string_view diag_severity_warn = "warn";
 // Problem source: "build", else the inspector or a language server (source name varies).
 constexpr std::string_view problem_source_build = "build";
 
-// Problems table columns: icon, source, file, line:col, message.
-constexpr int problems_table_column_count = 5;
-
-// The largest count and build number the summary shows in full; a count past the first reads "999+".
-constexpr size_t count_cap = 999;
-constexpr size_t build_number_cap = 999999;
+// Problems table columns: level icon, File:line, message.
+constexpr int problems_table_column_count = 3;
 
 // app.problems plus the servers' error/warning diagnostics (info/hint are skipped:
 // Problems is for what blocks the build, not editor-only hints).
@@ -57,112 +55,97 @@ std::vector<rv_editor_problem> rv_editor_gather_problems(const rv_editor_app &ap
     return out;
 }
 
-std::string rv_editor_problems_count(size_t n)
+// "path:line", the path relative to the project when it is under it.
+std::string rv_editor_problem_place(const rv_editor_app &app, const rv_editor_problem &p)
 {
-    return n > count_cap ? std::to_string(count_cap) + "+" : std::to_string(n);
+    std::error_code ec;
+    const std::filesystem::path shown = std::filesystem::relative(p.file, app.project.root, ec);
+    return (ec || shown.empty() ? p.file : shown).string() + ":" + std::to_string(p.line);
 }
 
-// The summary over the table: the build and what the build and the servers found, one bounded line.
-std::string rv_editor_problems_summary(const rv_editor_build &b, size_t build_number, size_t errors, size_t warnings)
+// The strip under the table: the build's failure or refusal with OK, the closed project's question with its button.
+// Empty text: no strip.
+struct rv_editor_problems_strip {
+    std::string text;
+    rv_editor_label_kind kind = rv_editor_label_kind::normal;
+    std::vector<std::string> buttons;
+};
+
+rv_editor_problems_strip rv_editor_problems_strip_of(const rv_editor_app &app)
 {
-    const std::string e = rv_editor_problems_count(errors);
-    const std::string w = rv_editor_problems_count(warnings);
-    if (b.state() == rv_editor_build_state::idle) {
-        return rv_editor_text_format("pane_problems.idle_status", std::make_format_args(e, w));
+    if (app.build_alert.kind != rv_editor_build_alert_kind::none) {
+        return { rv_editor_problems_alert_text(app),
+            rv_editor_label_kind::error,
+            { rv_editor_text("pane_problems.alert_ok") } };
     }
-    const char *word = b.busy() ? rv_editor_text("pane_problems.building") : rv_editor_text("pane_problems.build");
-    const std::string ref = rv_editor_text_format("pane_problems.build_number", std::make_format_args(build_number));
-    return rv_editor_text_format("pane_problems.build_status", std::make_format_args(word, ref, e, w));
+    if (!app.project.open) {
+        return { rv_editor_text("panes.no_project_open_message"),
+            rv_editor_label_kind::normal,
+            { rv_editor_text("panes.open_project_box") } };
+    }
+    return {};
 }
 
-// The widest row: the message box's buttons, or the longest summary.
+// The narrowest pane: the widest row of the strip's buttons.
 float rv_editor_problems_content_width()
 {
-    float summary = 0.0f;
-    for (const bool busy : { false, true }) {
-        const char *word = busy ? rv_editor_text("pane_problems.building") : rv_editor_text("pane_problems.build");
-        const std::string ref = rv_editor_text_format("pane_problems.build_number", std::make_format_args(build_number_cap));
-        const std::string e = rv_editor_problems_count(count_cap + 1);
-        const std::string text = rv_editor_text_format("pane_problems.build_status", std::make_format_args(word, ref, e, e));
-        summary = std::max(summary, ImGui::CalcTextSize(text.c_str()).x);
-    }
-    const std::string e = rv_editor_problems_count(count_cap + 1);
-    const std::string idle_text = rv_editor_text_format("pane_problems.idle_status", std::make_format_args(e, e));
-    summary = std::max(summary, ImGui::CalcTextSize(idle_text.c_str()).x);
-    return std::max(summary,
-        rv_editor_message_box_min_width(
-            { { rv_editor_text("pane_problems.alert_ok") }, { rv_editor_text("panes.open_project_box") } }));
-}
-
-// The message box: a build failure with OK, "No project is open." with its button, or nothing.
-void rv_editor_problems_say(rv_editor_app &app, const rv_editor_theme &theme)
-{
-    const rv_editor_build_alert &alert = app.build_alert;
-    const float width = rv_editor_problems_content_width();
-    if (alert.kind != rv_editor_build_alert_kind::none) {
-        const bool refused = alert.kind == rv_editor_build_alert_kind::not_started;
-        const std::string text =
-            std::string(rv_editor_text(refused ? "pane_problems.alert_not_started" : "pane_problems.alert_failed")) + "\n" +
-            alert.reason;
-        if (rv_editor_message_box("##alert",
-                text,
-                rv_editor_label_kind::error,
-                { rv_editor_text("pane_problems.alert_ok") },
-                theme,
-                width) == 0) {
-            rv_editor_app_build_alert_clear(app);
-        }
-    } else if (!app.project.open) {
-        if (rv_editor_message_box("##alert",
-                rv_editor_text("panes.no_project_open_message"),
-                rv_editor_label_kind::normal,
-                { rv_editor_text("panes.open_project_box") },
-                theme,
-                width) == 0) {
-            app.open_folder_request = true;
-        }
-    } else {
-        (void)rv_editor_message_box("##alert", "", rv_editor_label_kind::normal, {}, theme, width);
-    }
+    return rv_editor_message_box_min_width(
+        { { rv_editor_text("pane_problems.alert_ok") }, { rv_editor_text("panes.open_project_box") } });
 }
 
 } // namespace
 
+std::string rv_editor_problems_alert_text(const rv_editor_app &app)
+{
+    const rv_editor_build_alert &alert = app.build_alert;
+    switch (alert.kind) {
+    case rv_editor_build_alert_kind::none:
+        return {};
+    case rv_editor_build_alert_kind::not_started:
+        return rv_editor_text_format("pane_problems.alert_not_started", std::make_format_args(alert.reason));
+    case rv_editor_build_alert_kind::failed:
+        break;
+    }
+    const size_t number = app.build.number();
+    return rv_editor_text_format("pane_problems.alert_failed", std::make_format_args(number, alert.reason));
+}
+
+std::string rv_editor_problems_level_tip(const rv_editor_problem &problem)
+{
+    const std::string level = rv_editor_text(problem.error ? "pane_problems.severity_error" : "pane_problems.severity_warning");
+    return problem.source.empty() ?
+        level :
+        rv_editor_text_format("pane_problems.level_tip", std::make_format_args(level, problem.source));
+}
+
 rv_editor_size rv_editor_problems_minimum()
 {
-    const float summary = ImGui::GetTextLineHeight() + ImGui::GetStyle().ItemSpacing.y;
-    return rv_editor_tiled_minimum(rv_editor_problems_content_width(), rv_editor_tiled_box_block() + summary);
+    // The strip at its tallest: three lines of text, a longer one scrolls inside it.
+    return rv_editor_tiled_minimum(rv_editor_problems_content_width(), rv_editor_tiled_strip_block(false));
 }
 
 void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    rv_editor_problems_say(app, theme);
     const rv_editor_build &b = app.build;
     const std::vector<rv_editor_problem> problems =
         app.project.open ? rv_editor_gather_problems(app) : std::vector<rv_editor_problem>{};
-    size_t errors = 0;
-    for (const rv_editor_problem &p : problems) {
-        errors += p.error ? 1 : 0;
-    }
-    // The summary's line is there with or without a project, so the table never moves.
-    const auto summary_kind = errors != 0 ? rv_editor_label_kind::error :
-        problems.empty()                  ? rv_editor_label_kind::normal :
-                                            rv_editor_label_kind::warning;
-    const std::string summary =
-        app.project.open ? rv_editor_problems_summary(b, b.number(), errors, problems.size() - errors) : std::string();
-    rv_editor_message_line("##summary", summary.c_str(), 1, 0.0f, theme, nullptr, summary_kind);
+    const rv_editor_problems_strip strip = rv_editor_problems_strip_of(app);
+    const float strip_h = rv_editor_message_strip_height(strip.text, strip.buttons, ImGui::GetContentRegionAvail().x);
 
-    (void)rv_editor_tiled_area_begin("##problems_area", rv_editor_problems_content_width(), theme);
+    (void)rv_editor_tiled_area_begin("##problems_area", rv_editor_problems_content_width(), theme, {}, false, 0.0f, strip_h);
+    // The icon, the place and the message, which wraps and takes what the first two leave.
+    // The place column is as wide as its widest text, so the message column's share is what is really left.
+    float place_w = ImGui::CalcTextSize(rv_editor_text("pane_problems.column_file")).x;
+    for (const rv_editor_problem &p : problems) {
+        place_w = std::max(place_w, ImGui::CalcTextSize(rv_editor_problem_place(app, p).c_str()).x);
+    }
+    place_w += 2.0f * (ImGui::GetStyle().CellPadding.x + ImGui::GetStyle().FramePadding.x);
     const rv_editor_table_column problem_columns[problems_table_column_count] = {
-        { rv_editor_text("pane_problems.column_level"), rv_editor_table_width::fixed, 0.0f, 0.0f, true },
-        { rv_editor_text("pane_problems.column_source") },
-        { rv_editor_text("pane_problems.column_file") },
-        { rv_editor_text("pane_problems.column_line") },
-        { rv_editor_text("pane_problems.column_message") },
+        { "", rv_editor_table_width::fixed },
+        { rv_editor_text("pane_problems.column_file"), rv_editor_table_width::fixed, place_w },
+        { rv_editor_text("pane_problems.column_message"), rv_editor_table_width::stretch, 0.0f, 1.0f },
     };
-    const rv_editor_table_style problem_style = { .row_bands = true,
-        .header = true,
-        .sizing = rv_editor_table_sizing::fixed_fit };
+    const rv_editor_table_style problem_style = { .row_bands = true, .header = true };
     if (rv_editor_table_begin("##problems", problem_columns, problems_table_column_count, problem_style)) {
         if (problems.empty()) {
             rv_editor_table_row();
@@ -175,19 +158,17 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             ImGui::PushID(static_cast<int>(i));
             rv_editor_table_row();
             rv_editor_table_cell();
-            // A word as well as a colour.
-            const bool is_error = p.error;
-            const char *severity_id = is_error ? "pane_problems.severity_error" : "pane_problems.severity_warning";
-            const auto kind = is_error ? rv_editor_status_kind::error : rv_editor_status_kind::warning;
-            rv_editor_status(rv_editor_text(severity_id), kind, theme);
-            rv_editor_table_cell();
-            rv_editor_table_cell_text(p.source.c_str(), theme);
+            const auto kind = p.error ? rv_editor_status_kind::error : rv_editor_status_kind::warning;
+            rv_editor_status("", kind, theme);
+            const ImRect cell = ImGui::TableGetCellBgRect(ImGui::GetCurrentTable(), 0);
+            if (ImGui::IsMouseHoveringRect(cell.Min, cell.Max)) {
+                rv_editor_tooltip(rv_editor_problems_level_tip(p).c_str());
+            }
             rv_editor_table_cell();
             std::error_code ec;
-            const std::filesystem::path shown = std::filesystem::relative(p.file, app.project.root, ec);
             const bool there = std::filesystem::exists(p.file, ec);
             // The whole row answers a click; double click or Enter opens the place.
-            const std::string path = (ec || shown.empty() ? p.file : shown).string();
+            const std::string path = rv_editor_problem_place(app, p);
             const rv_editor_list_result row = rv_editor_list_row("##file", path.c_str(), theme, { .span_columns = true });
             if (ImGui::IsItemHovered()) {
                 rv_editor_tooltip(p.file.c_str());
@@ -196,9 +177,6 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             if (open && there) {
                 app.open_requests.push_back({ p.file, p.line, p.column });
             }
-            rv_editor_table_cell();
-            const std::string line_col = std::to_string(p.line) + ":" + std::to_string(p.column);
-            rv_editor_label(line_col.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
             rv_editor_table_cell();
             std::string message = p.message;
             const bool from_build = p.source == problem_source_build;
@@ -209,12 +187,18 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
                 // The line may have moved since the build saw it.
                 message = std::string(rv_editor_text("pane_problems.prefix_changed")) + message;
             }
-            rv_editor_table_cell_text(message.c_str(), theme);
+            rv_editor_label(message.c_str(), rv_editor_label_kind::normal, theme);
             ImGui::PopID();
         }
         rv_editor_table_end();
     }
     rv_editor_tiled_area_end(theme);
+    const int pressed = rv_editor_message_strip("##strip", strip.text, strip.kind, strip.buttons, theme);
+    if (pressed == 0 && app.build_alert.kind != rv_editor_build_alert_kind::none) {
+        rv_editor_app_build_alert_clear(app);
+    } else if (pressed == 0) {
+        app.open_folder_request = true;
+    }
 }
 
 } // namespace rv_editor

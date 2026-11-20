@@ -17,6 +17,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_layout_probe.hpp"
+#include "rv_editor_test_s13.hpp"
 #include "rv_editor_test_strip.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
@@ -388,6 +389,8 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_terminal_paste_ask)
 
 // --- Problems ----------------------------------------------------------------------------------------------------
 
+// A build alert, refused or failed, short or long, is a strip under the table: the table's first row and the area's top
+// stay where they were and the area loses height only at its bottom.
 RV_EDITOR_TEST(rv_editor_test_stable_s9_problems_build_alert)
 {
     rv_editor_test_imgui gui(true);
@@ -395,15 +398,24 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_problems_build_alert)
     rv_editor_app plain;
     problems_app(plain);
     const auto base = draw_problems(gui, plain);
+    const auto *base_row = find_suffix(base, "###row");
+    const auto *base_area = s13::content_area(base);
+    RV_EDITOR_CHECK(base_row != nullptr && base_area != nullptr);
     for (const auto kind : { rv_editor_build_alert_kind::not_started, rv_editor_build_alert_kind::failed }) {
         for (const std::string &reason : { std::string("exit code 1"), long_text(300) }) {
             rv_editor_app alert;
             problems_app(alert);
             alert.build_alert = { kind, reason };
-            same_frames(gui,
-                kind == rv_editor_build_alert_kind::failed ? "build failed alert" : "build not started alert",
-                base,
-                draw_problems(gui, alert));
+            const auto r = draw_problems(gui, alert);
+            const auto *row = find_suffix(r, "###row");
+            const auto *area = s13::content_area(r);
+            RV_EDITOR_CHECK(row != nullptr && area != nullptr);
+            if (row == nullptr || area == nullptr || base_row == nullptr || base_area == nullptr) {
+                continue;
+            }
+            RV_EDITOR_CHECK(row->y0 == base_row->y0 && row->y1 == base_row->y1);
+            RV_EDITOR_CHECK(area->y0 == base_area->y0 && area->x0 == base_area->x0 && area->x1 == base_area->x1);
+            RV_EDITOR_CHECK(area->y1 < base_area->y1);
         }
     }
 }
@@ -418,7 +430,7 @@ RV_EDITOR_TEST(rv_editor_test_stable_s9_problems_path_cell_shows_the_whole_relat
     const auto r = draw_problems(gui, app);
     const std::string shown = row_text(r);
     RV_EDITOR_CHECK(!shown.empty());
-    RV_EDITOR_CHECK(shown == long_relative()); // whole, relative to the project root, no "..."
+    RV_EDITOR_CHECK(shown == long_relative() + ":3"); // whole, relative to the project root, with its line, no "..."
     RV_EDITOR_CHECK(shown.find("...") == std::string::npos);
     RV_EDITOR_CHECK(tooltip_on_row(gui, narrow_width, [&] {
         rv_editor_pane_problems(app, theme);

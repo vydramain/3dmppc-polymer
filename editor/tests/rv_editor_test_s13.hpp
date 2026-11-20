@@ -323,12 +323,22 @@ inline bool is_child(const std::string &part, const char *prefix)
     return part.size() == want.size() + hex_digits && part.compare(0, want.size(), want) == 0;
 }
 
+inline const rv_editor_probe_entry *content_area(const rv_editor_probe_record &r);
+
+// True for a window that lies under the record's content area frame: the text of a strip (rv_editor_message_strip), not of
+// a message box. A strip's text window has the same name as a box's, so only the place tells them apart.
+inline bool is_under_area(const rv_editor_probe_record &r, const rv_editor_probe_entry &e)
+{
+    const rv_editor_probe_entry *area = content_area(r);
+    return area != nullptr && e.y0 >= area->y1 - 0.5f;
+}
+
 // The message box's text window (rv_editor_message_box), nullptr when the record has none.
 inline const rv_editor_probe_entry *message_box(const rv_editor_probe_record &r)
 {
     for (const auto &e : r.entries) {
         const auto parts = parts_of(e.label);
-        if (e.scroll_area && is_child(parts.back(), "##text")) {
+        if (e.scroll_area && is_child(parts.back(), "##text") && !is_under_area(r, e)) {
             return &e;
         }
     }
@@ -384,12 +394,13 @@ inline rv_editor_probe_record settled(fixture &f, float width, float height)
 }
 
 // "" when the two entries have the same rectangle; else a description.
-inline std::string same_rect(const rv_editor_probe_entry *a, const rv_editor_probe_entry *b, const char *what)
+inline std::string
+same_rect(const rv_editor_probe_entry *a, const rv_editor_probe_entry *b, const char *what, bool bottom = true)
 {
     if (a == nullptr || b == nullptr) {
         return std::string(what) + " is missing";
     }
-    if (a->x0 != b->x0 || a->y0 != b->y0 || a->x1 != b->x1 || a->y1 != b->y1) {
+    if (a->x0 != b->x0 || a->y0 != b->y0 || a->x1 != b->x1 || (bottom && a->y1 != b->y1)) {
         return std::string(what) + " " + rv_editor_probe_detail::rect(*a) + " became " + rv_editor_probe_detail::rect(*b);
     }
     return "";
@@ -397,13 +408,14 @@ inline std::string same_rect(const rv_editor_probe_entry *a, const rv_editor_pro
 
 // "" when both records hold the same scroll windows (message box) and content area frames at the same rectangles; else
 // the first difference. The scroll window inside a frame is not compared: it gives its width to the bar. The buttons of a
-// message box differ by state and are not compared.
-inline std::string windows_difference(const rv_editor_probe_record &a, const rv_editor_probe_record &b)
+// message box differ by state and are not compared. With `bottom` false the lower edge is not compared (the Report's
+// area gives it to the strip).
+inline std::string windows_difference(const rv_editor_probe_record &a, const rv_editor_probe_record &b, bool bottom = true)
 {
-    const auto one_way = [](const rv_editor_probe_record &x, const rv_editor_probe_record &y, const char *where) {
+    const auto one_way = [bottom](const rv_editor_probe_record &x, const rv_editor_probe_record &y, const char *where) {
         for (const auto &ex : x.entries) {
             const bool frame = is_child(parts_of(ex.label).back(), "##area");
-            if ((!ex.scroll_area && !frame) || is_area_scroll(ex)) {
+            if ((!ex.scroll_area && !frame) || is_area_scroll(ex) || (!bottom && is_under_area(x, ex))) {
                 continue;
             }
             const rv_editor_probe_entry *found = nullptr;
@@ -413,7 +425,7 @@ inline std::string windows_difference(const rv_editor_probe_record &a, const rv_
             if (found == nullptr) {
                 return ex.label + " is missing from the " + where + " draw";
             }
-            if (const std::string moved = same_rect(&ex, found, ex.label.c_str()); !moved.empty()) {
+            if (const std::string moved = same_rect(&ex, found, ex.label.c_str(), bottom); !moved.empty()) {
                 return moved;
             }
         }
