@@ -294,7 +294,7 @@ rv_editor_size rv_editor_output_minimum()
 {
     const float header = ImGui::GetTextLineHeight() + header_height_padding_px + ImGui::GetStyle().ItemSpacing.y;
     return rv_editor_tiled_minimum(rv_editor_output_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block() + header);
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(false, 1) + header);
 }
 
 void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
@@ -368,7 +368,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         note(std::string(rv_editor_text("pane_output.label_exported")) + ": " + view.exported);
     }
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_output_content_width());
-    const float strip_h = rv_editor_message_strip_height(notes, {}, strip_w);
+    const float strip_h = rv_editor_message_strip_height(notes, {}, strip_w, false, 1);
 
     // The header's height is the UI font's; the lines draw in the code font and the header takes its cell width from it.
     const float header_h = ImGui::GetTextLineHeight() + header_height_padding_px;
@@ -487,7 +487,17 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     }
     rv_editor_font_code_pop();
     rv_editor_tiled_area_end(theme);
-    (void)rv_editor_message_strip("##strip", notes, rv_editor_label_kind::normal, {}, theme, strip_w);
+    (void)rv_editor_message_strip("##strip",
+        notes,
+        rv_editor_label_kind::normal,
+        {},
+        theme,
+        strip_w,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        1);
 }
 
 } // namespace rv_editor

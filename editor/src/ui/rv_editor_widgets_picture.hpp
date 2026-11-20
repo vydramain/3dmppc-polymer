@@ -34,7 +34,7 @@ rv_editor_picture_rect rv_editor_picture_overlay(std::string_view text,
     const rv_editor_theme &theme,
     const rv_editor_picture_rect &area);
 
-// The least area width at which every text wraps into at most two lines (0 for no texts).
-float rv_editor_picture_min_width(const std::vector<std::string> &texts);
+// The least area width at which every text wraps into at most max_lines lines (0 for no texts).
+float rv_editor_picture_min_width(const std::vector<std::string> &texts, int max_lines = 2);
 
 } // namespace rv_editor

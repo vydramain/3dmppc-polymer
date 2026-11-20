@@ -70,20 +70,20 @@ rv_editor_picture_rect rv_editor_picture_overlay(std::string_view text,
     return band;
 }
 
-float rv_editor_picture_min_width(const std::vector<std::string> &texts)
+float rv_editor_picture_min_width(const std::vector<std::string> &texts, int max_lines)
 {
     // Measured with the UI font explicitly: the minimums are asked before the first frame has a current font.
     ImFont *font = ImGui::GetIO().Fonts->Fonts[0];
     const float fs = font->LegacySize;
     float least = 0.0f;
     for (const std::string &text : texts) {
-        const auto two_lines = [&](float width) {
-            return font->CalcTextSizeA(fs, FLT_MAX, width, text.c_str()).y <= 2.0f * fs + 0.01f;
+        const auto fits_lines = [&](float width) {
+            return font->CalcTextSizeA(fs, FLT_MAX, width, text.c_str()).y <= static_cast<float>(max_lines) * fs + 0.01f;
         };
         float lo = 1.0f, hi = std::max(1.0f, font->CalcTextSizeA(fs, FLT_MAX, FLT_MAX, text.c_str()).x);
         while (hi - lo > 0.01f) {
             const float mid = 0.5f * (lo + hi);
-            (two_lines(mid) ? hi : lo) = mid;
+            (fits_lines(mid) ? hi : lo) = mid;
         }
         least = std::max(least, hi);
     }

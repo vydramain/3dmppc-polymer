@@ -58,12 +58,14 @@ int rv_editor_message_strip(const char *id,
     const std::vector<rv_editor_state> *button_states = nullptr,
     const rv_editor_message_strip_field *field = nullptr,
     const std::function<void(float)> &lead = nullptr,
-    const char *button_tooltip = nullptr);
-// The tallest a strip gets: three lines of text (a longer one scrolls inside), and with `second_row` the row under them.
-float rv_editor_message_strip_max_height(bool second_row = false);
+    const char *button_tooltip = nullptr,
+    int max_lines = 3);
+// The tallest a strip gets: max_lines lines of text (a longer one scrolls inside), and with `second_row` the row under them.
+float rv_editor_message_strip_max_height(bool second_row = false, int max_lines = 3);
 float rv_editor_message_strip_height(const std::string &text,
     const std::vector<std::string> &buttons,
     float width,
-    bool second_row = false);
+    bool second_row = false,
+    int max_lines = 3);
 
 } // namespace rv_editor

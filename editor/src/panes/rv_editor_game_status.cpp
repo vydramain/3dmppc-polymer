@@ -89,19 +89,17 @@ float rv_editor_game_picture_min_width()
     }
     cached_font = font;
     cached_size = font->LegacySize;
-    cached_width = rv_editor_picture_min_width(texts);
+    cached_width = rv_editor_picture_min_width(texts, 3); // the status wraps in three lines on the band
     return cached_width;
 }
 
 rv_editor_size rv_editor_game_minimum()
 {
     const ImGuiStyle &style = ImGui::GetStyle();
-    const float fs = ImGui::GetFontSize();
     const float fh = ImGui::GetFrameHeight();
     const float pad = style.ItemInnerSpacing.y;
-    // The mode row's shelf, the well's padding and the row in it: the status line, or the no-project row when taller.
-    const float height =
-        style.WindowPadding.y + 2.0f * pad + fh + style.ItemSpacing.y + 2.0f * pad + std::max(fs + style.ItemSpacing.y, fh);
+    // The mode row's shelf and the one row under it (the no-project row; the status is on the picture).
+    const float height = style.WindowPadding.y + 2.0f * pad + fh + fh;
     return { static_cast<int32_t>(std::ceil(rv_editor_game_picture_min_width() + 2.0f * style.WindowPadding.x)),
         static_cast<int32_t>(std::ceil(height)) };
 }

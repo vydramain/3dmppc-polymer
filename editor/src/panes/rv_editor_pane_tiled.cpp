@@ -42,9 +42,9 @@ float rv_editor_tiled_shelf_block()
     return shelf_pad_sides * style.FramePadding.x + ImGui::GetFrameHeight() + style.ItemSpacing.y;
 }
 
-float rv_editor_tiled_strip_block(bool second_row)
+float rv_editor_tiled_strip_block(bool second_row, int max_lines)
 {
-    return rv_editor_message_strip_max_height(second_row) + ImGui::GetStyle().ItemSpacing.y;
+    return rv_editor_message_strip_max_height(second_row, max_lines) + ImGui::GetStyle().ItemSpacing.y;
 }
 
 float rv_editor_tiled_shelf_width(float items)

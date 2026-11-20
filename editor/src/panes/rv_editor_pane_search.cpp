@@ -143,7 +143,7 @@ rv_editor_message_say rv_editor_search_say(const rv_editor_app &app)
 rv_editor_size rv_editor_search_minimum()
 {
     return rv_editor_tiled_minimum(rv_editor_search_content_width(),
-        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block());
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(false, 1));
 }
 
 void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
@@ -184,11 +184,21 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
 
     const rv_editor_message_say say = rv_editor_search_say(app);
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_search_content_width());
-    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w, false, 1);
     (void)rv_editor_tiled_area_begin("##hits_area", rv_editor_search_content_width(), theme, {}, false, 0.0f, strip_h);
     rv_editor_search_list(app, theme);
     rv_editor_tiled_area_end(theme);
-    if (rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w) == 0) {
+    if (rv_editor_message_strip("##strip",
+            say.text,
+            say.kind,
+            say.buttons,
+            theme,
+            strip_w,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            1) == 0) {
         app.open_folder_request = true;
     }
 }

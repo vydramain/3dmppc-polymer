@@ -20,8 +20,6 @@ namespace
 constexpr float text_lines = 2.0f;
 // Characters of text per line the narrowest box keeps.
 constexpr float min_chars = 30.0f;
-// Lines of text a strip shows before it scrolls.
-constexpr float strip_max_lines = 3.0f;
 // Padding edges around the text (one per side).
 constexpr float padding_sides = 2.0f;
 
@@ -143,26 +141,27 @@ static float rv_editor_strip_text_width(const std::vector<std::string> &buttons,
     return std::max(1.0f, width - 2.0f * ImGui::GetStyle().FramePadding.x - row - gap);
 }
 
-float rv_editor_message_strip_max_height(bool second_row)
+float rv_editor_message_strip_max_height(bool second_row, int max_lines)
 {
     const ImGuiStyle &style = ImGui::GetStyle();
-    const float own = strip_max_lines * ImGui::GetTextLineHeight() + 2.0f * style.FramePadding.y;
+    const float own = static_cast<float>(max_lines) * ImGui::GetTextLineHeight() + 2.0f * style.FramePadding.y;
     return second_row ? own + style.ItemSpacing.y + ImGui::GetFrameHeight() : std::max(ImGui::GetFrameHeight(), own);
 }
 
 float rv_editor_message_strip_height(const std::string &text,
     const std::vector<std::string> &buttons,
     float width,
-    bool second_row)
+    bool second_row,
+    int max_lines)
 {
     if (text.empty()) {
         return 0.0f;
     }
     const ImGuiStyle &style = ImGui::GetStyle();
-    // Three lines at most: a longer text scrolls inside the strip.
+    // At most max_lines lines: a longer text scrolls inside the strip.
     const float wrapped =
         std::min(ImGui::CalcTextSize(text.c_str(), nullptr, false, rv_editor_strip_text_width(buttons, width, second_row)).y,
-            strip_max_lines * ImGui::GetTextLineHeight());
+            static_cast<float>(max_lines) * ImGui::GetTextLineHeight());
     const float own = wrapped + 2.0f * style.FramePadding.y;
     // A field or a lead item goes in a row of its own under the text, left of the buttons.
     return second_row ? own + style.ItemSpacing.y + ImGui::GetFrameHeight() : std::max(ImGui::GetFrameHeight(), own);
@@ -177,7 +176,8 @@ int rv_editor_message_strip(const char *id,
     const std::vector<rv_editor_state> *button_states,
     const rv_editor_message_strip_field *field,
     const std::function<void(float)> &lead,
-    const char *button_tooltip)
+    const char *button_tooltip,
+    int max_lines)
 {
     if (text.empty()) {
         return -1;
@@ -187,14 +187,14 @@ int rv_editor_message_strip(const char *id,
     const ImVec2 min = ImGui::GetCursorScreenPos();
     const ImVec2 pad = ImGui::GetStyle().FramePadding;
     const float w = width > 0.0f ? width : ImGui::GetContentRegionAvail().x;
-    const float h = rv_editor_message_strip_height(text, buttons, w, second_row);
+    const float h = rv_editor_message_strip_height(text, buttons, w, second_row, max_lines);
     ImGui::GetWindowDrawList()->AddRectFilled(min, ImVec2(min.x + w, min.y + h), rv_editor_col(theme.code_base));
     ImGui::SetCursorScreenPos(ImVec2(min.x + pad.x, min.y + pad.y));
     ImGui::PushStyleColor(ImGuiCol_Text,
         rv_editor_col(kind == rv_editor_label_kind::normal ? theme.code_text : rv_editor_label_colour(kind, theme)));
     const float text_w = rv_editor_strip_text_width(buttons, w, second_row);
-    const float text_h =
-        std::min(ImGui::CalcTextSize(text.c_str(), nullptr, false, text_w).y, strip_max_lines * ImGui::GetTextLineHeight());
+    const float text_h = std::min(ImGui::CalcTextSize(text.c_str(), nullptr, false, text_w).y,
+        static_cast<float>(max_lines) * ImGui::GetTextLineHeight());
     ImGui::PushStyleColor(ImGuiCol_ChildBg, rv_editor_col(theme.code_base));
     ImGui::BeginChild("##text", ImVec2(text_w, text_h));
     ImGui::PushTextWrapPos(0.0f);

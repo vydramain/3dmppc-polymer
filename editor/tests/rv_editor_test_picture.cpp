@@ -195,7 +195,8 @@ RV_EDITOR_TEST(rv_editor_test_picture_min_width_fits_the_longest_text_in_two_lin
     });
 }
 
-// R15: the Game's minimum width is made from its longest status template, in every state the pane can show.
+// R15, S13.1a: the Game's minimum width is made from its longest status template, in every state the pane can show; the
+// status wraps in at most three lines at it (it was two while the tile was 517 wide).
 RV_EDITOR_TEST(rv_editor_test_game_picture_min_width_covers_every_status)
 {
     std::string error;
@@ -222,7 +223,7 @@ RV_EDITOR_TEST(rv_editor_test_game_picture_min_width_covers_every_status)
                 const std::string state = rv_editor_text(key);
                 for (const char *tail : { "", stale.c_str() }) {
                     const auto l = rv_editor_game_status_compose(320, 240, scale, state, tail);
-                    RV_EDITOR_CHECK(lines(rv_editor_game_status_joined(l), w) <= 2.0f + 0.01f);
+                    RV_EDITOR_CHECK(lines(rv_editor_game_status_joined(l), w) <= 3.0f + 0.01f);
                 }
             }
         }

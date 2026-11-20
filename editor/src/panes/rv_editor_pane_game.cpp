@@ -91,7 +91,7 @@ constexpr float frame_thickness_px = 2.0f;
 constexpr size_t bytes_per_pixel_argb8888 = 4;
 
 // Fit, Integer, 1x, 2x, 3x (View > Game Scale), then Run: one shelf, same in
-// every state, so it never changes the well's height between them. Burn's
+// every state, so it never changes the picture area's height between them. Burn's
 // candidate view has no Run here: Release Controls' Run plays the candidate.
 void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
@@ -315,8 +315,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 {
     rv_editor_session &s = app.session;
     ui.requests.push_back({ .kind = rv_editor_ui_request_kind::game_drawn });
-    // Chrome this pane adds around the picture: the shelf, the well's own padding
-    // on every side, and the status line, measured rather than listed, from the
+    // Chrome this pane adds around the picture: the shelf, the status line, measured rather than listed, from the
     // leaf's content region before the shelf and this frame's picture area below.
     const ImVec2 region = ImGui::GetContentRegionAvail();
     const float top = ImGui::GetCursorPosY();
@@ -324,23 +323,28 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     rv_editor_shelf_begin("##shelf", theme);
     rv_editor_game_modes(app, theme, ui);
     rv_editor_shelf_end();
+    // The picture sits on the shelf: it is what the tile is for, so no gap between them.
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);
     const float shelf_tall = ImGui::GetCursorPosY() - top;
 
-    // The well fills what the shelf leaves, no scrollbar and no wheel scroll
+    // The picture area fills what the shelf leaves, bare (no well around it), no scrollbar and no wheel scroll
     // (the Game tile never scrolls): status line and picture, or the stopped
     // text, all measured inside it.
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("##well",
+        ImVec2(0, 0),
+        ImGuiChildFlags_None,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const rv_editor_size area{
         static_cast<int32_t>(avail.x),
-        static_cast<int32_t>(avail.y - ImGui::GetTextLineHeightWithSpacing()),
+        static_cast<int32_t>(avail.y), // the status is on a band over the picture: no line of its own
     };
 
     const auto body = [&]() {
         if (!s.live()) {
             ui.requests.push_back({ .kind = rv_editor_ui_request_kind::release_keyboard });
             if (!app.project.open) {
-                // One frame-high row, so the well's least height holds it.
+                // One frame-high row, so the area's least height holds it.
                 ImGui::AlignTextToFramePadding();
                 rv_editor_label(rv_editor_text("panes.no_project_open_message"),
                     rv_editor_label_kind::normal,
@@ -486,7 +490,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     body();
     // The tile's own minimum: the frame at 1x plus the measured chrome when
     // screen size is known, else just the shelf and status line.
-    const rv_editor_size shelf_need{ 0, static_cast<int32_t>(shelf_tall + ImGui::GetTextLineHeightWithSpacing()) };
+    const rv_editor_size shelf_need{ 0, static_cast<int32_t>(shelf_tall + ImGui::GetTextLineHeight()) };
     const rv_editor_size screen_need{
         static_cast<int32_t>(app.project.screen_w) + std::max(0, static_cast<int32_t>(region.x) - area.w),
         static_cast<int32_t>(app.project.screen_h) + std::max(0, static_cast<int32_t>(region.y) - area.h),
@@ -494,7 +498,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     const bool screen_known = app.project.screen_w > 0 && app.project.screen_h > 0;
     const rv_editor_size need = screen_known ? screen_need : shelf_need;
     ui.requests.push_back({ .kind = rv_editor_ui_request_kind::game_measured, .need = need, .area = area });
-    rv_editor_well_end();
+    ImGui::EndChild();
 }
 
 } // namespace rv_editor

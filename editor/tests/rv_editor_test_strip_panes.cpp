@@ -33,6 +33,7 @@ struct subject {
     rv_editor_pane_kind kind = rv_editor_pane_kind::output;
     bool shelf = false;                    // a shelf over the area
     bool header = false;                   // and a table header between them (the logs)
+    int strip_lines = 3; // the most lines of text its strip shows (a longer message scrolls inside): the logs' is one
     bool rows = true;                      // the first row is the same in the state with a message (a log's tail is not)
     std::vector<std::function<void()>> extra; // states with a message that no state without one is a pair of
     std::function<void()> quiet;           // empty: the pane has no state without a message
@@ -65,6 +66,7 @@ struct bench {
             s.shelf = true;
             s.header = true;
             s.rows = false;
+            s.strip_lines = 1;
             // Lines, no filter, nothing exported: a log with nothing to say. Only the exported file says something: lines
             // hidden by a filter are the empty row's (S4), not a strip's.
             s.quiet = [&f] {
@@ -133,6 +135,7 @@ struct bench {
         search.name = "search";
         search.kind = rv_editor_pane_kind::search;
         search.shelf = true;
+        search.strip_lines = 1;
         // Search always has a result line to show once a project is open: no state without a message.
         for (const size_t i : { size_t(0), size_t(1), size_t(2), size_t(3), size_t(4) }) {
             search.say.push_back([&q, i] {
@@ -204,6 +207,17 @@ struct bench {
         });
     }
 };
+
+// The tallest strip of the pane: strip_lines of text and the strip's padding (at least a button's height), or, with the row
+// of the name field (Files), the three lines the widget gives.
+float strip_max(const subject &s)
+{
+    if (s.strip_lines == 3) {
+        return rv_editor_message_strip_max_height(s.kind == rv_editor_pane_kind::files);
+    }
+    return std::max(ImGui::GetFrameHeight(),
+        static_cast<float>(s.strip_lines) * ImGui::GetTextLineHeight() + 2.0f * ImGui::GetStyle().FramePadding.y);
+}
 
 void report(const subject &s, const char *what, const std::string &bad)
 {
@@ -295,8 +309,9 @@ RV_EDITOR_TEST(rv_editor_test_strip_panes_a_message_is_a_strip_that_moves_nothin
 }
 
 // R19: the minimum of the pane is a true minimum for every state (rule 1) and static: the shelf (the header), the area at
-// its floor, the strip at its tallest (three lines of text, a longer message scrolls inside; with the row of the name field
-// under them in Files) and a gap, whatever the messages are. Every state, with a message or without, fits whole at it.
+// its floor, the strip at its tallest (three lines of text, one in the logs; a longer message scrolls inside; with the row of
+// the name field under them in Files) and a gap, whatever the messages are. Every state, with a message or without, fits whole
+// at it.
 RV_EDITOR_TEST(rv_editor_test_strip_panes_minimum_is_the_shelf_the_floor_and_the_tallest_strip)
 {
     s13::load_texts();
@@ -306,8 +321,7 @@ RV_EDITOR_TEST(rv_editor_test_strip_panes_minimum_is_the_shelf_the_floor_and_the
         const auto min = stable_tiles::pane_minimum(gui, s.kind);
         float want = 0.0f;
         gui.frame([&] {
-            want = s.room_without_block() + rv_editor_message_strip_max_height(s.kind == rv_editor_pane_kind::files) +
-                ImGui::GetStyle().ItemSpacing.y;
+            want = s.room_without_block() + strip_max(s) + ImGui::GetStyle().ItemSpacing.y;
         });
         if (std::fabs(min.h - want) > 1.5f) {
             std::fprintf(stderr, "  %s: the minimum is %.0f px high; shelf, floor, the tallest strip and a gap make %.0f\n", s.name.c_str(), min.h, want);
@@ -363,4 +377,48 @@ RV_EDITOR_TEST(rv_editor_test_strip_panes_helper_accepts_the_widget_and_rejects_
     RV_EDITOR_CHECK(good.empty());
     RV_EDITOR_CHECK(!strip::strip_problems(&quiet, quiet, ImVec2(w, h), gap, frame_h).empty()); // no strip at all
     RV_EDITOR_CHECK(!strip::strip_problems(&quiet, draw("Build failed.", 20.0f), ImVec2(w, h), gap, frame_h).empty()); // moved
+}
+
+// S13.1a: the strip of a log shows one line of text at most: a long message makes it one line high, the rest scrolls inside
+// it, and no text is cut with an ellipsis. The area's bottom rises by that one line, the gap and no more.
+RV_EDITOR_TEST(rv_editor_test_strip_panes_a_log_strip_is_one_line_high_and_scrolls)
+{
+    s13::load_texts();
+    rv_editor_test_imgui gui(true);
+    bench b(gui);
+    float gap = 0.0f;
+    float one = 0.0f;
+    gui.frame([&] {
+        gap = ImGui::GetStyle().ItemSpacing.y;
+        one = std::max(ImGui::GetFrameHeight(), ImGui::GetTextLineHeight() + 2.0f * ImGui::GetStyle().FramePadding.y);
+    });
+    for (size_t i = 0; i < 3; ++i) { // Console Output, Runtime Log, Build Log
+        subject &s = b.subjects[i];
+        RV_EDITOR_CHECK(s.strip_lines == 1);
+        s13::fixture &f = *b.logs[i];
+        s.quiet();
+        const auto quiet = s.draw(400.0f, 640.0f);
+        s.say[0]();
+        // A path far longer than the strip is wide: wrapped, it is many lines.
+        f.app().outputs[s13::pane].exported = (f.where / std::string(300, 'x')).string();
+        const auto said = s.draw(400.0f, 640.0f);
+        const auto *a = strip::last_area(quiet);
+        const auto *c = strip::last_area(said);
+        RV_EDITOR_CHECK(a != nullptr && c != nullptr);
+        if (a == nullptr || c == nullptr) {
+            continue;
+        }
+        const float rise = a->y1 - c->y1;
+        if (std::fabs(rise - (one + gap)) > 1.5f) {
+            std::fprintf(stderr,
+                "  %s: the area's bottom rises by %.1f px, one line and a gap make %.1f\n",
+                s.name.c_str(),
+                rise,
+                one + gap);
+        }
+        RV_EDITOR_CHECK(std::fabs(rise - (one + gap)) <= 1.5f);
+        for (const auto &e : said.entries) {
+            RV_EDITOR_CHECK(e.label.substr(0, e.label.find("##")).find("...") == std::string::npos);
+        }
+    }
 }
