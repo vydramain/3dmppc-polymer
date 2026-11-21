@@ -299,6 +299,9 @@ void rv_editor_assets_table(rv_editor_app &app,
         // Not spanning the columns: a spanning row is as wide as the area, which the first column then takes as its width.
         const bool selected = a->rel == rv_editor_assets.selected;
         const rv_editor_list_style row_style{ .selected = selected, .whole = true };
+        if (selected) {
+            ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, ImGui::GetColorU32(ImGuiCol_Header));
+        }
         rv_editor_list_row(a->rel.c_str(), a->rel.c_str(), theme, row_style);
         rv_editor_asset_item(app, *a, ui_port);
         // The highlight of the selected row carries on over the other cells, as the row itself is only the Name's.

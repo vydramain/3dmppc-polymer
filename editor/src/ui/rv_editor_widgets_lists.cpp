@@ -45,9 +45,13 @@ rv_editor_list_result rv_editor_list_row(const char *id,
     // table's edge. A by_id row (row select) widens itself.
     const ImGuiWindow *window = ImGui::GetCurrentWindow();
     const bool in_table_span = style.span_columns && !style.by_id && ImGui::GetCurrentTable() != nullptr;
+    // A whole row in a table without spanning is as wide as its label: the column fits the widest name instead of keeping
+    // the width it had (the area's, which a width taken from the column never grows).
+    const bool in_table = ImGui::GetCurrentTable() != nullptr;
     const float row_width = in_table_span ? window->InnerRect.GetWidth() :
         !style.whole                      ? 0.0f :
         style.span_columns                ? window->ParentWorkRect.GetWidth() :
+        in_table                          ? 0.0f :
                                             ImGui::GetContentRegionAvail().x;
     const bool pressed = ImGui::Selectable(style.by_id ? label : (std::string(label) + "###row").c_str(),
         selected,
