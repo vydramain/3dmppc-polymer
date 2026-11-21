@@ -41,6 +41,7 @@ struct rv_editor_table_style {
     bool row_bands = false; // alternate row fill
     bool header = false;    // column names above the rows, scrolling with them
     rv_editor_table_sizing sizing = rv_editor_table_sizing::stretch_prop;
+    bool fill_last = false; // fixed_fit only: the last column takes the width left over, so the table's rows end at its edge
 };
 
 // Starts a table of `count` columns and draws its header when the style asks for one.

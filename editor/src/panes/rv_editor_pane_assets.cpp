@@ -280,7 +280,10 @@ void rv_editor_assets_table(rv_editor_app &app,
         { rv_editor_text("pane_assets.table_size"), rv_editor_table_width::fixed },
         { rv_editor_text("pane_assets.table_folder") },
     };
-    const rv_editor_table_style table_style{ .row_bands = true, .header = true, .sizing = rv_editor_table_sizing::fixed_fit };
+    const rv_editor_table_style table_style{ .row_bands = true,
+        .header = true,
+        .sizing = rv_editor_table_sizing::fixed_fit,
+        .fill_last = true };
     if (!rv_editor_table_begin("##assets", columns, assets_table_columns, table_style)) {
         return;
     }

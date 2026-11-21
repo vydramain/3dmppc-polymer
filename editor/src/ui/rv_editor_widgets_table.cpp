@@ -85,6 +85,8 @@ bool rv_editor_table_begin(const char *id, const rv_editor_table_column *columns
     const bool fit = style.sizing == rv_editor_table_sizing::fixed_fit;
     // Fixed columns take their own width, past the area when they are wider, so no column is squeezed to stay visible.
     const ImGuiTableFlags fit_x = fit ? ImGuiTableFlags_NoKeepColumnsVisible : ImGuiTableFlags_None;
+    // Padded outside, the columns span the table's own width exactly instead of hanging a cell spacing over each edge.
+    const ImGuiTableFlags pad = fit && style.fill_last ? ImGuiTableFlags_PadOuterX : ImGuiTableFlags_None;
     const ImGuiTableFlags borders = style.borders ? ImGuiTableFlags_Borders : ImGuiTableFlags_None;
     const ImGuiTableFlags bands = style.row_bands ? ImGuiTableFlags_RowBg : ImGuiTableFlags_None;
     // The table is as wide as the area or, when its columns are wider, as they were last frame: the bands then span the
@@ -92,11 +94,12 @@ bool rv_editor_table_begin(const char *id, const rv_editor_table_column *columns
     const float own = ImGui::GetStateStorage()->GetFloat(ImGui::GetID(id), 0.0f);
     const ImGuiWindow *host = ImGui::GetCurrentWindow(); // its padding is room too: the area ends at its inner edge
     const ImVec2 outer(fit ? std::max(own, host->InnerRect.Max.x - ImGui::GetCursorScreenPos().x) : 0.0f, 0.0f);
-    if (!ImGui::BeginTable(id, count, sizing | fit_x | borders | bands, outer)) {
+    if (!ImGui::BeginTable(id, count, sizing | fit_x | pad | borders | bands, outer)) {
         return false;
     }
     for (int i = 0; i < count; ++i) {
-        const bool fixed = fit || columns[i].width == rv_editor_table_width::fixed;
+        const bool fixed =
+            (fit && !(style.fill_last && i == count - 1)) || (!fit && columns[i].width == rv_editor_table_width::fixed);
         const ImGuiTableColumnFlags width = fixed ? ImGuiTableColumnFlags_WidthFixed : ImGuiTableColumnFlags_WidthStretch;
         ImGui::TableSetupColumn(columns[i].name, width, fixed ? columns[i].fixed_px : columns[i].weight);
     }
