@@ -31,16 +31,17 @@ constexpr ImVec2 roomy(900.0f, 640.0f);
 struct subject {
     std::string name;
     rv_editor_pane_kind kind = rv_editor_pane_kind::output;
-    bool shelf = false;                    // a shelf over the area
-    bool header = false;                   // and a table header between them (the logs)
+    bool shelf = false;  // a shelf over the area
+    bool header = false; // and a table header between them (the logs)
     int strip_lines = 3; // the most lines of text its strip shows (a longer message scrolls inside): the logs' is one
-    bool rows = true;                      // the first row is the same in the state with a message (a log's tail is not)
+    bool rows = true;    // the first row is the same in the state with a message (a log's tail is not)
     std::vector<std::function<void()>> extra; // states with a message that no state without one is a pair of
-    std::function<void()> quiet;           // empty: the pane has no state without a message
+    std::function<void()> quiet;              // empty: the pane has no state without a message
     std::vector<std::function<void()>> say;
     std::function<rv_editor_probe_record(float, float)> draw;
     std::function<rv_editor_shell &()> shell;
-    std::function<float()> room_without_block; // the minimum height with no block and no strip: the shelf, the header, the floors
+    std::function<float()>
+        room_without_block; // the minimum height with no block and no strip: the shelf, the header, the floors
 };
 
 struct bench {
@@ -57,7 +58,8 @@ struct bench {
 
     void add_logs(rv_editor_test_imgui &gui)
     {
-        for (const auto kind : { rv_editor_pane_kind::output, rv_editor_pane_kind::runtime_log, rv_editor_pane_kind::build_log }) {
+        for (const auto kind :
+            { rv_editor_pane_kind::output, rv_editor_pane_kind::runtime_log, rv_editor_pane_kind::build_log }) {
             logs.push_back(std::make_unique<s13::fixture>(gui, kind));
             s13::fixture &f = *logs.back();
             subject s;
@@ -88,10 +90,10 @@ struct bench {
                 return f.shell;
             };
             s.room_without_block = [] {
-                // the shelf, the table header (a text line and 4 px, the log's own constant), a spacing and the area at its floor
-                return static_cast<float>(
-                    rv_editor_tiled_minimum(100.0f,
-                        rv_editor_tiled_shelf_block() + ImGui::GetTextLineHeight() + 4.0f + ImGui::GetStyle().ItemSpacing.y)
+                // the shelf, the table header (a text line and 4 px, the log's own constant), a spacing and the area at its
+                // floor
+                return static_cast<float>(rv_editor_tiled_minimum(100.0f,
+                    rv_editor_tiled_shelf_block() + ImGui::GetTextLineHeight() + 4.0f + ImGui::GetStyle().ItemSpacing.y)
                         .h);
             };
             subjects.push_back(std::move(s));
@@ -325,7 +327,11 @@ RV_EDITOR_TEST(rv_editor_test_strip_panes_minimum_is_the_shelf_the_floor_and_the
             want = s.room_without_block() + strip_max(s) + (s.header ? 0.0f : ImGui::GetStyle().ItemSpacing.y);
         });
         if (std::fabs(min.h - want) > 1.5f) {
-            std::fprintf(stderr, "  %s: the minimum is %.0f px high; shelf, floor, the tallest strip and a gap make %.0f\n", s.name.c_str(), min.h, want);
+            std::fprintf(stderr,
+                "  %s: the minimum is %.0f px high; shelf, floor, the tallest strip and a gap make %.0f\n",
+                s.name.c_str(),
+                min.h,
+                want);
         }
         RV_EDITOR_CHECK(std::fabs(min.h - want) <= 1.5f);
         std::vector<std::function<void()>> states = s.say;

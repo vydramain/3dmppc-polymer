@@ -191,11 +191,12 @@ RV_EDITOR_TEST(rv_editor_test_message_strip_height_wraps_the_text)
         long_h = rv_editor_message_strip_height(long_text(), actions, width);
         narrow_h = rv_editor_message_strip_height(long_text(), actions, width / 2.0f);
         none_h = rv_editor_message_strip_height("", actions, width);
-        three_h = std::max(ImGui::GetFrameHeight(), 3.0f * ImGui::GetTextLineHeight() + 2.0f * ImGui::GetStyle().FramePadding.y);
+        three_h =
+            std::max(ImGui::GetFrameHeight(), 3.0f * ImGui::GetTextLineHeight() + 2.0f * ImGui::GetStyle().FramePadding.y);
     });
     RV_EDITOR_CHECK(none_h == 0.0f);
     RV_EDITOR_CHECK(short_h > 0.0f);
-    RV_EDITOR_CHECK(medium_h > short_h);                // two lines: higher
+    RV_EDITOR_CHECK(medium_h > short_h); // two lines: higher
     RV_EDITOR_CHECK(medium_h <= three_h + 0.5f);
     RV_EDITOR_CHECK(std::fabs(long_h - three_h) < 0.5f); // more than three lines: the cap
     RV_EDITOR_CHECK(std::fabs(narrow_h - three_h) < 0.5f);
@@ -210,7 +211,8 @@ RV_EDITOR_TEST(rv_editor_test_message_strip_long_text_scrolls_inside_three_lines
     const rect s = span(p.record, p.strip_from);
     float three_h = 0.0f;
     gui.frame([&] {
-        three_h = std::max(ImGui::GetFrameHeight(), 3.0f * ImGui::GetTextLineHeight() + 2.0f * ImGui::GetStyle().FramePadding.y);
+        three_h =
+            std::max(ImGui::GetFrameHeight(), 3.0f * ImGui::GetTextLineHeight() + 2.0f * ImGui::GetStyle().FramePadding.y);
     });
     RV_EDITOR_CHECK(s.any);
     RV_EDITOR_CHECK(std::fabs(p.strip_h - three_h) < 0.5f);

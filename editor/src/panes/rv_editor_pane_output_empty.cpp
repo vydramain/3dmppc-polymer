@@ -30,8 +30,8 @@ void rv_editor_output_empty_row(rv_editor_output_view &view,
         "pane_output.reset_clear_view" };
     const size_t at = static_cast<size_t>(first);
     const char *filter = rv_editor_text(names[at]);
-    const std::string text = total == 1 ? rv_editor_text_format("pane_output.hidden_row_one", std::make_format_args(filter))
-                                        : rv_editor_text_format("pane_output.hidden_row", std::make_format_args(total, filter));
+    const std::string text = total == 1 ? rv_editor_text_format("pane_output.hidden_row_one", std::make_format_args(filter)) :
+                                          rv_editor_text_format("pane_output.hidden_row", std::make_format_args(total, filter));
     if (!rv_editor_content_empty_row(text.c_str(), theme, rv_editor_text(resets[at]))) {
         return;
     }

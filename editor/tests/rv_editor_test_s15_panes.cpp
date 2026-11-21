@@ -90,8 +90,8 @@ std::string strip_under_area(const rv_editor_probe_record &r, int want)
 
 } // namespace
 
-// R16, R10, R11: Project in every state has its areas and no message block above them; the tools are seven records in the areas and the
-// facts list is the first area, whose row menu copies a fact.
+// R16, R10, R11: Project in every state has its areas and no message block above them; the tools are seven records in the areas
+// and the facts list is the first area, whose row menu copies a fact.
 RV_EDITOR_TEST(rv_editor_test_s15_project_has_facts_and_tool_records_and_no_block)
 {
     load_texts();

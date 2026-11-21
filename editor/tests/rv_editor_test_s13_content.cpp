@@ -224,7 +224,11 @@ RV_EDITOR_TEST(rv_editor_test_s13_terminal_has_no_reserve_and_its_screen_stays_a
         RV_EDITOR_CHECK(area != nullptr);
         if (area != nullptr) {
             if (area->y0 > pad + gap + 0.5f) {
-                std::fprintf(stderr, "  terminal state %zu: the screen starts %.0f px down, the tile's padding is %.0f\n", i, area->y0, pad);
+                std::fprintf(stderr,
+                    "  terminal state %zu: the screen starts %.0f px down, the tile's padding is %.0f\n",
+                    i,
+                    area->y0,
+                    pad);
             }
             RV_EDITOR_CHECK(area->y0 <= pad + gap + 0.5f);
         }

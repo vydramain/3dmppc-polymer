@@ -110,8 +110,9 @@ inline std::string stays(const entry &base, const record &with, const char *what
     if (other == nullptr) {
         return std::string(what) + " is missing with the message";
     }
-    return same_box(base, *other) ? "" : std::string(what) + " " + rv_editor_probe_detail::rect(base) + " became " +
-            rv_editor_probe_detail::rect(*other);
+    return same_box(base, *other) ?
+        "" :
+        std::string(what) + " " + rv_editor_probe_detail::rect(base) + " became " + rv_editor_probe_detail::rect(*other);
 }
 
 // What is new in `said` under the area frame `area`: not in the record without the message (null: all of it).
@@ -177,7 +178,8 @@ strip_problems(const record *quiet, const record &said, ImVec2 tile, float gap, 
     const entry *frame = widest(fresh);
     for (const entry *e : fresh) {
         // Only the named items (buttons, the field): the text of a long message is a rectangle that scrolls in the strip.
-        if (!e->label.empty() && (e->x0 < frame->x0 - 0.5f || e->x1 > frame->x1 + 0.5f || e->y0 < frame->y0 - 0.5f || e->y1 > frame->y1 + 0.5f)) {
+        if (!e->label.empty() &&
+            (e->x0 < frame->x0 - 0.5f || e->x1 > frame->x1 + 0.5f || e->y0 < frame->y0 - 0.5f || e->y1 > frame->y1 + 0.5f)) {
             return "an item of the strip (a button or the name field) lies outside its frame";
         }
     }

@@ -149,8 +149,8 @@ std::vector<float> free_ratios(const rv_editor_shell &shell)
 {
     std::vector<float> r;
     for (const auto &n : shell.ws.layout.nodes) {
-        const bool free = n.kind == rv_editor_tile_kind::split && !strip_side(shell, n.split.first) &&
-            !strip_side(shell, n.split.second);
+        const bool free =
+            n.kind == rv_editor_tile_kind::split && !strip_side(shell, n.split.first) && !strip_side(shell, n.split.second);
         r.push_back(free ? n.split.ratio : 0.0f);
     }
     return r;
@@ -197,7 +197,6 @@ RV_EDITOR_TEST(rv_editor_test_game_fit_follows_window_resize_and_returns)
     }
 }
 
-
 // A dragged splitter is the user's: the fit leaves every ratio as the drag left it, through frames and a resize.
 RV_EDITOR_TEST(rv_editor_test_game_fit_leaves_a_dragged_tree_alone)
 {
@@ -210,7 +209,8 @@ RV_EDITOR_TEST(rv_editor_test_game_fit_leaves_a_dragged_tree_alone)
         rv_editor_layout &layout = loop.shell.ws.layout;
         uint32_t split = layout.nodes[rv_editor_tile_find(layout, loop.game)].parent;
         while (split != rv_editor_tile_none &&
-            (strip_side(loop.shell, layout.nodes[split].split.first) || strip_side(loop.shell, layout.nodes[split].split.second))) {
+            (strip_side(loop.shell, layout.nodes[split].split.first) ||
+                strip_side(loop.shell, layout.nodes[split].split.second))) {
             split = layout.nodes[split].parent;
         }
         RV_EDITOR_CHECK(split != rv_editor_tile_none);

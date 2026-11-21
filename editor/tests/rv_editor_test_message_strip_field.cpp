@@ -44,8 +44,14 @@ drawn draw_strip(rv_editor_test_imgui &gui, char *buf, bool focus, bool ok_disab
         gui,
         width,
         [&](rv_editor_probe_record &) {
-            d.pressed =
-                rv_editor_message_strip("ask", "New file in the project", rv_editor_label_kind::normal, ok_cancel, theme, 0.0f, &states, &field);
+            d.pressed = rv_editor_message_strip("ask",
+                "New file in the project",
+                rv_editor_label_kind::normal,
+                ok_cancel,
+                theme,
+                0.0f,
+                &states,
+                &field);
         },
         height);
     return d;
@@ -54,7 +60,8 @@ drawn draw_strip(rv_editor_test_imgui &gui, char *buf, bool focus, bool ok_disab
 const rv_editor_probe_entry *find(const rv_editor_probe_record &r, const std::string &label)
 {
     for (const auto &e : r.entries) {
-        if (e.label.substr(0, e.label.find("##")) == label || (label[0] == '#' && e.label.compare(0, label.size(), label) == 0)) {
+        if (e.label.substr(0, e.label.find("##")) == label ||
+            (label[0] == '#' && e.label.compare(0, label.size(), label) == 0)) {
             return &e;
         }
     }
@@ -104,7 +111,8 @@ RV_EDITOR_TEST(rv_editor_test_message_strip_field_sits_in_the_row_left_of_the_bu
     // The strip's frame (the widest item) holds the field and the buttons.
     const rv_editor_probe_entry *frame = nullptr;
     for (const auto &e : r.entries) {
-        frame = frame == nullptr || (e.x1 - e.x0) * (e.y1 - e.y0) > (frame->x1 - frame->x0) * (frame->y1 - frame->y0) ? &e : frame;
+        frame =
+            frame == nullptr || (e.x1 - e.x0) * (e.y1 - e.y0) > (frame->x1 - frame->x0) * (frame->y1 - frame->y0) ? &e : frame;
     }
     RV_EDITOR_CHECK(frame != nullptr && field->x0 >= frame->x0 - 0.5f && field->y0 >= frame->y0 - 0.5f &&
         field->y1 <= frame->y1 + 0.5f && field->x1 <= frame->x1 + 0.5f);
