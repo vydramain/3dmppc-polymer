@@ -23,6 +23,9 @@ namespace rv_pdklib
 // The longest step name (plan label or step label); a longer one makes the line foreign. Tool code keeps names within it.
 inline constexpr std::size_t rv_progress_step_name_max = 16;
 
+// The start of the reason of a failed end when the sources have error findings: the burner says it, the editor knows it.
+inline constexpr std::string_view rv_progress_reason_findings = "sources have error findings";
+
 enum class rv_progress_kind {
     plan,
     step,
@@ -42,7 +45,8 @@ struct rv_progress_line {
     std::string reason;              // end_failed
 };
 
-// Printing goes to stderr unless a stream is given.
+// Printing goes to stderr unless a stream is given. A line is preceded by a flush of stdout: with both in one pipe (the
+// burner captures its tools so) the buffered stdout would otherwise land in the middle of the protocol line.
 inline void rv_progress_plan(const std::string &tool, const std::vector<std::string> &labels, std::FILE *out = stderr)
 {
     std::string joined;
@@ -50,6 +54,7 @@ inline void rv_progress_plan(const std::string &tool, const std::vector<std::str
         assert(label.size() <= rv_progress_step_name_max); // a name in the tool's code, so a programmer's error
         joined += ' ' + label;
     }
+    std::fflush(stdout);
     rv_fprintf(out, "%s: [plan]%s\n", tool.c_str(), joined.c_str());
 }
 
@@ -61,16 +66,19 @@ inline void rv_progress_step(const std::string &tool,
     std::FILE *out = stderr)
 {
     assert(label.size() <= rv_progress_step_name_max); // a name in the tool's code, so a programmer's error
+    std::fflush(stdout);
     rv_fprintf(out, "%s: [%d/%d] %-11s %s\n", tool.c_str(), n, total, label.c_str(), detail.c_str());
 }
 
 inline void rv_progress_end_ok(const std::string &tool, std::FILE *out = stderr)
 {
+    std::fflush(stdout);
     rv_fprintf(out, "%s: [end] ok\n", tool.c_str());
 }
 
 inline void rv_progress_end_failed(const std::string &tool, const std::string &reason, std::FILE *out = stderr)
 {
+    std::fflush(stdout);
     rv_fprintf(out, "%s: [end] failed: %s\n", tool.c_str(), reason.c_str());
 }
 

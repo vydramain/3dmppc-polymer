@@ -13,6 +13,7 @@
 #include "imgui_internal.h"
 
 #include "panes/rv_editor_pane_tiled.hpp"
+#include "pdklib/rv_progress/rv_progress.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_content.hpp"
@@ -101,6 +102,13 @@ std::string rv_editor_problems_alert_text(const rv_editor_app &app)
         break;
     }
     const size_t number = app.build.number();
+    // The burner's refusal for error findings points "above" at its own console; here the table is the pane's own.
+    if (alert.reason.starts_with(rv_pdklib::rv_progress_reason_findings)) {
+        const auto errors = std::count_if(app.problems.begin(), app.problems.end(), [](const rv_editor_problem &p) {
+            return p.error;
+        });
+        return rv_editor_text_format("pane_problems.alert_failed_findings", std::make_format_args(number, errors));
+    }
     return rv_editor_text_format("pane_problems.alert_failed", std::make_format_args(number, alert.reason));
 }
 

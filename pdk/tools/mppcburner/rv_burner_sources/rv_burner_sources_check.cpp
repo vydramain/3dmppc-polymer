@@ -4,6 +4,7 @@
 #include <string>
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_progress/rv_progress.hpp"
 #include "rv_burner_assets/rv_burner_baker_path.hpp"
 #include "rv_burner_common/rv_burner_process.hpp"
 
@@ -54,7 +55,7 @@ int rv_pdktools::rv_burner_sources_check(const fs::path &disc_dir,
         return RV_ERR_IO;
     }
     if (status == k_inspector_findings) {
-        error = "sources have error findings (listed above), so the build does not accept them";
+        error = std::string(rv_pdklib::rv_progress_reason_findings) + " (listed above), so the build does not accept them";
         return RV_ERR_INVAL;
     }
     if (status != k_inspector_clean) {

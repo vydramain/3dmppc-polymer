@@ -1,0 +1,601 @@
+[scene]
+
+[[object]]
+id = "5ce00001"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00002"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00003"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00004"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00005"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00006"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00007"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00008"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00009"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0000a"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0000b"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0000c"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0000d"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0000e"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0000f"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00010"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00011"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00012"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00013"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00014"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00015"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00016"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00017"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00018"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00019"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0001a"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0001b"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0001c"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0001d"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0001e"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0001f"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00020"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00021"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00022"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00023"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00024"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00025"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00026"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00027"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00028"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00029"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0002a"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0002b"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0002c"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0002d"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0002e"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0002f"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00030"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00031"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00032"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00033"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00034"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00035"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00036"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00037"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00038"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00039"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0003a"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0003b"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0003c"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0003d"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0003e"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0003f"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00040"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00041"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00042"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00043"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00044"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00045"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00046"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00047"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00048"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00049"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0004a"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0004b"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0004c"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0004d"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0004e"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0004f"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00050"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00051"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00052"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00053"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00054"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00055"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00056"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00057"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00058"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00059"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0005a"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0005b"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0005c"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0005d"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0005e"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0005f"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00060"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00061"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00062"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00063"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00064"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00065"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00066"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00067"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00068"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00069"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0006a"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0006b"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0006c"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0006d"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0006e"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce0006f"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00070"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00071"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00072"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00073"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00074"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00075"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00076"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00077"
+parent = ""
+sm_kind = "spawn"
+
+[[object]]
+id = "5ce00078"
+parent = ""
+sm_kind = "spawn"

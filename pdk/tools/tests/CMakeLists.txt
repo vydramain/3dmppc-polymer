@@ -85,6 +85,16 @@ add_test(NAME inspector_protocol_failed
     -DRV_EXIT=2
     -P ${CMAKE_CURRENT_SOURCE_DIR}/rv_inspector_check.cmake)
 
+# A finding line is never cut by the protocol: with stdout and stderr in one pipe (the burner captures the inspector so),
+# the findings past the stdio buffer's size (the fixture has 120, over 9 KB) and the end line stay whole lines.
+add_test(NAME inspector_findings_and_protocol_lines_stay_whole_in_one_pipe
+  COMMAND ${CMAKE_COMMAND}
+    -DRV_TOOL=$<TARGET_FILE:mppcinspector>
+    -DRV_ARGS=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/inspector-many
+    -DRV_EXIT=1
+    -DRV_PROTOCOL=mppcinspector
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/rv_merged_check.cmake)
+
 # --- The bakers speak the progress protocol (stderr, after the summary line on stdout). ---
 # Good input: plan first, steps 1..N in order, last line [end] ok, exit 0, summary line kept.
 # Bad input: the old error line kept, last line [end] failed: <reason>, exit 1 as before.
