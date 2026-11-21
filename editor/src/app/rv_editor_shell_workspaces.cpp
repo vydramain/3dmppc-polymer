@@ -298,7 +298,9 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
         return;
     }
     for (size_t i = 0; i < ws.panes.panes.size(); ++i) {
-        if (ws.panes.panes[i].kind == rv_editor_pane_kind::game) {
+        // The registry holds every layout's panes: the Game of the shown tree, not the first one.
+        if (ws.panes.panes[i].kind == rv_editor_pane_kind::game &&
+            rv_editor_tile_find(ws.layout, static_cast<rv_editor_pane_id>(i)) != rv_editor_tile_none) {
             rv_editor_fit_game_tree(ws,
                 static_cast<rv_editor_pane_id>(i),
                 area,
