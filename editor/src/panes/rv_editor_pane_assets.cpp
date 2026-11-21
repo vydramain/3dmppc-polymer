@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "imgui.h"
+#include "imgui_internal.h"
 
 #include "app/rv_editor_shell.hpp"
 #include "build/rv_editor_build_map.hpp"
@@ -266,6 +267,16 @@ float rv_editor_assets_floor()
     return rv_editor_tiled_rows_floor(table_floor_rows + 1.0f, rv_editor_tiled_table_pitch());
 }
 
+// The Type column holds a square and the longest kind word.
+float type_column_width()
+{
+    float widest = 0.0f;
+    for (const char *k : rv_editor_file_kind_keys()) {
+        widest = std::max(widest, ImGui::CalcTextSize(rv_editor_text(k)).x);
+    }
+    return ImGui::GetTextLineHeight() + ImGui::GetStyle().ItemSpacing.x + widest;
+}
+
 // The resources as a table of rows.
 void rv_editor_assets_table(rv_editor_app &app,
     const std::vector<const rv_editor_asset *> &shown,
@@ -276,7 +287,7 @@ void rv_editor_assets_table(rv_editor_app &app,
 {
     const rv_editor_table_column columns[assets_table_columns] = {
         { rv_editor_text("pane_assets.table_name") },
-        { rv_editor_text("pane_assets.table_type"), rv_editor_table_width::fixed },
+        { rv_editor_text("pane_assets.table_type"), rv_editor_table_width::fixed, type_column_width() },
         { rv_editor_text("pane_assets.table_size"), rv_editor_table_width::fixed },
         { rv_editor_text("pane_assets.table_folder") },
     };
@@ -315,13 +326,25 @@ void rv_editor_assets_table(rv_editor_app &app,
             }
         };
         next_cell();
-        // The kind of file is the code of its icon in Files (Im, Sn, Fi, ...), in its colour.
-        const char *code = rv_editor_glyph::other_file;
-        uint32_t color = 0;
-        rv_editor_file_chip(a->path, code, color);
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(color));
-        rv_editor_table_cell_text(code, theme);
-        ImGui::PopStyleColor();
+        // The kind of file: a square of its colour, one text line high, and its word.
+        const float line = ImGui::GetTextLineHeight();
+        const ImVec2 at = ImGui::GetCursorScreenPos();
+        ImGui::Dummy(ImVec2(line, line));
+        ImGui::ItemAdd(ImRect(at, ImVec2(at.x + line, at.y + line)),
+            ImGui::GetID("##kind_square"),
+            nullptr,
+            ImGuiItemFlags_NoNav); // the layout probe sees the square
+        ImGui::GetWindowDrawList()->AddRectFilled(at,
+            ImVec2(at.x + line, at.y + line),
+            rv_editor_col(rv_editor_file_kind_color(a->path)));
+        ImGui::SameLine();
+        const char *word = rv_editor_file_kind_word(a->path);
+        rv_editor_table_cell_text(word, theme);
+        // A text item has no id, so an item of the same rectangle names the word for the layout probe; it takes no room.
+        const ImRect text_box(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+        ImGui::ItemAdd(text_box, ImGui::GetID(word), nullptr, ImGuiItemFlags_NoNav);
+        ImGuiContext &g = *ImGui::GetCurrentContext();
+        IMGUI_TEST_ENGINE_ITEM_INFO(g.LastItemData.ID, word, g.LastItemData.StatusFlags);
         next_cell();
         rv_editor_label(std::to_string(a->size).c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
         next_cell();

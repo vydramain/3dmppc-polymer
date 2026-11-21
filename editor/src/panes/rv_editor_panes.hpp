@@ -179,6 +179,12 @@ void rv_editor_pane_assets(rv_editor_app &app,
     const rv_editor_ui_port &ui_port);
 // The code and colour that stand in for a file's icon, by its extension.
 void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, uint32_t &color);
+// The word of a file's kind (Image, Sound, Model, Scene, Code, ...) from texts "pane_assets.kind_*".
+const char *rv_editor_file_kind_word(const std::filesystem::path &path);
+// The colour of that kind: the chip's, and its own for Model and Scene.
+uint32_t rv_editor_file_kind_color(const std::filesystem::path &path);
+// The text keys of all the kind words, for sizing the Type column.
+std::span<const char *const> rv_editor_file_kind_keys();
 
 // The console's own keys held now, as rv_isource bits
 // (src/rv_pconsole/platform/sdl3/rv_pcwindow_sdl3.cpp).

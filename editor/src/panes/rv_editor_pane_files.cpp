@@ -4,7 +4,9 @@
 #include <cmath>
 #include <cstring>
 #include <iterator>
+#include <span>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 #include "imgui.h"
@@ -101,41 +103,93 @@ void rv_editor_files_chip(const rv_editor_file_node &node, const char *&code, ui
 
 } // namespace
 
-void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, uint32_t &color)
+namespace
 {
-    const std::string ext = path.extension().string();
-    struct kind {
-        const char *ext;
-        const char *code;
-        uint32_t color;
-    };
-    // File extension -> list glyph and colour.
-    static constexpr kind kinds[] = { { ".lua", rv_editor_glyph::lua, rv_editor_mocha_mauve },
-        { ".cpp", rv_editor_glyph::cpp, rv_editor_mocha_blue },
-        { ".c", rv_editor_glyph::cpp, rv_editor_mocha_blue },
-        { ".cc", rv_editor_glyph::cpp, rv_editor_mocha_blue },
-        { ".hpp", rv_editor_glyph::header, rv_editor_mocha_sapphire },
-        { ".h", rv_editor_glyph::header, rv_editor_mocha_sapphire },
-        { ".toml", rv_editor_glyph::toml, rv_editor_mocha_peach },
-        { ".png", rv_editor_glyph::image, rv_editor_mocha_green },
-        { ".pcm", rv_editor_glyph::sound, rv_editor_mocha_teal },
-        { ".wav", rv_editor_glyph::sound, rv_editor_mocha_teal },
-        { ".md", rv_editor_glyph::text, rv_editor_mocha_text },
-        { ".txt", rv_editor_glyph::text, rv_editor_mocha_text } };
-    code = rv_editor_glyph::other_file;
-    color = rv_editor_mocha_subtext0;
-    if (path.filename() == disc_manifest_filename) {
-        code = rv_editor_glyph::disc_toml;
-        color = rv_editor_mocha_peach;
-        return;
+
+// A kind of file: what the Files list and the Assets Type column show for it, by the end of its name.
+struct file_kind {
+    const char *suffix;
+    const char *code;
+    uint32_t color;
+    const char *key;
+};
+
+constexpr file_kind kind_manifest = { "", rv_editor_glyph::disc_toml, rv_editor_mocha_peach, "pane_assets.kind_manifest" };
+constexpr file_kind kind_other = { "", rv_editor_glyph::other_file, rv_editor_mocha_subtext0, "pane_assets.kind_other" };
+
+// Models have no code of their own in the glyphs, so they stay Fi.
+constexpr file_kind file_kinds[] = {
+    { ".scene.toml", rv_editor_glyph::toml, rv_editor_mocha_yellow, "pane_assets.kind_scene" },
+    { ".lua", rv_editor_glyph::lua, rv_editor_mocha_mauve, "pane_assets.kind_script" },
+    { ".cpp", rv_editor_glyph::cpp, rv_editor_mocha_blue, "pane_assets.kind_code" },
+    { ".cc", rv_editor_glyph::cpp, rv_editor_mocha_blue, "pane_assets.kind_code" },
+    { ".c", rv_editor_glyph::cpp, rv_editor_mocha_blue, "pane_assets.kind_code" },
+    { ".hpp", rv_editor_glyph::header, rv_editor_mocha_sapphire, "pane_assets.kind_header" },
+    { ".h", rv_editor_glyph::header, rv_editor_mocha_sapphire, "pane_assets.kind_header" },
+    { ".toml", rv_editor_glyph::toml, rv_editor_mocha_peach, "pane_assets.kind_text" },
+    { ".png", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".jpg", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".jpeg", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".bmp", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".tga", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".pcm", rv_editor_glyph::sound, rv_editor_mocha_teal, "pane_assets.kind_sound" },
+    { ".wav", rv_editor_glyph::sound, rv_editor_mocha_teal, "pane_assets.kind_sound" },
+    { ".gltf", rv_editor_glyph::other_file, rv_editor_mocha_pink, "pane_assets.kind_model" },
+    { ".glb", rv_editor_glyph::other_file, rv_editor_mocha_pink, "pane_assets.kind_model" },
+    { ".bin", rv_editor_glyph::other_file, rv_editor_mocha_pink, "pane_assets.kind_model" },
+    { ".md", rv_editor_glyph::text, rv_editor_mocha_text, "pane_assets.kind_text" },
+    { ".txt", rv_editor_glyph::text, rv_editor_mocha_text, "pane_assets.kind_text" },
+};
+
+const file_kind &rv_editor_file_kind(const std::filesystem::path &path)
+{
+    const std::string name = path.filename().string();
+    if (name == disc_manifest_filename) {
+        return kind_manifest;
     }
-    for (const kind &k : kinds) {
-        if (ext == k.ext) {
-            code = k.code;
-            color = k.color;
-            return;
+    for (const file_kind &k : file_kinds) {
+        const std::string_view suffix = k.suffix;
+        if (name.size() >= suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+            return k;
         }
     }
+    return kind_other;
+}
+
+} // namespace
+
+const char *rv_editor_file_kind_word(const std::filesystem::path &path)
+{
+    return rv_editor_text(rv_editor_file_kind(path).key);
+}
+
+uint32_t rv_editor_file_kind_color(const std::filesystem::path &path)
+{
+    return rv_editor_file_kind(path).color;
+}
+
+std::span<const char *const> rv_editor_file_kind_keys()
+{
+    static constexpr const char *keys[] = { "pane_assets.kind_image",
+        "pane_assets.kind_sound",
+        "pane_assets.kind_model",
+        "pane_assets.kind_scene",
+        "pane_assets.kind_code",
+        "pane_assets.kind_header",
+        "pane_assets.kind_script",
+        "pane_assets.kind_manifest",
+        "pane_assets.kind_text",
+        "pane_assets.kind_folder",
+        "pane_assets.kind_link",
+        "pane_assets.kind_other" };
+    return keys;
+}
+
+void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, uint32_t &color)
+{
+    const file_kind &k = rv_editor_file_kind(path);
+    code = k.code;
+    color = k.color;
 }
 
 namespace
