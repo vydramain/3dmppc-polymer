@@ -66,9 +66,9 @@ rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app)
     const auto build_number = app.build.number();
     std::string build = rv_editor_text_format("shell_status.build_no_number", std::make_format_args(build_state));
     if (build_number != 0) {
-        // The step line while it is shown; the state's name when there is none (done, failed before a step, cancelled).
+        // The step line while the build runs; the state's name otherwise (done, failed, cancelled).
         std::string detail = build_state;
-        if (app.build.busy() || app.build.state() == rv_editor_build_state::failed) {
+        if (app.build.busy()) {
             const std::string steps = rv_editor_steps_compact(app.build.progress());
             detail = steps.empty() ? detail : steps;
         }

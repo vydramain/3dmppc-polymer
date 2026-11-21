@@ -279,8 +279,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     // The status under the buttons and the slot, as wide as the tile; its minimum width wraps the longest status into two
     // lines.
     const bool build_shown = app.build.busy() || app.build.state() == rv_editor_build_state::failed;
-    // A build without a step to name (failed before one) says its state instead.
-    std::string step = build_shown ? rv_editor_steps_compact(app.build.progress()) : std::string();
+    // A build without a step to name (failed, even at one) says its state instead.
+    std::string step = app.build.busy() ? rv_editor_steps_compact(app.build.progress()) : std::string();
     if (build_shown && step.empty()) {
         step = rv_editor_build_state_name(app.build.state());
     }
