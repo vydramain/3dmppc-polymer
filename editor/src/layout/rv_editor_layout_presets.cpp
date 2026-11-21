@@ -16,16 +16,14 @@ constexpr float code_sidebar_ratio = 0.16f;
 constexpr float code_output_ratio = 0.60f;
 // Code preset: right game panel ratio.
 constexpr float code_game_ratio = 0.60f;
-// Scene preset: left column (Scene, Assets, strip) share of the width.
+// Scene preset: left column (Scene over Assets and Inspector) share of the width.
 constexpr float scene_left_ratio = 0.58f;
-// Scene preset: Game share of the right column's height; Hierarchy and Inspector take the rest.
-constexpr float scene_game_ratio = 0.26f;
-// Scene preset: Hierarchy share of the right column below the Game.
-constexpr float scene_hierarchy_ratio = 0.50f;
-// Scene preset: center assets panel ratio.
-constexpr float scene_assets_ratio = 0.55f;
-// Scene preset: Runtime Controls share of the strip along the bottom, the Toolchest takes the rest.
-constexpr float scene_controls_ratio = 0.68f;
+// Scene preset: Game share of the right column below its strip row; Hierarchy takes the rest.
+constexpr float scene_game_ratio = 0.50f;
+// Scene preset: Scene share of the left column's height; Assets and Inspector take the rest.
+constexpr float scene_scene_ratio = 0.55f;
+// Scene preset: Assets share of the row under the Scene, Inspector takes the rest.
+constexpr float scene_assets_ratio = 0.50f;
 // Debug preset: game and session share above the runtime log.
 constexpr float debug_log_ratio = 0.71f;
 // Debug preset: game share beside the session column.
@@ -74,24 +72,22 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
     (void)rv_editor_tile_activate(b.layout, output);
 }
 
-// Two columns, so the tree's minimum fits 1280 px: on the left the Scene over a tile of
-// Assets, Files and Console Output (Assets in front) over a strip of Runtime Controls
-// beside the Toolchest; on the right the Game over Hierarchy over Inspector.
+// Two columns, so the tree's minimum fits 1280 px: on the left the Scene over Assets (Assets, Files and Inspector
+// Report tabs) beside Inspector; on the right a column of the Toolchest, Runtime Controls, the Game and
+// Hierarchy down to the bottom.
 void rv_editor_preset_scene(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id scene = 0;
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, scene_left_ratio);
-    const rv_editor_pane_id hierarchy =
-        b.add(rv_editor_pane_kind::hierarchy, game, rv_editor_tile_dock::bottom, scene_game_ratio);
-    b.add(rv_editor_pane_kind::inspector, hierarchy, rv_editor_tile_dock::bottom, scene_hierarchy_ratio);
-    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, scene_assets_ratio);
+    b.add(rv_editor_pane_kind::hierarchy, game, rv_editor_tile_dock::bottom, scene_game_ratio);
+    // The controls are a strip as tall as their buttons: the game takes the rest.
+    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::top, 1.0f);
+    b.add(rv_editor_pane_kind::toolchest, controls, rv_editor_tile_dock::top, 1.0f);
+    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, scene_scene_ratio);
+    b.add(rv_editor_pane_kind::inspector, assets, rv_editor_tile_dock::right, scene_assets_ratio);
     b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
-    b.add(rv_editor_pane_kind::output, assets, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::inspector_report, assets, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, assets);
-    // The controls are a strip as tall as their buttons: the assets take the rest.
-    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, assets, rv_editor_tile_dock::bottom, 1.0f);
-    b.add(rv_editor_pane_kind::toolchest, controls, rv_editor_tile_dock::right, scene_controls_ratio);
 }
 
 // Debug: the Game column (Runtime Controls strip over the Game) beside Session, Observe

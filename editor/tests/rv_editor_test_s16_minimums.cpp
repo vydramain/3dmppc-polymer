@@ -1,6 +1,8 @@
 // S16, R1/R3/R6, AC1: Scene, Hierarchy and Inspector each have one minimum that no state changes and no drag or window
 // size goes under, and the body of their tile has no scrolling at that minimum.
 
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <map>
 #include <string>
@@ -8,8 +10,11 @@
 #include "app/rv_editor_shell.hpp"
 #include "imgui_internal.h"
 #include "rv_editor_test.hpp"
+#include "rv_editor_test_fits_whole.hpp"
+#include "rv_editor_test_layout_probe.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_s16.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "ui/rv_editor_widgets_content.hpp"
 
 using namespace rv_editor;
@@ -75,6 +80,12 @@ RV_EDITOR_TEST(rv_editor_test_s16_every_kind_has_one_minimum_whatever_the_state)
         gui.frame([&] {
             content_min = rv_editor_content_min_height();
         });
+        // R19: no area is a box of three rows any more; Hierarchy's tree area keeps two (S13.2, Scene's column is 672 px).
+        if (kind == rv_editor_pane_kind::hierarchy) {
+            gui.frame([&] {
+                content_min -= ImGui::GetTextLineHeightWithSpacing();
+            });
+        }
         RV_EDITOR_CHECK(first.h >= content_min);
         for (size_t i = 0; i < f.states.size(); ++i) {
             f.states[i]();
@@ -219,4 +230,107 @@ RV_EDITOR_TEST(rv_editor_test_s16_the_tile_body_never_scrolls_at_the_minimum)
             RV_EDITOR_CHECK(over.x <= 0.5f && over.y <= 0.5f);
         }
     }
+}
+
+// S13.2.1: Hierarchy's minimum is the window's padding, the shelf (one row: the buttons, the search and the order), a one-line
+// strip with its gap and the tree area at two rows (the floor less one row), so Scene's right column fits 672 px. The shelf's
+// own trailing spacing (the gap to the tree area) may be left out of the minimum when the tree area sits on the shelf.
+RV_EDITOR_TEST(rv_editor_test_s16_the_hierarchy_minimum_is_two_rows_and_a_one_line_strip)
+{
+    load_texts();
+    rv_editor_test_imgui gui(true);
+    const auto min = stable_tiles::pane_minimum(gui, rv_editor_pane_kind::hierarchy);
+    float want = 0.0f, gap = 0.0f;
+    gui.frame([&] {
+        const ImGuiStyle &style = ImGui::GetStyle();
+        gap = style.ItemSpacing.y;
+        want = style.WindowPadding.y + rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(false, 1) +
+            rv_editor_tiled_floor() - ImGui::GetTextLineHeightWithSpacing();
+    });
+    if (min.h > want + 1.5f || min.h < want - gap - 1.5f) {
+        std::fprintf(stderr,
+            "  hierarchy: the minimum is %.0f px high, the parts make %.0f (%.0f without the shelf's spacing)\n",
+            min.h,
+            want,
+            want - gap);
+    }
+    RV_EDITOR_CHECK(min.h <= want + 1.5f);
+    RV_EDITOR_CHECK(min.h >= want - gap - 1.5f);
+}
+
+// S13.2.1: at its least width (Scene's column tile of 336 less 14 of chrome is 322) the Hierarchy shelf is one row: the seven
+// buttons, the search field (at least five characters) and the order choice (its longest item, whole) stand at one height
+// and show whole.
+RV_EDITOR_TEST(rv_editor_test_s16_the_hierarchy_shelf_is_one_row_at_the_minimum_width)
+{
+    load_texts();
+    rv_editor_test_imgui gui(true);
+    const auto min = stable_tiles::pane_minimum(gui, rv_editor_pane_kind::hierarchy);
+    RV_EDITOR_CHECK(min.w > 0.0f && min.h > 0.0f);
+    if (min.w > 322.0f) {
+        std::fprintf(stderr, "  hierarchy: the minimum width is %.0f, Scene's column leaves 322\n", min.w);
+    }
+    RV_EDITOR_CHECK(min.w <= 322.0f);
+    rv_editor_shell shell;
+    rv_editor_pane_add(shell.ws.panes, rv_editor_pane_kind::empty); // pane 0: the pane below is 1
+    RV_EDITOR_CHECK(rv_editor_pane_add(shell.ws.panes, rv_editor_pane_kind::hierarchy) == pane);
+    rv_editor_probe_record record;
+    float query_least = 0.0f, sort_least = 0.0f;
+    for (int i = 0; i < 3; ++i) {
+        record = rv_editor_probe_draw(
+            gui,
+            min.w,
+            [&](rv_editor_probe_record &) {
+                const ImGuiStyle &style = ImGui::GetStyle();
+                query_least = 5.0f * ImGui::CalcTextSize("M").x + style.FramePadding.x * 2.0f;
+                sort_least = ImGui::CalcTextSize(rv_editor_text("pane_hierarchy.sort_file_order")).x + ImGui::GetFrameHeight() +
+                    style.FramePadding.x * 2.0f;
+                rv_editor_shell_pane(&shell, pane, rv_editor_pane_kind::hierarchy, stable_tiles::theme);
+            },
+            min.h);
+    }
+    rv_editor_probe_record row; // the shelf's items and the form's
+    int buttons = 0;
+    const rv_editor_probe_entry *query = nullptr, *order = nullptr;
+    for (const auto &e : record.entries) {
+        if (e.label.rfind("##add", 0) == 0 || e.label.rfind("##command", 0) == 0) {
+            ++buttons;
+            row.entries.push_back(e);
+        } else if (e.label.rfind("##hierarchy_query", 0) == 0) {
+            query = &e;
+            row.entries.push_back(e);
+        } else if (e.label.rfind("##hierarchy_sort", 0) == 0) {
+            order = &e;
+            row.entries.push_back(e);
+        }
+    }
+    RV_EDITOR_CHECK(buttons == 7);
+    RV_EDITOR_CHECK(query != nullptr && order != nullptr);
+    if (query == nullptr || order == nullptr) {
+        return;
+    }
+    float y_min = query->y0, y_max = query->y0;
+    for (const auto &e : row.entries) {
+        y_min = std::min(y_min, e.y0);
+        y_max = std::max(y_max, e.y0);
+    }
+    if (y_max - y_min > 0.5f || query->x1 - query->x0 < query_least - 0.5f || order->x1 - order->x0 < sort_least - 0.5f) {
+        std::fprintf(stderr,
+            "  hierarchy shelf at %.0fx%.0f: rows span %.1f px, search %.1f wide (least %.1f), order %.1f wide (least %.1f)\n",
+            min.w,
+            min.h,
+            y_max - y_min,
+            query->x1 - query->x0,
+            query_least,
+            order->x1 - order->x0,
+            sort_least);
+    }
+    RV_EDITOR_CHECK(y_max - y_min <= 0.5f);
+    RV_EDITOR_CHECK(query->x1 - query->x0 >= query_least - 0.5f);
+    RV_EDITOR_CHECK(order->x1 - order->x0 >= sort_least - 0.5f);
+    const std::string bad = rv_editor_fits_whole(row, ImRect(0, 0, min.w, min.h));
+    if (!bad.empty()) {
+        std::fprintf(stderr, "  hierarchy shelf: %s\n", bad.c_str());
+    }
+    RV_EDITOR_CHECK(bad.empty());
 }

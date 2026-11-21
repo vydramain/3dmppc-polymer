@@ -19,6 +19,7 @@ struct rv_editor_test_imgui {
         ImGuiIO &io = ImGui::GetIO();
         io.DisplaySize = ImVec2(2000, 2000); // larger than any test window, so nothing is clipped
         io.IniFilename = nullptr;
+        ImGui::GetStyle().WindowMinSize = ImVec2(1, 1); // a test window may be as low as a pane's minimum, under the default 32
         if (!with_fonts) {
             io.Fonts->AddFontDefault();
         }

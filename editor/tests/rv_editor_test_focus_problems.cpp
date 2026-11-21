@@ -97,7 +97,7 @@ RV_EDITOR_TEST(rv_editor_test_focus_problems_code)
         rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::inspector_report)));
 }
 
-// Scene: the Inspector Report is a tab of the Assets tile (S5: every layout starts with it), where the Output is.
+// Scene: the Inspector Report is a tab of the Assets tile (there is no Console Output in Scene).
 RV_EDITOR_TEST(rv_editor_test_focus_problems_scene)
 {
     rv_editor_shell shell;
@@ -106,8 +106,8 @@ RV_EDITOR_TEST(rv_editor_test_focus_problems_scene)
     const size_t leaves = leaf_count(shell.ws.layout);
     rv_editor_shell_focus_problems(shell);
     check_focused(shell, leaves);
-    const rv_editor_pane_id output = find_pane(shell, rv_editor_pane_kind::output);
-    RV_EDITOR_CHECK(rv_editor_tile_find(shell.ws.layout, output) ==
+    RV_EDITOR_CHECK(pane_count(shell, rv_editor_pane_kind::output) == 0);
+    RV_EDITOR_CHECK(rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::assets)) ==
         rv_editor_tile_find(shell.ws.layout, find_pane(shell, rv_editor_pane_kind::inspector_report)));
 }
 

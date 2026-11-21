@@ -233,13 +233,14 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
 void rv_editor_shell_fit_game(rv_editor_shell &shell);
 
 // Sets `ws.layout` so the Game's picture area (`area` now, in `ws.rects`) is the largest whole number of the screen's
-// aspect steps the other tiles' minimums let by (rv_editor_shell_game_fit.cpp); `strip_like` tells the tiles that keep
-// their pixels. A target size smaller than that maximum would cap the step count in there.
+// aspect steps the other tiles' minimums let by, but not taller than `target_h` px unless the Game's own minimum is
+// (rv_editor_shell_game_fit.cpp); `strip_like` tells the tiles that keep their pixels.
 void rv_editor_fit_game_tree(rv_editor_workspace &ws,
     rv_editor_pane_id game,
     rv_editor_size area,
     int32_t screen_w,
     int32_t screen_h,
+    int32_t target_h,
     const std::function<bool(uint32_t)> &strip_like);
 
 // Once a frame: switches layout if Assets asked for one (see rv_editor_shell_frame_start).

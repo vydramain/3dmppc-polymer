@@ -30,9 +30,23 @@ rv_editor_message_say rv_editor_scene_none_say(const rv_editor_app &app, const s
     return { text, kind, { rv_editor_text("pane_scene.create_scene") } };
 }
 
-void rv_editor_scene_none_strip(rv_editor_app &app, const rv_editor_message_say &say, float width, const rv_editor_theme &theme)
+void rv_editor_scene_none_strip(rv_editor_app &app,
+    const rv_editor_message_say &say,
+    float width,
+    const rv_editor_theme &theme,
+    int max_lines)
 {
-    if (rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, width) != 0) {
+    if (rv_editor_message_strip("##strip",
+            say.text,
+            say.kind,
+            say.buttons,
+            theme,
+            width,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            max_lines) != 0) {
         return;
     }
     if (app.project.open) {

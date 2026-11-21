@@ -248,7 +248,8 @@ rv_editor_message_say rv_editor_scene_none_say(const rv_editor_app &app, const s
 void rv_editor_scene_none_strip(rv_editor_app &app,
     const rv_editor_message_say &say,
     float width,
-    const rv_editor_theme &theme);
+    const rv_editor_theme &theme,
+    int max_lines = 3);
 float rv_editor_scene_none_width();
 void rv_editor_scene_files_list(rv_editor_app &app, const rv_editor_theme &theme);
 // The New Scene question in the Scene pane's strip: what it says (empty text while it is closed) and why Create is off (empty:
@@ -293,6 +294,8 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
 void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o, const rv_editor_theme &theme);
 // Hierarchy's shelf: Add opens the kinds menu, then the command buttons (rv_editor_pane_hierarchy_actions.cpp).
 void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// The search field and the order choice, drawn at the end of the shelf's row (rv_editor_pane_hierarchy.cpp).
+void rv_editor_hierarchy_filter(rv_editor_app &app, const rv_editor_theme &theme);
 // The width of the shelf's buttons in a row, without the shelf's padding. Call inside a frame.
 float rv_editor_hierarchy_shelf_width();
 // Runs an action on a copy of the Scene camera, queuing a changed camera (rv_editor_pane_hierarchy_actions.cpp).

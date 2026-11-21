@@ -196,6 +196,35 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws, bool all)
     }
 }
 
+// The Game's picture height the fit aims at, from the work area's height `h` (the window less the menu and status bars,
+// 48 px at scale 1): linear through the approved sizes, 300 px at 720 (work area 672) and 480 at 1080 (1032); in the
+// Scene, whose column is narrower, 240 and 360. The tiles' minimums can only lower it, so it never depends on history.
+int32_t rv_editor_game_target_h(rv_editor_layout_preset preset, int32_t h)
+{
+    return preset == rv_editor_layout_preset::scene ? h / 3 + 16 : h / 2 - 36;
+}
+
+// An untouched tree whose first column is the Files tile (Code): Files is 176 px at 1280 and 240 at 1920, a tenth of the
+// window's width plus 48, so the tile is the same in a window of either size, whatever size it was drawn in before.
+void rv_editor_shell_fit_files(rv_editor_workspace &ws)
+{
+    const rv_editor_tile_node &root = ws.layout.nodes[ws.layout.root];
+    if (root.kind != rv_editor_tile_kind::split || root.split.axis != rv_editor_axis::x) {
+        return;
+    }
+    const rv_editor_tile_node &first = ws.layout.nodes[root.split.first];
+    if (first.kind != rv_editor_tile_kind::leaf || first.leaf.tabs.size() != 1 ||
+        ws.panes.panes[first.leaf.tabs[0]].kind != rv_editor_pane_kind::files) {
+        return;
+    }
+    const int32_t room = ws.rects[ws.layout.root].w - ws.tile_metrics.bar;
+    if (room > 0) {
+        (void)rv_editor_tile_set_ratio(ws.layout,
+            ws.layout.root,
+            static_cast<float>(ws.rects[ws.layout.root].w / 10 + 48) / static_cast<float>(room));
+    }
+}
+
 } // namespace
 
 // Every preset has a Game, so every one fits its tiles to the picture.
@@ -245,6 +274,9 @@ void rv_editor_shell_frame_start(rv_editor_shell &shell)
     const size_t slot = rv_editor_workspace_slot(shell.active);
     if (shell.ws.rects.size() == shell.ws.layout.nodes.size()) {
         rv_editor_shell_fit_strips(shell.ws, shell.layout_untouched[slot] && !shell.ws.dragged);
+        if (shell.layout_untouched[slot] && !shell.ws.dragged) {
+            rv_editor_shell_fit_files(shell.ws);
+        }
     }
     rv_editor_shell_fit_game(shell);
 }
@@ -272,6 +304,7 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
                 area,
                 shell.app.project.screen_w,
                 shell.app.project.screen_h,
+                rv_editor_game_target_h(shell.active, ws.rects[ws.layout.root].h),
                 [&ws](uint32_t n) {
                     return rv_editor_strip_leaf(ws, n) || rv_editor_strip_row(ws, n);
                 });

@@ -172,44 +172,59 @@ void load_texts()
 
 } // namespace
 
-// R21, AC22: the tree's minimum is within the 1280x720 work area, and every leaf is at least the minimum of its tabs.
-RV_EDITOR_TEST(rv_editor_test_layout_fit_default_layouts_fit_1280x720)
+const rv_editor_size fit_windows[] = { { 1280, 720 }, { 1920, 1080 } };
+
+// R21, AC22: the tree's minimum is within the work area of 1280x720 and 1920x1080, and every leaf is at least the minimum
+// of its tabs.
+RV_EDITOR_TEST(rv_editor_test_layout_fit_default_layouts_fit_the_window)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
-    for (const preset_case &c : presets) {
-        rv_editor_shell shell;
-        make(shell, c.preset);
-        const drawn d = draw(gui, shell, 1280, 720);
-        std::fprintf(stderr,
-            "%s: tree minimum %dx%d in a work area %dx%d (over by %dx%d)\n",
-            c.name,
-            d.tree.w,
-            d.tree.h,
-            d.area.w,
-            d.area.h,
-            d.tree.w - d.area.w,
-            d.tree.h - d.area.h);
-        RV_EDITOR_CHECK(d.tree.w <= d.area.w);
-        RV_EDITOR_CHECK(d.tree.h <= d.area.h);
-        RV_EDITOR_CHECK(leaves_under_minimum(shell, d, c.name) == 0);
+    for (const rv_editor_size &window : fit_windows) {
+        for (const preset_case &c : presets) {
+            rv_editor_shell shell;
+            make(shell, c.preset);
+            const drawn d = draw(gui, shell, window.w, window.h);
+            std::fprintf(stderr,
+                "%s %dx%d: tree minimum %dx%d in a work area %dx%d (over by %dx%d)\n",
+                c.name,
+                window.w,
+                window.h,
+                d.tree.w,
+                d.tree.h,
+                d.area.w,
+                d.area.h,
+                d.tree.w - d.area.w,
+                d.tree.h - d.area.h);
+            RV_EDITOR_CHECK(d.tree.w <= d.area.w);
+            RV_EDITOR_CHECK(d.tree.h <= d.area.h);
+            RV_EDITOR_CHECK(leaves_under_minimum(shell, d, c.name) == 0);
+        }
     }
 }
 
-// AC22: the work area does not scroll for the starting layouts at 1280x720.
+// AC22: the work area does not scroll for the starting layouts at 1280x720 and 1920x1080.
 RV_EDITOR_TEST(rv_editor_test_layout_fit_default_layouts_do_not_scroll)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
-    for (const preset_case &c : presets) {
-        rv_editor_shell shell;
-        make(shell, c.preset);
-        const drawn d = draw(gui, shell, 1280, 720);
-        RV_EDITOR_CHECK(d.found_scroll);
-        if (d.scroll_max.x > 0.5f || d.scroll_max.y > 0.5f) {
-            std::fprintf(stderr, "  %s: the work area scrolls by %.0f x %.0f px\n", c.name, d.scroll_max.x, d.scroll_max.y);
+    for (const rv_editor_size &window : fit_windows) {
+        for (const preset_case &c : presets) {
+            rv_editor_shell shell;
+            make(shell, c.preset);
+            const drawn d = draw(gui, shell, window.w, window.h);
+            RV_EDITOR_CHECK(d.found_scroll);
+            if (d.scroll_max.x > 0.5f || d.scroll_max.y > 0.5f) {
+                std::fprintf(stderr,
+                    "  %s %dx%d: the work area scrolls by %.0f x %.0f px\n",
+                    c.name,
+                    window.w,
+                    window.h,
+                    d.scroll_max.x,
+                    d.scroll_max.y);
+            }
+            RV_EDITOR_CHECK(d.scroll_max.x <= 0.5f && d.scroll_max.y <= 0.5f);
         }
-        RV_EDITOR_CHECK(d.scroll_max.x <= 0.5f && d.scroll_max.y <= 0.5f);
     }
 }
 

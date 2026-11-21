@@ -2,8 +2,9 @@
 // on the real font through the workspace's own placement: a tile is the pane's minimum plus the chrome of a tile (and the tab
 // row).
 //  - Files at most 176 px wide (Code, 1280x720);
-//  - Scene, 1280x720: the right column is Toolchest and Runtime Controls in ONE row over the Game (picture 320x240) over
-//    Hierarchy; Assets (Assets, Files, Inspector Report; no Console Output) and Inspector share what the column leaves, equally
+//  - Scene, 1280x720: the right column is, top to bottom, Toolchest, Runtime Controls, the Game (picture 320x240) and
+//    Hierarchy, all one column wide (the Game tile for a 320 picture, no side bands); Assets (Assets, Files, Inspector Report;
+//    no Console Output) and Inspector share what the column leaves, equally
 //    (+-1), so each tile's minimum is at most half of it; the columns fit 1280 across and 672 down;
 //  - every state of Files (the folder-delete card, the questions with a field) shows whole at 176 and of Assets at its share.
 
@@ -139,8 +140,8 @@ std::string states_fit(rv_editor_test_imgui &gui, kind which, float w, float h)
 }
 
 // What Scene at 1280x720 gives Assets and Inspector: the window less the right column and the two bars, half each (+-1, so the
-// least half is what each minimum must fit in). The right column is as wide as the strips row (Toolchest, a bar, Runtime
-// Controls) or the Game tile, whichever is wider.
+// least half is what each minimum must fit in). The right column is as wide as the widest of Toolchest, Runtime Controls and
+// the Game tile for a 320 picture.
 struct scene_row {
     measured assets, inspector, toolchest, controls;
     int32_t column = 0; // the right column's width
@@ -155,14 +156,12 @@ scene_row scene_widths(rv_editor_test_imgui &gui)
     r.toolchest = tile_of(gui, { kind::toolchest });
     r.controls = tile_of(gui, { kind::controls });
     const int32_t bar = r.assets.metrics.bar;
-    r.column = std::max(r.toolchest.tile.w + bar + r.controls.tile.w, right_column_1280);
+    r.column = std::max({ r.toolchest.tile.w, r.controls.tile.w, right_column_1280 });
     r.share = (scene_work_w - r.column - 2 * bar) / 2;
     std::fprintf(stderr,
-        "  Toolchest %d + bar %d + Controls %d = %d, Game %d: column %d; Assets and Inspector get %d each (%d for both)\n",
+        "  Toolchest %d, Controls %d, Game %d: column %d; Assets and Inspector get %d each (%d for both)\n",
         r.toolchest.tile.w,
-        bar,
         r.controls.tile.w,
-        r.toolchest.tile.w + bar + r.controls.tile.w,
         right_column_1280,
         r.column,
         r.share,
@@ -287,8 +286,8 @@ RV_EDITOR_TEST(rv_editor_test_layout_minimums_scene_left_column_fits_672_down)
     RV_EDITOR_CHECK(need <= scene_work_h);
 }
 
-// R15: Scene at 1280x720, down the right: the row of Toolchest and Runtime Controls, the Game with a 320x240 picture area and
-// Hierarchy at its minimum, with two bars, are within 672 px.
+// R15, AC16: Scene at 1280x720, down the right: Toolchest, Runtime Controls, the Game with a 320x240 picture area and Hierarchy
+// at its minimum, with three bars, are within 672 px.
 RV_EDITOR_TEST(rv_editor_test_layout_minimums_scene_right_column_fits_672_down)
 {
     s15::load_texts();
@@ -297,17 +296,32 @@ RV_EDITOR_TEST(rv_editor_test_layout_minimums_scene_right_column_fits_672_down)
     const measured controls = tile_of(gui, { kind::controls });
     const measured hierarchy = tile_of(gui, { kind::hierarchy });
     const int32_t game = game_tile_h(gui, toolchest, scene_game_area_h);
-    const int32_t row = std::max(toolchest.tile.h, controls.tile.h);
-    const int32_t need = row + game + hierarchy.tile.h + 2 * toolchest.metrics.bar;
+    const int32_t need = toolchest.tile.h + controls.tile.h + game + hierarchy.tile.h + 3 * toolchest.metrics.bar;
     std::fprintf(stderr,
-        "  row (Toolchest %d, Controls %d) %d + Game %d + Hierarchy %d + 2 bars of %d = %d of %d\n",
+        "  Toolchest %d + Controls %d + Game %d + Hierarchy %d + 3 bars of %d = %d of %d\n",
         toolchest.tile.h,
         controls.tile.h,
-        row,
         game,
         hierarchy.tile.h,
         toolchest.metrics.bar,
         need,
         scene_work_h);
     RV_EDITOR_CHECK(need <= scene_work_h);
+}
+
+// R15, AC16: the right column of Scene is the Game tile's width for a 320 picture: the Toolchest and Runtime Controls minimums
+// are not wider, so the picture fills the tile without side bands.
+RV_EDITOR_TEST(rv_editor_test_layout_minimums_scene_right_column_is_the_game_tile_wide)
+{
+    s15::load_texts();
+    rv_editor_test_imgui gui(true);
+    const measured toolchest = tile_of(gui, { kind::toolchest });
+    const measured controls = tile_of(gui, { kind::controls });
+    std::fprintf(stderr,
+        "  Toolchest %d, Controls %d against the Game tile %d\n",
+        toolchest.tile.w,
+        controls.tile.w,
+        right_column_1280);
+    RV_EDITOR_CHECK(toolchest.tile.w <= right_column_1280);
+    RV_EDITOR_CHECK(controls.tile.w <= right_column_1280);
 }

@@ -77,7 +77,7 @@ static_assert(std::size(scene_tool_options) == static_cast<size_t>(rv_editor_sce
 void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     rv_editor_scene_camera cam = ui.state.scene_camera;
-    // Row 1: the tools as small tiles in a line; the tool in use is filled. The tooltip is the name, with its key.
+    // The tools as small tiles in a line; the tool in use is filled. The tooltip is the name, with its key.
     for (int t = 0; t < std::ssize(scene_tool_options); ++t) {
         const rv_editor_scene_tool_option &option = scene_tool_options[t];
         const rv_editor_scene_tool tool = static_cast<rv_editor_scene_tool>(t);
@@ -93,7 +93,8 @@ void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port
             cam.tool = tool;
         }
     }
-    // Row 2: Snap, its step and Grid in a line.
+    // Then, on the same row, Snap, its step and Grid.
+    ImGui::SameLine();
     const char *snap_label = rv_editor_text("scene_tools.snap_label");
     rv_editor_checkbox(snap_label, &cam.snap, theme);
     rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_tooltip"));
@@ -127,7 +128,7 @@ float rv_editor_scene_tools_min_width()
         tools * rv_editor_tile_width({ .label = "##t", .code = "W" }, rv_editor_tile_size::small) + (tools - 1) * gap;
     const float snap_row = rv_editor_checkbox_width(rv_editor_text("scene_tools.snap_label")) + gap +
         ImGui::GetFontSize() * dropdown_width_factor + gap + rv_editor_checkbox_width(rv_editor_text("scene_tools.grid_label"));
-    return std::max(tiles, snap_row);
+    return tiles + gap + snap_row;
 }
 
 } // namespace rv_editor

@@ -94,6 +94,7 @@ void rv_editor_fit_game_tree(rv_editor_workspace &ws,
     rv_editor_size area,
     int32_t screen_w,
     int32_t screen_h,
+    int32_t target_h,
     const std::function<bool(uint32_t)> &strip_like)
 {
     const uint32_t node = rv_editor_tile_find(ws.layout, game);
@@ -115,26 +116,43 @@ void rv_editor_fit_game_tree(rv_editor_workspace &ws,
         return at;
     };
     const std::vector<rv_editor_rect> now = place(ws.layout);
-    // Aspect steps gcd-reduced from the screen; the area is k of them, k the largest the other tiles' minimums let by.
+    // Aspect steps gcd-reduced from the screen; the area is k of them, k the largest the other tiles' minimums let by,
+    // but no more than `target_h` asks for (a window that is bigger gives the room to the other tiles).
     const int64_t sw = std::max<int64_t>(1, screen_w);
     const int64_t sh = std::max<int64_t>(1, screen_h);
     const int32_t step_w = static_cast<int32_t>(sw / std::gcd(sw, sh));
     const int32_t step_h = static_cast<int32_t>(sh / std::gcd(sw, sh));
     // Candidate trees for k steps: the Game's tile set to the area's size plus its overhead in one go, then placed to see
-    // that the minimums let it keep it. The fit is monotonic in k, so a bisection finds the largest.
+    // that the minimums let it keep it. Returns 0 when the area is exact, -1 when a minimum (a strip's width) makes it
+    // larger than k steps, +1 when it cannot be that large: the exact k are an interval, so a bisection finds its top.
     const auto candidate = [&](int32_t k, rv_editor_layout &tree) {
         tree = ws.layout;
         const bool set = rv_editor_fit_axis(tree, now, metrics.bar, node, rv_editor_axis::x, k * step_w + over.w, strip_like) &&
             rv_editor_fit_axis(tree, now, metrics.bar, node, rv_editor_axis::y, k * step_h + over.h, strip_like);
         const rv_editor_rect g = set ? place(tree)[node] : rv_editor_rect{ 0, 0, 0, 0 };
-        return set && g.w - over.w == k * step_w && g.h - over.h == k * step_h;
+        if (!set) {
+            return 1;
+        }
+        const int32_t dw = g.w - over.w - k * step_w;
+        const int32_t dh = g.h - over.h - k * step_h;
+        return dw == 0 && dh == 0 ? 0 : (dw > 0 || dh > 0 ? -1 : 1);
     };
-    // The Game's own minimum bounds k from below, so the feasible k are an interval and the bisection needs its low end.
+    // The Game's own minimum bounds k from below, so the bisection needs its low end.
     const rv_editor_size least = rv_editor_tile_min_size(ws.layout, node, metrics, pane_min);
     int32_t low = std::max({ 1, (least.w - over.w + step_w - 1) / step_w, (least.h - over.h + step_h - 1) / step_h });
     int32_t high = std::min(ws.rects[ws.layout.root].w / step_w, ws.rects[ws.layout.root].h / step_h);
+    high = std::min(high, std::max(low, target_h / step_h));
     rv_editor_layout best;
-    if (low > high || !candidate(low, best)) {
+    rv_editor_layout tree;
+    while (low < high) {
+        const int32_t k = (low + high + 1) / 2;
+        if (candidate(k, tree) <= 0) {
+            low = k;
+        } else {
+            high = k - 1;
+        }
+    }
+    if (low > high || candidate(low, best) != 0) {
         // No exact area fits (a window at the tree's minimum): the width follows the height the tree gives, so no bands.
         const int32_t height = now[node].h - over.h;
         best = ws.layout;
@@ -149,16 +167,6 @@ void rv_editor_fit_game_tree(rv_editor_workspace &ws,
             ws.layout = std::move(best);
         }
         return;
-    }
-    rv_editor_layout tree;
-    while (low < high) {
-        const int32_t k = (low + high + 1) / 2;
-        if (candidate(k, tree)) {
-            low = k;
-            best = std::move(tree);
-        } else {
-            high = k - 1;
-        }
     }
     ws.layout = std::move(best);
 }

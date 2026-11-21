@@ -50,8 +50,17 @@ void rv_editor_hierarchy_move(rv_editor_app &app, const std::string &id, const s
     (void)rv_editor_app_request(app, request);
 }
 
-// The search field's least width, in font sizes.
-constexpr float query_min_em = 10.0f;
+// The search field's least width: five wide characters and the frame padding.
+float rv_editor_hierarchy_query_min()
+{
+    return 5.0f * ImGui::CalcTextSize("M").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+}
+
+// The tree area's floor: a line under the usual one.
+float rv_editor_hierarchy_floor()
+{
+    return rv_editor_tiled_floor() - ImGui::GetTextLineHeightWithSpacing();
+}
 
 // The Dismiss button of a move note.
 const char *rv_editor_hierarchy_dismiss_label()
@@ -78,17 +87,20 @@ float rv_editor_hierarchy_sort_width()
     return widest + ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.x * 2.0f;
 }
 
-float rv_editor_hierarchy_form_width()
+// The shelf's row: the buttons, the search field and the order choice.
+float rv_editor_hierarchy_row_width()
 {
-    return ImGui::GetFontSize() * query_min_em + ImGui::GetStyle().ItemSpacing.x + rv_editor_hierarchy_sort_width();
+    const ImGuiStyle &style = ImGui::GetStyle();
+    // The field and the order choice are one pair: the inner spacing between them.
+    return rv_editor_hierarchy_shelf_width() + style.ItemSpacing.x + rv_editor_hierarchy_query_min() +
+        style.ItemInnerSpacing.x + rv_editor_hierarchy_sort_width();
 }
 
 float rv_editor_hierarchy_content_width()
 {
     return std::max({ rv_editor_scene_none_width(),
         rv_editor_message_strip_min_width({ { rv_editor_hierarchy_dismiss_label() } }),
-        rv_editor_tiled_shelf_width(rv_editor_hierarchy_shelf_width()) + ImGui::GetStyle().WindowPadding.x,
-        rv_editor_hierarchy_form_width() + ImGui::GetStyle().WindowPadding.x });
+        rv_editor_tiled_shelf_width(rv_editor_hierarchy_row_width()) + ImGui::GetStyle().WindowPadding.x });
 }
 
 // What the strip under the tree says: the last move's refusal with a Dismiss button that asks the app to clear it; with no
@@ -108,10 +120,20 @@ rv_editor_message_say rv_editor_hierarchy_say(const rv_editor_app &app)
 void rv_editor_hierarchy_answer(rv_editor_app &app, const rv_editor_message_say &say, float width, const rv_editor_theme &theme)
 {
     if (app.scene == nullptr) {
-        rv_editor_scene_none_strip(app, say, width, theme);
+        rv_editor_scene_none_strip(app, say, width, theme, 1);
         return;
     }
-    const bool dismiss = rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, width) == 0;
+    const bool dismiss = rv_editor_message_strip("##strip",
+                             say.text,
+                             say.kind,
+                             say.buttons,
+                             theme,
+                             width,
+                             nullptr,
+                             nullptr,
+                             nullptr,
+                             nullptr,
+                             1) == 0;
     if (dismiss && !rv_editor_app_request_pending(app, rv_editor_pane_request_kind::dismiss_scene_note)) {
         (void)rv_editor_app_request(app, { .kind = rv_editor_pane_request_kind::dismiss_scene_note });
     }
@@ -368,7 +390,9 @@ void rv_editor_hierarchy_matches(rv_editor_app &app, const rv_editor_theme &them
     }
 }
 
-// The form: the search field and the sort choice in a row above the tree, the field taking what the choice leaves. With
+} // namespace
+
+// The search field and the sort choice, at the end of the shelf's row, the field taking what the choice leaves. With
 // no scene both are off.
 void rv_editor_hierarchy_filter(rv_editor_app &app, const rv_editor_theme &theme)
 {
@@ -378,7 +402,7 @@ void rv_editor_hierarchy_filter(rv_editor_app &app, const rv_editor_theme &theme
     char *query = app.scene != nullptr ? app.scene->hierarchy_query : none_query;
     const size_t query_size = app.scene != nullptr ? sizeof(app.scene->hierarchy_query) : sizeof(none_query);
     ImGui::SetNextItemWidth(
-        ImGui::GetContentRegionAvail().x - rv_editor_hierarchy_sort_width() - ImGui::GetStyle().ItemSpacing.x);
+        ImGui::GetContentRegionAvail().x - rv_editor_hierarchy_sort_width() - ImGui::GetStyle().ItemInnerSpacing.x);
     rv_editor_text_field("##hierarchy_query", query, query_size, theme);
     // The field has no hint of its own: the hint is drawn over the empty box, unless it is being typed in.
     if (query[0] == '\0' && !ImGui::IsItemActive()) {
@@ -388,7 +412,7 @@ void rv_editor_hierarchy_filter(rv_editor_app &app, const rv_editor_theme &theme
             rv_editor_col(theme.text_disabled),
             rv_editor_text("pane_hierarchy.search_hint"));
     }
-    ImGui::SameLine();
+    ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
     ImGui::SetNextItemWidth(rv_editor_hierarchy_sort_width());
     int sort_index = app.scene != nullptr ? static_cast<int>(app.scene->hierarchy_sort) : none_sort;
     if (rv_editor_dropdown("##hierarchy_sort", &sort_index, rv_editor_hierarchy_sort_items(), 3, theme) &&
@@ -397,8 +421,6 @@ void rv_editor_hierarchy_filter(rv_editor_app &app, const rv_editor_theme &theme
     }
     ImGui::EndDisabled();
 }
-
-} // namespace
 
 void rv_editor_scene_keys(rv_editor_app &app, const rv_editor_ui_port &ui)
 {
@@ -428,10 +450,11 @@ void rv_editor_scene_keys(rv_editor_app &app, const rv_editor_ui_port &ui)
 
 rv_editor_size rv_editor_hierarchy_minimum()
 {
-    // The shelf, the form (a frame and its spacing) and the tallest strip under the content area.
-    const float form = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
+    // The shelf (the search and the order are in its row) and the tallest strip under the content area; the tree area a line
+    // under the usual floor.
     return rv_editor_tiled_minimum(rv_editor_hierarchy_content_width(),
-        rv_editor_tiled_shelf_block() + form + rv_editor_tiled_strip_block());
+        rv_editor_tiled_shelf_block() - ImGui::GetStyle().ItemSpacing.y + rv_editor_tiled_strip_block(false, 1),
+        { rv_editor_hierarchy_floor() });
 }
 
 void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
@@ -439,11 +462,12 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
     const float width = rv_editor_hierarchy_content_width();
     rv_editor_scene_keys(app, ui);
     rv_editor_hierarchy_shelf(app, theme, ui);
-    rv_editor_hierarchy_filter(app, theme);
+    // The tree area sits on the shelf, as the Game's picture does.
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);
     const rv_editor_message_say say = rv_editor_hierarchy_say(app);
     const float strip_w = std::max(ImGui::GetContentRegionAvail().x, width);
-    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
-    (void)rv_editor_tiled_area_begin("##tree_area", width, theme, {}, false, 0.0f, strip_h);
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w, false, 1);
+    (void)rv_editor_tiled_area_begin("##tree_area", width, theme, { rv_editor_hierarchy_floor() }, false, 0.0f, strip_h);
     if (app.scene == nullptr) {
         rv_editor_scene_files_list(app, theme);
         rv_editor_tiled_area_end(theme);

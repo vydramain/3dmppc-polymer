@@ -92,7 +92,12 @@ RV_EDITOR_TEST(rv_editor_test_s14_one_pixel_under_the_minimum_breaks_a_strip_sta
         }
         RV_EDITOR_CHECK(!narrow.empty());
         // AC1: the transport's height is fixed by its strip, not by what its items need: only the Toolchest is tested for it.
-        const std::string low = kind == rv_editor_pane_kind::toolchest ? run_states(gui, all, { min.w, min.h - 1.0f }) : "x";
+        std::string low = kind == rv_editor_pane_kind::toolchest ? run_states(gui, all, { min.w, min.h - 1.0f }) : "x";
+        if (low.empty() &&
+            draw_at(gui, *all.shells[all.project_from], kind, min.w, min.h - 1.0f).content_height > min.h - 0.5f) {
+            // The items are whole, but the drawing ends under the tile (whether or not the minimum ends with a spacing).
+            low = "the drawing runs past the tile";
+        }
         if (low.empty()) {
             std::fprintf(stderr, "  %s: no violation at the minimum height less 1 px\n", name_of(kind));
         }
@@ -140,6 +145,10 @@ RV_EDITOR_TEST(rv_editor_test_s14_toolchest_is_a_shelf_of_one_height_without_scr
     states all(rv_editor_pane_kind::toolchest);
     const auto min = stable_tiles::pane_minimum(gui, rv_editor_pane_kind::toolchest);
     RV_EDITOR_CHECK(min.w > 0.0f && min.h > 0.0f);
+    float gap = 0.0f; // the spacing after the shelf: the minimum may or may not end with it (S13.2.1), the drawing is the same
+    gui.frame([&] {
+        gap = ImGui::GetStyle().ItemSpacing.y;
+    });
     for (const float width : { min.w, 500.0f, 900.0f }) {
         float first = -1.0f;
         for (size_t i = 0; i < all.shells.size(); ++i) {
@@ -166,7 +175,19 @@ RV_EDITOR_TEST(rv_editor_test_s14_toolchest_is_a_shelf_of_one_height_without_scr
                     first);
             }
             RV_EDITOR_CHECK(r.content_height == first);
-            RV_EDITOR_CHECK(r.content_height <= min.h + 0.5f);
+            // The drawing is the minimum: what the cursor ends at is the minimum, or the minimum and the spacing the cursor
+            // adds after the last item when the minimum leaves it out.
+            if (r.content_height < min.h - 0.5f || r.content_height > min.h + gap + 0.5f) {
+                std::fprintf(stderr,
+                    "  toolchest width %.0f, state '%s': drawn %.1f, minimum %.1f (a spacing is %.1f)\n",
+                    width,
+                    all.names[i].c_str(),
+                    r.content_height,
+                    min.h,
+                    gap);
+            }
+            RV_EDITOR_CHECK(r.content_height >= min.h - 0.5f);
+            RV_EDITOR_CHECK(r.content_height <= min.h + gap + 0.5f);
         }
     }
 }

@@ -140,6 +140,8 @@ void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme,
     }
     rv_editor_flow(side);
     rv_editor_hierarchy_command(app, ui, theme, clear_picks_command);
+    ImGui::SameLine();
+    rv_editor_hierarchy_filter(app, theme);
     rv_editor_shelf_end();
 }
 
