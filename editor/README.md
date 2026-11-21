@@ -22,7 +22,7 @@ console (`3dmppc --dev`) - it links none of their code.
   lua-language-server
 - Terminal - shell on a tile, in the project directory
 - Inspector - runs `mppcinspector` on the project when it opens, after a save and after
-  each build, and shows each finding in Problems (source `inspector`) with file, line,
+  each build, and shows each finding in Inspector Report (source `inspector`) with file, line,
   level and text
 
 ## Limitations
@@ -125,15 +125,25 @@ named below are in `src/ui/` unless a path says otherwise.
    content really overflows. A shelf, the tab row, the transport, the status bar, a row of buttons
    and a tile header never scroll, and no empty room is kept for a bar. The body of a tile has no
    scrollbar.
-4. The content area has at least 3 rows and a horizontal bar. When it is empty it keeps its
-   background and column headers and says in its first row, dim, what will appear and how.
+4. One content area per pane, not one box per part. The area has at least 3 rows and a
+   horizontal bar. A pane with several parts (Session, Release Candidate, Findings) keeps them as
+   titled sections inside that one area; a section title may carry its field and buttons on the
+   same row. When the area is empty it keeps its background and column headers and says in its first
+   row, dim, what is missing; if a filter hid the rows, the row names the filter and has a button
+   that resets it. A placeholder (no project, no scene) is such an empty row, not a message.
 5. Text in the chrome is a template with a limit on each variable field: a count is at most
    `999+` (a click on it opens the full list), a build or session number is 6 digits, a step name
    is 16 characters (the progress protocol of the tools rejects a longer one,
    `rv_pdklib::rv_progress_step_name_max`). The minimum is taken with every field at its limit.
 6. Layout changes only with a size. A state changes text, colour and availability, never a place
-   or a size: a button that cannot be used stays and is dimmed, with its reason in a tooltip; a line
-   with nothing to say is an empty place. Changing the whole mode of a pane is allowed (project
+   or a size: a button that cannot be used stays and is dimmed, with its reason in a tooltip. A
+   message (a question, an error, a result) appears as a strip under the content area, inside the
+   tile, with its buttons on its row, and moves nothing above it: the shelf, the column headers and
+   the rows stay where they are, and the area gives up only its bottom edge. With nothing to say
+   there is no strip and no reserved place. The strip is up to 3 text lines and a longer text
+   scrolls inside it; in the logs, Search, Findings, Inspector Report and Hierarchy it is 1 line. The control strips (Runtime and Release
+   Controls) are the exception: their status line is a place of 2 text lines that is always there.
+   Changing the whole mode of a pane is allowed (project
    closed or open, the Code tile's Unsaved changes, Save As and swap questions, Settings Browse).
 7. A click works on the whole drawn area of a button or a row, not on its text.
 
@@ -145,18 +155,54 @@ named below are in `src/ui/` unless a path says otherwise.
 | Shelf: one row, every button always visible, an unavailable one stays with its reason in a tooltip | `rv_editor_shelf_begin` / `rv_editor_shelf_end`, `rv_editor_shelf_fill` | Shelf |
 | List, tree, table: Catppuccin background, rows whole and all as wide as the longest, the selection across the full width, status columns pinned to the right edge, a total above | `rv_editor_content_begin` / `rv_editor_content_end`, `rv_editor_content_empty_row`, tables with `pinned_left` / `pinned_right` columns (`rv_editor_widgets_table.hpp`) | List, tree and table |
 | Record with a status (Recent Projects, candidates): exactly 2 lines, name and path, and a pinned status column as wide as the longest status word | `rv_editor_record_row` | Records with a status |
-| Message box: 2 text lines on Catppuccin and one row of buttons aligned right; a long text scrolls inside, the buttons stay. Optional `field` (input in the button row), `lead` (items left of the buttons), `button_states` (a disabled button keeps its place, its reason is the tooltip) | `rv_editor_message_box`, `rv_editor_message_box_height`, `rv_editor_message_box_min_width` | Message box and ask |
+| Message strip: drawn only when there is a text, under the content area; text of up to `max_lines` lines (3 by default, 1 in the logs, Search, Findings, Inspector Report and Hierarchy), a longer one scrolls inside, buttons aligned right on the same row. Optional `field` (input in the button row), `lead` (items left of the buttons), `button_states` (a disabled button keeps its place, its reason is the tooltip). The area is given the strip's height at the bottom | `rv_editor_message_strip`, `rv_editor_message_strip_height`, `rv_editor_message_strip_max_height`, `rv_editor_message_strip_min_width` | Message strip |
+| Empty row: the first row of an empty list says what is missing; when a filter hid the rows it names the count and the filter and has a button in the row that resets that filter (the function returns true when it is pressed) | `rv_editor_content_empty_row` | List, tree and table |
+| Sections in one area: a titled part of the content area, the title row with the section's field and buttons, the rows below; its minimum width counts the controls | `rv_editor_content_section_begin` / `rv_editor_content_section_end`, `rv_editor_content_section_min_width` | Sections in a content area |
 | Big ask: replaces the content of the tile (title, text with a bar, a message line, buttons); `body` draws a form or a list in place of the text | `rv_editor_mode_card_begin` / `rv_editor_mode_card_end`, `rv_editor_mode_card_min_size`, `rv_editor_mode_card_spec` | Big ask |
 | Form: a label column as wide as the longest label, fields right of it, an error line under the field that can give one, the button row always visible | `rv_editor_form_begin` / `rv_editor_form_row` / `rv_editor_form_custom_begin` / `rv_editor_form_buttons_begin` / `rv_editor_form_end` | Form |
-| Transport strip (Runtime and Release Controls): 6 buttons, the Cancel Build or Force Stop slot, the note and the message line, labels from 640 px, a fixed height | `rv_editor_transport_bar` (`src/panes/rv_editor_pane_controls.hpp`, strip in `src/panes/rv_editor_pane_controls_strip.cpp`), `rv_editor_transport_min_width`, `rv_editor_transport_height` | Transport strip |
-| Picture (Game, Candidate Playtest, the Scene viewport): keeps its proportions and takes all the room under the shelf; status and notes lie on a translucent band over it | `rv_editor_picture_begin` / `rv_editor_picture_end`, `rv_editor_picture_overlay`, `rv_editor_picture_min_width` | Picture view |
+| Transport strip (Runtime and Release Controls): 6 buttons, the Cancel Build or Force Stop slot, labels from 640 px, a fixed height; no note field (it is in Session Notes) | `rv_editor_transport_bar` (`src/panes/rv_editor_pane_controls.hpp`, strip in `src/panes/rv_editor_pane_controls_strip.cpp`), `rv_editor_transport_min_width`, `rv_editor_transport_height` | Transport strip |
+| Strip status: under the buttons of a control strip, always 2 text lines high in every state (also with no project, with the same buttons), a template with every field at its limit, wrapped whole | `rv_editor_strip_status`, `rv_editor_strip_status_height`, `rv_editor_strip_status_width_for` (`ui/rv_editor_widgets_strip_status.hpp`) | Transport strip |
+| Picture (Game, Candidate Playtest, the Scene viewport): keeps its proportions and takes all the room under the shelf; status and notes lie on a translucent band over it, up to 3 lines | `rv_editor_picture_begin` / `rv_editor_picture_end`, `rv_editor_picture_overlay`, `rv_editor_picture_min_width` | Picture view |
 | Facts list: Catppuccin background, whole values, both bars, a key column pinned left, Copy in the row's context menu | `rv_editor_facts_begin` / `rv_editor_facts_row` / `rv_editor_facts_end` | Facts list |
 | Status bar: 4 segments, each as wide as its longest template plus an equal share of the spare room; the window's minimum width counts their sum; the Tools segment opens Settings | `rv_editor_status_bar`, `rv_editor_status_bar_min_width` (`ui/rv_editor_widgets_status.hpp`, filled by `src/app/rv_editor_shell_status.cpp`) | Status bar |
 
 A pane puts its parts in a tile with `rv_editor_tiled_area_begin` / `rv_editor_tiled_area_end` and
 measures its minimum with `rv_editor_tiled_minimum` and the `rv_editor_tiled_*` helpers of
-`src/panes/rv_editor_pane_tiled.hpp`. Old widgets (`rv_editor_card`, the ask places and overlays)
-are gone; use the templates above.
+`src/panes/rv_editor_pane_tiled.hpp`. The minimum holds the strip at its tallest
+(`rv_editor_message_strip_max_height`), so a message never changes it. Old widgets (`rv_editor_card`, the ask places and overlays, the reserved message box
+`rv_editor_message_box`) are gone; use the templates above.
+
+### Layouts and the Game fit
+
+The four presets (`src/layout/rv_editor_layout_presets.cpp`) follow the approved mockup.
+
+- Code: Files on the left (176 px wide at 1280x720, 240 px at 1920x1080), Code in the middle with
+  Console Output, Inspector Report, Terminal and Search Results as tabs under it, the Game on the
+  right with Runtime Controls under it.
+- Scene: the Scene viewport on top left; under it Assets (tabs Assets, Files, Inspector Report) and
+  Inspector side by side, equal in width. On the right, stacked top to bottom: Transform Toolchest
+  (one row), Runtime Controls, the Game, Hierarchy (one shelf: buttons, search and order in one
+  row) down to the bottom of the window. There is no Console Output in Scene.
+- Debug: the Game with Runtime Controls above it on the left, Session (with Observe and Test Case as
+  tabs) beside it, the logs across the whole width at the bottom as tabs Runtime Log, Findings,
+  Inspector Report and Toolchest.
+- Burn: Release Candidate (with Export as a tab) on the left, on the right Release Controls above
+  Candidate Playtest, the logs across the whole width at the bottom as tabs Build Log, Runtime Log
+  and Inspector Report.
+- Inspector Report is a tab beside the logs in every layout and never in a control strip. The log
+  shelf stays one row, and the tile minimum is sized for that.
+- Assets is a table with the columns Name, Type, Size and Folder; Folder takes the spare width.
+
+Window > Reset Layout applies the preset. When a preset is applied and when the window is resized,
+`rv_editor_shell_fit_game` sizes the Game tile in one step (a bisection on a copy of the tree) so that
+the picture area under its shelf has exactly the aspect of the project screen (4:3 for 320x240), with
+no side bands. The size is the largest one that keeps the other tiles at their minimums, up to a
+target picture height from the work area's height `h` (the window less the menu and status bars,
+`rv_editor_game_target_h`): `h / 2 - 36` in Code, Debug and Burn and `h / 3 + 16` in Scene. On
+1280x720 the picture is 400x300 in Code, Debug and Burn and 320x240 in Scene; on 1920x1080 it is
+640x480 and 480x360. In Code the Files tile is `W / 10 + 48` wide (`rv_editor_shell_fit_files`:
+176 px at 1280, 240 at 1920). The fit and the Files width apply only to an untouched layout: they
+stop once the user has moved a splitter, until Window > Reset Layout.
 
 ### Checking a new pane
 
