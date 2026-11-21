@@ -191,7 +191,7 @@ The four presets (`src/layout/rv_editor_layout_presets.cpp`) follow the approved
   and Inspector Report.
 - Inspector Report is a tab beside the logs in every layout and never in a control strip. The log
   shelf stays one row, and the tile minimum is sized for that.
-- Assets is a table with the columns Name, Type, Size and Folder; Folder takes the spare width.
+- Assets is a table with the columns Name, Type, Size and Folder; Folder takes the spare width. Type is a square in the colour of the kind and the kind as a word, from the same table as the Files chips (`file_kinds` in `rv_editor_pane_files.cpp`).
 
 Window > Reset Layout applies the preset. When a preset is applied and when the window is resized,
 `rv_editor_shell_fit_game` sizes the Game tile in one step (a bisection on a copy of the tree) so that
