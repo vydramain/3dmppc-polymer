@@ -1,4 +1,4 @@
-// Runtime Controls: the transport bar, its action slot and the status under them.
+// Runtime Controls: the transport bar, build and stop actions, and the status under them.
 
 #include "panes/rv_editor_pane_controls.hpp"
 
@@ -72,61 +72,26 @@ std::string rv_editor_controls_status(const rv_editor_controls_status_input &in)
 namespace
 {
 
-// What the action slot after the state name offers; Cancel Build is the one it falls back to, disabled when no build runs.
-enum class rv_editor_action_kind {
-    force_stop,
-    cancel_build,
-    reload_badge,
-};
-
-// A hung or lost runtime needs Force Stop first, then a running build needs
-// Cancel, then the reload badge; with none of them Cancel Build stays, disabled.
-rv_editor_action_kind rv_editor_action_for(const rv_editor_session &session, bool building, bool has_badge)
-{
-    if (session.hung() || session.state() == rv_editor_run_state::disconnected) {
-        return rv_editor_action_kind::force_stop;
-    }
-    if (building || !has_badge) {
-        return rv_editor_action_kind::cancel_build;
-    }
-    return rv_editor_action_kind::reload_badge;
-}
-
-// Draws the action slot's item: the button or the badge; `none` draws nothing.
+// The action slot shows Cancel Build while a job runs and the reload badge when available.
 void rv_editor_action_draw(rv_editor_app &app,
-    rv_editor_action_kind action,
     const std::string &badge_label,
     rv_editor_status_kind badge_kind,
     const rv_editor_theme &theme)
 {
-    switch (action) {
-    case rv_editor_action_kind::force_stop: {
-        const bool force_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::force_stop);
-        const char *force_why = force_pending ? rv_editor_text("app_why_not.stop_pending") : nullptr;
-        if (rv_editor_button(rv_editor_text("panes.force_stop_button"), theme, { rv_editor_look::live, force_why })) {
-            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::force_stop });
-        }
-        break;
-    }
-    case rv_editor_action_kind::cancel_build: {
-        const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
-        const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
-        const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : nullptr;
-        const char *idle_why = app.build.busy() ? nullptr : rv_editor_text("panes.no_build_to_cancel");
-        const char *busy_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
-        const char *cancel_why = idle_why != nullptr ? idle_why : busy_why;
-        if (rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, { rv_editor_look::live, cancel_why })) {
-            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
-        }
-        // The reason shows at once, not after the hover delay: it is why the slot is greyed.
-        if (cancel_why != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            rv_editor_tooltip(cancel_why);
-        }
-        break;
-    }
-    case rv_editor_action_kind::reload_badge:
+    if (!app.build.busy() && !badge_label.empty()) {
         rv_editor_status(badge_label.c_str(), badge_kind, theme);
-        break;
+        return;
+    }
+    const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
+    const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
+    const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : nullptr;
+    const char *busy_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
+    const char *cancel_why = app.build.busy() ? busy_why : rv_editor_text("panes.no_build_to_cancel");
+    if (rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, { rv_editor_look::live, cancel_why })) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
+    }
+    if (cancel_why != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        rv_editor_tooltip(cancel_why);
     }
 }
 
@@ -159,7 +124,7 @@ float rv_editor_controls_action_slot_width(const rv_editor_theme &theme)
     return width;
 }
 
-void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_transport_shortcuts &shortcuts)
 {
     const rv_editor_session &s = app.session;
     // Only controls, no separate content: the whole pane is a shelf.
@@ -230,10 +195,9 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         }
     }
 
-    // The action slot follows the transport buttons on the bar's one row; the tile's minimum
-    // width (rv_editor_transport_min_width) holds them both.
-    const rv_editor_action_kind action = rv_editor_action_for(s, app.build.busy(), !badge_label.empty());
-    const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme, rv_editor_transport_column_min_width());
+    // The tile's minimum width holds the transport buttons, action slot and Force Stop on one row.
+    const rv_editor_transport_actions clicked =
+        rv_editor_transport_bar(state, theme, rv_editor_transport_column_min_width(), shortcuts);
     if (clicked.build) {
         rv_editor_app_build(app);
     }
@@ -262,11 +226,17 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::BeginGroup();
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::BeginChild("##action", ImVec2(slot_w, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-    rv_editor_action_draw(app, action, badge_label, badge_kind, theme);
+    rv_editor_action_draw(app, badge_label, badge_kind, theme);
     ImGui::EndChild();
     ImGui::PopStyleColor();
+    ImGui::SameLine();
+    if (rv_editor_button(rv_editor_text("panes.force_stop_button"),
+            theme,
+            { rv_editor_look::live, rv_editor_app_why_not_force_stop(app) })) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::force_stop });
+    }
 
-    const rv_editor_controls_message_input message_input{ action == rv_editor_action_kind::force_stop,
+    const rv_editor_controls_message_input message_input{ s.hung() || s.state() == rv_editor_run_state::disconnected,
         s.hung(),
         s.uncertain(),
         detail,

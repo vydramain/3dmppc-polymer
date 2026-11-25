@@ -63,7 +63,8 @@ struct ui_font_scope {
 float rv_editor_transport_column_min_width()
 {
     const ui_font_scope font;
-    return rv_editor_controls_action_slot_width(rv_editor_theme_olive);
+    return rv_editor_controls_action_slot_width(rv_editor_theme_olive) + ImGui::GetStyle().ItemSpacing.x +
+        rv_editor_button_width(rv_editor_text("panes.force_stop_button"));
 }
 
 float rv_editor_playback_build_status_min_width()

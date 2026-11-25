@@ -150,6 +150,22 @@ void rv_editor_log_row(const char *time,
 rv_editor_transport_actions
 rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_theme &theme, float reserve)
 {
+    const rv_editor_transport_shortcuts shortcuts{
+        rv_editor_text("widgets_status.shortcut_build"),
+        rv_editor_text("widgets_status.shortcut_run"),
+        rv_editor_text("widgets_status.shortcut_pause"),
+        rv_editor_text("widgets_status.shortcut_step"),
+        rv_editor_text("widgets_status.shortcut_stop"),
+        rv_editor_text("widgets_status.shortcut_reload"),
+    };
+    return rv_editor_transport_bar(state, theme, reserve, shortcuts);
+}
+
+rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_state &state,
+    const rv_editor_theme &theme,
+    float reserve,
+    const rv_editor_transport_shortcuts &shortcuts)
+{
     rv_editor_transport_actions out = {};
     // Step and Stop differ in code and colour, not in the label alone; the
     // square's label is short, its tooltip says the whole name.
@@ -158,13 +174,16 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
         const char *disabled;
         bool *clicked;
     };
+    const auto shortcut = [](const std::string &configured) {
+        return configured.empty() ? nullptr : configured.c_str();
+    };
     // Reload's slot: Build and Restart when Reload cannot apply the pending change.
     rv_editor_transport_button reload_slot = {
         { rv_editor_text("widgets_status.button_reload"),
             rv_editor_glyph::reload,
             rv_editor_mocha_teal,
             state.reload_name != nullptr ? state.reload_name : rv_editor_text("widgets_status.tooltip_reload"),
-            rv_editor_text("widgets_status.shortcut_reload") },
+            shortcut(shortcuts.reload) },
         state.reload,
         &out.reload
     };
@@ -182,35 +201,31 @@ rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_
               rv_editor_glyph::build,
               rv_editor_mocha_peach,
               rv_editor_text("widgets_status.button_build"),
-              rv_editor_text("widgets_status.shortcut_build") },
+              shortcut(shortcuts.build) },
             state.build,
             &out.build },
-        { { run_resume_label,
-              rv_editor_glyph::run,
-              theme.code_green,
-              run_resume_label,
-              rv_editor_text("widgets_status.shortcut_run") },
+        { { run_resume_label, rv_editor_glyph::run, theme.code_green, run_resume_label, shortcut(shortcuts.run) },
             state.run,
             &out.run },
         { { rv_editor_text("widgets_status.button_pause"),
               rv_editor_glyph::pause,
               theme.code_yellow,
               rv_editor_text("widgets_status.button_pause"),
-              rv_editor_text("widgets_status.shortcut_pause") },
+              shortcut(shortcuts.pause) },
             state.pause,
             &out.pause },
         { { rv_editor_text("widgets_status.button_step"),
               rv_editor_glyph::step_frame,
               theme.code_blue,
               rv_editor_text("widgets_status.button_step_frame"),
-              rv_editor_text("widgets_status.shortcut_step") },
+              shortcut(shortcuts.step) },
             state.step,
             &out.step },
         { { rv_editor_text("widgets_status.button_stop"),
               rv_editor_glyph::stop,
               theme.code_red,
               rv_editor_text("widgets_status.button_stop"),
-              rv_editor_text("widgets_status.shortcut_stop") },
+              shortcut(shortcuts.stop) },
             state.stop,
             &out.stop },
         reload_slot,

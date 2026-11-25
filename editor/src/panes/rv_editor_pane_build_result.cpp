@@ -53,17 +53,18 @@ rv_editor_label_kind rv_editor_build_outcome_kind(rv_editor_build_state state)
     }
 }
 
-// The shelf's three buttons, the widest row of the pane with the box's.
+// Measure the shelf buttons and the result strip.
 float rv_editor_build_result_content_width()
 {
     return std::max(rv_editor_message_strip_min_width({ { rv_editor_text("panes.open_project_box") },
                         { rv_editor_text("pane_build_result.open_log_button") } }),
         rv_editor_say_shelf_width({ rv_editor_text("pane_build_result.build_button"),
             rv_editor_text("pane_build_result.build_candidate_button"),
-            rv_editor_text("pane_build_result.cancel_button") }));
+            rv_editor_text("pane_build_result.cancel_button"),
+            rv_editor_text("pane_build_result.run_last_button") }));
 }
 
-// Build, Build Candidate and Cancel Build in one row, each in its place whatever the job does.
+// The build actions stay in place whatever the job does.
 void rv_editor_build_result_shelf(rv_editor_app &app, const rv_editor_theme &theme)
 {
     const rv_editor_build &b = app.build;
@@ -87,6 +88,12 @@ void rv_editor_build_result_shelf(rv_editor_app &app, const rv_editor_theme &the
     const char *cancel_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
     if (rv_editor_button(rv_editor_text("pane_build_result.cancel_button"), theme, { rv_editor_look::live, cancel_why })) {
         (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
+    }
+    ImGui::SameLine();
+    if (rv_editor_button(rv_editor_text("pane_build_result.run_last_button"),
+            theme,
+            { rv_editor_look::live, rv_editor_app_why_not_run_last(app) })) {
+        rv_editor_app_run_last(app);
     }
     rv_editor_shelf_end();
 }

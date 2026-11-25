@@ -1,5 +1,5 @@
 // S14, R14, AC15: Release Controls is the transport template with five buttons: Build, Run, Run in Player, Stop and Export
-// Report, then a right column of the action slot (Cancel Build or Force Stop) and a status line with the facts and the first
+// Report, then a right column with Cancel Build, Force Stop and a status line with the facts and the first
 // check not passed, constant in size and clipping what does not fit. Under 640 px the buttons are small and
 // carry no visible label, from 640 px they are large with one.
 
@@ -191,9 +191,8 @@ RV_EDITOR_TEST(rv_editor_test_s14_release_status_line_holds_the_longest_facts)
     }
 }
 
-// R24: Cancel Build (Force Stop in a hung session) is in the slot in every state, disabled with its reason when there is
-// nothing to cancel, and in the same place whichever of the two it shows.
-RV_EDITOR_TEST(rv_editor_test_s14_release_action_slot_is_always_there)
+// R24, AC13: Cancel Build and Force Stop each keep their own place in every state.
+RV_EDITOR_TEST(rv_editor_test_s14_release_cancel_build_and_force_stop_keep_separate_positions)
 {
     load_texts();
     rv_editor_test_imgui gui(true);
@@ -201,23 +200,36 @@ RV_EDITOR_TEST(rv_editor_test_s14_release_action_slot_is_always_there)
     const auto min = stable_tiles::pane_minimum(gui, kind);
     const std::string cancel = rv_editor_text("pane_candidate.cancel_build_button");
     const std::string force = rv_editor_text("pane_candidate.force_stop_button");
-    const rv_editor_probe_entry *place = nullptr;
+    const rv_editor_probe_entry *first_cancel = nullptr;
+    const rv_editor_probe_entry *first_force = nullptr;
     rv_editor_probe_record first;
     for (size_t i = all.project_from; i < all.shells.size(); ++i) {
         const auto r = draw_at(gui, *all.shells[i], kind, std::max(min.w, 700.0f), 400.0f);
-        const auto *slot = find(r, all.names[i] == "hung" ? force : cancel);
-        if (slot == nullptr) {
-            std::fprintf(stderr, "  state '%s': no action slot\n", all.names[i].c_str());
+        const auto *cancel_button = find(r, cancel);
+        const auto *force_button = find(r, force);
+        if (cancel_button == nullptr || force_button == nullptr) {
+            std::fprintf(stderr,
+                "  state '%s': Cancel Build present=%d, Force Stop present=%d\n",
+                all.names[i].c_str(),
+                cancel_button != nullptr,
+                force_button != nullptr);
         }
-        RV_EDITOR_CHECK(slot != nullptr);
-        if (slot == nullptr) {
+        RV_EDITOR_CHECK(cancel_button != nullptr);
+        RV_EDITOR_CHECK(force_button != nullptr);
+        if (cancel_button == nullptr || force_button == nullptr) {
             continue;
         }
-        if (place == nullptr) {
+        RV_EDITOR_CHECK(cancel_button->x1 <= force_button->x0 || force_button->x1 <= cancel_button->x0 ||
+            cancel_button->y1 <= force_button->y0 || force_button->y1 <= cancel_button->y0);
+        if (first_cancel == nullptr) {
             first = r;
-            place = find(first, all.names[i] == "hung" ? force : cancel);
+            first_cancel = find(first, cancel);
+            first_force = find(first, force);
         } else {
-            RV_EDITOR_CHECK(slot->x0 == place->x0 && slot->y0 == place->y0 && slot->x1 == place->x1 && slot->y1 == place->y1);
+            RV_EDITOR_CHECK(cancel_button->x0 == first_cancel->x0 && cancel_button->y0 == first_cancel->y0 &&
+                cancel_button->x1 == first_cancel->x1 && cancel_button->y1 == first_cancel->y1);
+            RV_EDITOR_CHECK(force_button->x0 == first_force->x0 && force_button->y0 == first_force->y0 &&
+                force_button->x1 == first_force->x1 && force_button->y1 == first_force->y1);
         }
     }
 }

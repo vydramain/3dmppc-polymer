@@ -299,6 +299,8 @@ void rv_editor_menu_document_history(rv_editor_shell &shell);
 
 // The shortcuts of the spec's section 13 that have a command today.
 void rv_editor_shell_shortcuts(rv_editor_shell &shell);
+// A live session owns Run, which resumes it when paused.
+bool rv_editor_shell_run_targets_candidate(const rv_editor_shell &shell);
 
 // Help as a page or a tab: the keyboard shortcuts, filtered by what is typed.
 void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme);

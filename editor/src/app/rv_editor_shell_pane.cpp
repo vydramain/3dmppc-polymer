@@ -73,17 +73,29 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         rv_editor_pane_export(shell.app, theme);
         return;
     case rv_editor_pane_kind::controls:
-    case rv_editor_pane_kind::release_controls:
-    case rv_editor_pane_kind::toolchest: {
+    case rv_editor_pane_kind::release_controls: {
+        using action = rv_editor_shortcut_action;
+        const bool release_controls = kind == rv_editor_pane_kind::release_controls;
+        const bool build_here = release_controls == (shell.active == rv_editor_layout_preset::burn);
+        const bool run_here = release_controls == rv_editor_shell_run_targets_candidate(shell);
+        const rv_editor_transport_shortcuts shortcuts{
+            build_here ? rv_editor_shell_shortcut_label(shell, action::build) : "",
+            run_here ? rv_editor_shell_shortcut_label(shell, action::run) : "",
+            rv_editor_shell_shortcut_label(shell, action::pause),
+            rv_editor_shell_shortcut_label(shell, action::step),
+            rv_editor_shell_shortcut_label(shell, action::stop),
+            rv_editor_shell_shortcut_label(shell, action::reload),
+        };
         if (kind == rv_editor_pane_kind::controls) {
-            rv_editor_pane_controls(shell.app, theme);
-        } else if (kind == rv_editor_pane_kind::toolchest) {
-            rv_editor_pane_toolchest(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
+            rv_editor_pane_controls(shell.app, theme, shortcuts);
         } else {
-            rv_editor_pane_release_controls(shell.app, theme);
+            rv_editor_pane_release_controls(shell.app, theme, shortcuts);
         }
         return;
     }
+    case rv_editor_pane_kind::toolchest:
+        rv_editor_pane_toolchest(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
+        return;
     case rv_editor_pane_kind::runtime_log:
     case rv_editor_pane_kind::build_log: {
         // One source each, until the user ticks more.

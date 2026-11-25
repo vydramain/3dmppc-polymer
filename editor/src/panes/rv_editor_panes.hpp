@@ -36,9 +36,10 @@ void rv_editor_dim(const std::string &text, const rv_editor_theme &theme);
 std::string rv_editor_clock(std::chrono::system_clock::time_point at);
 void rv_editor_fact(const char *label, const std::string &value, const rv_editor_theme &theme);
 
-// Build, Run/Resume, Pause, Step, Stop and the session's state on one row that
-// wraps when narrow; Open Project without a project.
-void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme);
+// Runtime transport, build cancellation, Force Stop and session status.
+void rv_editor_pane_controls(rv_editor_app &app,
+    const rv_editor_theme &theme,
+    const rv_editor_transport_shortcuts &shortcuts = {});
 
 // The current or last build's target and step or outcome. Empty before the first job.
 std::string rv_editor_build_status(const rv_editor_build &build);
@@ -214,7 +215,9 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme);
 // Release: Build Candidate, Run Candidate, Stop, Export Report and the shown
 // candidate's state on one row; and the Candidate pane.
-void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_pane_release_controls(rv_editor_app &app,
+    const rv_editor_theme &theme,
+    const rv_editor_transport_shortcuts &shortcuts = {});
 void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme);
 // The candidate's decision line, shown by Release Controls and the Candidate pane (rv_editor_pane_candidate.cpp).

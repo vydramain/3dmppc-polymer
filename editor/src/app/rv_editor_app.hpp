@@ -242,6 +242,7 @@ const char *rv_editor_app_why_not_run_last(const rv_editor_app &app);
 const char *rv_editor_app_why_not_pause(const rv_editor_app &app);
 const char *rv_editor_app_why_not_step(const rv_editor_app &app);
 const char *rv_editor_app_why_not_stop(const rv_editor_app &app);
+const char *rv_editor_app_why_not_force_stop(const rv_editor_app &app);
 // Why Reload cannot run now; nullptr when it can. Only asked when the session can reload at all.
 const char *rv_editor_app_why_not_reload(const rv_editor_app &app);
 // The running console can reload its entry script: a directory medium and a Lua entry.

@@ -95,8 +95,8 @@ float rv_editor_release_status_min_width()
 
 float rv_editor_release_column_min_width()
 {
-    return rv_editor_button_width_for(
-        { rv_editor_text("pane_candidate.force_stop_button"), rv_editor_text("pane_candidate.cancel_build_button") });
+    return rv_editor_button_width(rv_editor_text("pane_candidate.cancel_build_button")) + ImGui::GetStyle().ItemSpacing.x +
+        rv_editor_button_width(rv_editor_text("pane_candidate.force_stop_button"));
 }
 
 float rv_editor_release_min_width()

@@ -207,6 +207,7 @@ build_button = "Build"
 build_candidate_button = "Build Candidate"
 no_build_running = "No build is running"
 cancel_button = "Cancel Build"
+run_last_button = "Run Last Successful Build"
 errors_warnings = "{} errors, {} warnings"
 
 [pane_export]

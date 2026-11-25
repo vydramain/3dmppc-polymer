@@ -75,6 +75,15 @@ void rv_editor_log_row(const char *time,
     const char *text,
     const rv_editor_theme &theme);
 
+struct rv_editor_transport_shortcuts {
+    std::string build;
+    std::string run;
+    std::string pause;
+    std::string step;
+    std::string stop;
+    std::string reload;
+};
+
 // Why each transport action is unavailable; nullptr means available.
 struct rv_editor_transport_state {
     const char *build;
@@ -108,6 +117,10 @@ struct rv_editor_transport_actions {
 // 640 px the squares shrink to leave it, never past their natural side.
 rv_editor_transport_actions
 rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_theme &theme, float reserve = 0.0f);
+rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_state &state,
+    const rv_editor_theme &theme,
+    float reserve,
+    const rv_editor_transport_shortcuts &shortcuts);
 
 // The side of the `count` transport buttons in a tile `width` wide: the large square from 640 px (scaled) that leaves
 // `reserve` to the right of the buttons, else a frame.

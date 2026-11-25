@@ -25,6 +25,11 @@ rv_editor_pane_kind rv_editor_focused_pane_kind(const rv_editor_workspace &ws)
 
 } // namespace
 
+bool rv_editor_shell_run_targets_candidate(const rv_editor_shell &shell)
+{
+    return shell.active == rv_editor_layout_preset::burn && !shell.app.session.live();
+}
+
 void rv_editor_shell_shortcuts(rv_editor_shell &shell)
 {
     if (shell.settings_shortcut_capture) {
@@ -59,8 +64,13 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     };
 
     using action = rv_editor_shortcut_action;
+    const bool burn = shell.active == rv_editor_layout_preset::burn;
     if (pressed(action::build)) {
-        rv_editor_app_build(app);
+        if (burn) {
+            rv_editor_app_build_candidate(app);
+        } else {
+            rv_editor_app_build(app);
+        }
     }
     if (rv_editor_shell_why_not_save(shell) == nullptr && pressed(action::save_scene)) {
         rv_editor_shell_scene_save(shell);
@@ -82,7 +92,11 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
         rv_editor_shell_page(shell, rv_editor_start_page::manual);
     }
     if (pressed(action::run)) {
-        rv_editor_app_run(app);
+        if (rv_editor_shell_run_targets_candidate(shell)) {
+            rv_editor_app_run_candidate(app);
+        } else {
+            rv_editor_app_run(app);
+        }
     }
     if (pressed(action::focus_next)) {
         rv_editor_shell_focus_next(shell, false);
