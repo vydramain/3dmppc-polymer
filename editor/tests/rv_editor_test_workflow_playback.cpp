@@ -387,7 +387,8 @@ RV_EDITOR_TEST(editor_playback_and_build_progress_fit_at_both_controls_minima)
         const auto min = stable_tiles::pane_minimum(fixture.gui, pane);
         RV_EDITOR_CHECK(min.w > 0 && min.h > 0);
         const std::string session_text = "session " + std::to_string(session);
-        for (const char *text : { session_text.c_str(), "Candidate #999998", "Candidate #999999", "99/99", "xxxxxxxxxxxxxxxx" }) {
+        for (const char *text :
+            { session_text.c_str(), "Candidate #999998", "Candidate #999999", "99/99", "xxxxxxxxxxxxxxxx" }) {
             const bool visible = controls_show(fixture, pane, min, text);
             if (!visible) {
                 std::fprintf(stderr, "  %s at %.0fx%.0f does not show '%s' whole\n", name, min.w, min.h, text);
@@ -401,7 +402,9 @@ RV_EDITOR_TEST(editor_playback_and_build_progress_fit_at_both_controls_minima)
     check_controls(rv_editor_pane_kind::controls, "Runtime Controls");
     std::string error;
     RV_EDITOR_CHECK(app.build.cancel(error) == RV_OK);
-    RV_EDITOR_CHECK(fixture.wait_until([&] { return !app.build.busy() && !app.release.building; }));
+    RV_EDITOR_CHECK(fixture.wait_until([&] {
+        return !app.build.busy() && !app.release.building;
+    }));
 }
 
 RV_EDITOR_TEST(rv_editor_test_interactive_manual_waits_for_a_successful_build_and_run)
