@@ -123,22 +123,32 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
     const std::string session = s.number() == 0 || debug ?
         std::string() :
         "session " + std::to_string(s.number()) + " (" + rv_editor_run_state_name(s.state()) + ")";
-    const std::string candidate = app.release.candidates.empty() ?
-        std::string() :
-        "#" + std::to_string(app.release.candidates[app.release.selected].number);
+    const bool candidate_view = burn && (!s.live() || s.number() == app.candidate_session);
+    std::string playback_subject = session;
+    if (candidate_view) {
+        playback_subject.clear();
+        if (s.live()) {
+            playback_subject = "#" + std::to_string(s.build_number());
+        } else if (!app.release.candidates.empty()) {
+            playback_subject = "#" + std::to_string(app.release.candidates[app.release.selected].number);
+        }
+    }
 
     std::string title;
     switch (kind) {
     case rv_editor_pane_kind::game:
-        title = title_subject("workspace.pane_game", "shell_titles.candidate_playtest", burn ? candidate : session, burn);
+        title = title_subject("workspace.pane_game", "shell_titles.candidate_playtest", playback_subject, candidate_view);
         break;
     case rv_editor_pane_kind::runtime_log:
-        title = title_subject("shell_titles.runtime_log", "shell_titles.playtest_log", burn ? candidate : session, burn);
+        title = title_subject("shell_titles.runtime_log", "shell_titles.playtest_log", playback_subject, candidate_view);
+        break;
+    case rv_editor_pane_kind::observe:
+        title = rv_editor_text("shell_titles.inspector");
         break;
     case rv_editor_pane_kind::scene:
         title = title_scene(app);
         break;
-    case rv_editor_pane_kind::problems:
+    case rv_editor_pane_kind::inspector_report:
         title = title_problems(app);
         break;
     case rv_editor_pane_kind::output:
@@ -160,7 +170,9 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
         break;
     }
 
-    if (!title.empty()) {
+    if (title.empty()) {
+        shell.ws.titles.erase(pane);
+    } else {
         shell.ws.titles[pane] = title;
     }
 }

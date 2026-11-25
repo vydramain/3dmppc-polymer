@@ -7,6 +7,8 @@
 #include <string_view>
 #include <utility>
 
+#include "text/rv_editor_text.hpp"
+
 namespace rv_editor
 {
 
@@ -204,13 +206,15 @@ void rv_editor_app_collect_problems(rv_editor_app &app)
     }
 }
 
-// Each candidate is polled; a dirty one is saved. Every candidate is tried; each failure is logged
-// by the save; the first is returned.
+// Poll hashes before verifying the playtest, then save the resulting candidate records.
 int rv_editor_app_update_candidates(rv_editor_app &app)
 {
-    int result = RV_OK;
     for (rv_editor_candidate &c : app.release.candidates) {
         rv_editor_candidate_poll(c);
+    }
+    rv_editor_app_release_update_playtest(app);
+    int result = RV_OK;
+    for (rv_editor_candidate &c : app.release.candidates) {
         if (c.dirty) {
             const int save_result = rv_editor_app_release_save_candidate(app, c);
             result = result == RV_OK ? save_result : result;
@@ -275,6 +279,7 @@ void rv_editor_app_update(rv_editor_app &app)
 
     const bool was_busy = app.build.busy();
     (void)rv_editor_app_update_build(app);
+    app.inspect.update(app.log);
     (void)rv_editor_app_update_export(app);
     (void)rv_editor_app_update_session(app);
 
@@ -282,6 +287,14 @@ void rv_editor_app_update(rv_editor_app &app)
     const bool build_ended = was_busy && !app.build.busy();
     if (build_ended) {
         rv_editor_app_build_ended_note(app);
+        rv_editor_app_build_alert_ended(app, app.build.state(), rv_editor_exit_text(app.build.exit_status()));
+        // The build may have changed what the inspector reports: look again, after the run that is under way.
+        std::string inspect_error;
+        if (app.inspect.request(app.project, app.tools, app.log, inspect_error) != RV_OK) {
+            app.log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
+                rv_editor_text_format("inspect.not_started", std::make_format_args(inspect_error)));
+        }
     }
     // The build Run started runs, or Run says why not; never the one before.
     const bool run_for_build = build_ended && app.run_after_build;
@@ -325,16 +338,6 @@ void rv_editor_app_update(rv_editor_app &app)
         (void)rv_editor_app_release_finish_build(app);
     }
     (void)rv_editor_app_update_candidates(app);
-    const bool playing = rv_editor_app_release_playing(app);
-    const bool still_playing = rv_editor_app_release_still_playing(app);
-    const bool verdict_due = still_playing && app.session.connected() && rv_editor_app_release_loads_running(app);
-    if (verdict_due) {
-        (void)rv_editor_app_release_playtest_verdict(app);
-    }
-    const bool playtest_over = playing && !still_playing;
-    if (playtest_over) {
-        (void)rv_editor_app_release_playtest_end(app);
-    }
 
     const bool run_after_stop_due = app.run_after_stop && !app.session.live();
     if (run_after_stop_due) {

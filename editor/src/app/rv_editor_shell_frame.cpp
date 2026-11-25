@@ -12,6 +12,17 @@
 namespace rv_editor
 {
 
+// A closed tile's shell is hung up here and ended by the frame steps; nothing waits.
+void rv_editor_shell_stop_terminal(rv_editor_app &app, rv_editor_terminal_view &view)
+{
+    std::unique_ptr<rv_editor_pty> pty = view.term->release_pty();
+    std::string error;
+    if (pty->begin_stop(error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "terminal: " + error);
+    }
+    app.stopping_ptys.push_back(std::move(pty));
+}
+
 namespace
 {
 
@@ -70,17 +81,6 @@ rv_editor_pane_id rv_editor_code_target(rv_editor_workspace &ws, rv_editor_pane_
     return pane;
 }
 
-// A closed tile's shell is hung up here and ended by the frame steps; nothing waits.
-void rv_editor_shell_stop_terminal(rv_editor_app &app, rv_editor_terminal_view &view)
-{
-    std::unique_ptr<rv_editor_pty> pty = view.term->release_pty();
-    std::string error;
-    if (pty->begin_stop(error) != RV_OK) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "terminal: " + error);
-    }
-    app.stopping_ptys.push_back(std::move(pty));
-}
-
 // The action an unsaved ask stands for, and the question it opens on the shell.
 struct rv_editor_ask_question {
     rv_editor_unsaved_ask ask;
@@ -97,7 +97,7 @@ constexpr rv_editor_ask_question rv_editor_ask_questions[] = {
 // does not start and the log says so. The shell asks one thing at a time.
 int rv_editor_shell_open_question(rv_editor_shell &shell, rv_editor_unsaved_ask ask)
 {
-    const auto found = std::find_if(std::begin(rv_editor_ask_questions),
+    const auto *const found = std::find_if(std::begin(rv_editor_ask_questions),
         std::end(rv_editor_ask_questions),
         [ask](const rv_editor_ask_question &question) {
             return question.ask == ask;
@@ -114,7 +114,7 @@ int rv_editor_shell_open_question(rv_editor_shell &shell, rv_editor_unsaved_ask 
             std::string(found->action) + " not started: another question is open");
         return RV_ERR_BUSY;
     }
-    shell.leaving = found->leave;
+    rv_editor_shell_begin_review(shell, found->leave);
     shell.app.unsaved_open = ask;
     return RV_OK;
 }
@@ -135,7 +135,11 @@ void rv_editor_shell_publish_layout(rv_editor_shell &shell)
 // Run Configuration's list and form need room: the biggest tile takes it. Cannot fail.
 void rv_editor_shell_run_show_request(rv_editor_shell &shell)
 {
-    rv_editor_shell_show_pane(shell, shell.app.show_request, shell.app.show_request == rv_editor_pane_kind::run_config);
+    if (shell.app.show_request == rv_editor_pane_kind::inspector_report) {
+        rv_editor_shell_focus_problems(shell);
+    } else {
+        rv_editor_shell_show_pane(shell, shell.app.show_request, shell.app.show_request == rv_editor_pane_kind::run_config);
+    }
     shell.app.show_request = rv_editor_pane_kind::empty;
 }
 
@@ -353,7 +357,7 @@ void rv_editor_shell_reveal_file(rv_editor_shell &shell, const std::string &name
 // refusals: the unsaved-files question, the binary and nvim-problem refusals of the open requests, and the
 // terminal stop, and the file reveal's miss. The code of the unsaved-files question is dropped with (void); a
 // file outside the project root is not revealed by design.
-void rv_editor_shell_update(rv_editor_shell &shell)
+void rv_editor_shell_update(rv_editor_shell &shell, bool finish_save)
 {
     rv_editor_app &app = shell.app;
     rv_editor_shell_frame_start(shell);
@@ -364,7 +368,10 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         (void)rv_editor_shell_open_question(shell, app.unsaved_ask);
     }
     rv_editor_shell_clear_unsaved_ask(shell);
-    rv_editor_shell_after_save(shell);
+    if (finish_save) {
+        rv_editor_shell_after_save(shell);
+    }
+    rv_editor_shell_manual_update(shell);
     rv_editor_shell_review_tab(shell);
     rv_editor_shell_settings_apply(shell);
     rv_editor_shell_publish_layout(shell);
@@ -384,14 +391,16 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     if (folder_asked) {
         rv_editor_shell_run_open_folder_request(shell);
     }
-    rv_editor_shell_release_windows(shell);
+    if (!app.nvim.switching_root()) {
+        rv_editor_shell_release_windows(shell);
+    }
     // The code tile in front of the focused tile is the one used last.
     const rv_editor_pane_id focused_code = rv_editor_focused_code_pane(shell.ws);
     const bool focused_is_code = focused_code != rv_editor_tile_none;
     if (focused_is_code) {
         rv_editor_shell_set_last_code(shell, focused_code);
     }
-    // Until one is used, the first code tile is the one Save, Undo and Redo act on.
+    // Until one is used, the first code tile receives New File and file opens from the other panes.
     const bool last_lost = shell.last_code == rv_editor_tile_none || !rv_editor_shell_pane_kept(shell, shell.last_code);
     if (last_lost) {
         rv_editor_shell_first_code(shell);
@@ -404,7 +413,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         rv_editor_shell_refuse_open_requests(app);
     }
     // A wait for the window is not a failure: the requests stay queued and go out on the frame it exists.
-    const bool opening = !app.open_requests.empty();
+    const bool opening = !app.open_requests.empty() && !app.nvim.switching_root();
     const rv_editor_pane_id target = opening ? rv_editor_shell_open_target(shell) : rv_editor_tile_none;
     const int64_t win = opening ? app.nvim.window_for(target) : 0;
     const bool ready = win != 0;

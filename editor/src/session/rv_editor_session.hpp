@@ -187,6 +187,9 @@ public:
     // RV_ERR_IO: a read failed during the end; the first reason is in `error`.
     int shutdown(rv_editor_log &log, std::string &error);
 
+    // Drops the stopped session and its shared frame when leaving a project.
+    void clear_finished_session();
+
     rv_editor_run_state state() const
     {
         return state_;
@@ -205,7 +208,7 @@ public:
     }
     pid_t pid() const
     {
-        return proc_.pid();
+        return number() == 0 ? -1 : proc_.pid();
     }
     uint32_t build_number() const
     {
@@ -246,10 +249,10 @@ public:
     {
         return reload_kind_;
     }
-    // Counts the sessions this window started, from 1; 0 before the first.
+    // The current or last session's window-wide number; 0 when there is no session to show.
     uint32_t number() const
     {
-        return number_;
+        return state_ == rv_editor_run_state::stopped ? 0 : number_;
     }
     std::chrono::system_clock::time_point started_at() const
     {
@@ -285,11 +288,12 @@ public:
     }
     const rv_editor_process::rv_editor_exit &exit_status() const
     {
-        return proc_.exit_status();
+        static const rv_editor_process::rv_editor_exit empty;
+        return number() == 0 ? empty : proc_.exit_status();
     }
     bool output_cut() const
     {
-        return proc_.output_cut();
+        return number() != 0 && proc_.output_cut();
     }
     const std::filesystem::path &console() const
     {
@@ -333,6 +337,7 @@ private:
     void handle_mode(std::string_view mode);
     // Returns the result of its read; the end is recorded either way.
     int finish(rv_editor_log &log, std::string &error);
+    void clear_state();
     // The steps of start(): spawn and handshake give the reason in error; reset_state cannot fail.
     int spawn(const std::vector<std::string> &argv, const rv_editor_session_launch &launch, std::string &error);
     void reset_state(const rv_editor_session_launch &launch);

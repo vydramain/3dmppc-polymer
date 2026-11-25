@@ -157,6 +157,7 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
         config.string(),
         std::string(nvim_opt_shada_file),
         std::string(nvim_init_none) };
+    rpc_.take_stderr(); // The previous client has stopped and its reader has joined.
     const int err = rpc_.start(argv, cwd, error);
     if (err != RV_OK) {
         problem = "cannot start nvim: " + error;
@@ -164,17 +165,8 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
         error = problem;
         return err;
     }
+    reset_client_state();
     started_ = true;
-    attached_ = false;
-    windows_.clear();
-    asked_.clear();
-    spare_.clear();
-    buffers_.clear();
-    sizes_.clear();
-    shown_.clear();
-    switching_ = 0;
-    held_.clear();
-    screen_ = {};
     log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "code editor: " + nvim.string() + " --embed");
     attach();
     // Queued right after attach: nvim runs requests in order, so the variable exists before the first frame asks for a window.
@@ -221,7 +213,8 @@ void rv_editor_nvim::attach()
 
 void rv_editor_nvim::exec_lua(const std::string &code,
     const std::vector<std::string> &args,
-    rv_editor_nvim_rpc::rv_editor_nvim_reply reply)
+    rv_editor_nvim_rpc::rv_editor_nvim_reply reply,
+    std::chrono::milliseconds timeout)
 {
     rpc_.request(rpc_exec_lua.data(),
         rv_editor_args([&](rv_editor_mpack_writer &w) {
@@ -232,7 +225,8 @@ void rv_editor_nvim::exec_lua(const std::string &code,
                 w.string(a);
             }
         }),
-        std::move(reply));
+        std::move(reply),
+        timeout);
 }
 
 void rv_editor_nvim::update(rv_editor_log &log)
@@ -258,6 +252,7 @@ void rv_editor_nvim::update(rv_editor_log &log)
         log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "nvim: " + err);
     }
     if (!alive) {
+        buffer_state_lost_ = true;
         started_ = false;
         attached_ = false;
         problem = why + ". Unsaved text is in nvim's swap files (:recover)";
@@ -292,7 +287,7 @@ int64_t rv_editor_nvim::window_for(uint32_t pane)
         sizes_.erase(win);
         windows_.erase(it);
     }
-    if (!running() || !attached_) {
+    if (!running() || !attached_ || switching_root_) {
         return 0;
     }
     if (!spare_.empty()) {
@@ -376,7 +371,7 @@ void rv_editor_nvim::focus(int64_t win)
 {
     // Only a real switch: the cursor already in this window's grid needs none.
     // A cursor on the message grid or grid 1 is a prompt or command line: keys must reach it.
-    if (!running() || win == 0) {
+    if (!running() || win == 0 || switching_root_) {
         return;
     }
     const int32_t cursor = screen_.cursor_grid();
@@ -393,9 +388,10 @@ void rv_editor_nvim::focus(int64_t win)
 
 void rv_editor_nvim::mouse(const char *button, const char *action, int32_t grid, int32_t row, int32_t col)
 {
-    if (!running()) {
+    if (!running() || switching_root_) {
         return;
     }
+    ++input_generation_;
     rpc_.notify(rpc_input_mouse.data(), rv_editor_args([&](rv_editor_mpack_writer &w) {
         w.array(input_mouse_args_count);
         w.string(button);
@@ -409,9 +405,10 @@ void rv_editor_nvim::mouse(const char *button, const char *action, int32_t grid,
 
 void rv_editor_nvim::input(const std::string &keys)
 {
-    if (!running()) {
+    if (!running() || switching_root_) {
         return;
     }
+    input_generation_ += keys.size();
     held_ += keys;
     if (switching_ != 0) {
         const bool arrived = screen_.cursor_grid() == screen_.grid_of_window(switching_);
@@ -488,17 +485,24 @@ const std::vector<rv_editor_nvim_diagnostic> &rv_editor_nvim::diagnostics_for(co
     return it != diagnostics_.end() ? it->second : empty;
 }
 
-int rv_editor_nvim::stop(std::string &error)
+int rv_editor_nvim::begin_stop_project(std::string &error)
 {
-    if (started_ && rpc_.running()) {
+    if (running()) {
         // Queued after any :write the user asked for, so those run first.
         rpc_.notify(rpc_command.data(), rv_editor_args([](rv_editor_mpack_writer &w) {
             w.array(1);
             w.string(nvim_cmd_quit_force.data());
         }));
     }
-    started_ = false;
-    attached_ = false;
+    reset_client_state();
+    problem.clear();
+    last_error_ = RV_OK;
+    return stopping() ? RV_OK : rpc_.begin_stop(error);
+}
+
+int rv_editor_nvim::stop(std::string &error)
+{
+    begin_stop_project(error);
     return rpc_.stop_now(error);
 }
 

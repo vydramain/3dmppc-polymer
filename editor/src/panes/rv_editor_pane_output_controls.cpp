@@ -1,9 +1,10 @@
 // The control row of the log panes (Console Output, Runtime Log, Build Log): Source,
-// Level, Find, Follow and Wrap, then Copy, Export and Clear View.
+// Level, Find, Follow and Wrap, then Copy, Export and Clear View, all in one row.
 
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <string>
 
@@ -13,6 +14,7 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 
 namespace rv_editor
 {
@@ -21,24 +23,7 @@ namespace
 {
 
 // Dropdown menu label separator before ImGui ID.
-constexpr std::string_view dropdown_id_marker = "   ##";
-
-// Tail buttons: Follow, Wrap, Copy, Export, Clear View (5 items).
-constexpr size_t tail_buttons_count = 5;
-
-// Tail button indices: positions in tail_w and hidden arrays.
-constexpr size_t tail_follow = 0;
-constexpr size_t tail_wrap = 1;
-constexpr size_t tail_copy = 2;
-constexpr size_t tail_export = 3;
-constexpr size_t tail_clear_view = 4;
-
-// Drop order: indices to hide when space tight (Clear View, Export, Copy, Wrap, Follow).
-constexpr size_t tail_buttons_drop_order[tail_buttons_count] = { tail_clear_view,
-    tail_export,
-    tail_copy,
-    tail_wrap,
-    tail_follow };
+constexpr std::string_view dropdown_id_marker = "   ###";
 
 // Find field width bounds (multiples of font size, in em).
 constexpr float find_width_min_em = 6.0f;
@@ -104,26 +89,85 @@ std::vector<rv_editor_output_run> rv_editor_output_runs(const rv_editor_log &log
     return runs;
 }
 
-bool rv_editor_output_drop(const std::string &label, const rv_editor_theme &theme)
+// A drop button of one width whatever it says: as wide as the widest of `widest`; a text that does not fit ends in
+// "..." with the whole of it in a tooltip. The id marker keeps the button's id steady as the text changes.
+bool rv_editor_output_drop(const std::string &text,
+    const char *id,
+    const std::array<std::string, 3> &widest,
+    const rv_editor_theme &theme)
 {
-    const bool clicked = rv_editor_button(label.c_str(), theme);
+    const std::array<std::string, 3> w = { rv_editor_output_drop_label(widest[0], id),
+        rv_editor_output_drop_label(widest[1], id),
+        rv_editor_output_drop_label(widest[2], id) };
+    const float side = ImGui::GetFrameHeight();
+    const float room = rv_editor_button_width_for({ w[0].c_str(), w[1].c_str(), w[2].c_str() }) -
+        ImGui::GetStyle().FramePadding.x * 2.0f - side;
+    const std::string fitted = rv_editor_ellipsize(text.c_str(), room);
+    const std::string label = rv_editor_output_drop_label(fitted, id);
+    const bool clicked = rv_editor_button_fixed(label.c_str(), { w[0].c_str(), w[1].c_str(), w[2].c_str() }, theme);
+    const bool hovered = ImGui::IsItemHovered();
     const ImVec2 max = ImGui::GetItemRectMax();
-    const float side = ImGui::GetItemRectSize().y;
     rv_editor_draw_arrow(ImGui::GetWindowDrawList(),
         ImVec2(max.x - side, ImGui::GetItemRectMin().y),
         max,
         theme,
         ImGuiDir_Down,
         theme.text);
+    if (hovered && fitted != text) {
+        rv_editor_tooltip(text.c_str());
+    }
     return clicked;
+}
+
+// The three texts the Source button and the Level button each take the widest of.
+std::array<std::string, 3> rv_editor_output_source_widest()
+{
+    const std::string prefix = rv_editor_text("pane_output_controls.dropdown_source");
+    return { prefix + rv_editor_text("pane_output.sources_all_protocol"),
+        prefix + rv_editor_text("pane_output.sources_all_protocol"),
+        prefix + rv_editor_text("pane_output.sources_none") };
+}
+
+std::array<std::string, 3> rv_editor_output_level_widest()
+{
+    const std::string prefix = rv_editor_text("pane_output_controls.dropdown_level");
+    return { prefix + rv_editor_text("pane_output_controls.level_all"),
+        prefix + rv_editor_text("pane_output_controls.level_warnings"),
+        prefix + rv_editor_text("pane_output_controls.level_errors") };
+}
+
+float rv_editor_output_drop_width(const std::array<std::string, 3> &widest, const char *id)
+{
+    const std::array<std::string, 3> w = { rv_editor_output_drop_label(widest[0], id),
+        rv_editor_output_drop_label(widest[1], id),
+        rv_editor_output_drop_label(widest[2], id) };
+    return rv_editor_button_width_for({ w[0].c_str(), w[1].c_str(), w[2].c_str() });
+}
+
+// Follow, Wrap, Copy, Export and Clear View, each with the gap before it.
+float rv_editor_output_tail_width()
+{
+    const float gap = ImGui::GetStyle().ItemSpacing.x;
+    return rv_editor_checkbox_width(rv_editor_text("pane_output_controls.button_follow")) +
+        rv_editor_checkbox_width(rv_editor_text("pane_output_controls.button_wrap")) +
+        rv_editor_button_width(rv_editor_text("pane_output_controls.button_copy")) +
+        rv_editor_button_width(rv_editor_text("pane_output_controls.button_export")) +
+        rv_editor_button_width(rv_editor_text("pane_output_controls.button_clear_view")) + 5.0f * gap;
 }
 
 } // namespace
 
-// Source and Level menus, Find, Follow and Wrap; Copy, Export and Clear View at the
-// right. Source, Level and Find (down to a minimum) always stay; the rest hide behind
-// a "More" menu, in this order, when the row is too narrow: Clear View, Export, Copy,
-// Wrap, Follow. Everything here draws in the UI font, like the rest of the editor.
+float rv_editor_output_controls_width()
+{
+    const float gap = ImGui::GetStyle().ItemSpacing.x;
+    return rv_editor_output_drop_width(rv_editor_output_source_widest(), "sources") + gap +
+        rv_editor_output_drop_width(rv_editor_output_level_widest(), "level") + gap + ImGui::GetFontSize() * find_width_min_em +
+        rv_editor_output_tail_width();
+}
+
+// Source and Level menus, Find, Follow, Wrap, Copy, Export and Clear View, every one always shown: the tile's
+// minimum is as wide as the row (rv_editor_output_controls_width). Find takes the room that is left, between its
+// minimum and maximum. Everything here draws in the UI font, like the rest of the editor.
 void rv_editor_output_controls(rv_editor_app &app,
     rv_editor_output_view &view,
     bool &copy,
@@ -136,9 +180,10 @@ void rv_editor_output_controls(rv_editor_app &app,
         view.picked_from = view.picked_to = 0;
     };
 
+    const std::string source_prefix = rv_editor_text("pane_output_controls.dropdown_source");
     const std::string source_label = view.run_pid != 0 ? view.run_label : rv_editor_output_sources(view, false);
-    const std::string source_drop = std::string(rv_editor_text("pane_output_controls.dropdown_source")) + source_label;
-    if (rv_editor_output_drop(rv_editor_output_drop_label(source_drop, "sources"), theme)) {
+    const std::string source_drop = source_prefix + source_label;
+    if (rv_editor_output_drop(source_drop, "sources", rv_editor_output_source_widest(), theme)) {
         ImGui::OpenPopup("##sources_menu");
     }
     if (rv_editor_popup_begin("##sources_menu")) {
@@ -175,10 +220,9 @@ void rv_editor_output_controls(rv_editor_app &app,
     }
     ImGui::SameLine();
 
-    const std::string level = rv_editor_output_drop_label(std::string(rv_editor_text("pane_output_controls.dropdown_level")) +
-            rv_editor_output_level_filter(view.level),
-        "level");
-    if (rv_editor_output_drop(level, theme)) {
+    const std::string level_prefix = rv_editor_text("pane_output_controls.dropdown_level");
+    const std::string level = level_prefix + rv_editor_output_level_filter(view.level);
+    if (rv_editor_output_drop(level, "level", rv_editor_output_level_widest(), theme)) {
         ImGui::OpenPopup("##level_menu");
     }
     if (rv_editor_popup_begin("##level_menu")) {
@@ -192,44 +236,9 @@ void rv_editor_output_controls(rv_editor_app &app,
     }
     ImGui::SameLine();
 
-    // Follow, Wrap, Copy, Export, Clear View: dropped in this order (Clear View
-    // first, Follow last) behind More, so the row never runs wider than the tile.
-    const float gap = ImGui::GetStyle().ItemSpacing.x;
-    const float tail_w[tail_buttons_count] = { rv_editor_checkbox_width(rv_editor_text("pane_output_controls.button_follow")),
-        rv_editor_checkbox_width(rv_editor_text("pane_output_controls.button_wrap")),
-        rv_editor_button_width(rv_editor_text("pane_output_controls.button_copy")),
-        rv_editor_button_width(rv_editor_text("pane_output_controls.button_export")),
-        rv_editor_button_width(rv_editor_text("pane_output_controls.button_clear_view")) };
-    const float more_w = rv_editor_button_width(rv_editor_text("pane_output_controls.button_more"));
-    bool hidden[tail_buttons_count] = {};
-    const auto tail_width = [&](bool any_hidden) {
-        float w = 0.0f;
-        bool first = true;
-        for (size_t i = 0; i < tail_buttons_count; ++i) {
-            if (hidden[i]) {
-                continue;
-            }
-            w += (first ? 0.0f : gap) + tail_w[i];
-            first = false;
-        }
-        if (any_hidden) {
-            w += (first ? 0.0f : gap) + more_w;
-        }
-        return w;
-    };
     const float find_min = ImGui::GetFontSize() * find_width_min_em;
     const float find_max = ImGui::GetFontSize() * find_width_max_em;
-    size_t dropped = 0;
-    float find_w = find_max;
-    for (;;) {
-        const float room = ImGui::GetContentRegionAvail().x - tail_width(dropped != 0);
-        if (room >= find_min || dropped == std::size(tail_buttons_drop_order)) {
-            find_w = std::clamp(room, find_min, find_max);
-            break;
-        }
-        hidden[tail_buttons_drop_order[dropped]] = true;
-        ++dropped;
-    }
+    const float find_w = std::clamp(ImGui::GetContentRegionAvail().x - rv_editor_output_tail_width(), find_min, find_max);
 
     // Find, with its purpose written in it while it is empty.
     ImGui::SetNextItemWidth(find_w);
@@ -243,79 +252,25 @@ void rv_editor_output_controls(rv_editor_app &app,
     }
     rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_find"));
 
-    bool any_shown = false;
-    if (!hidden[tail_follow]) {
-        ImGui::SameLine();
-        if (rv_editor_checkbox(rv_editor_text("pane_output_controls.button_follow"), &view.follow, theme)) {
-            view.picked_from = view.picked_to = 0;
-        }
-        rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_follow"));
-        any_shown = true;
+    ImGui::SameLine();
+    if (rv_editor_checkbox(rv_editor_text("pane_output_controls.button_follow"), &view.follow, theme)) {
+        view.picked_from = view.picked_to = 0;
     }
-    if (!hidden[tail_wrap]) {
-        ImGui::SameLine();
-        rv_editor_checkbox(rv_editor_text("pane_output_controls.button_wrap"), &view.wrap, theme);
-        any_shown = true;
+    rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_follow"));
+    ImGui::SameLine();
+    rv_editor_checkbox(rv_editor_text("pane_output_controls.button_wrap"), &view.wrap, theme);
+    ImGui::SameLine();
+    copy = rv_editor_button(rv_editor_text("pane_output_controls.button_copy"), theme);
+    rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_copy"));
+    ImGui::SameLine();
+    exporting = rv_editor_button(rv_editor_text("pane_output_controls.button_export"),
+        theme,
+        { rv_editor_look::live, app.project.open ? nullptr : rv_editor_text("pane_output_controls.tooltip_no_project") });
+    ImGui::SameLine();
+    if (rv_editor_button(rv_editor_text("pane_output_controls.button_clear_view"), theme)) {
+        clear_view();
     }
-    if (!hidden[tail_copy]) {
-        ImGui::SameLine();
-        copy = rv_editor_button(rv_editor_text("pane_output_controls.button_copy"), theme);
-        rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_copy"));
-        any_shown = true;
-    }
-    if (!hidden[tail_export]) {
-        ImGui::SameLine();
-        exporting = rv_editor_button(rv_editor_text("pane_output_controls.button_export"),
-            theme,
-            { rv_editor_look::live, app.project.open ? nullptr : rv_editor_text("pane_output_controls.tooltip_no_project") });
-        any_shown = true;
-    }
-    if (!hidden[tail_clear_view]) {
-        ImGui::SameLine();
-        if (rv_editor_button(rv_editor_text("pane_output_controls.button_clear_view"), theme)) {
-            clear_view();
-        }
-        rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_clear_view"));
-        any_shown = true;
-    }
-    if (dropped == 0) {
-        return;
-    }
-    if (any_shown) {
-        ImGui::SameLine();
-    }
-    if (rv_editor_button(rv_editor_text("pane_output_controls.button_more"), theme)) {
-        ImGui::OpenPopup("##output_more");
-    }
-    if (rv_editor_popup_begin("##output_more")) {
-        if (hidden[tail_follow]) {
-            bool on = view.follow;
-            if (rv_editor_menu_check(rv_editor_text("pane_output_controls.button_follow"), nullptr, &on, nullptr)) {
-                view.follow = on;
-                view.picked_from = view.picked_to = 0;
-            }
-        }
-        if (hidden[tail_wrap]) {
-            bool on = view.wrap;
-            if (rv_editor_menu_check(rv_editor_text("pane_output_controls.button_wrap"), nullptr, &on, nullptr)) {
-                view.wrap = on;
-            }
-        }
-        if (hidden[tail_copy] && rv_editor_menu_item(rv_editor_text("pane_output_controls.button_copy"), nullptr, nullptr)) {
-            copy = true;
-        }
-        if (hidden[tail_export]) {
-            const char *disabled = app.project.open ? nullptr : rv_editor_text("pane_output_controls.tooltip_no_project");
-            if (rv_editor_menu_item(rv_editor_text("pane_output_controls.button_export"), nullptr, disabled)) {
-                exporting = true;
-            }
-        }
-        if (hidden[tail_clear_view] &&
-            rv_editor_menu_item(rv_editor_text("pane_output_controls.button_clear_view"), nullptr, nullptr)) {
-            clear_view();
-        }
-        rv_editor_popup_end();
-    }
+    rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_clear_view"));
 }
 
 } // namespace rv_editor

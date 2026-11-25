@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -22,6 +23,11 @@ struct rv_editor_nvim_buffer {
     std::string name; // full path, empty for a new unnamed buffer
     bool modified = false;
     std::vector<int64_t> windows; // windows showing it
+};
+
+struct rv_editor_nvim_history {
+    bool undo = false;
+    bool redo = false;
 };
 
 // What one buffer's save came to, as nvim reports it after the write.
@@ -73,7 +79,7 @@ public:
     // Starts nvim once, with the editor's config, in `cwd`. RV_OK on success.
     // RV_ERR_ALREADY if running, RV_ERR_BUSY if it has just ended and update() has
     // not yet reported why, or while it is still stopping; the earlier failure again if
-    // `problem` is set (only "Start again" clears it). RV_ERR_NOENT if nvim not found,
+    // `problem` is set. RV_ERR_NOENT if nvim is not found,
     // RV_ERR_IO if startup failed; reason in `problem` and in `error` (only the code tiles lose).
     int start(const std::filesystem::path &cwd, rv_editor_log &log, std::string &error);
     bool running() const
@@ -102,6 +108,11 @@ public:
     void focus(int64_t win);
     // Keys in nvim_input notation ("<C-s>", "a", "<lt>").
     void input(const std::string &keys);
+    // A buffer check must wait for input held while a window is switching.
+    std::optional<uint64_t> input_generation() const
+    {
+        return held_.empty() ? std::optional{ input_generation_ } : std::nullopt;
+    }
     // A mouse event in `grid` at cell (row, col), as nvim_input_mouse takes it:
     // button "left" with "press", "drag" or "release", or "wheel" with "up",
     // "down", "left" or "right".
@@ -119,6 +130,12 @@ public:
     // Buffers with unsaved changes, and those only `win` shows.
     std::vector<rv_editor_nvim_buffer> modified() const;
     bool modified_only_in(int64_t win) const;
+    bool buffer_state_lost() const
+    {
+        return buffer_state_lost_ || (started_ && !running());
+    }
+    // Refresh the mirror from a direct reply and report whether any buffers are modified.
+    void check_modified(std::function<void(bool dirty, const std::string &failure)> done);
     // Writes the modified buffers `ids`, or every modified one when `ids` is
     // empty, and reports each to `done` once nvim has answered. A buffer counts
     // as saved only when its write returned and nvim no longer marks it
@@ -130,10 +147,15 @@ public:
     // Discard, on the user's word only: `:bdelete!` for the buffer `win` shows,
     // or for every modified buffer when `win` is 0.
     void discard(int64_t win);
-    // Another project: every window gets an empty buffer, the old buffers go,
-    // and nvim's directory becomes `root`. Refused, with the reason in `done`,
-    // while any buffer is modified.
-    void switch_root(const std::filesystem::path &root, std::function<void(const std::string &failure)> done);
+    // Keep document actions paused until Neovim confirms either cleanup or rollback.
+    bool switching_root() const
+    {
+        return switching_root_ && running();
+    }
+    // Stage the directory change while preserving all buffers.
+    void switch_root(const std::filesystem::path &root, bool discard, std::function<void(const std::string &failure)> done);
+    void finish_switch_root(bool discard);
+    void restore_root(std::function<void(const std::string &failure)> done);
 
     // File operations on buffers: check for modified buffers and adjust them
     // to match disk changes (rename, delete).
@@ -151,6 +173,10 @@ public:
 
     // The buffer `win` shows, or nullptr before nvim has reported it.
     const rv_editor_nvim_buffer *buffer_in(int64_t win) const;
+    // Query and use the undo history of a particular buffer without switching windows.
+    void history(int64_t buffer, std::function<void(const rv_editor_nvim_history &)> done);
+    void history_step(int64_t buffer, bool redo);
+
     // Every buffer nvim holds, loaded and backed by a file or Untitled.
     const std::vector<rv_editor_nvim_buffer> &buffers() const
     {
@@ -189,6 +215,9 @@ public:
     // the stop deadline, then the SIGKILL reap wait, then the reader's exit.
     // RV_OK, or RV_ERR_IO with the reason in `error`.
     int stop(std::string &error);
+    // After the project-close decision, forget its buffers and begin stopping the client.
+    // Returns RV_OK if the stop has begun, is already running, or no client remains.
+    int begin_stop_project(std::string &error);
 
 private:
     void attach();
@@ -196,9 +225,35 @@ private:
     bool swap_notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log);
     void exec_lua(const std::string &code,
         const std::vector<std::string> &args,
-        rv_editor_nvim_rpc::rv_editor_nvim_reply reply = {});
+        rv_editor_nvim_rpc::rv_editor_nvim_reply reply = {},
+        std::chrono::milliseconds timeout = {});
+    bool read_buffer_state(const rv_editor_mpack &state);
+    void reset_client_state()
+    {
+        started_ = false;
+        switching_root_ = false;
+        buffer_state_lost_ = false;
+        attached_ = false;
+        windows_.clear();
+        asked_.clear();
+        spare_.clear();
+        buffers_.clear();
+        lsp_.clear();
+        swaps_.clear();
+        diagnostics_.clear();
+        vim_mode_ = false;
+        sizes_.clear();
+        shown_.clear();
+        switching_ = 0;
+        switch_at_ = {};
+        held_.clear();
+        screen_ = {};
+    }
 
     rv_editor_nvim_rpc rpc_;
+    bool buffer_state_lost_ = false;
+    bool switching_root_ = false;
+    uint64_t input_generation_ = 0;
     rv_editor_nvim_screen screen_;
     bool started_ = false;
     int last_error_ = 0; // RV_OK if started, RV_ERR_NOENT/IO on failure

@@ -1,6 +1,8 @@
-// Catalog section: tree, list, table, tab strip, splitter and pane headers.
+// Catalog section: splitter, tile windows and pane headers.
 
 #include "catalog/rv_editor_catalog.hpp"
+
+#include <algorithm>
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -20,21 +22,8 @@ constexpr float splitter_min_pane_height_frames = 2.0f;
 // Catalog tile window display area height in frame heights (GetFrameHeight() multiplier)
 constexpr float catalog_tile_height_frames = 8.0f;
 
-// Catalog lists and well view height in frame heights (GetFrameHeight() multiplier)
-constexpr float catalog_view_height_frames = 6.0f;
-
-// Shelf-over-well demo well height in frame heights: shorter than the catalog tree,
-// so the well's scrollbar shows in the catalog.
-constexpr float catalog_layers_well_height_frames = 4.0f;
-
-// Number of columns in the catalog demo table (rows[][N])
-constexpr int catalog_table_columns = 3;
-
-// The demo table's row drawn as a list row (rv_editor_list_row), spanning its columns
-constexpr size_t catalog_table_selected_row = 1;
-
-// Number of columns in the catalog panes overview table
-constexpr int catalog_panes_table_columns = 3;
+// The width in font sizes from which the tile windows demo (two tiles side by side) is drawn.
+constexpr float catalog_tiles_min_width_em = 40.0f;
 
 // Initial left pane share of splitter width in the demo section
 constexpr float splitter_demo_initial_left_share = 0.5f;
@@ -53,134 +42,6 @@ struct rv_editor_pane_values {
 };
 
 rv_editor_pane_values rv_editor_pane_data;
-
-// A leaf row whose label names its state (a key of catalog_panes).
-void rv_editor_catalog_leaf(const char *id,
-    const char *key,
-    const rv_editor_theme &t,
-    const rv_editor_tree_style &style = {},
-    const rv_editor_state &state = {})
-{
-    rv_editor_tree_style leaf = style;
-    leaf.leaf = true;
-    leaf.no_push = true;
-    rv_editor_tree_row(id, rv_editor_text(key), t, leaf, state);
-}
-
-// One row per state under an open root with lines; the frozen looks come last.
-void rv_editor_catalog_tree(const rv_editor_theme &t)
-{
-    rv_editor_tree_style root;
-    root.default_open = true;
-    root.lines = true;
-    if (!rv_editor_tree_row("##root", rv_editor_text("catalog_panes.tree_my_game"), t, root).open) {
-        return;
-    }
-    rv_editor_tree_style selected;
-    selected.selected = true;
-    rv_editor_tree_style dim;
-    dim.dim = true;
-    rv_editor_tree_style open_branch;
-    open_branch.default_open = true;
-    rv_editor_catalog_leaf("##leaf", "catalog_panes.tree_leaf", t);
-    rv_editor_catalog_leaf("##selected", "catalog_panes.tree_selected", t, selected);
-    rv_editor_catalog_leaf("##dim", "catalog_panes.tree_dim", t, dim);
-    rv_editor_catalog_leaf("##disabled",
-        "catalog_panes.tree_disabled",
-        t,
-        {},
-        { rv_editor_look::normal, rv_editor_text("catalog_panes.tree_disabled_reason") });
-    rv_editor_catalog_leaf("##hovered", "catalog_panes.tree_hovered", t, {}, { rv_editor_look::hovered });
-    rv_editor_catalog_leaf("##pressed", "catalog_panes.tree_pressed", t, {}, { rv_editor_look::pressed });
-    rv_editor_catalog_leaf("##focused", "catalog_panes.tree_focused", t, {}, { rv_editor_look::focused });
-    if (rv_editor_tree_row("##open", rv_editor_text("catalog_panes.tree_open_branch"), t, open_branch).open) {
-        rv_editor_catalog_leaf("##child", "catalog_panes.tree_child", t);
-        rv_editor_tree_pop();
-    }
-    if (rv_editor_tree_row("##closed", rv_editor_text("catalog_panes.tree_closed_branch"), t).open) {
-        rv_editor_catalog_leaf("##closed_child", "catalog_panes.tree_child", t);
-        rv_editor_tree_pop();
-    }
-    rv_editor_tree_pop();
-}
-
-// One row per state, the frozen looks last; the live rows follow the pointer.
-void rv_editor_catalog_list(float height, const rv_editor_theme &t)
-{
-    rv_editor_list_style selected;
-    selected.selected = true;
-    rv_editor_list_style dim;
-    dim.dim = true;
-    if (rv_editor_list_begin("##list", ImVec2(0.0f, height), t)) {
-        rv_editor_list_row("##normal", rv_editor_text("catalog_panes.list_normal"), t);
-        rv_editor_list_row("##selected", rv_editor_text("catalog_panes.list_selected"), t, selected);
-        rv_editor_list_row("##dim", rv_editor_text("catalog_panes.list_dim"), t, dim);
-        rv_editor_list_row("##disabled",
-            rv_editor_text("catalog_panes.list_disabled"),
-            t,
-            {},
-            { rv_editor_look::normal, rv_editor_text("catalog_panes.list_disabled_reason") });
-        rv_editor_list_row("##hovered", rv_editor_text("catalog_panes.list_hovered"), t, {}, { rv_editor_look::hovered });
-        rv_editor_list_row("##pressed", rv_editor_text("catalog_panes.list_pressed"), t, {}, { rv_editor_look::pressed });
-        rv_editor_list_row("##focused", rv_editor_text("catalog_panes.list_focused"), t, {}, { rv_editor_look::focused });
-    }
-    rv_editor_list_end();
-}
-
-// A table in a well: header, borders and bands. The selected row is a list row that spans
-// the columns; the fixed Kind column sits between the two stretched ones.
-void rv_editor_catalog_table(float height, const rv_editor_theme &t)
-{
-    const rv_editor_table_column columns[] = {
-        { rv_editor_text("catalog_panes.column_name") },
-        { rv_editor_text("catalog_panes.column_kind"), rv_editor_table_width::fixed },
-        { rv_editor_text("catalog_panes.column_directory") },
-    };
-    const rv_editor_table_style style = { .borders = true, .row_bands = true, .header = true };
-    const char *rows[][catalog_table_columns] = { { rv_editor_text("catalog_panes.table_solid_maid"),
-                                                      rv_editor_text("catalog_panes.table_kind_project"),
-                                                      rv_editor_text("catalog_panes.table_path_projects") },
-        { rv_editor_text("catalog_panes.table_example_lua"),
-            rv_editor_text("catalog_panes.table_kind_disc"),
-            rv_editor_text("catalog_panes.table_path_mppcdiscs") },
-        { rv_editor_text("catalog_panes.table_example_cpp"),
-            rv_editor_text("catalog_panes.table_kind_disc"),
-            rv_editor_text("catalog_panes.table_path_mppcdiscs") } };
-    if (rv_editor_well_begin("##table_well", ImVec2(0.0f, height), t)) {
-        if (rv_editor_table_begin("##table", columns, static_cast<int>(std::size(columns)), style)) {
-            for (size_t i = 0; i < std::size(rows); ++i) {
-                rv_editor_table_row();
-                rv_editor_table_cell();
-                if (i == catalog_table_selected_row) {
-                    rv_editor_list_style selected;
-                    selected.selected = true;
-                    selected.span_columns = true;
-                    selected.overlap = true;
-                    rv_editor_list_row("##selected", rows[i][0], t, selected);
-                } else {
-                    ImGui::TextUnformatted(rows[i][0]);
-                }
-                const rv_editor_label_kind cell_kind =
-                    i == catalog_table_selected_row ? rv_editor_label_kind::on_selection : rv_editor_label_kind::normal;
-                rv_editor_table_cell();
-                rv_editor_label(rows[i][1], cell_kind, t);
-                rv_editor_table_cell();
-                rv_editor_label(rows[i][2], cell_kind, t);
-            }
-            rv_editor_table_end();
-        }
-    }
-    rv_editor_well_end();
-}
-
-void rv_editor_catalog_tabs(const rv_editor_theme &t)
-{
-    const char *const labels[] = { rv_editor_text("catalog_panes.tab_project"),
-        rv_editor_text("catalog_panes.tab_scene"),
-        rv_editor_text("catalog_panes.tab_assets"),
-        rv_editor_text("catalog_panes.tab_console_output") };
-    rv_editor_tab_strip("##tabs", labels, static_cast<int>(std::size(labels)), &rv_editor_pane_data.tab, t);
-}
 
 void rv_editor_catalog_splitters(const rv_editor_theme &t)
 {
@@ -247,6 +108,11 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
         return w;
     }();
     ImGui::SeparatorText(rv_editor_text("catalog_panes.section_tile_windows"));
+    // Two tiles with their minimum widths do not fit a narrow tile: the demo says so instead of scrolling.
+    if (ImGui::GetContentRegionAvail().x < catalog_tiles_min_width_em * ImGui::GetFontSize()) {
+        ImGui::TextWrapped("%s", rv_editor_text("catalog_panes.tile_windows_narrow"));
+        return;
+    }
     const ImVec2 at = ImGui::GetCursorScreenPos();
     const rv_editor_rect area{ static_cast<int>(at.x),
         static_cast<int>(at.y),
@@ -255,33 +121,6 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
     // The sample tree belongs to the catalog, which has no log: a refused drop is not reported.
     std::string error;
     (void)rv_editor_workspace_draw(ws, t, rv_editor_catalog_pane_name, nullptr, nullptr, area, error);
-}
-
-// Shelf over well: how a pane's three layers (header, shelf, well) look
-// stacked, so the tone and bevels can be checked by eye.
-void rv_editor_catalog_layers(const rv_editor_theme &t)
-{
-    ImGui::SeparatorText(rv_editor_text("catalog_panes.section_shelf_well"));
-    rv_editor_pane_header(rv_editor_text("catalog_panes.header_files"), true, t, true);
-    rv_editor_shelf_begin("##shelf", t);
-    if (rv_editor_letter_button("##new",
-            rv_editor_glyph::new_,
-            t.code_green,
-            rv_editor_text("catalog_panes.button_new_file"),
-            t)) {
-    }
-    rv_editor_flow(ImGui::GetFrameHeight());
-    if (rv_editor_letter_button("##del",
-            rv_editor_glyph::delete_,
-            t.code_red,
-            rv_editor_text("catalog_panes.button_delete"),
-            t)) {
-    }
-    rv_editor_shelf_end();
-    if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * catalog_layers_well_height_frames), t)) {
-        rv_editor_catalog_tree(t);
-    }
-    rv_editor_well_end();
 }
 
 } // namespace
@@ -295,28 +134,6 @@ void rv_editor_catalog_headers(const rv_editor_theme &theme)
     rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_focused"), true, theme, true, { rv_editor_look::focused });
     rv_editor_catalog_splitters(theme);
     rv_editor_catalog_tiles(theme);
-    rv_editor_catalog_layers(theme);
-}
-
-void rv_editor_catalog_lists(const rv_editor_theme &theme)
-{
-    const float height = ImGui::GetFrameHeight() * catalog_view_height_frames;
-    if (ImGui::BeginTable("##panes", catalog_panes_table_columns)) {
-        ImGui::TableNextColumn();
-        ImGui::BeginChild("##tree", ImVec2(0.0f, height), ImGuiChildFlags_Borders);
-        rv_editor_catalog_tree(theme);
-        ImGui::EndChild();
-        ImGui::TableNextColumn();
-        rv_editor_catalog_list(height, theme);
-        ImGui::TableNextColumn();
-        rv_editor_catalog_table(height, theme);
-        ImGui::EndTable();
-    }
-}
-
-void rv_editor_catalog_tab_strips(const rv_editor_theme &theme)
-{
-    rv_editor_catalog_tabs(theme);
 }
 
 } // namespace rv_editor

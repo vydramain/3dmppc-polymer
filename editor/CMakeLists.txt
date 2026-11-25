@@ -56,26 +56,32 @@ set_target_properties(3dmppc_editor_vterm PROPERTIES C_STANDARD 99 C_STANDARD_RE
 target_include_directories(3dmppc_editor_vterm SYSTEM PUBLIC ${RV_VTERM_DIR}/include)
 
 # --- the editor ---------------------------------------------------------------
+# Everything but main.cpp is an OBJECT library, so the editor and its tests compile the sources once and with the same
+# flags. Linking an object library directly (CMake 3.12+) adds its objects to the consumer.
 file(GLOB_RECURSE RV_EDITOR_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+list(REMOVE_ITEM RV_EDITOR_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 
-add_executable(3dmppc-editor ${RV_EDITOR_SOURCES})
-target_include_directories(3dmppc-editor PRIVATE src)
-target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_imgui)
+add_library(3dmppc_editor_core OBJECT ${RV_EDITOR_SOURCES})
+target_include_directories(3dmppc_editor_core PUBLIC src)
+target_link_libraries(3dmppc_editor_core PUBLIC 3dmppc_editor_imgui)
 # libvterm: the Terminal tile's screen.
-target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_vterm)
+target_link_libraries(3dmppc_editor_core PUBLIC 3dmppc_editor_vterm)
 # pdkkit brings pdklib: the manifest parser the discs and the burner use, never a copy of it.
-target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdkkit)
+target_link_libraries(3dmppc_editor_core PUBLIC 3dmppc_pdkkit)
 
 # glTF reader: pdklib's, compiled here as mppcmodbaker compiles it (cmake/pdklib.cmake keeps
 # it out of 3dmppc_pdklib). cgltf is this target's own third party, SYSTEM like mppcmodbaker's.
-target_sources(3dmppc-editor PRIVATE
+target_sources(3dmppc_editor_core PRIVATE
   ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf.cpp
   ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp
   ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_image.cpp)
-target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/cgltf)
+target_include_directories(3dmppc_editor_core SYSTEM PUBLIC ${RV_REPO_ROOT}/third_party/cgltf)
 
 # stb_image (vendored, third_party/stb) decodes the icons.
-target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/stb)
+target_include_directories(3dmppc_editor_core SYSTEM PUBLIC ${RV_REPO_ROOT}/third_party/stb)
+
+add_executable(3dmppc-editor src/main.cpp)
+target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_core)
 
 # --- Catppuccin Mocha palette (third_party/catppuccin-palette/palette.json) ----
 set(RV_PALETTE_JSON "${RV_REPO_ROOT}/third_party/catppuccin-palette/palette.json")
@@ -121,7 +127,7 @@ string(APPEND RV_LUA_LINES "}\n")
 file(CONFIGURE OUTPUT "${RV_PALETTE_HPP}" CONTENT "${RV_CPP_LINES}")
 file(CONFIGURE OUTPUT "${RV_PALETTE_LUA}" CONTENT "${RV_LUA_LINES}")
 
-target_include_directories(3dmppc-editor PRIVATE "${RV_PALETTE_GEN_DIR}")
+target_include_directories(3dmppc_editor_core PUBLIC "${RV_PALETTE_GEN_DIR}")
 
 # --- Editor UI text strings (editor/texts/rv_editor_texts.toml) ---------------
 # Embed the default text strings in the binary as a constexpr array. Read the TOML
@@ -185,7 +191,7 @@ configure_file("${RV_MANUAL_HPP}.in" "${RV_MANUAL_HPP}" COPYONLY)
 
 # nvim's channel is read on a thread of its own.
 find_package(Threads REQUIRED)
-target_link_libraries(3dmppc-editor PRIVATE Threads::Threads)
+target_link_libraries(3dmppc_editor_core PUBLIC Threads::Threads)
 
 # Run-time resources, copied to the delivery layout beside the executable (editor/...), where
 # the editor finds them from its own executable, so a delivery can be moved as a whole.
@@ -216,7 +222,31 @@ add_custom_target(3dmppc-editor-resources ALL VERBATIM
 add_dependencies(3dmppc-editor 3dmppc-editor-resources)
 
 if(MSVC)
-  target_compile_options(3dmppc-editor PRIVATE /W4)
+  target_compile_options(3dmppc_editor_core PUBLIC /W4)
 else()
-  target_compile_options(3dmppc-editor PRIVATE -Wall -Wextra)
+  target_compile_options(3dmppc_editor_core PUBLIC -Wall -Wextra)
 endif()
+
+# --- tests ---------------------------------------------------------------------
+# Not installed: a development check. Run the tests with `ctest --test-dir <editor build dir>` (in devtools that is
+# build-dev/sdk/editor). The binary stays in the editor build dir, never in the SDK's bin that the console delivers, even
+# when the superbuild sets CMAKE_RUNTIME_OUTPUT_DIRECTORY.
+enable_testing()
+file(GLOB RV_EDITOR_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp)
+add_executable(3dmppc-editor-tests ${RV_EDITOR_TEST_SOURCES})
+set_target_properties(3dmppc-editor-tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(3dmppc-editor-tests PRIVATE tests)
+target_link_libraries(3dmppc-editor-tests PRIVATE 3dmppc_editor_core)
+# Tests that draw panes or edit buffers need the matching editor resources beside the executable.
+add_custom_command(TARGET 3dmppc-editor-tests POST_BUILD VERBATIM
+  COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:3dmppc-editor-tests>/editor/fonts
+  COMMAND ${CMAKE_COMMAND} -E copy
+    ${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf
+    ${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_EGA_8x14.ttf
+    $<TARGET_FILE_DIR:3dmppc-editor-tests>/editor/fonts
+  COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:3dmppc-editor-tests>/editor/nvim
+  COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/nvim/rv_editor_init.lua
+    ${RV_PALETTE_LUA}
+    $<TARGET_FILE_DIR:3dmppc-editor-tests>/editor/nvim)
+add_test(NAME 3dmppc-editor-tests COMMAND 3dmppc-editor-tests)

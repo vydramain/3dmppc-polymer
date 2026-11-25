@@ -118,6 +118,16 @@ const char *rv_editor_app_why_not_stop(const rv_editor_app &app)
     return nullptr;
 }
 
+const char *rv_editor_app_why_not_force_stop(const rv_editor_app &app)
+{
+    if (!app.session.live()) {
+        return rv_editor_text("panes.no_session_running");
+    }
+    return rv_editor_app_request_pending(app, rv_editor_pane_request_kind::force_stop) ?
+        rv_editor_text("app_why_not.stop_pending") :
+        nullptr;
+}
+
 bool rv_editor_app_can_reload(const rv_editor_app &app)
 {
     const rv_editor_session_facts &f = app.session.facts();

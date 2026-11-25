@@ -337,10 +337,11 @@ map("i", "<C-g>", "<C-o>:")
 
 -- The editor keeps a list of buffers and whether they are modified, so it can
 -- ask before a code tile or the editor closes. Sent on every change.
-local function report()
+function _G.rv_buffer_state(include_modified_special)
     local out = {}
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buftype == "" then
+        if vim.api.nvim_buf_is_loaded(b) and
+            (vim.bo[b].buftype == "" or (include_modified_special and vim.bo[b].modified)) then
             out[#out + 1] = {
                 id = b,
                 name = vim.api.nvim_buf_get_name(b),
@@ -349,7 +350,10 @@ local function report()
             }
         end
     end
-    vim.rpcnotify(0, "rv_buffers", out)
+    return out
+end
+local function report()
+    vim.rpcnotify(0, "rv_buffers", _G.rv_buffer_state())
 end
 vim.api.nvim_create_autocmd({ "BufModifiedSet", "BufWritePost", "BufDelete", "BufWipeout", "BufWinEnter",
     "BufWinLeave", "BufEnter", "WinNew", "WinClosed", "VimEnter" }, {

@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <utility>
 
 #include "imgui.h"
 
@@ -73,6 +74,12 @@ rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_k
             }
         }
     }
+    if (ws.layout.nodes.empty()) {
+        // A workspace with no tile yet: the first pane makes the root.
+        ws.layout.nodes.push_back({ rv_editor_tile_kind::leaf, rv_editor_tile_none, {}, { {}, 0 } });
+        ws.layout.root = 0;
+        ws.layout.maximized_leaf = rv_editor_tile_none;
+    }
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
     rv_editor_tile_insert(ws.layout,
         roomy ? rv_editor_roomy_leaf(ws) : rv_editor_target_leaf(ws),
@@ -83,7 +90,7 @@ rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_k
 }
 
 constexpr std::optional<rv_editor_pane_kind> rv_editor_page_pane[] = { std::nullopt,
-    std::nullopt,
+    rv_editor_pane_kind::new_project,
     rv_editor_pane_kind::open_project,
     rv_editor_pane_kind::settings,
     rv_editor_pane_kind::help,
@@ -105,6 +112,9 @@ void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page)
 void rv_editor_shell_open_project(rv_editor_shell &shell)
 {
     rv_editor_shell_page(shell, rv_editor_start_page::open_project);
+    if (shell.manual.step == rv_editor_manual_step::open_picker) {
+        shell.manual.step = rv_editor_manual_step::pick_project;
+    }
 }
 
 void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind, bool roomy)
@@ -120,6 +130,52 @@ void rv_editor_shell_focus_terminal(rv_editor_shell &shell)
         shell.ws.focused_leaf = leaf;
     }
     shell.app.terminals[pane].focus_request = true;
+}
+
+void rv_editor_shell_focus_problems(rv_editor_shell &shell)
+{
+    rv_editor_workspace &ws = shell.ws;
+    // The leaf and pane id of the first tab of `kind` in the tree; leaf is rv_editor_tile_none when there is none.
+    const auto find = [&ws](rv_editor_pane_kind kind) {
+        for (uint32_t n = 0; n < ws.layout.nodes.size(); ++n) {
+            const rv_editor_tile_node &node = ws.layout.nodes[n];
+            if (node.kind != rv_editor_tile_kind::leaf) {
+                continue;
+            }
+            for (const rv_editor_pane_id tab : node.leaf.tabs) {
+                if (ws.panes.panes[tab].kind == kind) {
+                    return std::pair<uint32_t, rv_editor_pane_id>{ n, tab };
+                }
+            }
+        }
+        return std::pair<uint32_t, rv_editor_pane_id>{ rv_editor_tile_none, 0 };
+    };
+    rv_editor_pane_id pane = 0;
+    if (const auto at = find(rv_editor_pane_kind::inspector_report); at.first != rv_editor_tile_none) {
+        pane = at.second;
+        (void)rv_editor_tile_activate(ws.layout, pane);
+    } else {
+        bool placed = false;
+        // Never a strip: the report joins the tile of the logs.
+        for (const rv_editor_pane_kind logs :
+            { rv_editor_pane_kind::output, rv_editor_pane_kind::runtime_log, rv_editor_pane_kind::build_log }) {
+            const auto log = find(logs);
+            if (log.first != rv_editor_tile_none) {
+                pane = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::inspector_report);
+                rv_editor_tile_insert(ws.layout, log.first, pane, rv_editor_tile_dock::tab);
+                (void)rv_editor_tile_activate(ws.layout, pane);
+                placed = true;
+                break;
+            }
+        }
+        if (!placed) {
+            pane = rv_editor_shell_show(ws, rv_editor_pane_kind::inspector_report);
+        }
+    }
+    const uint32_t leaf = rv_editor_tile_find(ws.layout, pane);
+    if (leaf != rv_editor_tile_none) {
+        ws.focused_leaf = leaf;
+    }
 }
 
 void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back)
@@ -167,6 +223,11 @@ void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
     if (leaf != rv_editor_tile_none) {
         (void)rv_editor_tile_set_ratio(ws.layout, ws.layout.nodes[leaf].parent, rv_editor_even_split);
         ws.focused_leaf = leaf;
+        if (shell.manual.step == rv_editor_manual_step::new_tile && kind == rv_editor_pane_kind::output) {
+            shell.manual.step = rv_editor_manual_step::close_tile;
+            shell.manual.pane = pane;
+            shell.manual.tile_layout = shell.active;
+        }
     }
 }
 

@@ -16,6 +16,7 @@
 
 #include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_asset_preview.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_sound.hpp"
@@ -93,7 +94,7 @@ void rv_editor_scene_tab_picture(rv_editor_app &app,
     const rv_editor_icon picture = rv_editor_asset_picture(renderer, a);
     if (picture.id == ImTextureID{}) {
         const std::string error_msg = rv_editor_text_format("pane_scene_tabs.error_picture_load", std::make_format_args(a.rel));
-        rv_editor_label(error_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+        rv_editor_label(error_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
         return;
     }
     const std::string picture_info =
@@ -126,13 +127,16 @@ void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_t
     }
     if (playing_this) {
         ImGui::SameLine();
-        rv_editor_label(rv_editor_text("pane_scene_tabs.status_playing"), rv_editor_label_kind::dim, theme);
+        rv_editor_label(rv_editor_text("pane_scene_tabs.status_playing"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::line);
     }
     if (rv_editor_scene_sound_last_error.path == tab.path && !rv_editor_scene_sound_last_error.text.empty()) {
         rv_editor_label(rv_editor_scene_sound_last_error.text.c_str(),
             rv_editor_label_kind::normal,
             theme,
-            rv_editor_label_layout::wrap);
+            rv_editor_label_layout::line);
     }
 }
 
@@ -187,7 +191,7 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
     const rv_editor_ui_port &ui)
 {
     const rv_editor_scene_tabs &st = ui.state.scene_tabs;
-    if (st.tabs.empty()) {
+    if (st.tabs.empty() && app.scene == nullptr) {
         return true;
     }
     std::vector<std::string> text;
@@ -208,14 +212,14 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
         ui.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = front });
     }
 
-    // A right click on the tabs: Close Tab; the scene tab (index 0) has none.
+    // The scene tab opens scene files. Asset tabs can be closed.
     if (ImGui::IsMouseHoveringRect(row_min, ImGui::GetItemRectMax()) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
         ImGui::OpenPopup("##scene_tabmenu");
     }
     if (rv_editor_popup_begin("##scene_tabmenu")) {
-        const bool closable = front > 0;
-        const char *why_not = closable ? nullptr : rv_editor_text("pane_scene_tabs.tooltip_scene_stays_front");
-        if (rv_editor_menu_item(rv_editor_text("pane_scene_tabs.menu_close_tab"), nullptr, why_not)) {
+        if (front == 0) {
+            rv_editor_scene_file_menu(app);
+        } else if (rv_editor_menu_item(rv_editor_text("pane_scene_tabs.menu_close_tab"), nullptr, nullptr)) {
             rv_editor_scene_tab_stop_sound(st.tabs[static_cast<size_t>(front - 1)]);
             ui.requests.push_back({ .kind = rv_editor_ui_request_kind::close_scene_tab, .scene_tab_index = front });
             front = 0; // the scene shows this frame, as the close is applied after the draw
@@ -231,6 +235,7 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
         return true;
     }
     const rv_editor_scene_tab &tab = st.tabs[static_cast<size_t>(front - 1)];
+    (void)rv_editor_tiled_area_begin("##tab_area", rv_editor_scene_content_width(), theme);
     switch (tab.kind) {
     case rv_editor_scene_tab_kind::picture:
         rv_editor_scene_tab_picture(app, renderer, tab, theme);
@@ -242,6 +247,7 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
         rv_editor_scene_tab_model(renderer, tab, theme);
         break;
     }
+    rv_editor_tiled_area_end(theme);
     return false;
 }
 

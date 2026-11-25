@@ -14,6 +14,7 @@
 
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_mode.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -31,6 +32,8 @@ constexpr float list_min_frames = 3.0f;
 constexpr const char *env_home = "HOME";    // home directory the browser starts in
 constexpr std::string_view root_path = "/"; // fallback start directory when HOME is unset
 constexpr const char *dir_marker = "/";     // appended to directory names in the listing
+
+rv_editor_path_probe path_probe; // what the path field drew last, for tests
 
 void rv_editor_browser_go(rv_editor_browser &b, const std::filesystem::path &dir)
 {
@@ -118,20 +121,13 @@ std::filesystem::path rv_editor_browser_target(const rv_editor_browser &b)
     return b.pick == rv_editor_browse_pick::directory ? b.dir : std::filesystem::path();
 }
 
-rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
-    float height,
-    const char *why_not,
-    std::filesystem::path &out,
-    const rv_editor_theme &theme)
+void rv_editor_browser_path_row(rv_editor_browser &b, const rv_editor_theme &theme)
 {
     if (rv_editor_browser_needs_list(b)) {
         // RV_ERR_IO: the reason is in b.error and shows on the path field below.
         (void)rv_editor_browser_list(b);
     }
-    rv_editor_browse_result result = rv_editor_browse_result::none;
     ImGui::PushID(&b);
-    rv_editor_label(b.purpose.c_str(), rv_editor_label_kind::bright, theme);
-
     const std::filesystem::path parent = b.dir.parent_path();
     if (rv_editor_button(rv_editor_text("browser.up"),
             theme,
@@ -142,50 +138,119 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_field path_field;
     path_field.invalid = b.error.empty() ? nullptr : b.error.c_str();
-    rv_editor_text_field("##path", b.path, sizeof(b.path), theme, path_field);
+    rv_editor_path_field("##path", b.path, sizeof(b.path), "", theme, path_field, &path_probe);
     // A typed path is followed once it names a directory.
     std::error_code ec;
     if (ImGui::IsItemDeactivatedAfterEdit() && std::filesystem::is_directory(b.path, ec)) {
         rv_editor_browser_go(b, b.path);
     }
+    ImGui::PopID();
+}
 
-    const float footer = ImGui::GetFrameHeightWithSpacing() * footer_frames;
-    const float list_room = height - footer - ImGui::GetFrameHeightWithSpacing() * footer_frames;
-    const float list_h = height > 0.0f ? std::max(list_room, ImGui::GetFrameHeight() * list_min_frames) : -footer;
+rv_editor_browse_result
+rv_editor_browser_entries(rv_editor_browser &b, const char *why_not, std::filesystem::path &out, const rv_editor_theme &theme)
+{
+    if (rv_editor_browser_needs_list(b)) {
+        (void)rv_editor_browser_list(b);
+    }
+    rv_editor_browse_result result = rv_editor_browse_result::none;
+    ImGui::PushID(&b);
     std::filesystem::path enter;
-    if (rv_editor_list_begin("##entries", ImVec2(-1.0f, list_h), theme)) {
-        for (const rv_editor_browser::rv_editor_entry &e : b.entries) {
-            const std::filesystem::path full = b.dir / e.name;
-            const std::string label = e.name + (e.dir ? dir_marker : "");
-            const rv_editor_list_style style{ .selected = b.selected == full, .dim = !e.dir };
-            const rv_editor_list_result row = rv_editor_list_row(e.name.c_str(), label.c_str(), theme, style);
-            if (row.clicked || row.double_clicked) {
-                b.selected = full;
-            }
-            if (!row.double_clicked) {
-                continue;
-            }
-            if (e.dir) {
-                enter = full;
-            } else if (why_not == nullptr && rv_editor_is_executable(full)) {
-                out = full;
-                result = rv_editor_browse_result::picked;
-            }
+    for (const rv_editor_browser::rv_editor_entry &e : b.entries) {
+        const std::filesystem::path full = b.dir / e.name;
+        const std::string label = e.name + (e.dir ? dir_marker : "");
+        const rv_editor_list_style style{ .selected = b.selected == full, .dim = !e.dir };
+        const rv_editor_list_result row = rv_editor_list_row(e.name.c_str(), label.c_str(), theme, style);
+        if (row.clicked || row.double_clicked) {
+            b.selected = full;
+        }
+        if (!row.double_clicked) {
+            continue;
+        }
+        if (e.dir) {
+            enter = full;
+        } else if (why_not == nullptr && rv_editor_is_executable(full)) {
+            out = full;
+            result = rv_editor_browse_result::picked;
         }
     }
-    rv_editor_list_end();
     if (!enter.empty()) {
         rv_editor_browser_go(b, enter);
     }
+    ImGui::PopID();
+    return result;
+}
 
+const char *rv_editor_browser_why_not(const rv_editor_browser &b, const char *why_not)
+{
     const std::filesystem::path target = rv_editor_browser_target(b);
     const bool usable = b.pick == rv_editor_browse_pick::directory ? !target.empty() : rv_editor_is_executable(target);
-    const char *why = why_not != nullptr            ? why_not :
+    return why_not != nullptr                       ? why_not :
         usable                                      ? nullptr :
         b.pick == rv_editor_browse_pick::executable ? rv_editor_text("browser.select_executable") :
                                                       rv_editor_text("browser.select_directory");
-    const char *const shown = target.empty() ? rv_editor_text("browser.nothing_selected") : target.c_str();
-    rv_editor_label(shown, rv_editor_label_kind::normal, theme);
+}
+
+rv_editor_browse_result rv_editor_browser_card(rv_editor_browser &b, std::filesystem::path &out, const rv_editor_theme &theme)
+{
+    const char *why = rv_editor_browser_why_not(b, nullptr);
+    rv_editor_browse_result result = rv_editor_browse_result::none;
+    rv_editor_mode_card_spec spec;
+    spec.title = b.purpose;
+    spec.message = why != nullptr ? why : "";
+    spec.message_kind = rv_editor_label_kind::dim;
+    spec.buttons = { b.action, rv_editor_text("browser.cancel") };
+    spec.body = [&] {
+        rv_editor_browser_path_row(b, theme);
+        result = rv_editor_browser_entries(b, nullptr, out, theme);
+    };
+    ImGui::PushID(&b);
+    const int pressed = rv_editor_mode_card_begin("##browser", spec, theme);
+    rv_editor_mode_card_end();
+    ImGui::PopID();
+    if (pressed == 0 && why == nullptr) {
+        out = rv_editor_browser_target(b);
+        return rv_editor_browse_result::picked;
+    }
+    return pressed == 1 ? rv_editor_browse_result::cancelled : result;
+}
+
+float rv_editor_browser_card_min_width(const std::vector<std::string> &purposes, const char *action)
+{
+    float width = 0.0f;
+    for (const std::string &p : purposes) {
+        width = std::max(width, ImGui::CalcTextSize(p.c_str()).x);
+    }
+    width = std::max(width, ImGui::CalcTextSize(rv_editor_text("browser.select_executable")).x);
+    width = std::max(width, ImGui::CalcTextSize(rv_editor_text("browser.select_directory")).x);
+    return std::max(width, rv_editor_mode_card_min_size({ action, rv_editor_text("browser.cancel") }, rv_editor_theme_olive).x);
+}
+
+rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
+    float height,
+    const char *why_not,
+    std::filesystem::path &out,
+    const rv_editor_theme &theme)
+{
+    ImGui::PushID(&b);
+    rv_editor_label(b.purpose.c_str(), rv_editor_label_kind::bright, theme);
+    rv_editor_browser_path_row(b, theme);
+    const float footer = ImGui::GetFrameHeightWithSpacing() * footer_frames;
+    const float list_room = height - footer - ImGui::GetFrameHeightWithSpacing() * footer_frames;
+    const float list_h = height > 0.0f ? std::max(list_room, ImGui::GetFrameHeight() * list_min_frames) : -footer;
+    rv_editor_browse_result result = rv_editor_browse_result::none;
+    if (rv_editor_list_begin("##entries", ImVec2(-1.0f, list_h), theme)) {
+        result = rv_editor_browser_entries(b, why_not, out, theme);
+    }
+    rv_editor_list_end();
+    const std::filesystem::path target = rv_editor_browser_target(b);
+    const char *why = rv_editor_browser_why_not(b, why_not);
+    // The selected path on one line, whole.
+    const std::string whole = target.string();
+    rv_editor_label(target.empty() ? rv_editor_text("browser.nothing_selected") : whole.c_str(),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::line);
     if (rv_editor_button(b.action.c_str(), theme, { rv_editor_look::live, why })) {
         out = target;
         result = rv_editor_browse_result::picked;
@@ -196,6 +261,11 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
     }
     ImGui::PopID();
     return result;
+}
+
+const rv_editor_path_probe &rv_editor_browser_path_probe()
+{
+    return path_probe;
 }
 
 } // namespace rv_editor

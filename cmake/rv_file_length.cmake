@@ -11,8 +11,8 @@
 # a file is. clang-tidy DOES bound a FUNCTION (readability-function-size, see
 # .clang-tidy) - the two checks together are the pair, one per axis.
 #
-# C++ ONLY. A .lua chunk, a manifest, a README or a generated file is not
-# subject: the convention is about the trees a C++ reader navigates.
+# C++ and the Lua scripts of the discs. A manifest, a README or a generated file
+# is not subject: the convention is about the code a reader navigates.
 
 if(NOT RV_ROOT)
     message(FATAL_ERROR "RV_ROOT must be specified via -DRV_ROOT=<path>")
@@ -35,7 +35,8 @@ function(rv_check_file_lengths)
         ${RV_ROOT}/editor/*.cpp
         ${RV_ROOT}/editor/*.hpp
         ${RV_ROOT}/mppcdiscs/*.cpp
-        ${RV_ROOT}/mppcdiscs/*.hpp)
+        ${RV_ROOT}/mppcdiscs/*.hpp
+        ${RV_ROOT}/mppcdiscs/*.lua)
 
     set(RV_TOO_LONG "")
     foreach(candidate ${RV_LENGTH_CANDIDATES})
@@ -64,7 +65,7 @@ function(rv_check_file_lengths)
     if(RV_TOO_LONG)
         list(JOIN RV_TOO_LONG "\n" report)
         message(FATAL_ERROR
-            "a C++ source file may not exceed ${RV_FILE_LENGTH_MAX} lines (pdk/README.md, File conventions):\n${report}\n"
+            "a source file may not exceed ${RV_FILE_LENGTH_MAX} lines (pdk/README.md, File conventions):\n${report}\n"
             "Split it by the jobs it does.")
     endif()
 endfunction()

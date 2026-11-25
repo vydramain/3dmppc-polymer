@@ -70,7 +70,7 @@ bool rv_editor_model_box(const std::vector<rv_editor_tri> &tris, vec3 &lo, vec3 
 
 void rv_editor_model_label(const std::string &text, const rv_editor_theme &theme)
 {
-    rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+    rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
 }
 
 } // namespace

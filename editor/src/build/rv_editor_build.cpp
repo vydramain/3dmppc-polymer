@@ -101,6 +101,11 @@ const char *rv_editor_build_state_name(rv_editor_build_state state)
     return "?";
 }
 
+uint32_t rv_editor_build::target_number() const
+{
+    return image_.empty() ? number_ : rv_editor_image_number(image_);
+}
+
 int rv_editor_build::start(const rv_editor_project &project,
     const rv_editor_toolchain &tools,
     rv_editor_log &log,
@@ -135,32 +140,29 @@ int rv_editor_build::start(const rv_editor_project &project,
         last_success_.reset();
         dev_state_ = rv_editor_build_state::idle;
     }
-    image_ = image;
-    if (!image_.empty()) {
+    if (!image.empty()) {
         // An image is never overwritten: a number already used is refused.
         std::error_code ec;
-        if (std::filesystem::exists(image_, ec)) {
-            error = image_.string() + " already exists";
+        if (std::filesystem::exists(image, ec)) {
+            error = image.string() + " already exists";
             return RV_ERR_INVAL;
         }
         const std::vector<std::string> argv = { tools.burner.path.string(),
             std::string(build_command),
             project.root.string(),
             "-o",
-            image_.string(),
+            image.string(),
             std::string(build_flag_baker),
             tools.baker.path.string(),
             std::string(build_flag_map),
-            rv_editor_build_map_path(image_).string() };
-        const int err = job_.start(argv,
-            project.root,
-            std::string(burner_name),
-            rv_editor_log_source::candidate,
-            rv_editor_image_number(image_),
-            error);
+            rv_editor_build_map_path(image).string() };
+        const uint32_t number = rv_editor_image_number(image);
+        const int err =
+            job_.start(argv, project.root, std::string(burner_name), rv_editor_log_source::candidate, number, error);
         if (err != RV_OK) {
             return err;
         }
+        image_ = image;
         state_ = rv_editor_build_state::building;
         log.add(rv_editor_log_source::editor,
             rv_editor_log_level::info,
@@ -168,7 +170,7 @@ int rv_editor_build::start(const rv_editor_project &project,
                 image_.string(),
             rv_editor_log_channel::none,
             job_.pid(),
-            rv_editor_image_number(image_));
+            number);
         return RV_OK;
     }
     std::error_code ec;
@@ -178,22 +180,25 @@ int rv_editor_build::start(const rv_editor_project &project,
         return RV_ERR_IO;
     }
     const std::vector<uint32_t> numbers = rv_editor_build_numbers(builds_);
-    number_ = numbers.empty() ? 1 : numbers.back() + 1;
-    dir_ = builds_ / std::to_string(number_);
+    const uint32_t number = numbers.empty() ? 1 : numbers.back() + 1;
+    const std::filesystem::path dir = builds_ / std::to_string(number);
 
     const std::vector<std::string> argv = { tools.burner.path.string(),
         std::string(build_command),
         project.root.string(),
         "--unpacked",
-        dir_.string(),
+        dir.string(),
         std::string(build_flag_baker),
         tools.baker.path.string(),
         std::string(build_flag_map),
-        rv_editor_build_map_path(dir_).string() };
-    const int err = job_.start(argv, project.root, std::string(burner_name), rv_editor_log_source::build, number_, error);
+        rv_editor_build_map_path(dir).string() };
+    const int err = job_.start(argv, project.root, std::string(burner_name), rv_editor_log_source::build, number, error);
     if (err != RV_OK) {
         return err;
     }
+    image_.clear();
+    number_ = number;
+    dir_ = dir;
     state_ = rv_editor_build_state::building;
     log.add(rv_editor_log_source::editor,
         rv_editor_log_level::info,
@@ -224,7 +229,7 @@ int rv_editor_build::update(rv_editor_log &log, std::string &error)
     if (!busy()) {
         return RV_OK;
     }
-    const uint32_t run = image_.empty() ? number_ : rv_editor_image_number(image_);
+    const uint32_t run = target_number();
     const int result = job_.pump(log, error);
     if (!job_.ended()) {
         return result;
@@ -295,6 +300,20 @@ int rv_editor_build::update(rv_editor_log &log, std::string &error)
         pid,
         run);
     return result;
+}
+
+void rv_editor_build::clear_finished_result()
+{
+    if (busy()) {
+        return;
+    }
+    state_ = rv_editor_build_state::idle;
+    dev_state_ = rv_editor_build_state::idle;
+    image_.clear();
+    builds_.clear();
+    dir_.clear();
+    number_ = 0;
+    last_success_.reset();
 }
 
 void rv_editor_build::prune(const std::filesystem::path &in_use)

@@ -1,7 +1,7 @@
 #pragma once
 
-// Loads a scene of the disc into the ECS world. The scene asset is read here (ecs_scene_records_read), migrated to form 2
-// in memory, and its records (rv_ecs_scene_records.hpp) become entities and components. A failed load destroys its own
+// Loads a scene of the disc into the ECS world. The scene asset is read here (ecs_scene_records_read), and its records
+// (rv_ecs_scene_records.hpp) become entities and components. A failed load destroys its own
 // entities and components: live ones are as before the call, while slot numbers and generations may differ.
 
 #include <cstddef>
@@ -22,7 +22,6 @@
 #include "pdkkit/ecs/rv_ecs_scene_records.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdkkit/scene/rv_scene.hpp"
-#include "pdkkit/scene/rv_scene_migrate.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_pdkkit
@@ -247,32 +246,9 @@ inline int ecs_scene_no_memory(const char *asset)
     return RV_ERR_NOMEM;
 }
 
-// Logs migrate's warnings, one RV_LOG_WARN line each with the scene name. Each line ends with '\n' and is escaped whole.
-// Best effort per line: a bad_alloc while logging loses that line, and the next lines and the load go on.
-inline void ecs_scene_log_warnings(const char *asset, const std::string &warnings)
-{
-    std::size_t begin = 0;
-    while (begin < warnings.size()) {
-        std::size_t end = warnings.find('\n', begin);
-        if (end == std::string::npos) {
-            end = warnings.size();
-        }
-        try {
-            const std::string line = warnings.substr(begin, end - begin);
-            RV_LOG_WARN(ecs_scene_tag,
-                "scene '{}': {}",
-                rv_pdklib::rv_log_escape(asset),
-                rv_pdklib::rv_log_escape(line.c_str(), line.size()));
-        } catch (const std::bad_alloc &) {
-            // the line is lost; the next line and the load go on
-        }
-        begin = end + 1;
-    }
-}
-
-// Reads scene document `asset` of `cd` into `out` as form 2: parsed, migrated in memory, then flattened. out is written
-// only on success. Every refusal is logged with its reason: the drive's error for a failed read, RV_ERR_INVAL for a
-// document the records cannot hold, the migration's code for a refused migration, RV_ERR_NOMEM for a failed allocation.
+// Reads scene document `asset` of `cd` into `out`: parsed, then flattened. out is written only on success. Every
+// refusal is logged with its reason: the drive's error for a failed read, RV_ERR_INVAL for a document the parser or
+// the records refuse (form 1 among them), RV_ERR_NOMEM for a failed allocation.
 [[nodiscard]] inline int ecs_scene_records_read(rv_cd *cd, const char *asset, ecs_scene_records &out)
 {
     try {
@@ -290,16 +266,6 @@ inline void ecs_scene_log_warnings(const char *asset, const std::string &warning
                 rv_pdklib::rv_log_escape(error.c_str(), error.size()));
             return RV_ERR_INVAL;
         }
-        std::string warnings;
-        const int migrated = rv_scene_migrate(loaded, warnings);
-        if (migrated != RV_OK) {
-            RV_LOG_ERR(ecs_scene_tag,
-                "scene '{}' refused: {}",
-                rv_pdklib::rv_log_escape(asset),
-                rv_pdklib::rv_log_escape(warnings.c_str(), warnings.size()));
-            return migrated;
-        }
-        ecs_scene_log_warnings(asset, warnings);
         ecs_scene_records built;
         const int flat = ecs_scene_flatten(asset, loaded, built);
         if (flat != RV_OK) {

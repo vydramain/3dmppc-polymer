@@ -33,6 +33,7 @@ constexpr std::string_view layout_axis_x = "x";
 constexpr std::string_view layout_axis_y = "y";
 constexpr std::string_view layout_index_marker = "-";
 constexpr std::string_view layout_pane_legacy_console = "console";
+constexpr std::string_view layout_pane_legacy_problems = "problems";
 // Protocol field counts for file format.
 constexpr int layout_pane_field_count = 2;
 constexpr int layout_leaf_field_min = 4;

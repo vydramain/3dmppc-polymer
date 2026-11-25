@@ -1,6 +1,7 @@
 // Runs a session: state directory, reset of the last session, launch, runtime start, build map and session log.
 
 #include "app/rv_editor_app.hpp"
+#include "text/rv_editor_text.hpp"
 
 #include <filesystem>
 #include <string>
@@ -107,6 +108,8 @@ int rv_editor_app_build_map_load(rv_editor_app &app, const rv_editor_artifact &a
 
 int rv_editor_app_run_session(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card)
 {
+    // The previous candidate's facts and log must survive a new development session.
+    rv_editor_app_release_update_playtest(app);
     const int state_err = rv_editor_app_state_dir_prepare(app);
     if (state_err != RV_OK) {
         return state_err;
@@ -131,7 +134,11 @@ int rv_editor_app_run_session(rv_editor_app &app, const rv_editor_artifact &arti
         return RV_ERR_NOENT;
     }
 
+    const auto previous = app.session.number();
     const int start_err = rv_editor_app_start(app, launch);
+    if (app.session.number() != previous) {
+        app.candidate_session = card.empty() ? 0 : app.session.number();
+    }
     // A live runtime that failed its handshake keeps its output in the session log; BUSY means another session
     // is running and its log must stay as it is.
     const bool failed_live = start_err != RV_OK && start_err != RV_ERR_BUSY && app.session.live();
@@ -154,6 +161,24 @@ int rv_editor_app_run_session(rv_editor_app &app, const rv_editor_artifact &arti
     // The session goes on without its file log; the reason is already in the log.
     [[maybe_unused]] const int session_log_err = rv_editor_app_attach_session_log(app);
     return RV_OK;
+}
+
+std::string rv_editor_app_session_target(const rv_editor_app &app)
+{
+    const auto build = app.session.build_number();
+    const bool candidate = app.session.number() == app.candidate_session;
+    return rv_editor_text_format(candidate ? "panes.status_target_candidate" : "panes.status_target_build",
+        std::make_format_args(build));
+}
+
+std::string rv_editor_app_live_session_status(const rv_editor_app &app)
+{
+    const auto &session = app.session;
+    const auto number = session.number();
+    const char *state = rv_editor_run_state_name(session.state());
+    const std::string status = rv_editor_text_format("panes.status_session", std::make_format_args(state, number));
+    const std::string target = rv_editor_app_session_target(app);
+    return rv_editor_text_format("panes.status_join", std::make_format_args(status, target));
 }
 
 } // namespace rv_editor

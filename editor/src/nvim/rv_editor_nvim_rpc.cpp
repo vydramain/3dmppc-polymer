@@ -165,6 +165,9 @@ int rv_editor_nvim_rpc::stop_step(std::string &error)
         thread_.join();
     }
     if (!proc_.running() && !thread_.joinable()) {
+        proc_.close_fds();
+        queue_.clear();
+        pending_.clear();
         stopping_ = false;
     }
     // A failure persists until the stop ends: reported once, not on every frame.
@@ -267,7 +270,10 @@ void rv_editor_nvim_rpc::reader()
     }
 }
 
-void rv_editor_nvim_rpc::request(const std::string &method, const std::string &args, rv_editor_nvim_reply reply)
+void rv_editor_nvim_rpc::request(const std::string &method,
+    const std::string &args,
+    rv_editor_nvim_reply reply,
+    std::chrono::milliseconds timeout)
 {
     const uint32_t id = next_id_++;
     std::string out;
@@ -291,7 +297,11 @@ void rv_editor_nvim_rpc::request(const std::string &method, const std::string &a
         }
         return;
     }
-    pending_[id] = std::move(reply);
+    if (reply) {
+        const auto deadline =
+            timeout.count() > 0 ? std::chrono::steady_clock::now() + timeout : std::chrono::steady_clock::time_point::max();
+        pending_[id] = { std::move(reply), deadline };
+    }
 }
 
 int rv_editor_nvim_rpc::notify(const std::string &method, const std::string &args)
@@ -314,11 +324,9 @@ void rv_editor_nvim_rpc::handle_response(const rv_editor_mpack &m)
     if (it == pending_.end()) {
         return;
     }
-    rv_editor_nvim_reply reply = std::move(it->second);
+    const rv_editor_nvim_reply reply = std::move(it->second.reply);
     pending_.erase(it);
-    if (reply) {
-        reply(m.items[msgpack_response_error_idx], m.items[msgpack_response_result_idx]);
-    }
+    reply(m.items[msgpack_response_error_idx], m.items[msgpack_response_result_idx]);
 }
 
 void rv_editor_nvim_rpc::handle_notification(const rv_editor_mpack &m, const rv_editor_nvim_notify &on_notify)
@@ -392,9 +400,36 @@ bool rv_editor_nvim_rpc::poll(const rv_editor_nvim_notify &on_notify, std::strin
                 why = rv_editor_text("nvim_rpc.closed_channel");
             }
         }
+        // Queued replies have been delivered. The closed channel cannot answer the rest.
+        rv_editor_mpack error;
+        error.type = mtype::string;
+        error.s = why;
+        decltype(pending_) pending;
+        pending.swap(pending_);
+        for (const auto &entry : pending) {
+            entry.second.reply(error, {});
+        }
         return false;
     }
+    expire_requests();
     return true;
+}
+
+void rv_editor_nvim_rpc::expire_requests()
+{
+    const auto now = std::chrono::steady_clock::now();
+    for (auto it = pending_.begin(); it != pending_.end();) {
+        if (it->second.deadline > now) {
+            ++it;
+            continue;
+        }
+        auto reply = std::move(it->second.reply);
+        it = pending_.erase(it);
+        rv_editor_mpack error;
+        error.type = rv_editor_mpack::rv_editor_mpack_type::string;
+        error.s = rv_editor_text("nvim_rpc.reply_timeout");
+        reply(error, {});
+    }
 }
 
 std::string rv_editor_nvim_rpc::take_stderr()

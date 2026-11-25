@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "imgui.h"
+#include "imgui_internal.h"
 
 #include "pdk/rv_err.h"
 #include "text/rv_editor_text.hpp"
@@ -55,7 +56,7 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         return rv_editor_text("workspace.pane_output");
     case rv_editor_pane_kind::terminal:
         return rv_editor_text("workspace.pane_terminal");
-    case rv_editor_pane_kind::problems:
+    case rv_editor_pane_kind::inspector_report:
         return rv_editor_text("workspace.pane_problems");
     case rv_editor_pane_kind::search:
         return rv_editor_text("workspace.pane_search");
@@ -81,6 +82,8 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         return rv_editor_text("workspace.pane_session");
     case rv_editor_pane_kind::test_case:
         return rv_editor_text("workspace.pane_test_case");
+    case rv_editor_pane_kind::new_project:
+        return rv_editor_text("workspace.pane_new_project");
     case rv_editor_pane_kind::open_project:
         return rv_editor_text("workspace.pane_open_project");
     case rv_editor_pane_kind::settings:
@@ -234,26 +237,35 @@ void draw_leaf(rv_editor_workspace &ws,
 
     // The content keeps the theme's padding off the frame, like every catalog pane.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(theme.pad_px * s, theme.pad_px * s));
-    const bool tabbed = leaf.tabs.size() > 1;
-    const float tabs_h = tabbed ? ImGui::GetFrameHeight() : 0.0f;
+    const float tabs_h = rv_editor_tab_strip_height(); // reserved with one tab too
     // Every pane draws straight into this window, so its focus is the pane's.
     if (ws.focus_request == node) {
         ws.focus_request = rv_editor_tile_none;
         ImGui::SetNextWindowFocus();
     }
-    rv_editor_scroll_begin("##pane", ImVec2(0, -tabs_h), false, ImGuiChildFlags_AlwaysUseWindowPadding);
+    // The body never scrolls: it is never smaller than its minimum, and a pane's content area scrolls itself.
+    ImGui::BeginChild("##pane",
+        ImVec2(0, -tabs_h),
+        ImGuiChildFlags_AlwaysUseWindowPadding,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();
     // A sunken well inside the raised frame: the window's double edge. Drawn by
     // the content window itself, whose background would cover the parent's lines.
     const ImVec2 well_min = ImGui::GetWindowPos();
     const ImVec2 well_max(well_min.x + ImGui::GetWindowWidth(), well_min.y + ImGui::GetWindowHeight());
     rv_editor_draw_bevel(ImGui::GetWindowDrawList(), well_min, well_max, theme, rv_editor_bevel::sunken);
+    // What this leaf adds around its body: the same for every leaf drawn (a clipped one skips its header), as the strips' fit
+    // needs it.
+    if (!ImGui::GetCurrentWindow()->SkipItems) {
+        ws.body_chrome = { rect.w - static_cast<int32_t>(ImGui::GetWindowWidth()),
+            rect.h - static_cast<int32_t>(ImGui::GetWindowHeight()) };
+    }
     if (!leaf.tabs.empty()) {
         rv_editor_pane_id active_pane_id = leaf.tabs[leaf.active];
         draw_pane(context, active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
     }
-    rv_editor_scroll_end(theme);
-    if (tabbed) {
+    ImGui::EndChild();
+    if (!leaf.tabs.empty()) {
         // Right under the well: EndChild leaves the cursor an item spacing lower,
         // which would push the tabs' bottom under the tile's frame.
         ImGui::SetCursorScreenPos(ImVec2(well_min.x, well_max.y));
@@ -363,10 +375,10 @@ int rv_editor_workspace_draw(rv_editor_workspace &ws,
     const float frame_h = ImGui::GetFrameHeight();
     // Leaf chrome: the frame, the header, room for a tab strip and the content padding.
     const float pad = theme.pad_px * s;
-    const rv_editor_tile_metrics m{ static_cast<int>(pad),
-        { static_cast<int>(chrome_mul * (bevel + pad)),
-            static_cast<int>(chrome_mul * (bevel + pad) + frame_h + ImGui::GetStyle().ItemSpacing.y) },
-        static_cast<int>(frame_h) };
+    const rv_editor_tile_metrics m{ rv_editor_px_ceil(pad),
+        { rv_editor_px_ceil(chrome_mul * (bevel + pad)),
+            rv_editor_px_ceil(chrome_mul * (bevel + pad) + frame_h + ImGui::GetStyle().ItemSpacing.y) },
+        rv_editor_px_ceil(frame_h) };
 
     std::vector<rv_editor_size> pane_min(ws.panes.panes.size());
     const ImVec2 glyph = ImGui::CalcTextSize(grid_cell_width_probe);
@@ -382,12 +394,18 @@ int rv_editor_workspace_draw(rv_editor_workspace &ws,
         } else {
             pane_min[i] = { static_cast<int>(glyph.x * pane_min_width_em), static_cast<int>(frame_h * pane_min_height_frames) };
         }
+        // The leaf is at least as wide as its header shows this pane's title whole.
+        const float header_w =
+            rv_editor_pane_header_min_width(rv_editor_title_of(ws, static_cast<rv_editor_pane_id>(i)), theme);
+        pane_min[i].w = std::max(pane_min[i].w, static_cast<int>(std::ceil(header_w + 2.0f * bevel)) - m.chrome.w);
     }
 
     // A window smaller than the tree's minimum scrolls instead of squeezing tiles
     // below their minimums, so every control stays reachable.
     const uint32_t shown = ws.layout.maximized_leaf < ws.layout.nodes.size() ? ws.layout.maximized_leaf : ws.layout.root;
     const rv_editor_size need = rv_editor_tile_min_size(ws.layout, shown, m, pane_min);
+    ws.tile_metrics = m;
+    ws.pane_min = pane_min;
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const rv_editor_rect placed{ static_cast<int>(origin.x),

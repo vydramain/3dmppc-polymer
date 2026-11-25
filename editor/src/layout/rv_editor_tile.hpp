@@ -50,7 +50,7 @@ enum class rv_editor_pane_kind : uint32_t {
     run_config,
     output,
     terminal,
-    problems,
+    inspector_report,
     search,
     toolchest,
     runtime_log,      // Output over the runtime's stderr alone
@@ -63,6 +63,7 @@ enum class rv_editor_pane_kind : uint32_t {
     checks,           // the shown candidate's checks, as a tab of its own
     session,          // the running or the last session: build, profile, time, how it ended
     test_case,        // a written check of the game, or free play, and its result
+    new_project,      // New Project's form, as a tab
     open_project,     // Open Project's browser, as a tab
     settings,         // Settings, as a tab
     help,             // Help, as a tab
@@ -178,7 +179,7 @@ int rv_editor_tile_toggle_maximize(rv_editor_layout &layout, uint32_t leaf);
 struct rv_editor_tile_metrics {
     int32_t bar;
     rv_editor_size chrome;
-    int32_t tabs; // the tab strip under a leaf of more than one pane
+    int32_t tabs; // the tab strip under a leaf of one pane or more
 };
 
 // Where one node lands. `overflow` marks a split whose children's minimums do not

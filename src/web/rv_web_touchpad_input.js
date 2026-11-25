@@ -113,17 +113,26 @@ void (function() {
         rvTouchpad.press(id, down);
     }
 
-    // Stick: offset from the element centre in half-sides, clipped to the unit circle; +y is up.
+    // Stick: floating centre (st.ox, st.oy) at the touch point; axes are the offset from it over the cap travel R,
+    // clipped to the unit circle, +y up. The cap is drawn at centre + axes * R; draw takes it from the plate centre.
     function stickMove(st, p) {
-        var s = STICK[st.el.id];
-        var dx = (p.px - st.el.x - st.el.w / 2) / (st.el.w / 2);
-        var dy = (st.el.y + st.el.h / 2 - p.py) / (st.el.h / 2);
+        var s = STICK[st.el.id], e = st.el;
+        var r = rvTouchDraw.capTravel(e);
+        var dx = (p.px - st.ox) / r;
+        var dy = (st.oy - p.py) / r;
         var k = Math.max(1, Math.hypot(dx, dy));
         axis(s.x, dx / k);
         axis(s.y, dy / k);
+        rvTouchpad.point(e.id, {x : (st.ox - e.x - e.w / 2) / r + dx / k, y : (e.y + e.h / 2 - st.oy) / r + dy / k});
+    }
+    // New centre at the finger: the first touch and a handover both start from axes (0, 0).
+    function stickTake(st, p) {
+        st.ox = p.px;
+        st.oy = p.py;
+        stickMove(st, p);
     }
     function stickDown(st, p) {
-        stickMove(st, p);
+        stickTake(st, p);
         button(STICK[st.el.id].touch, true);
     }
     function stickUp(st, p, tap) {
@@ -131,15 +140,18 @@ void (function() {
         axis(s.x, 0);
         axis(s.y, 0);
         button(s.touch, false);
+        rvTouchpad.point(st.el.id, null);
         if (tap) {
             click(s.click);
         }
     }
 
-    // Trackpad: touch position in 0..1 from the pad's top-left corner, clamped to its square.
+    // Trackpad: touch position in 0..1 from the pad's top-left corner, clamped to its square. The picture's finger
+    // point follows the same touch; a lift removes it.
     function padTouch(st, p, down) {
         var s = PAD[st.el.id];
         trackpad(s.pad, down, clamp01((p.px - st.el.x) / st.el.w), clamp01((p.py - st.el.y) / st.el.h));
+        rvTouchpad.point(st.el.id, down ? rvTouchDraw.padAt(st.el, p.px, p.py) : null);
     }
     function padDown(st, p) { padTouch(st, p, true); }
     function padUp(st, p, tap) {
@@ -158,7 +170,7 @@ void (function() {
             up : function(st) { plateSet(st.el.id, false); },
             take : function() {}
         },
-        stick : {down : stickDown, move : stickMove, up : stickUp, take : stickMove},
+        stick : {down : stickDown, move : stickMove, up : stickUp, take : stickTake},
         pad : {down : padDown, move : padDown, up : padUp, take : padDown}
     };
 
@@ -291,10 +303,10 @@ void (function() {
         KIND[el.kind].take(next, p);
     }
 
-    // Lift or cancel, from the last known position. The last holder of a stick or trackpad releases without reading
-    // the DOM (a lift within TAP_MS may tap). A plate release also redraws the pad through rvTouchpad.press, which
-    // looks up the canvas. Otherwise handOver gives the output to the next holder, unless the element left the layout
-    // or the canvas is gone, hidden or unsized: then the remaining holders are released instead.
+    // Lift or cancel, from the last known position. The last holder of a stick, trackpad or plate releases it, and each
+    // release redraws the pad through rvTouchpad (point or press), which is safe without the canvas: it warns once and
+    // draws nothing. A lift within TAP_MS may tap. Otherwise handOver gives the output to the next holder, unless the
+    // element left the layout or the canvas is gone, hidden or unsized: then the remaining holders are released instead.
     function finish(pid, cancel) {
         var st = active[pid];
         if (!st) {

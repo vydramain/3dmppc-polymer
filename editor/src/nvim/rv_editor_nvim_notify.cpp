@@ -142,30 +142,6 @@ void handle_diagnostics(std::map<std::string, std::vector<rv_editor_nvim_diagnos
     }
 }
 
-// Handle buffers notification: update buffer list from items.
-void handle_buffers(std::vector<rv_editor_nvim_buffer> &buffers, const rv_editor_mpack &params)
-{
-    buffers.clear();
-    for (const rv_editor_mpack &b : params.items[0].items) {
-        rv_editor_nvim_buffer buf;
-        if (const rv_editor_mpack *v = b.get(field_id)) {
-            buf.id = v->i;
-        }
-        if (const rv_editor_mpack *v = b.get(field_name)) {
-            buf.name = v->s;
-        }
-        if (const rv_editor_mpack *v = b.get(field_modified)) {
-            buf.modified = v->b;
-        }
-        if (const rv_editor_mpack *v = b.get(field_windows)) {
-            for (const rv_editor_mpack &w : v->items) {
-                buf.windows.push_back(w.i);
-            }
-        }
-        buffers.push_back(std::move(buf));
-    }
-}
-
 // Handle clipboard notification: Neovim's copy ("+" or "*") becomes the desktop clipboard.
 void handle_clipboard(const rv_editor_mpack &params, rv_editor_log &log)
 {
@@ -188,6 +164,31 @@ void handle_clipboard(const rv_editor_mpack &params, rv_editor_log &log)
 }
 
 } // namespace
+
+bool rv_editor_nvim::read_buffer_state(const rv_editor_mpack &state)
+{
+    if (!state.is(mtype::array)) {
+        return false;
+    }
+    std::vector<rv_editor_nvim_buffer> buffers;
+    for (const rv_editor_mpack &buffer : state.items) {
+        const auto *id = buffer.get(field_id);
+        const auto *name = buffer.get(field_name);
+        const auto *modified = buffer.get(field_modified);
+        const auto *windows = buffer.get(field_windows);
+        if (id == nullptr || !id->is(mtype::integer) || name == nullptr || !name->is(mtype::string) || modified == nullptr ||
+            !modified->is(mtype::boolean) || windows == nullptr || !windows->is(mtype::array)) {
+            return false;
+        }
+        rv_editor_nvim_buffer info{ id->i, name->s, modified->b, {} };
+        for (const rv_editor_mpack &window : windows->items) {
+            info.windows.push_back(window.i);
+        }
+        buffers.push_back(std::move(info));
+    }
+    buffers_ = std::move(buffers);
+    return true;
+}
 
 void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log)
 {
@@ -214,7 +215,7 @@ void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &
         handle_diagnostics(diagnostics_, params);
         return;
     case rv_editor_nvim_method::rv_buffers:
-        handle_buffers(buffers_, params);
+        (void)read_buffer_state(params.items[0]);
         return;
     case rv_editor_nvim_method::rv_clipboard:
         handle_clipboard(params, log);

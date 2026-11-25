@@ -58,7 +58,7 @@ bool rv_editor_tile_drop_zone(const rv_editor_layout &layout,
         return false;
     }
     // The visible tab strip always reads as a tab drop, even inside the bottom band.
-    if (layout.nodes[leaf].leaf.tabs.size() > 1 && y >= static_cast<float>(rect.h) - ImGui::GetFrameHeight()) {
+    if (!layout.nodes[leaf].leaf.tabs.empty() && y >= static_cast<float>(rect.h) - rv_editor_tab_strip_height()) {
         dock = rv_editor_tile_dock::tab;
         return true;
     }

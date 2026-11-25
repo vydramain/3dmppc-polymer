@@ -57,14 +57,24 @@ struct rv_editor_live {
 
 rv_editor_live rv_editor_live_values;
 
-void rv_editor_catalog_row(const char *name, const rv_editor_theme &t, int row)
+// The buttons table keeps its columns from this width in font sizes.
+constexpr float table_wide_em = 40.0f;
+
+// One row: in a table a column per state; narrower, the label and the states flowing under it.
+void rv_editor_catalog_row(const char *name, const rv_editor_theme &t, int row, bool table)
 {
-    ImGui::TableNextRow();
-    ImGui::TableNextColumn();
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(name);
-    for (int c = 0; c < rv_editor_column_count; ++c) {
+    if (table) {
+        ImGui::TableNextRow();
         ImGui::TableNextColumn();
+    }
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextWrapped("%s", name);
+    for (int c = 0; c < rv_editor_column_count; ++c) {
+        if (table) {
+            ImGui::TableNextColumn();
+        } else if (c > 0) {
+            rv_editor_flow(ImGui::GetItemRectSize().x);
+        }
         ImGui::PushID(row * rv_editor_column_count + c);
         rv_editor_state s = rv_editor_columns[c].state;
         if (s.disabled != nullptr) {
@@ -141,7 +151,8 @@ void rv_editor_catalog_row(const char *name, const rv_editor_theme &t, int row)
 
 void rv_editor_catalog_buttons(const rv_editor_theme &theme)
 {
-    if (!ImGui::BeginTable("buttons", rv_editor_column_count + 1)) {
+    const bool table = ImGui::GetContentRegionAvail().x >= table_wide_em * ImGui::GetFontSize();
+    if (table && !ImGui::BeginTable("buttons", rv_editor_column_count + 1)) {
         return;
     }
     const char *row_ids[] = { "catalog_buttons.row_button",
@@ -154,19 +165,23 @@ void rv_editor_catalog_buttons(const rv_editor_theme &theme)
         "catalog_buttons.row_radio_on",
         "catalog_buttons.row_code_toggle_off",
         "catalog_buttons.row_code_toggle_on" };
-    const char *longest_label = rv_editor_text("catalog_buttons.row_code_toggle_off");
-    ImGui::TableSetupColumn(rv_editor_text("catalog_buttons.column_widget"),
-        ImGuiTableColumnFlags_WidthFixed,
-        ImGui::CalcTextSize(longest_label).x);
-    for (const rv_editor_column &c : rv_editor_columns) {
-        ImGui::TableSetupColumn(rv_editor_text(c.name), ImGuiTableColumnFlags_WidthStretch);
+    if (table) {
+        const char *longest_label = rv_editor_text("catalog_buttons.row_code_toggle_off");
+        ImGui::TableSetupColumn(rv_editor_text("catalog_buttons.column_widget"),
+            ImGuiTableColumnFlags_WidthFixed,
+            ImGui::CalcTextSize(longest_label).x);
+        for (const rv_editor_column &c : rv_editor_columns) {
+            ImGui::TableSetupColumn(rv_editor_text(c.name), ImGuiTableColumnFlags_WidthStretch);
+        }
+        ImGui::TableHeadersRow();
     }
-    ImGui::TableHeadersRow();
 
     for (int row = 0; row < static_cast<int>(sizeof(row_ids) / sizeof(row_ids[0])); ++row) {
-        rv_editor_catalog_row(rv_editor_text(row_ids[row]), theme, row);
+        rv_editor_catalog_row(rv_editor_text(row_ids[row]), theme, row, table);
     }
-    ImGui::EndTable();
+    if (table) {
+        ImGui::EndTable();
+    }
 }
 
 } // namespace rv_editor

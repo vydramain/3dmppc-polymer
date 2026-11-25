@@ -115,9 +115,10 @@ public:
     // RV_ERR_IO if signal delivery failed.
     int stop(bool force);
 
-private:
+    // Releases the parent pipe ends. A separate reader must have finished using them.
     void close_fds();
 
+private:
     pid_t pid_ = -1;
     int in_ = -1;
     int out_ = -1;

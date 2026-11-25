@@ -9,6 +9,7 @@
 
 #include "project/rv_editor_templates.hpp"
 #include "release/rv_editor_candidate_store.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -42,20 +43,14 @@ void rv_editor_app_init(rv_editor_app &app)
     }
     rv_editor_app_tool_note(app, "runtime", app.tools.console);
     rv_editor_app_tool_note(app, "burner", app.tools.burner);
+    rv_editor_app_tool_note(app, "inspector", app.tools.inspector);
     rv_editor_app_tool_note(app, "texbaker", app.tools.texbaker);
     rv_editor_app_tool_note(app, "musbaker", app.tools.musbaker);
     rv_editor_app_tool_note(app, "modbaker", app.tools.modbaker);
 }
 
-int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
+void rv_editor_app_open(rv_editor_app &app, rv_editor_project project)
 {
-    std::string error;
-    rv_editor_project project;
-    const int err = rv_editor_project_open(target, project, error);
-    if (err != RV_OK) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot open: " + error);
-        return err;
-    }
     // The old project's scene and pending models go before its root is replaced: the cleanup works in that root.
     (void)rv_editor_app_scene_close(app);
     app.project = std::move(project);
@@ -112,7 +107,12 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     if (!app.project.manifest_error.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.project.manifest_error);
     }
-    return RV_OK;
+    std::string inspect_error;
+    if (app.inspect.request(app.project, app.tools, app.log, inspect_error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            rv_editor_text_format("inspect.not_started", std::make_format_args(inspect_error)));
+    }
 }
 
 std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app)
@@ -126,6 +126,27 @@ std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app)
     return ids;
 }
 
+void rv_editor_app_build_alert_refused(rv_editor_app &app, const std::string &reason)
+{
+    app.build_alert = { rv_editor_build_alert_kind::not_started, reason };
+    app.show_request = rv_editor_pane_kind::inspector_report;
+}
+
+void rv_editor_app_build_alert_ended(rv_editor_app &app, rv_editor_build_state ended, const std::string &exit_text)
+{
+    if (ended != rv_editor_build_state::failed) {
+        return;
+    }
+    app.build_alert = { rv_editor_build_alert_kind::failed,
+        rv_editor_build_alert_reason(app.log, app.build_first_seq, exit_text, app.build.progress()) };
+    app.show_request = rv_editor_pane_kind::inspector_report;
+}
+
+void rv_editor_app_build_alert_clear(rv_editor_app &app)
+{
+    app.build_alert = {};
+}
+
 bool rv_editor_app_run_builds(const rv_editor_app &app)
 {
     return app.inputs_changed || app.build.dev_state() != rv_editor_build_state::succeeded || !app.build.last_success();
@@ -136,6 +157,7 @@ int rv_editor_app_build(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
@@ -150,29 +172,42 @@ int rv_editor_app_build_saved(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     std::string error;
-    app.build_first_seq = app.log.revision() + 1;
+    const auto first_seq = app.log.revision() + 1;
     app.run_after_build = false;
     app.restart_after_build = false;
     app.restart_after_stop = false;
     const int err = app.build.start(app.project, app.tools, app.log, error);
     if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
+        rv_editor_app_build_alert_refused(app, error);
         return err;
     }
+    rv_editor_app_build_alert_clear(app);
+    app.build_first_seq = first_seq;
     // The build goes on without its file log; the reason is already in the log.
     [[maybe_unused]] const int build_log_err = rv_editor_app_attach_build_log(app);
     app.inputs_changed = false;
     return RV_OK;
 }
 
+// A refusal that is the build's own reason also raises the build alert.
+static void rv_editor_app_run_refused(rv_editor_app &app, const char *why)
+{
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+    if (rv_editor_app_run_builds(app) && why == rv_editor_app_why_not_build(app)) {
+        rv_editor_app_build_alert_refused(app, why);
+    }
+}
+
 int rv_editor_app_run(rv_editor_app &app)
 {
     const char *why = rv_editor_app_why_not_run(app);
     if (why != nullptr) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+        rv_editor_app_run_refused(app, why);
         return RV_ERR_BUSY;
     }
     if (app.session.state() == rv_editor_run_state::paused) {
@@ -194,7 +229,7 @@ int rv_editor_app_run_saved(rv_editor_app &app)
 {
     const char *why = rv_editor_app_why_not_run(app);
     if (why != nullptr) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+        rv_editor_app_run_refused(app, why);
         return RV_ERR_BUSY;
     }
     app.restart_after_build = false;
@@ -376,6 +411,13 @@ int rv_editor_app_build_cancel(rv_editor_app &app)
 
 void rv_editor_app_shutdown(rv_editor_app &app)
 {
+    // The shell has just confirmed the documents can close. End nvim before waiting on other jobs.
+    std::string nvim_error;
+    if (app.nvim.stop(nvim_error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "code editor did not end cleanly at shutdown: " + nvim_error);
+    }
     // The window closes with the scene, saved or not: its leftover pending models go while the project is open.
     (void)rv_editor_app_scene_close(app);
     const bool cancel_needed = app.build.state() == rv_editor_build_state::building;
@@ -414,12 +456,6 @@ void rv_editor_app_shutdown(rv_editor_app &app)
         app.log.add(rv_editor_log_source::editor,
             rv_editor_log_level::error,
             "runtime did not end cleanly at shutdown: " + session_error);
-    }
-    std::string nvim_error;
-    if (app.nvim.stop(nvim_error) != RV_OK) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "code editor did not end cleanly at shutdown: " + nvim_error);
     }
     // Every shell ends before the editor does: a background job that ignores the hang-up
     // would outlive the editor, as the guard only signals its own group. All are hung up

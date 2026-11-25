@@ -4,6 +4,7 @@
 
 #include "app/rv_editor_app.hpp"
 
+#include <chrono>
 #include <ctime>
 #include <cstdint>
 #include <cstdio>
@@ -195,6 +196,9 @@ int rv_editor_write_file(const std::filesystem::path &path, const std::string &t
 // RV_ERR_IO when a file cannot be written (reason in findings.error and the log).
 int rv_editor_app_save_finding(rv_editor_app &app)
 {
+    if (!app.project.open) {
+        return RV_ERR_INVAL;
+    }
     rv_editor_findings &f = app.findings;
     const std::filesystem::path dir = app.project.state_dir / std::string(dir_name_findings);
     std::error_code ec;
@@ -319,6 +323,9 @@ rv_editor_case rv_editor_case_exploratory()
 // A new case to fill in, opened in Code. RV_OK, or RV_ERR_IO with the reason in findings.error and the log.
 int rv_editor_app_case_new(rv_editor_app &app)
 {
+    if (!app.project.open) {
+        return RV_ERR_INVAL;
+    }
     rv_editor_findings &f = app.findings;
     const std::filesystem::path dir = app.project.root / std::string(dir_name_testcases);
     std::error_code ec;
@@ -390,7 +397,7 @@ int rv_editor_app_add_mark(rv_editor_app &app, const std::string &note)
     const int64_t frame_number = s.frame();
     const std::string mark = note.empty() ? rv_editor_text_format(mark_text_key_no_note, std::make_format_args(frame_number)) :
                                             rv_editor_text_format(mark_text_key, std::make_format_args(frame_number, note));
-    app.marks.push_back(mark);
+    app.marks.push_back({ std::chrono::system_clock::now(), mark });
     app.log.add(rv_editor_log_source::editor,
         rv_editor_log_level::info,
         "mark " + std::to_string(app.marks.size()) + " of session #" + std::to_string(s.number()) + ", " + mark);

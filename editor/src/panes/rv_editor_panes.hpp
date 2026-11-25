@@ -18,6 +18,7 @@
 #include "panes/rv_editor_scene_actions.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
@@ -35,9 +36,13 @@ void rv_editor_dim(const std::string &text, const rv_editor_theme &theme);
 std::string rv_editor_clock(std::chrono::system_clock::time_point at);
 void rv_editor_fact(const char *label, const std::string &value, const rv_editor_theme &theme);
 
-// Build, Run/Resume, Pause, Step, Stop and the session's state on one row that
-// wraps when narrow; Open Project without a project.
-void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme);
+// Runtime transport, build cancellation, Force Stop and session status.
+void rv_editor_pane_controls(rv_editor_app &app,
+    const rv_editor_theme &theme,
+    const rv_editor_transport_shortcuts &shortcuts = {});
+
+// The current or last build's target and step or outcome. Empty before the first job.
+std::string rv_editor_build_status(const rv_editor_build &build);
 
 // "No project is open." and an Open Project button, for a pane's empty state.
 void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme);
@@ -49,8 +54,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
 std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id pane);
 // "All" (every source but the protocol trace), "All + protocol", or the names shown.
 std::string rv_editor_output_sources(const rv_editor_output_view &view, bool capital);
-// Source, Level, Find, Follow and Wrap, then Copy, Export and Clear View, or as many
-// of those as the row fits; the rest reachable from a "More" menu. Sets copy and
+// Source, Level, Find, Follow and Wrap, then Copy, Export and Clear View, all in one row. Sets copy and
 // exporting when the caller should act on the lines it filters out below.
 void rv_editor_output_controls(rv_editor_app &app,
     rv_editor_output_view &view,
@@ -58,8 +62,89 @@ void rv_editor_output_controls(rv_editor_app &app,
     bool &exporting,
     const rv_editor_theme &theme);
 
+// The filters of a log view, in the order the empty row names the first of them that hid the lines.
+enum class rv_editor_output_filter {
+    source,
+    level,
+    find,
+    clear_view,
+    none
+};
+
+// The empty row of a log: no lines at all, or `total` lines all hidden, `first` the first filter that hid any, with the
+// button that resets it (pressed: the view is changed).
+void rv_editor_output_empty_row(rv_editor_output_view &view,
+    size_t total,
+    rv_editor_output_filter first,
+    const rv_editor_theme &theme);
+
+// The width of that row with Find at its minimum. Call inside a frame.
+float rv_editor_output_controls_width();
+
+// The one minimum of the tile of Output, Runtime Log and Build Log, Terminal, Problems and Search Results, whatever
+// their state. Call inside a frame.
+rv_editor_size rv_editor_output_minimum();
+rv_editor_size rv_editor_terminal_minimum();
+rv_editor_size rv_editor_problems_minimum();
+rv_editor_size rv_editor_search_minimum();
+rv_editor_size rv_editor_scene_minimum();
+rv_editor_size rv_editor_hierarchy_minimum();
+rv_editor_size rv_editor_inspector_minimum();
+// The Toolchest's and Release Controls': one minimum per kind, taken from their elements.
+rv_editor_size rv_editor_toolchest_minimum();
+rv_editor_size rv_editor_release_controls_minimum();
+// The same for Export, Release Candidate, Checks, Observe, Session, Build Result and the empty pane.
+rv_editor_size rv_editor_export_minimum();
+rv_editor_size rv_editor_candidate_minimum();
+rv_editor_size rv_editor_checks_minimum();
+rv_editor_size rv_editor_observe_minimum();
+rv_editor_size rv_editor_session_minimum();
+rv_editor_size rv_editor_build_result_minimum();
+rv_editor_size rv_editor_empty_minimum();
+// The same for Project, Files, Assets, Run Config, Findings and Test Case.
+rv_editor_size rv_editor_project_minimum();
+rv_editor_size rv_editor_files_minimum();
+rv_editor_size rv_editor_assets_minimum();
+rv_editor_size rv_editor_run_config_minimum();
+rv_editor_size rv_editor_findings_minimum();
+rv_editor_size rv_editor_test_case_minimum();
+
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+
+// What a code tile's status line or a file tab shows for the buffer `name`: the whole path (relative inside `root`), the
+// modified marker last, whatever `width` (unused: nothing is cut); `tooltip` is the full path ("" for an Untitled buffer).
+struct rv_editor_code_text {
+    std::string shown;
+    std::string tooltip;
+};
+rv_editor_code_text rv_editor_code_status_text(const std::string &name, const std::string &root, bool modified, float width);
+rv_editor_code_text rv_editor_code_tab_text(const std::string &name, const std::string &root, bool modified, float width);
+
+// The file tabs of a code tile as the tile-tab row: one tab per file (`name` is "" for an Untitled buffer), each tab's
+// label whole (relative to `root`, the modified marker last). Returns true when another tab was picked (*active).
+struct rv_editor_code_tab_file {
+    std::string name;
+    bool modified = false;
+};
+bool rv_editor_code_tab_strip(const std::vector<rv_editor_code_tab_file> &files,
+    const std::string &root,
+    int *active,
+    const rv_editor_theme &theme,
+    rv_editor_tab_probe *probe = nullptr);
+
+// The swap-recovery ask of a code tile: in place of its grid while the file has a swap file, nothing otherwise (a
+// message and the Recover and Discard buttons, wrapped to the tile's width).
+enum class rv_editor_swap_view {
+    none,
+    recoverable,
+    in_use
+};
+struct rv_editor_swap_action {
+    bool recover = false;
+    bool discard = false;
+};
+rv_editor_swap_action rv_editor_code_swap_place(rv_editor_swap_view view, long long pid, const rv_editor_theme &theme);
 // This frame's keyboard as nvim keys.
 std::string rv_editor_nvim_keys();
 
@@ -98,6 +183,12 @@ void rv_editor_pane_assets(rv_editor_app &app,
     const rv_editor_ui_port &ui_port);
 // The code and colour that stand in for a file's icon, by its extension.
 void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, uint32_t &color);
+// The word of a file's kind (Image, Sound, Model, Scene, Code, ...) from texts "pane_assets.kind_*".
+const char *rv_editor_file_kind_word(const std::filesystem::path &path);
+// The colour of that kind: the chip's, and its own for Model and Scene.
+uint32_t rv_editor_file_kind_color(const std::filesystem::path &path);
+// The text keys of all the kind words, for sizing the Type column.
+std::span<const char *const> rv_editor_file_kind_keys();
 
 // The console's own keys held now, as rv_isource bits
 // (src/rv_pconsole/platform/sdl3/rv_pcwindow_sdl3.cpp).
@@ -105,8 +196,17 @@ uint64_t rv_editor_game_keys();
 
 // The running session's facts and its persistent Lua state, read-only.
 void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme);
-// What ran, from which build and profile, for how long, and how it ended.
-void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme);
+// What ran, from which build and profile, for how long, and how it ended: one content area, the facts, then Notes.
+void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+
+// One line of Session's Notes: the clock time "HH:MM:SS" and the text.
+struct rv_editor_note {
+    std::string time;
+    std::string text;
+};
+// The Notes of the session in `app`, oldest first: its start, the marks, the stderr lines of its process and, once it
+// ended, its end with the exit code. Empty before any session ran.
+std::vector<rv_editor_note> rv_editor_session_notes(const rv_editor_app &app);
 
 // Capture Frame and Record Finding: local files with the session's facts (T-09, T-10).
 void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme);
@@ -115,7 +215,9 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme);
 // Release: Build Candidate, Run Candidate, Stop, Export Report and the shown
 // candidate's state on one row; and the Candidate pane.
-void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_pane_release_controls(rv_editor_app &app,
+    const rv_editor_theme &theme,
+    const rv_editor_transport_shortcuts &shortcuts = {});
 void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme);
 // The candidate's decision line, shown by Release Controls and the Candidate pane (rv_editor_pane_candidate.cpp).
@@ -135,6 +237,13 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme);
 // The latest build's diagnostics with a place, opening it.
 void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme);
 
+// The text of the strip under the Inspector Report's table: "Build #N failed: <reason>" (N is the build's number), the
+// refusal's own words for a build that did not start; empty when app.build_alert is none.
+std::string rv_editor_problems_alert_text(const rv_editor_app &app);
+
+// The tooltip of a finding's level icon: its level (error or warning) and its source.
+std::string rv_editor_problems_level_tip(const rv_editor_problem &problem);
+
 // Find in Project: the query, its scope, and each place, opening it.
 void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
 
@@ -144,9 +253,35 @@ void rv_editor_pane_scene(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui);
-void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
-// The New Scene area at the top of the Scene pane while it is asked for (menu_scene.cpp).
-void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// What a scene pane with no scene says in its strip: Open Project when there is no project, else `text` and Create Scene;
+// the strip drawn `width` wide at the cursor with its button's action; the least width it needs, and the project's scenes
+// as rows that open on a click (rv_editor_pane_scene_none.cpp).
+rv_editor_message_say rv_editor_scene_none_say(const rv_editor_app &app, const std::string &text, rv_editor_label_kind kind);
+void rv_editor_scene_none_strip(rv_editor_app &app,
+    const rv_editor_message_say &say,
+    float width,
+    const rv_editor_theme &theme,
+    int max_lines = 3);
+float rv_editor_scene_none_width();
+void rv_editor_scene_files_list(rv_editor_app &app, const rv_editor_theme &theme);
+// The New Scene question in the Scene pane's strip: what it says (empty text while it is closed) and why Create is off (empty:
+// it is on). Asked once a frame (Escape closes it); the strip's height in `width` and the strip drawn there, with its name
+// field and the C++ choice in a row of their own (menu_scene.cpp). The least width its row needs.
+struct rv_editor_scene_new_say {
+    rv_editor_message_say say;
+    std::string why_not;
+};
+rv_editor_scene_new_say rv_editor_scene_new_ask(const rv_editor_app &app);
+float rv_editor_scene_new_strip_height(const rv_editor_scene_new_say &ask, float width);
+void rv_editor_scene_new_strip(rv_editor_app &app,
+    const rv_editor_scene_new_say &ask,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui,
+    float width);
+float rv_editor_scene_new_width();
+bool rv_editor_scene_new_open();
+// The width every row of the Scene pane keeps at least (rv_editor_pane_scene.cpp).
+float rv_editor_scene_content_width();
 // A scene tab for `path` (a PNG, a sound or a model: .png, .wav, .pcm, .gltf, .glb), with a
 // sound's duration read now; nullopt for any other file (pane_scene_tabs.cpp).
 std::optional<rv_editor_scene_tab> rv_editor_scene_tab_build(const std::filesystem::path &path);
@@ -171,8 +306,10 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
 void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o, const rv_editor_theme &theme);
 // Hierarchy's shelf: Add opens the kinds menu, then the command buttons (rv_editor_pane_hierarchy_actions.cpp).
 void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
-// What the commands act on, with Clear Picks when pieces are picked (rv_editor_pane_hierarchy_actions.cpp).
-void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// The search field and the order choice, drawn at the end of the shelf's row (rv_editor_pane_hierarchy.cpp).
+void rv_editor_hierarchy_filter(rv_editor_app &app, const rv_editor_theme &theme);
+// The width of the shelf's buttons in a row, without the shelf's padding. Call inside a frame.
+float rv_editor_hierarchy_shelf_width();
 // Runs an action on a copy of the Scene camera, queuing a changed camera (rv_editor_pane_hierarchy_actions.cpp).
 void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv_editor_scene_action action);
 // The object kinds the Add menus offer, in menu order, and the label each one shows.
@@ -180,6 +317,16 @@ void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv
 std::span<const std::string_view> rv_editor_hierarchy_kinds();
 const char *rv_editor_scene_kind_label(const std::string &kind);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// Where fields start beside labels `widest` px wide: that plus a gap (at least six font sizes), or 0 when it is more
+// than half the row and each field goes on a line below its label instead (rv_editor_pane_scene_inspector.cpp).
+float rv_editor_inspector_column(float widest);
+// After a label: the field follows on the same line at `column`, or stays on the line below when `column` is 0.
+void rv_editor_inspector_field_at(float column);
+// The width of the next field: what is left of the row less `reserve`, but never less than `text` shown whole.
+void rv_editor_inspector_field_width(const char *text, float reserve);
+float rv_editor_inspector_content_width();
+// The reason the last edit of the object at `at` was refused, "" when none (rv_editor_pane_scene_fields.cpp).
+std::string rv_editor_inspector_refusal(const rv_editor_scene_doc &doc, size_t at);
 // The snapshot's description records when it is loaded, else nullptr: the built-ins apply (rv_editor_pane_scene_fields.cpp).
 const std::vector<rv_pdkkit::ecs_component_record> *rv_editor_descs_records(const rv_editor_app &app);
 // The components of the object at `at`, each a section of its fields by their descriptions (rv_editor_pane_scene_fields.cpp).
@@ -187,12 +334,17 @@ void rv_editor_inspector_fields(rv_editor_app &app, const rv_editor_theme &theme
 // The selected object's entity type, Visible and Add component (rv_editor_pane_scene_components.cpp).
 void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &theme, const std::string &id, bool read_only);
 void rv_editor_scene_keys(rv_editor_app &app, const rv_editor_ui_port &ui);
-// The Scene viewport, and the Scene Toolchest's tools it uses.
+// The Scene viewport, and the Scene Toolchest's tools it uses; the New Scene question `ask` is a strip `strip_w` wide under
+// its wheels (nothing while it is closed).
 void rv_editor_scene_viewport(rv_editor_app &app,
     SDL_Renderer *renderer,
     const rv_editor_theme &theme,
-    const rv_editor_ui_port &ui);
+    const rv_editor_ui_port &ui,
+    const rv_editor_scene_new_say &ask,
+    float strip_w);
 void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// The widest of its two rows: four small tiles, or Snap, its step and Grid.
+float rv_editor_scene_tools_min_width();
 
 // The project's run profiles as a list beside a form: Apply, Apply and Restart.
 void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme);

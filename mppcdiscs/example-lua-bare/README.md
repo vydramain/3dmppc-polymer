@@ -24,7 +24,7 @@ script.
 | Board "ОСТАЛОСЬ: 5": glyphs, flicker, halo | `scripts/example-lua-bare-board.lua` (`TEXT`, `FLICKER_TABLE`, `FLICKER_STEP`, `HALO_MODEL`), mesh `board` in the layout table | glyph order, flicker table, step in frames | Reload Module `example-lua-bare-board`; move of the `board` object needs Build and Restart |
 | Street lamps: lit on the way out, dark on the way back | `scripts/example-lua-bare-lamps.lua` (`REACH_SQUARED`, `LIGHT_MODEL`), `lamp_1`..`lamp_4` entries in the layout table, `assets/models/lamp_light.gltf` | reach of a lamp, the light model, lamp positions; 4 lamps 8 m apart, alternately on both kerbs | Reload Module `example-lua-bare-lamps` for `LIGHT_MODEL` and the drawing; `REACH_SQUARED` and the schedule run only in `M.disc_initialize`, so a reach change needs Build and Restart; lamp positions come from the layout table: Build and Restart |
 | Music per area: 1-s bars through two slots (factory 3 bars, street 5, home 10) | `scripts/example-lua-bare-sound.lua` (`WORKSHOP_MAX_X`, `FLAT_MIN_X`, `BARS`), `assets/snd/*.wav` | area borders on the camera's x (workshop x < 0, flat x > 33.8), bar lists | Reload Module `example-lua-bare-sound` for the constants; track files need Build and Restart |
-| Workshop loops and board clack | `scripts/example-lua-bare-sound.lua` (`LOOPS`, `CLACK`), `assets/snd/*.wav` | loop voices and volumes, clack envelope and file | Reload Module `example-lua-bare-sound`; track files need Build and Restart |
+| Workshop loops and board clack | `scripts/example-lua-bare-voice.lua` (`LOOPS`, `CLACK_ENVELOPE`), `scripts/example-lua-bare-sound.lua` (`CLACK`), `assets/snd/*.wav` | loop voices and volumes, clack envelope and file | Reload Module `example-lua-bare-voice`, then `example-lua-bare-sound` (it keeps what it took from voice); track files need Build and Restart |
 | Frame clock and background | `scripts/example-lua-bare.lua` (`frame_update`, `BACKGROUND`) | the clock counts only frames with dt > 0 | Reload (F8) |
 | Disc setup and budgets | `disc.toml` | sections and `[budget.*]`, including `script_memory_size` | Build and Restart |
 | C++ bridge | `src/example-lua-bare.cpp` | the disc class and entry points | Build and Restart |
@@ -77,6 +77,8 @@ Restart as well.
 - `scripts/example-lua-bare-board.lua`, `scripts/example-lua-bare-lamps.lua` - one episode each.
 - `scripts/example-lua-bare-sound.lua` - the music, the loops and the clack; the bars
   of an area play on two voices in turn.
+- `scripts/example-lua-bare-voice.lua` - the envelopes, the workshop loops and the voice
+  setup the sound module plays them with.
 - `assets/models/*.gltf` - glTF models, each with its `.bin` beside it; `files` under
   `[assets]` in `disc.toml` finds them, and the build bakes them.
 - `assets/tex/*.png` - the model pictures each .gltf names, except street_16's four:

@@ -1,4 +1,4 @@
-// The view file: the code text size, the Game scale, the workspace, the UI scale, vsync and the
+// The view file: the main and code text sizes, the Game scale, the workspace, the UI scale, vsync and the
 // frame rate limit, one line each.
 
 #include "prefs/rv_editor_prefs.hpp"
@@ -22,7 +22,7 @@ namespace
 // View preferences file header: magic string prefix with PDK version
 constexpr std::string_view prefs_header_prefix = "3dmppc-editor-view ";
 
-// Preference keys for code font size, game scale, workspace, UI scale, vsync and frame rate limit
+constexpr std::string_view prefs_key_main_font = "main-font";
 constexpr std::string_view prefs_key_code_font = "code-font";
 constexpr std::string_view prefs_key_game_scale = "game-scale";
 constexpr std::string_view prefs_key_workspace = "workspace";
@@ -107,6 +107,10 @@ std::string rv_editor_prefs_write(const rv_editor_prefs &prefs)
     out += key_value_sep;
     out += rv_editor_code_size_name(prefs.code_size);
     out += line_end;
+    out += prefs_key_main_font;
+    out += key_value_sep;
+    out += rv_editor_main_size_name(prefs.main_size);
+    out += line_end;
     out += prefs_key_game_scale;
     out += key_value_sep;
     out += rv_editor_game_scale_name(prefs.game_scale);
@@ -153,6 +157,8 @@ rv_editor_prefs rv_editor_prefs_read(std::string_view text)
         const std::string value = line.substr(space + key_value_sep.size());
         if (key == prefs_key_code_font) {
             (void)rv_editor_code_size_parse(value.c_str(), prefs.code_size);
+        } else if (key == prefs_key_main_font) {
+            (void)rv_editor_main_size_parse(value.c_str(), prefs.main_size);
         } else if (key == prefs_key_game_scale) {
             (void)rv_editor_game_scale_parse(value, prefs.game_scale);
         } else if (key == prefs_key_workspace) {

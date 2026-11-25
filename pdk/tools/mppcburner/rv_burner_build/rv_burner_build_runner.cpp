@@ -22,16 +22,10 @@
 #include "rv_burner_compile/rv_burner_check.hpp"
 #include "rv_burner_compile/rv_burner_cmake.hpp"
 #include "rv_burner_compile/rv_burner_compile_sources.hpp"
+#include "rv_burner_sources/rv_burner_sources_check.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_burner_print.hpp"
-
-namespace
-{
-// Build phases in order: manifest, compile, assets, burn.
-constexpr int k_step_manifest = 1;
-constexpr int k_step_compile = 2;
-constexpr int k_step_burn = 4;
-} // namespace
+#include "rv_burner_steps.hpp"
 
 namespace fs = std::filesystem;
 
@@ -54,7 +48,7 @@ static constexpr const char *k_models_subdir = "models";
 // from.
 static constexpr const char *k_disc_module_name = "disc.so";
 
-// Burns the disc into an unpacked directory and prints its [4/4] step.
+// Burns the disc into an unpacked directory and prints its [5/5] step.
 static int rv_burner_burn_to_directory(const rv_burner_destination &destination,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_module,
@@ -65,11 +59,11 @@ static int rv_burner_burn_to_directory(const rv_burner_destination &destination,
     if (burn_err != RV_OK) {
         return burn_err;
     }
-    rv_burner_print_step(k_step_burn, "burn", destination.path.string() + " (unpacked)");
+    rv_burner_print_step("burn", destination.path.string() + " (unpacked)");
     return RV_OK;
 }
 
-// Burns the disc into one .mppcdisc archive and prints its [4/4] step.
+// Burns the disc into one .mppcdisc archive and prints its [5/5] step.
 static int rv_burner_burn_to_archive(const rv_burner_destination &destination,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_module,
@@ -81,8 +75,7 @@ static int rv_burner_burn_to_archive(const rv_burner_destination &destination,
     if (burn_err != RV_OK) {
         return burn_err;
     }
-    rv_burner_print_step(k_step_burn,
-        "burn",
+    rv_burner_print_step("burn",
         std::format("{} ({})", destination.path.filename().string(), rv_burner_human_size(burned_size)));
     return RV_OK;
 }
@@ -105,9 +98,9 @@ static int rv_burner_destination_burn(const rv_burner_destination &destination,
     return RV_ERR_INVAL;
 }
 
-// --- [1/4] manifest ---
+// --- [2/5] manifest ---
 //
-// Loads and validates the disc's manifest, and prints step 1.
+// Loads and validates the disc's manifest, and prints step 2.
 int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &manifest, std::string &error)
 {
     std::string er;
@@ -125,7 +118,7 @@ int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &m
         return validate_err;
     }
 
-    rv_burner_print_step(k_step_manifest, "manifest", std::format("{} — {}", manifest.disc_id, manifest.disc_title));
+    rv_burner_print_step("manifest", std::format("{} — {}", manifest.disc_id, manifest.disc_title));
     return RV_OK;
 }
 
@@ -171,9 +164,9 @@ static int rv_burner_clear_cmake_state(const fs::path &binary_dir, std::string &
     return RV_OK;
 }
 
-// --- [2/4] compile ---
+// --- [3/5] compile ---
 //
-// Generates the CMake project, configures and compiles it, and prints step 2.
+// Generates the CMake project, configures and compiles it, and prints step 3.
 static int rv_burner_build_compile(const rv_burner_options &options,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &project_dir,
@@ -227,7 +220,7 @@ static int rv_burner_build_compile(const rv_burner_options &options,
         }
     }
 
-    rv_burner_print_step(k_step_compile, "compile", std::format("{} source(s) -> {}", source_count, k_disc_module_name));
+    rv_burner_print_step("compile", std::format("{} source(s) -> {}", source_count, k_disc_module_name));
     return RV_OK;
 }
 
@@ -293,7 +286,9 @@ static void rv_burner_build_cleanup(const fs::path &project_dir, bool keep_build
 
 } // namespace rv_pdktools
 
-int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
+namespace rv_pdktools
+{
+static int rv_burner_build_body(const rv_burner_options &options)
 {
     std::error_code ec;
     std::string error;
@@ -311,6 +306,18 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     if (nullptr == target) {
         rv_burner_print_error(std::format("unknown target '{}'; expected one of: {}", options.target, target_names()));
         return RV_ERR_INVAL;
+    }
+
+    // --- the sources check ---
+    //
+    // Step 1, printed before the inspector runs and before anything is created: sources with error findings
+    // never reach the build. This build passes no report path, so the check writes none; empty means none.
+    rv_burner_print_step("sources", disc_dir.string());
+    const std::string sources_report = "";
+    const int sources_err = rv_burner_sources_check(disc_dir, options.baker, sources_report, error);
+    if (sources_err != RV_OK) {
+        rv_burner_print_error(error);
+        return sources_err;
     }
 
     rv_pdklib::rv_manifest manifest;
@@ -407,7 +414,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
             return compile_err;
         }
     } else {
-        rv_burner_print_step(k_step_compile, "compile", "skipped: this target has no native code");
+        rv_burner_print_step("compile", "skipped: this target has no native code");
     }
 
     // Read now, while binary_dir still exists; written out only after cleanup. No compile, no database.
@@ -424,7 +431,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return assets_err;
     }
 
-    // --- [4/4] burn ---
+    // --- [5/5] burn ---
 
     const int burn_err = rv_burner_destination_burn(destination, manifest, disc_module, plan, error);
     if (burn_err != RV_OK) {
@@ -457,3 +464,11 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     }
     return RV_OK;
 }
+
+int rv_burner_build_run(const rv_burner_options &options)
+{
+    return rv_burner_run_with_progress(rv_burner_build_steps(options.target), [&] {
+        return rv_burner_build_body(options);
+    });
+}
+} // namespace rv_pdktools

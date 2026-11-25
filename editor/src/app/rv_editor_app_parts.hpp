@@ -5,8 +5,11 @@
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
+
+#include <sys/stat.h>
 
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
@@ -15,6 +18,7 @@
 #include "project/rv_editor_run_profile.hpp"
 #include "release/rv_editor_candidate.hpp"
 #include "scene/rv_editor_scene.hpp"
+#include "session/rv_editor_session.hpp"
 #include "terminal/rv_editor_terminal.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 
@@ -97,7 +101,7 @@ struct rv_editor_scene_camera {
     rv_pdklib::fx pitch = camera_pitch_default;
     rv_pdklib::fx distance = camera_distance_default;
     std::array<rv_pdklib::fx, 3> target{}; // raw Q20.12 x, y, z; the fx_vec3 accessors copy it unchanged
-    bool seeking = false; // Seek pressed: the next click picks the point to turn about
+    bool seeking = false;                  // Seek pressed: the next click picks the point to turn about
     bool operator==(const rv_editor_scene_camera &) const = default;
 };
 
@@ -164,11 +168,10 @@ inline void rv_editor_camera_set_target_fx(rv_editor_scene_camera &c, const rv_p
     c.target = { value.x, value.y, value.z };
 }
 
-// Assets' own view: the folder shown (0: all), the filter, icons or details.
+// Assets' own view: the folder shown (0: all), the filter.
 struct rv_editor_assets_ui {
     int folder = 0;
     char filter[short_text_field_size] = {};
-    bool details = false;
 };
 
 // The files a code tile has shown, one tab each, and the one its Close Tab let
@@ -176,6 +179,13 @@ struct rv_editor_assets_ui {
 struct rv_editor_code_tabs {
     std::vector<std::string> names;
     std::string dropped;
+};
+
+// The answer to the question of ending a Terminal tile.
+enum class rv_editor_terminal_end_answer {
+    none,
+    end,
+    keep,
 };
 
 // A Terminal tile's shell, started when the tile is first drawn, and how many
@@ -187,6 +197,8 @@ struct rv_editor_terminal_view {
     std::filesystem::path cwd;  // where the shell started
     bool focus_request = false; // Window > Terminal: take the keyboard next frame
     std::string paste;          // several lines waiting for Paste or Cancel
+    bool ending = false;        // the shell asks to end the tile: the tile draws the question in its ask place
+    rv_editor_terminal_end_answer end_answer = rv_editor_terminal_end_answer::none;
 };
 
 // What Observe reads: the table it lists and the paths pinned to watch, each a
@@ -225,6 +237,24 @@ struct rv_editor_findings {
     std::vector<std::string> results;
 };
 
+struct rv_editor_playtest_end {
+    rv_editor_session_facts facts;
+    std::string reason;
+    std::string log;
+    bool clean = false;
+};
+
+struct rv_editor_playtest {
+    uint32_t session = 0;
+    uint32_t candidate = 0;
+    uint64_t first_seq = 0;
+    std::filesystem::path image;
+    std::filesystem::path console;
+    std::string hash;
+    struct stat image_stat{};
+    std::optional<rv_editor_playtest_end> ended;
+};
+
 // The project's release candidates, oldest first, and the one shown; their records
 // are read back when the project opens.
 struct rv_editor_release {
@@ -234,12 +264,12 @@ struct rv_editor_release {
     uint32_t building_number = 0;
     uint64_t build_first_seq = 0;
     bool tree_changed_during = false;
-    std::string building_revision;   // the sources' version when that build started
-    std::string building_burner;     // the tools' versions when that build started,
-    std::string building_baker;      // so Apply during a build cannot blank the record
-    std::string last_failure;        // the newest candidate build did not make one
-    int playing = -1;                // the candidate the session runs, or -1
-    uint64_t playtest_first_seq = 0; // the first log line of that playtest
+    std::string building_revision; // the sources' version when that build started
+    std::string building_burner;   // the tools' versions when that build started,
+    std::string building_baker;    // so Apply during a build cannot blank the record
+    std::string last_failure;      // the newest candidate build did not make one
+    int playing = -1;              // the candidate whose playtest is live or being verified, or -1
+    rv_editor_playtest playtest;
     // The player playing a candidate in its own window: the process, which
     // candidate, since when, whether the operator stopped it, what it printed.
     std::unique_ptr<rv_editor_process> player;

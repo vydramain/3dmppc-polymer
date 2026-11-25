@@ -3,11 +3,13 @@
 #include "app/rv_editor_shell.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
-#include <numeric>
 #include <string>
 #include <system_error>
 
+#include "panes/rv_editor_pane_controls.hpp"
+#include "panes/rv_editor_release_facts.hpp"
 #include "pdk/rv_err.h"
 
 namespace rv_editor
@@ -91,47 +93,26 @@ bool rv_editor_strip_leaf(const rv_editor_workspace &ws, uint32_t node)
     return true;
 }
 
-// Debug keeps its Runtime Log's height: fitting the tiles to the Game there would
-// give the log's rows to the picture, which Fit draws whole in any tile anyway.
-bool rv_editor_preset_fits_game(rv_editor_layout_preset preset)
+// The transport strips (Runtime and Release Controls): their height follows the width they are drawn at.
+bool rv_editor_transport_kind(rv_editor_pane_kind kind)
 {
-    return preset != rv_editor_layout_preset::debug;
+    return kind == rv_editor_pane_kind::controls || kind == rv_editor_pane_kind::release_controls;
 }
 
-// Walks up from `node` to find a split on `axis` whose sibling is not a strip,
-// adjusts `node`'s ratio by `delta` (positive grow, negative shrink). When
-// `guard_bottom_sibling` and `delta > 0`, skips taking height from bottom row.
-// Placement clamps results to panes' minimums; returns RV_OK or RV_ERR_NOENT if no ancestor has space.
-int rv_editor_shell_grow_game(rv_editor_workspace &ws,
-    uint32_t node,
-    rv_editor_axis axis,
-    int32_t delta,
-    bool guard_bottom_sibling)
+bool rv_editor_transport_leaf(const rv_editor_workspace &ws, uint32_t node)
 {
-    for (uint32_t parent = ws.layout.nodes[node].parent; parent != rv_editor_tile_none;
-        node = parent, parent = ws.layout.nodes[parent].parent) {
-        const rv_editor_tile_split &split = ws.layout.nodes[parent].split;
-        const uint32_t sibling = node == split.first ? split.second : split.first;
-        if (ws.layout.nodes[parent].kind != rv_editor_tile_kind::split || split.axis != axis ||
-            rv_editor_strip_leaf(ws, sibling) || (guard_bottom_sibling && delta > 0 && sibling == split.second)) {
-            continue;
-        }
-        const rv_editor_rect &a = ws.rects[split.first];
-        const rv_editor_rect &b = ws.rects[split.second];
-        const int32_t first = axis == rv_editor_axis::x ? a.w : a.h;
-        const int32_t total = first + (axis == rv_editor_axis::x ? b.w : b.h);
-        if (total <= 0) {
-            continue;
-        }
-        const int32_t want = first + (node == split.first ? delta : -delta);
-        (void)rv_editor_tile_set_ratio(ws.layout, parent, static_cast<float>(want) / static_cast<float>(total));
-        return RV_OK;
+    const rv_editor_tile_node &n = ws.layout.nodes[node];
+    if (n.kind != rv_editor_tile_kind::leaf || n.leaf.tabs.empty()) {
+        return false;
     }
-    return RV_ERR_NOENT;
+    return std::all_of(n.leaf.tabs.begin(), n.leaf.tabs.end(), [&](rv_editor_pane_id pane) {
+        return rv_editor_transport_kind(ws.panes.panes[pane].kind);
+    });
 }
 
-// `node`'s size along `axis`, the largest of its tabs' minimums (ws.minimums,
-// filled from shell.strips): what a strip leaf needs and nothing more.
+// `node`'s size along `axis`, the largest of its tabs' minimums (ws.minimums): what a strip leaf needs and nothing more.
+// A transport strip's height is the one of its body at the width it was drawn at, plus the leaf's chrome (known once a
+// frame has drawn the tree, which is also when ImGui can measure).
 int32_t rv_editor_strip_min_along(const rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis)
 {
     rv_editor_size need{ 0, 0 };
@@ -141,13 +122,20 @@ int32_t rv_editor_strip_min_along(const rv_editor_workspace &ws, uint32_t node, 
             need.w = std::max(need.w, it->second.w);
             need.h = std::max(need.h, it->second.h);
         }
+        const rv_editor_pane_kind kind = ws.panes.panes[pane].kind;
+        if (axis == rv_editor_axis::y && rv_editor_transport_kind(kind) && ws.body_chrome.w > 0 && node < ws.rects.size() &&
+            ws.rects[node].w > ws.body_chrome.w) {
+            const float body = static_cast<float>(ws.rects[node].w - ws.body_chrome.w);
+            const float height =
+                kind == rv_editor_pane_kind::controls ? rv_editor_transport_height(body) : rv_editor_release_height(body);
+            need.h = std::max(need.h, static_cast<int32_t>(std::ceil(height)) + ws.body_chrome.h);
+        }
     }
     return axis == rv_editor_axis::x ? need.w : need.h;
 }
 
-// A split holding only strip leaves side by side, such as Runtime Controls beside
-// the Session Toolchest: not a strip itself, but it needs no more than the
-// tallest (or widest) of the strips it holds.
+// A split holding only strip leaves side by side: not a strip itself, but it
+// needs no more than the tallest (or widest) of the strips it holds.
 bool rv_editor_strip_row(const rv_editor_workspace &ws, uint32_t node)
 {
     const rv_editor_tile_node &n = ws.layout.nodes[node];
@@ -173,8 +161,9 @@ int32_t rv_editor_strip_like_min_along(const rv_editor_workspace &ws, uint32_t n
 // strip's exact minimum, the rest going to its sibling: no empty band under a
 // strip's rows. Skipped once the tree no longer fits its minimums
 // (rv_editor_tile_place_node then shrinks both children in proportion instead of
-// honoring any ratio).
-void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
+// honoring any ratio). `all` is false in a layout the user has touched: only the
+// transport strips are fitted there, and by height only: as their height follows their width, while the width is the user's.
+void rv_editor_shell_fit_strips(rv_editor_workspace &ws, bool all)
 {
     for (uint32_t i = 0; i < ws.layout.nodes.size(); ++i) {
         const rv_editor_tile_node &n = ws.layout.nodes[i];
@@ -187,6 +176,9 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
             continue; // neither, or both: nothing to fit against
         }
         const rv_editor_axis axis = n.split.axis;
+        if (!all && axis != rv_editor_axis::y) {
+            continue; // a strip's width beside a pane is the user's
+        }
         const rv_editor_rect &a = ws.rects[n.split.first];
         const rv_editor_rect &b = ws.rects[n.split.second];
         const int32_t total = (axis == rv_editor_axis::x ? a.w : a.h) + (axis == rv_editor_axis::x ? b.w : b.h);
@@ -194,6 +186,9 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
             continue;
         }
         const uint32_t strip = first_is_strip ? n.split.first : n.split.second;
+        if (!all && !rv_editor_transport_leaf(ws, strip)) {
+            continue;
+        }
         const int32_t need = rv_editor_strip_like_min_along(ws, strip, axis);
         const float ratio = first_is_strip ? static_cast<float>(need) / static_cast<float>(total) :
                                              1.0f - static_cast<float>(need) / static_cast<float>(total);
@@ -201,7 +196,42 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
     }
 }
 
+// The Game's picture height the fit aims at, from the work area's height `h` (the window less the menu and status bars,
+// 48 px at scale 1): linear through the approved sizes, 300 px at 720 (work area 672) and 480 at 1080 (1032); in the
+// Scene, whose column is narrower, 240 and 360. The tiles' minimums can only lower it, so it never depends on history.
+int32_t rv_editor_game_target_h(rv_editor_layout_preset preset, int32_t h)
+{
+    return preset == rv_editor_layout_preset::scene ? h / 3 + 16 : h / 2 - 36;
+}
+
+// An untouched tree whose first column is the Files tile (Code): Files is 176 px at 1280 and 240 at 1920, a tenth of the
+// window's width plus 48, so the tile is the same in a window of either size, whatever size it was drawn in before.
+void rv_editor_shell_fit_files(rv_editor_workspace &ws)
+{
+    const rv_editor_tile_node &root = ws.layout.nodes[ws.layout.root];
+    if (root.kind != rv_editor_tile_kind::split || root.split.axis != rv_editor_axis::x) {
+        return;
+    }
+    const rv_editor_tile_node &first = ws.layout.nodes[root.split.first];
+    if (first.kind != rv_editor_tile_kind::leaf || first.leaf.tabs.size() != 1 ||
+        ws.panes.panes[first.leaf.tabs[0]].kind != rv_editor_pane_kind::files) {
+        return;
+    }
+    const int32_t room = ws.rects[ws.layout.root].w - ws.tile_metrics.bar;
+    if (room > 0) {
+        (void)rv_editor_tile_set_ratio(ws.layout,
+            ws.layout.root,
+            static_cast<float>(ws.rects[ws.layout.root].w / 10 + 48) / static_cast<float>(room));
+    }
+}
+
 } // namespace
+
+// Every preset has a Game, so every one fits its tiles to the picture.
+bool rv_editor_preset_fits_game(rv_editor_layout_preset)
+{
+    return true;
+}
 
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
 {
@@ -215,16 +245,17 @@ void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
     // The Game's area and the rectangles are the other tree's until the next draw.
     shell.ui.game_area = { 0, 0 };
     shell.ws.rects.clear();
-    shell.game_fit_tries = game_fit_attempts;
 }
 
 void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_preset preset)
 {
     shell.ws.layout = rv_editor_workspace_start(shell.ws.panes, preset);
     shell.ws.focused_leaf = rv_editor_tile_none;
+    shell.ws.focus_request = rv_editor_tile_none;
+    shell.ws.rects.clear();
+    shell.ws.dragged = false;
     shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
     shell.layout_untouched[rv_editor_workspace_slot(preset)] = true;
-    shell.game_fit_tries = game_fit_attempts;
     shell.ui.game_area = { 0, 0 };
 }
 
@@ -241,11 +272,14 @@ void rv_editor_shell_frame_start(rv_editor_shell &shell)
 {
     rv_editor_shell_take_layout_request(shell);
     // Untouched (reset/fresh preset, no splitter dragged since) and rects from
-    // the last draw of this very tree. Independent of game_fit: Debug does not
-    // fit the Game but its strips still fit.
+    // the last draw of this very tree. Independent of game_fit: a Game the user
+    // stopped fitting leaves the strips fitting.
     const size_t slot = rv_editor_workspace_slot(shell.active);
-    if (shell.layout_untouched[slot] && !shell.ws.dragged && shell.ws.rects.size() == shell.ws.layout.nodes.size()) {
-        rv_editor_shell_fit_strips(shell.ws);
+    if (shell.ws.rects.size() == shell.ws.layout.nodes.size()) {
+        rv_editor_shell_fit_strips(shell.ws, shell.layout_untouched[slot] && !shell.ws.dragged);
+        if (shell.layout_untouched[slot] && !shell.ws.dragged) {
+            rv_editor_shell_fit_files(shell.ws);
+        }
     }
     rv_editor_shell_fit_game(shell);
 }
@@ -259,52 +293,28 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
         shell.game_fit[slot] = false;
         shell.layout_untouched[slot] = false;
     }
-    const rv_editor_layout &layout = shell.ws.layout;
+    rv_editor_workspace &ws = shell.ws;
     const rv_editor_size area = shell.ui.game_area;
     // Nothing drawn yet (the start screen, no project, a tree just shown): wait.
-    if (!shell.game_fit[slot] || area.w <= 0 || area.h <= 0 || layout.maximized_leaf != rv_editor_tile_none ||
-        shell.ws.rects.size() != layout.nodes.size()) {
+    if (!shell.game_fit[slot] || area.w <= 0 || area.h <= 0 || ws.layout.maximized_leaf != rv_editor_tile_none ||
+        ws.rects.size() != ws.layout.nodes.size()) {
         return;
     }
-    uint32_t node = rv_editor_tile_none;
-    for (size_t i = 0; i < shell.ws.panes.panes.size() && node == rv_editor_tile_none; ++i) {
-        if (shell.ws.panes.panes[i].kind == rv_editor_pane_kind::game) {
-            node = rv_editor_tile_find(layout, static_cast<rv_editor_pane_id>(i));
+    for (size_t i = 0; i < ws.panes.panes.size(); ++i) {
+        // The registry holds every layout's panes: the Game of the shown tree, not the first one.
+        if (ws.panes.panes[i].kind == rv_editor_pane_kind::game &&
+            rv_editor_tile_find(ws.layout, static_cast<rv_editor_pane_id>(i)) != rv_editor_tile_none) {
+            rv_editor_fit_game_tree(ws,
+                static_cast<rv_editor_pane_id>(i),
+                area,
+                shell.app.project.screen_w,
+                shell.app.project.screen_h,
+                rv_editor_game_target_h(shell.active, ws.rects[ws.layout.root].h),
+                [&ws](uint32_t n) {
+                    return rv_editor_strip_leaf(ws, n) || rv_editor_strip_row(ws, n);
+                });
+            return;
         }
-    }
-    if (node == rv_editor_tile_none) {
-        return;
-    }
-    // Aspect ratio steps: gcd-reduced from screen dimensions.
-    // Fit finds the largest whole-step size (min of width/height divisions) that fits.
-    const int64_t sw = std::max<int64_t>(1, shell.app.project.screen_w);
-    const int64_t sh = std::max<int64_t>(1, shell.app.project.screen_h);
-    const int64_t step_w = sw / std::gcd(sw, sh);
-    const int64_t step_h = sh / std::gcd(sw, sh);
-    const int64_t w_steps = static_cast<int64_t>(area.w) / step_w;
-    const int64_t h_steps = static_cast<int64_t>(area.h) / step_h;
-    const int64_t gcd_val = std::gcd(sw, sh);
-    const int64_t steps = std::max(gcd_val, std::min(w_steps, h_steps));
-    const int32_t delta_w = static_cast<int32_t>(steps * step_w - area.w);
-    const int32_t delta_h = static_cast<int32_t>(steps * step_h - area.h);
-    if (delta_w == 0 && delta_h == 0) {
-        shell.game_fit_tries = game_fit_attempts;
-        return;
-    }
-    // Eight tries to settle, then the tree is left alone: minimums may allow no exact fit.
-    if (shell.game_fit_tries == 0) {
-        shell.game_fit[slot] = false;
-        return;
-    }
-    --shell.game_fit_tries;
-    // Width first; if stuck, try height. Guard bottom row only when growing height.
-    const bool held = area.w == shell.game_fit_last.w && area.h == shell.game_fit_last.h;
-    shell.game_fit_last = area;
-    if (delta_w != 0 && !held && rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::x, delta_w, false) == RV_OK) {
-        return;
-    }
-    if (delta_h != 0) {
-        (void)rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::y, delta_h, true);
     }
 }
 

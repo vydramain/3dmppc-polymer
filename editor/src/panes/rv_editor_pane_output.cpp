@@ -18,10 +18,13 @@
 #include "pdk/rv_err.h"
 
 #include "font/rv_editor_font.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
@@ -66,8 +69,6 @@ constexpr std::string_view sources_separator = ", ";
 // Capitalized build source name, from rv_editor_log_source_name with capital=true.
 constexpr std::string_view build_source_capitalized = "Build";
 constexpr std::string_view build_number_separator = " #";
-// Dropped lines flow: horizontal space multiplier in font sizes.
-constexpr float dropped_lines_flow_width_em = 16.0f;
 // Width measurement: sample character for monospace cell width.
 constexpr std::string_view char_width_sample = "0";
 // Message column: array index in view.columns[].
@@ -130,20 +131,21 @@ std::string rv_editor_output_lower(std::string s)
     return s;
 }
 
-// The view's own choice of lines: sources, level, search.
-bool rv_editor_output_passes(const rv_editor_output_view &view, const rv_editor_log_line &line, const std::string &needle)
+// What keeps a line of the view's run (all of them when no run is picked) out of sight, the first of the filters in the order
+// they stand (the enum's), or `none`.
+rv_editor_output_filter
+rv_editor_output_hider(const rv_editor_output_view &view, const rv_editor_log_line &line, const std::string &needle)
 {
-    if (view.run_pid != 0) {
-        if (line.pid != view.run_pid) {
-            return false;
-        }
-    } else if (!view.show[static_cast<size_t>(line.source)]) {
-        return false;
+    if (view.run_pid == 0 && !view.show[static_cast<size_t>(line.source)]) {
+        return rv_editor_output_filter::source;
     }
     if (line.level < view.level) {
-        return false;
+        return rv_editor_output_filter::level;
     }
-    return needle.empty() || rv_editor_output_lower(line.text).find(needle) != std::string::npos;
+    if (!needle.empty() && rv_editor_output_lower(line.text).find(needle) == std::string::npos) {
+        return rv_editor_output_filter::find;
+    }
+    return line.seq < view.hide_before ? rv_editor_output_filter::clear_view : rv_editor_output_filter::none;
 }
 
 // The line as Copy and Export write it, pid and channel named after the source.
@@ -184,13 +186,12 @@ int rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_edito
     return RV_OK;
 }
 
-// Time, Lvl, Source and Message over the lines, in the UI font but at the cells'
+// Time, Lvl, Source and Message over the lines, `h` high, in the UI font but at the cells'
 // code-font x positions below; the borders between them drag.
-void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_editor_theme &theme)
+void rv_editor_output_header(rv_editor_output_view &view, float cell, float h, const rv_editor_theme &theme)
 {
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
-    const float h = ImGui::GetTextLineHeight() + header_height_padding_px;
     const float w = ImGui::GetContentRegionAvail().x;
     dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + h), rv_editor_col(theme.code_base));
     dl->AddLine(ImVec2(p0.x, p0.y + h - 1.0f), ImVec2(p0.x + w, p0.y + h - 1.0f), rv_editor_col(theme.code_surface));
@@ -224,7 +225,8 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_e
         }
     }
     dl->PopClipRect();
-    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + h));
+    // The dummy's own spacing lands the cursor on the header's bottom: the area follows with no gap.
+    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + h - ImGui::GetStyle().ItemSpacing.y));
     ImGui::Dummy(ImVec2(0.0f, 0.0f));
 }
 
@@ -278,6 +280,24 @@ std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id p
     return std::string(rv_editor_text("pane_output.title_prefix")) + what;
 }
 
+namespace
+{
+
+// The widest row of a log tile: the shelf's, or the message box's.
+float rv_editor_output_content_width()
+{
+    return std::max(rv_editor_tiled_shelf_width(rv_editor_output_controls_width()), rv_editor_message_strip_min_width({}));
+}
+
+} // namespace
+
+rv_editor_size rv_editor_output_minimum()
+{
+    const float header = ImGui::GetTextLineHeight() + header_height_padding_px;
+    return rv_editor_tiled_minimum(rv_editor_output_content_width(),
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(false, 1) + header);
+}
+
 void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
 {
     rv_editor_output_view &view = app.outputs[pane];
@@ -291,42 +311,24 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     rv_editor_output_controls(app, view, copy, exporting, theme);
     rv_editor_shelf_end();
 
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-
     // The lines, and what the filters keep out of sight.
     const std::string needle = rv_editor_output_lower(view.search);
     std::vector<const rv_editor_log_line *> shown;
-    size_t hidden_errors = 0;
-    size_t hidden_warnings = 0;
+    auto first_hider = rv_editor_output_filter::none;
     size_t run_lines = 0;
+    size_t in_view = 0;
     for (const rv_editor_log_line &line : log.lines()) {
         run_lines += line.pid == view.run_pid ? 1 : 0;
-        if (line.seq < view.hide_before) {
-            continue;
+        if (view.run_pid != 0 && line.pid != view.run_pid) {
+            continue; // another run's: not this view's, so not counted as hidden
         }
-        if (rv_editor_output_passes(view, line, needle)) {
+        ++in_view;
+        const rv_editor_output_filter hider = rv_editor_output_hider(view, line, needle);
+        if (hider == rv_editor_output_filter::none) {
             shown.push_back(&line);
-        } else if (line.source != rv_editor_log_source::protocol) {
-            hidden_errors += line.level == rv_editor_log_level::error ? 1 : 0;
-            hidden_warnings += line.level == rv_editor_log_level::warning ? 1 : 0;
+        } else {
+            first_hider = std::min(first_hider, hider);
         }
-    }
-    if (view.run_pid != 0 && run_lines == 0) {
-        const std::string msg = rv_editor_text_format("pane_output.status_no_lines", std::make_format_args(view.run_label));
-        rv_editor_status(msg.c_str(), rv_editor_status_kind::idle, theme);
-    }
-    if (hidden_errors + hidden_warnings != 0) {
-        const std::string hidden =
-            rv_editor_text_format("pane_output.status_hidden", std::make_format_args(hidden_errors, hidden_warnings));
-        rv_editor_status(hidden.c_str(),
-            hidden_errors != 0 ? rv_editor_status_kind::error : rv_editor_status_kind::warning,
-            theme);
-    }
-    if (log.dropped() != 0) {
-        rv_editor_flow(ImGui::GetFontSize() * dropped_lines_flow_width_em);
-        const unsigned long long dropped = log.dropped();
-        const std::string msg = rv_editor_text_format("pane_output.info_dropped", std::make_format_args(dropped));
-        rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme);
     }
     const auto picked = [&view](const rv_editor_log_line &line) {
         return view.picked_from != 0 && line.seq >= std::min(view.picked_from, view.picked_to) &&
@@ -350,19 +352,38 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     if (exporting) {
         (void)rv_editor_output_export(app, shown, view.exported);
     }
-    if (!view.exported.empty()) {
-        rv_editor_path_row(rv_editor_text("pane_output.label_exported"), view.exported, theme);
-    }
 
-    // The lines draw in the code font; the header takes its cell width from it.
+    // What the lines do not say is the strip's under the lines, drawn only with a note.
+    std::string notes;
+    const auto note = [&notes](const std::string &text) {
+        notes += (notes.empty() ? "" : "  ") + text;
+    };
+    if (view.run_pid != 0 && run_lines == 0) {
+        note(rv_editor_text_format("pane_output.status_no_lines", std::make_format_args(view.run_label)));
+    }
+    if (log.dropped() != 0) {
+        const unsigned long long dropped = log.dropped();
+        note(rv_editor_text_format("pane_output.info_dropped", std::make_format_args(dropped)));
+    }
+    if (!view.exported.empty()) {
+        note(std::string(rv_editor_text("pane_output.label_exported")) + ": " + view.exported);
+    }
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_output_content_width());
+    const float strip_h = rv_editor_message_strip_height(notes, {}, strip_w, false, 1);
+
+    // The header's height is the UI font's; the lines draw in the code font and the header takes its cell width from it.
+    const float header_h = ImGui::GetTextLineHeight() + header_height_padding_px;
     rv_editor_font_code_push();
     const float cell = ImGui::CalcTextSize(char_width_sample.data()).x;
-    rv_editor_output_header(view, cell, theme);
+    rv_editor_font_code_pop();
+    rv_editor_output_header(view, cell, header_h, theme);
     const float at_level = cell * view.columns[0];
     const float at_source = at_level + cell * view.columns[1];
     const float at_message = at_source + cell * view.columns[message_column_index];
 
-    rv_editor_log_begin("##lines", ImVec2(0, 0), theme);
+    // The area is measured in the UI font like the minimum; its rows are in the code font.
+    (void)rv_editor_tiled_area_begin("##lines", rv_editor_output_content_width(), theme, {}, false, 0.0f, strip_h);
+    rv_editor_font_code_push();
     const float line_h = ImGui::GetTextLineHeight();
     // Less the half cell each row starts in by, and as much again on the right.
     const float wrap_w = std::max(cell * wrap_width_min_cells, ImGui::GetContentRegionAvail().x - at_message - cell);
@@ -382,11 +403,12 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     const uint32_t hovered_color = (code_surface_col & ~IM_COL32_A_MASK) | hovered_alpha_channel;
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, hovered_color);
     ImGui::PushStyleColor(ImGuiCol_HeaderActive, code_surface_col);
-    const auto row = [&](const rv_editor_log_line &line) {
+    // The row id is its place among the shown lines, so a line dropped from the log does not rename the others.
+    const auto row = [&](const rv_editor_log_line &line, size_t place) {
         const float h = view.wrap ? std::max(line_h, ImGui::CalcTextSize(line.text.c_str(), nullptr, false, wrap_w).y) : line_h;
         const ImVec2 start = ImGui::GetCursorPos();
         const float x = start.x + cell * half_cell;
-        ImGui::PushID(static_cast<int>(line.seq));
+        ImGui::PushID(static_cast<int>(place));
         if (ImGui::Selectable("##row", picked(line), ImGuiSelectableFlags_AllowOverlap, ImVec2(0.0f, h))) {
             if (ImGui::GetIO().KeyShift && view.picked_from != 0) {
                 view.picked_to = line.seq;
@@ -426,25 +448,28 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         ImGui::SetCursorPos(start);
         ImGui::Dummy(ImVec2(0.0f, h));
     };
-    if (view.wrap) {
+    if (shown.empty()) {
+        rv_editor_output_empty_row(view, in_view, first_hider, theme);
+    } else if (view.wrap) {
         // Rows of different heights: those out of sight only take their room.
         const float top = ImGui::GetScrollY();
         const float bottom = top + ImGui::GetWindowHeight();
-        for (const rv_editor_log_line *line : shown) {
+        for (size_t place = 0; place < shown.size(); ++place) {
+            const rv_editor_log_line *line = shown[place];
             const float y = ImGui::GetCursorPosY();
             const float guess = rows_of(*line) * line_h;
             if (y + guess < top || y > bottom) {
                 ImGui::Dummy(ImVec2(0.0f, guess));
                 continue;
             }
-            row(*line);
+            row(*line, place);
         }
     } else {
         ImGuiListClipper clipper;
         clipper.Begin(static_cast<int>(shown.size()));
         while (clipper.Step()) {
             for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
-                row(*shown[static_cast<size_t>(i)]);
+                row(*shown[static_cast<size_t>(i)], static_cast<size_t>(i));
             }
         }
     }
@@ -458,12 +483,22 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     if (view.follow && ImGui::IsWindowHovered() && ImGui::GetIO().MouseWheel > 0.0f) {
         view.follow = false;
     }
-    if (view.follow && ImGui::GetScrollY() < ImGui::GetScrollMaxY()) {
+    if (view.follow) {
         ImGui::SetScrollHereY(1.0f);
     }
-    rv_editor_log_end(theme);
     rv_editor_font_code_pop();
-    rv_editor_well_end();
+    rv_editor_tiled_area_end(theme);
+    (void)rv_editor_message_strip("##strip",
+        notes,
+        rv_editor_label_kind::normal,
+        {},
+        theme,
+        strip_w,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        1);
 }
 
 } // namespace rv_editor

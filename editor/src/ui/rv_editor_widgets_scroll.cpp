@@ -5,8 +5,10 @@
 #include <cmath>
 #include <vector>
 
+#include "imgui_internal.h"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
+#include "ui/rv_editor_item_hook.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -26,6 +28,7 @@ struct rv_editor_scroll_frame {
     bool show_v;
     bool show_h;
     float bar;
+    float content_prev; // the content width of the last frame
 };
 
 // Multiplier: arrow scrolling step is text line height scaled by three.
@@ -185,6 +188,7 @@ bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal, ImGuiC
     // makes one bar's width summon the other bar and the two blink in turn.
     const float cw = store.GetFloat(f.content_w, 0.0f);
     const float ch = store.GetFloat(f.content_h, 0.0f);
+    f.content_prev = cw;
     const float aw = f.max.x - f.min.x;
     const float ah = f.max.y - f.min.y;
     const bool h0 = horizontal && cw > aw + scrollbar_visibility_epsilon;
@@ -206,7 +210,15 @@ bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal, ImGuiC
         flags |= ImGuiWindowFlags_HorizontalScrollbar;
     }
     rv_editor_scroll_stack.push_back(f);
-    return ImGui::BeginChild("##scroll", ImVec2(std::max(1.0f, inner.x), std::max(1.0f, inner.y)), child_flags, flags);
+    const bool open =
+        ImGui::BeginChild("##scroll", ImVec2(std::max(1.0f, inner.x), std::max(1.0f, inner.y)), child_flags, flags);
+    rv_editor_item_scroll_area();
+    return open;
+}
+
+float rv_editor_scroll_content_width()
+{
+    return rv_editor_scroll_stack.back().content_prev;
 }
 
 void rv_editor_scroll_end(const rv_editor_theme &theme)
@@ -218,11 +230,20 @@ void rv_editor_scroll_end(const rv_editor_theme &theme)
     const float mx = ImGui::GetScrollMaxX();
     const float my = ImGui::GetScrollMaxY();
     const ImVec2 view = ImGui::GetWindowSize();
+    // What this frame drew, not ImGui's ScrollMax (which is last frame's), so the bars show one frame sooner.
+    const ImGuiWindow *w = ImGui::GetCurrentWindow();
+    const float drawn_w = w->DC.CursorMaxPos.x - w->DC.CursorStartPos.x + w->WindowPadding.x * 2.0f;
+    const float drawn_h = w->DC.CursorMaxPos.y - w->DC.CursorStartPos.y + w->WindowPadding.y * 2.0f;
+    const ImVec2 chrome(view.x - w->InnerRect.GetWidth(), view.y - w->InnerRect.GetHeight());
+    // A child out of view draws nothing, so it measures nothing: its last size stays.
+    const bool measured = !w->SkipItems;
     ImGui::EndChild();
 
     ImGuiStorage &store = rv_editor_scroll_store();
-    store.SetFloat(f.content_w, mx + view.x);
-    store.SetFloat(f.content_h, my + view.y);
+    if (measured) {
+        store.SetFloat(f.content_w, std::max(view.x, drawn_w + chrome.x));
+        store.SetFloat(f.content_h, std::max(view.y, drawn_h + chrome.y));
+    }
     if (f.show_v) {
         const ImVec2 a(f.max.x - f.bar, f.min.y);
         const ImVec2 b(f.max.x, f.max.y - (f.show_h ? f.bar : 0.0f));

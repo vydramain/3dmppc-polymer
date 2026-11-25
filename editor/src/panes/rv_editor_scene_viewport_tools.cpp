@@ -56,34 +56,8 @@ constexpr double perspective_view_yaw = 30.0;
 constexpr double perspective_view_pitch = 25.0;
 constexpr double top_view_pitch = 89.9;
 constexpr double right_view_yaw = -90.0;
-constexpr float dropdown_width_factor = 5.0f;
 // Blank space between toolbar groups, in font sizes.
 constexpr float group_gap_factor = 0.5f;
-
-// Snap steps in scene units. Each is rounded to raw when the camera or the dropdown takes it: 0.1 is raw 410
-// (0.10009765625), and the drag snaps to that step.
-constexpr const char *snap_step_labels[] = { "0.1", "0.25", "0.5", "1" };
-constexpr double snap_step_values[] = { 0.1, 0.25, 0.5, 1.0 };
-static_assert(std::size(snap_step_labels) == std::size(snap_step_values),
-    "snap_step_labels and snap_step_values must have equal size");
-// Default snap step choice index (0.25 matches camera_snap_step_default in editor/src/app/rv_editor_app_parts.hpp).
-constexpr int default_snap_step_index = 1;
-
-// The Toolchest tools in rv_editor_scene_tool order. The letters repeat the keys that pick them in
-// rv_editor_scene_viewport.cpp; the ids are unique tile labels, never drawn.
-struct rv_editor_scene_tool_option {
-    const char *code;
-    const char *id;
-    const char *name_id;
-};
-constexpr rv_editor_scene_tool_option scene_tool_options[] = {
-    { "Q", "##tool_select", "scene_tools.tool_select" },
-    { "W", "##tool_move", "scene_tools.tool_move" },
-    { "E", "##tool_rotate", "scene_tools.tool_rotate" },
-    { "R", "##tool_scale", "scene_tools.tool_scale" },
-};
-static_assert(std::size(scene_tool_options) == static_cast<size_t>(rv_editor_scene_tool::scale) + 1,
-    "scene_tool_options needs one entry per rv_editor_scene_tool");
 
 // One checkbox per layer of the scene; a layer switched off is not drawn or selected.
 void rv_editor_scene_layers_menu(rv_editor_scene_doc &doc, const rv_editor_theme &theme)
@@ -159,7 +133,10 @@ float rv_editor_scene_dropdown_width(const char *const items[], int count)
 void rv_editor_scene_view_select(rv_editor_scene_camera &cam, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(rv_editor_text("scene_tools.view_label"), rv_editor_label_kind::normal, theme);
+    rv_editor_label(rv_editor_text("scene_tools.view_label"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::line);
     const char *names[std::size(scene_views)];
     for (size_t i = 0; i < std::size(scene_views); ++i) {
         names[i] = rv_editor_text(scene_views[i].label_id);
@@ -185,7 +162,7 @@ void rv_editor_scene_shading_select(rv_editor_scene_camera &cam, const rv_editor
     const char *label = rv_editor_text("scene_tools.shading_label");
     rv_editor_flow(ImGui::CalcTextSize(label).x);
     ImGui::AlignTextToFramePadding();
-    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
     const char *names[std::size(scene_shadings)];
     int current = 0;
     for (size_t i = 0; i < std::size(scene_shadings); ++i) {
@@ -209,27 +186,6 @@ void rv_editor_scene_group_gap()
     const float gap = ImGui::GetFontSize() * group_gap_factor;
     rv_editor_flow(gap);
     ImGui::Dummy(ImVec2(gap, 0.0f));
-}
-
-// The dropdown item the camera's snap step is at, by raw match. Index is set only on a match: untouched on no match
-// and on error (warning logged once); the caller pre-sets the default.
-[[nodiscard]] int rv_editor_snap_step_index(const rv_editor_scene_camera &cam, int &index)
-{
-    // Once per process: the dropdown is drawn every frame.
-    static bool reported = false;
-    for (int i = 0; i < std::ssize(snap_step_values); ++i) {
-        bool at = false;
-        if (rv_editor_camera_snap_at(cam, snap_step_values[i], at) != RV_OK) {
-            rv_editor_warn_once(reported,
-                "the camera snap step or a snap value is outside Q20.12: the dropdown shows the default");
-            return RV_ERR_INVAL;
-        }
-        if (at) {
-            index = i;
-            return RV_OK;
-        }
-    }
-    return RV_OK;
 }
 
 } // namespace
@@ -460,49 +416,24 @@ void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, co
     }
 }
 
-void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port &ui)
+float rv_editor_scene_toolbar_width()
 {
-    rv_editor_scene_camera cam = ui.state.scene_camera;
-    // Row 1: the tools as small tiles in a line; the tool in use is filled. The tooltip is the name, with its key.
-    for (int t = 0; t < std::ssize(scene_tool_options); ++t) {
-        const rv_editor_scene_tool_option &option = scene_tool_options[t];
-        const rv_editor_scene_tool tool = static_cast<rv_editor_scene_tool>(t);
-        const rv_editor_tile tile{ .label = option.id,
-            .code = option.code,
-            .color = theme.text,
-            .name = rv_editor_text(option.name_id),
-            .selected = cam.tool == tool };
-        if (t > 0) {
-            ImGui::SameLine();
-        }
-        if (rv_editor_tile_button(tile, rv_editor_tile_size::small, theme)) {
-            cam.tool = tool;
-        }
+    const char *views[std::size(scene_views)];
+    for (size_t i = 0; i < std::size(scene_views); ++i) {
+        views[i] = rv_editor_text(scene_views[i].label_id);
     }
-    // Row 2: Snap, its step and Grid in a line.
-    const char *snap_label = rv_editor_text("scene_tools.snap_label");
-    rv_editor_checkbox(snap_label, &cam.snap, theme);
-    rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_tooltip"));
-    ImGui::SameLine();
-    int step = default_snap_step_index;
-    // On error the dropdown keeps the default (the warning is logged).
-    if (rv_editor_snap_step_index(cam, step) != RV_OK) {
-        step = default_snap_step_index;
+    const char *shadings[std::size(scene_shadings)];
+    for (size_t i = 0; i < std::size(scene_shadings); ++i) {
+        shadings[i] = rv_editor_text(scene_shadings[i].label_id);
     }
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * dropdown_width_factor);
-    if (rv_editor_dropdown("##snapstep", &step, snap_step_labels, std::ssize(snap_step_labels), theme)) {
-        if (rv_editor_camera_pick_snap(cam, snap_step_values[step]) != RV_OK) {
-            RV_LOG_WARN(scene_log_tag, "the picked snap step is outside Q20.12: the step is not changed");
-        }
-    }
-    rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_step_tooltip"));
-    ImGui::SameLine();
-    const char *grid_label = rv_editor_text("scene_tools.grid_label");
-    rv_editor_checkbox(grid_label, &cam.grid, theme);
-    const bool changed = cam != ui.state.scene_camera;
-    if (changed) {
-        ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
-    }
+    // View: and its dropdown, seven buttons, two group gaps, Shade: and its dropdown: thirteen items, twelve spacings.
+    constexpr float buttons = 7.0f;
+    constexpr float gaps = 2.0f;
+    constexpr float spacings = 12.0f;
+    return ImGui::CalcTextSize(rv_editor_text("scene_tools.view_label")).x +
+        rv_editor_scene_dropdown_width(views, std::ssize(scene_views)) + buttons * ImGui::GetFrameHeight() +
+        gaps * ImGui::GetFontSize() * group_gap_factor + ImGui::CalcTextSize(rv_editor_text("scene_tools.shading_label")).x +
+        rv_editor_scene_dropdown_width(shadings, std::ssize(scene_shadings)) + spacings * ImGui::GetStyle().ItemSpacing.x;
 }
 
 } // namespace rv_editor

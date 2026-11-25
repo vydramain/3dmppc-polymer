@@ -118,6 +118,7 @@ build-dev/pconsole/
     3dmppc          the console: --dev, loose disc directories, reload
     3dmppc-editor   the editor
     mppcburner      compiles a disc directory and burns a .mppcdisc
+    mppcinspector   checks a disc directory's sources; exit 0 clean, 1 errors, 2 failed run
     mppctexbaker    bakes a PNG into a console texture (.mppctex)
     mppcmusbaker    bakes a WAV into console sound (.pcm)
     mppcmodbaker    bakes a glTF 2.0 model (.glb, or .gltf with its .bin and PNGs) into a .mppcmod and its PNG textures
@@ -266,8 +267,8 @@ appears. The screen waits for a press, and then the console exits with code 1.
 
 The window comes before the disc is chosen, built-in or by path, and has nothing to do with the
 disc. With `--mode_cv=null` or `--frame-fd` there is no window, so no screen and no
-wait: the lines are only in the log. In the browser the screen is the same, and its lines
-also go to the browser console.
+wait: the lines are only in the log. In the browser the screen is the same, and the log lines
+also go to the browser console, by their level (debug, info, warn, error).
 
 The texts are in `src/texts/rv_console_texts.toml`, section `[boot]`. They are built into the
 console, so a translation is an edit of that file followed by a rebuild.
@@ -292,21 +293,34 @@ reason.
 In a browser with WebHID (the page's access to HID devices, such as gamepads) and JSPI
 (a way for WebAssembly to wait for the browser), the page shows a button at the
 bottom right, labelled with the value of `allow_gamepads` in `rv_web_texts.txt`
-("Allow gamepads" by default). The boot journal advises Chrome or Edge 137 or newer.
+("Allow gamepads" by default).
 The click asks for the gamepads the browser offers. A gamepad granted this way gets the
 driver SDL has for that model, which gives motion sensors and touchpads where that driver
 supports them; this is not checked on real hardware yet. Gamepads granted earlier open at
 page load, without a prompt. A declined request is not an error.
 
 Without WebHID or JSPI, gamepads use the browser's standard Gamepad API (the common browser
-interface for gamepads), with no motion sensors or touchpads. The boot check logs
-`pcboot: cio: warning` with its advice, and the start screen stops at that report until a
-key, a mouse button or a gamepad button is pressed (see "Start screen").
+interface for gamepads), with no motion sensors or touchpads. The log gets one info line
+about it, and the boot check stays ok, so the start screen does not stop.
 
-On a phone or tablet the page draws an on-screen gamepad over the console. A phone is a
-coarse pointer without hover, so a touch laptop and a computer get no pad. The groups come
-from the `show` list of `[touch_pad]` in the disc (see [disc.toml](#disctoml)). On iOS the
-motion sensors ask for permission when the console starts on the first touch or key press.
+When a DualShock 4, DualSense, Switch Pro or Joy-Con connects without its motion sensors or
+touchpad, the log gets one warning that names what the pad lacks and how to get it: the
+page's gamepad button, when WebHID and JSPI are there, otherwise Chrome or Edge 137 or newer
+on a computer. The warning is only in the log, not on the screen.
+
+On a phone or tablet the page draws an on-screen gamepad over the console. The page takes
+itself for a phone when the main pointer is coarse without hover, or the browser calls
+itself mobile (userAgentData.mobile, or Android, iPhone, iPad, iPod or Mobi in the user
+agent), or it is an iPad with touch that sends a Macintosh user agent. A touch laptop and
+a computer with a desktop user agent get no pad. The groups come from the `show` list of
+`[touch_pad]` in the disc (see [disc.toml](#disctoml)). A stick takes its centre where the
+finger lands, and its cap is drawn under the finger and follows it up to the stick's
+travel; past that the value is clipped to the circle (the console applies the dead zone).
+A pressed plate sinks like a pressed button of the editor: an opaque dark fill and the
+label nudged by a pixel. A trackpad shows the finger while it touches, and a released L2
+or R2 reads 0. The page scripts have their own checks, run with
+`node --test src/web/tests/` (the built-in `node:test`, no dependencies). On iOS the motion
+sensors ask for permission when the console starts on the first touch or key press.
 Vibration works where the browser has `navigator.vibrate`; in practice these are Android
 browsers. The web build requires WebGL 2 (`-sMIN_WEBGL_VERSION=2`); a browser without it
 cannot create the canvas context.
@@ -614,12 +628,12 @@ the script that demonstrates it.
 
 ### What an acceptance run has to prove
 
-The console carries no test code, so the harness that checks this runtime lives
-outside the repository — it builds both configurations from a working tree,
-drives the channel over a fifo so the disc can be EDITED mid-run, and asserts on
-protocol lines rather than on log text. What stays here is the list it has to
-satisfy, because that list is a property of the contract above and not of
-whoever wrote the script:
+The console carries no test code (the page scripts in `src/web` have their own node tests,
+see above), so the harness that checks this runtime lives outside the repository — it
+builds both configurations from a working tree, drives the channel over a fifo so the disc
+can be EDITED mid-run, and asserts on protocol lines rather than on log text. What stays
+here is the list it has to satisfy, because that list is a property of the contract above
+and not of whoever wrote the script:
 
 1. Both configurations build, and both burn and boot an ordinary disc.
 2. The player build contains no verb of the protocol and no hex encoder for
@@ -764,6 +778,16 @@ way `build`'s own plan would - same format and the same `[budget]` size check.
 It writes `-o` only once baking succeeds, so a refusal never leaves a partial
 file, and prints the entry's disc name (what `--map` would call it) as the
 only line on stdout.
+
+Before it compiles anything, `build` runs `mppcinspector <disc> [--report PATH]` on the
+disc directory: it prints each finding as `file:line: error|warning: text [rule, key ...]`
+and exits 0 when there is no error finding, 1 when there are errors (the build is then
+refused) and 2 on a usage error or a failed run. The editor runs it too and shows the
+findings in Problems.
+
+Every PDK tool also prints its progress on stderr as one `<tool>: [plan] ...`
+line, `<tool>: [n/N] <step> <detail>` lines and one `<tool>: [end] ok` or
+`[end] failed: <reason>` line; `pdk/tools/README.md` has the steps of each tool.
 
 The burner refuses rather than shipping something broken: a texture larger than
 the console allows, assets that overflow the virtual VRAM, or two assets whose

@@ -1,0 +1,2 @@
+scenes/main.scene.toml:16: error: component 'name' names an unknown object '5ce00002' [scene-parse]
+1 error(s), 0 warning(s)

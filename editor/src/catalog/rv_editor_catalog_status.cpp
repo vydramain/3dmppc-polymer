@@ -1,5 +1,4 @@
-// Catalog section: menus, context menu, dialog, status indicators, log rows and
-// the transport bar.
+// Catalog section: menus, context menu and status indicators.
 
 #include "catalog/rv_editor_catalog.hpp"
 #include "text/rv_editor_text.hpp"
@@ -10,12 +9,6 @@ namespace rv_editor
 
 namespace
 {
-
-// Number of text lines to display in the log area
-constexpr float log_display_rows = 4.0f;
-
-// Multiplier for vertical padding in log display (applied to WindowPadding.y)
-constexpr float log_padding_y_multiplier = 2.0f;
 
 enum class rv_editor_status_view {
     compact,
@@ -31,173 +24,137 @@ struct rv_editor_status_values {
 
 rv_editor_status_values rv_editor_status_data;
 
-void rv_editor_catalog_menus()
+// The menus are two to a bar from this width in font sizes down, so none runs past the tile's edge.
+constexpr float menus_one_bar_em = 30.0f;
+
+void rv_editor_catalog_menu_file()
 {
-    ImGui::BeginChild("##menus",
-        ImVec2(0.0f, 0.0f),
-        ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
-        ImGuiWindowFlags_MenuBar);
-    if (rv_editor_menu_bar_begin()) {
-        if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_file"), nullptr)) {
-            rv_editor_menu_item(rv_editor_text("catalog_status.menu_new_project"),
-                rv_editor_text("catalog_status.shortcut_new_project"),
-                nullptr);
-            rv_editor_menu_item(rv_editor_text("catalog_status.menu_open_project"),
-                rv_editor_text("catalog_status.shortcut_open_project"),
-                nullptr);
-            ImGui::Separator();
-            rv_editor_menu_item(rv_editor_text("catalog_status.menu_save_all"),
-                rv_editor_text("catalog_status.shortcut_save_all"),
-                rv_editor_text("catalog_status.save_all_why_not"));
-            rv_editor_menu_end();
-        }
-        if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_scene"), nullptr)) {
-            rv_editor_menu_check(rv_editor_text("catalog_status.menu_scene_snap"),
-                nullptr,
-                &rv_editor_status_data.snap,
-                nullptr);
-            rv_editor_menu_check(rv_editor_text("catalog_status.menu_scene_grid"),
-                nullptr,
-                &rv_editor_status_data.grid,
-                rv_editor_text("catalog_status.scene_grid_why_not"));
-            rv_editor_menu_end();
-        }
-        if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_view"), nullptr)) {
-            if (rv_editor_menu_choice(rv_editor_text("catalog_status.view_compact"),
-                    nullptr,
-                    rv_editor_status_data.view == rv_editor_status_view::compact,
-                    nullptr)) {
-                rv_editor_status_data.view = rv_editor_status_view::compact;
-            }
-            if (rv_editor_menu_choice(rv_editor_text("catalog_status.view_comfortable"),
-                    nullptr,
-                    rv_editor_status_data.view == rv_editor_status_view::comfortable,
-                    nullptr)) {
-                rv_editor_status_data.view = rv_editor_status_view::comfortable;
-            }
-            if (rv_editor_menu_choice(rv_editor_text("catalog_status.view_spacious"),
-                    nullptr,
-                    rv_editor_status_data.view == rv_editor_status_view::spacious,
-                    rv_editor_text("catalog_status.view_spacious_why_not"))) {
-                rv_editor_status_data.view = rv_editor_status_view::spacious;
-            }
-            rv_editor_menu_end();
-        }
-        if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_run"), rv_editor_text("catalog_status.run_why_not"))) {
-            rv_editor_menu_end();
-        }
-        rv_editor_menu_bar_end();
-    }
-    ImGui::TextUnformatted(rv_editor_text("catalog_status.context_help"));
-    if (rv_editor_window_context_menu_begin("##context")) {
-        rv_editor_menu_item(rv_editor_text("catalog_status.context_rename"),
-            rv_editor_text("catalog_status.shortcut_context_rename"),
+    if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_file"), nullptr)) {
+        rv_editor_menu_item(rv_editor_text("catalog_status.menu_new_project"),
+            rv_editor_text("catalog_status.shortcut_new_project"),
             nullptr);
-        rv_editor_menu_item(rv_editor_text("catalog_status.context_delete"),
-            rv_editor_text("catalog_status.shortcut_context_delete"),
+        rv_editor_menu_item(rv_editor_text("catalog_status.menu_open_project"),
+            rv_editor_text("catalog_status.shortcut_open_project"),
             nullptr);
-        rv_editor_window_context_menu_end();
+        ImGui::Separator();
+        rv_editor_menu_item(rv_editor_text("catalog_status.menu_save_all"),
+            rv_editor_text("catalog_status.shortcut_save_all"),
+            rv_editor_text("catalog_status.save_all_why_not"));
+        rv_editor_menu_end();
     }
-    ImGui::EndChild();
 }
 
-// The area that asks inside a pane, as a question about unsaved files shows it:
-// the editor has no modal dialogs.
-void rv_editor_catalog_dialog(const rv_editor_theme &t)
+void rv_editor_catalog_menu_scene()
 {
-    rv_editor_ask_begin(rv_editor_text("catalog_status.dialog_unsaved_title"), t);
-    ImGui::TextUnformatted(rv_editor_text("catalog_status.dialog_unsaved_message"));
-    rv_editor_button(rv_editor_text("catalog_status.dialog_button_save"), t);
-    ImGui::SameLine();
-    rv_editor_button(rv_editor_text("catalog_status.dialog_button_discard"), t);
-    ImGui::SameLine();
-    rv_editor_button(rv_editor_text("catalog_status.dialog_button_keep_open"), t);
-    rv_editor_ask_end();
+    if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_scene"), nullptr)) {
+        rv_editor_menu_check(rv_editor_text("catalog_status.menu_scene_snap"), nullptr, &rv_editor_status_data.snap, nullptr);
+        rv_editor_menu_check(rv_editor_text("catalog_status.menu_scene_grid"),
+            nullptr,
+            &rv_editor_status_data.grid,
+            rv_editor_text("catalog_status.scene_grid_why_not"));
+        rv_editor_menu_end();
+    }
+}
+
+void rv_editor_catalog_menu_view()
+{
+    if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_view"), nullptr)) {
+        if (rv_editor_menu_choice(rv_editor_text("catalog_status.view_compact"),
+                nullptr,
+                rv_editor_status_data.view == rv_editor_status_view::compact,
+                nullptr)) {
+            rv_editor_status_data.view = rv_editor_status_view::compact;
+        }
+        if (rv_editor_menu_choice(rv_editor_text("catalog_status.view_comfortable"),
+                nullptr,
+                rv_editor_status_data.view == rv_editor_status_view::comfortable,
+                nullptr)) {
+            rv_editor_status_data.view = rv_editor_status_view::comfortable;
+        }
+        if (rv_editor_menu_choice(rv_editor_text("catalog_status.view_spacious"),
+                nullptr,
+                rv_editor_status_data.view == rv_editor_status_view::spacious,
+                rv_editor_text("catalog_status.view_spacious_why_not"))) {
+            rv_editor_status_data.view = rv_editor_status_view::spacious;
+        }
+        rv_editor_menu_end();
+    }
+}
+
+void rv_editor_catalog_menu_run()
+{
+    if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_run"), rv_editor_text("catalog_status.run_why_not"))) {
+        rv_editor_menu_end();
+    }
+}
+
+void rv_editor_catalog_menus()
+{
+    const bool narrow = ImGui::GetContentRegionAvail().x < menus_one_bar_em * ImGui::GetFontSize();
+    const int bars = narrow ? 2 : 1;
+    for (int bar = 0; bar < bars; ++bar) {
+        ImGui::PushID(bar);
+        ImGui::BeginChild("##menus",
+            ImVec2(0.0f, 0.0f),
+            ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
+            ImGuiWindowFlags_MenuBar);
+        if (rv_editor_menu_bar_begin()) {
+            if (bar == 0) {
+                rv_editor_catalog_menu_file();
+                rv_editor_catalog_menu_scene();
+            }
+            if (bar == bars - 1) {
+                rv_editor_catalog_menu_view();
+                rv_editor_catalog_menu_run();
+            }
+            rv_editor_menu_bar_end();
+        }
+        if (bar == bars - 1) {
+            ImGui::TextWrapped("%s", rv_editor_text("catalog_status.context_help"));
+            if (rv_editor_window_context_menu_begin("##context")) {
+                rv_editor_menu_item(rv_editor_text("catalog_status.context_rename"), nullptr, nullptr);
+                rv_editor_menu_item(rv_editor_text("catalog_status.context_delete"),
+                    rv_editor_text("catalog_status.shortcut_context_delete"),
+                    nullptr);
+                rv_editor_window_context_menu_end();
+            }
+        }
+        ImGui::EndChild();
+        ImGui::PopID();
+    }
 }
 
 void rv_editor_catalog_indicators(const rv_editor_theme &t)
 {
-    rv_editor_status(rv_editor_text("catalog_status.status_stopped"), rv_editor_status_kind::idle, t);
-    ImGui::SameLine();
-    rv_editor_status(rv_editor_text("catalog_status.status_building"), rv_editor_status_kind::busy, t);
-    ImGui::SameLine();
-    rv_editor_status(rv_editor_text("catalog_status.status_running"), rv_editor_status_kind::active, t);
-    ImGui::SameLine();
-    rv_editor_status(rv_editor_text("catalog_status.status_reload_rejected"), rv_editor_status_kind::warning, t);
-    ImGui::SameLine();
-    rv_editor_status(rv_editor_text("catalog_status.status_crashed"), rv_editor_status_kind::error, t);
-}
-
-void rv_editor_catalog_log(const rv_editor_theme &t)
-{
-    const float rows =
-        log_display_rows * ImGui::GetTextLineHeightWithSpacing() + log_padding_y_multiplier * ImGui::GetStyle().WindowPadding.y;
-    rv_editor_log_begin("##log", ImVec2(0.0f, rows), t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_1"),
-        rv_editor_text("catalog_status.log_source_burn"),
-        rv_editor_severity::info,
-        rv_editor_text("catalog_status.log_msg_build"),
-        t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_2"),
-        rv_editor_text("catalog_status.log_source_mppc"),
-        rv_editor_severity::info,
-        rv_editor_text("catalog_status.log_msg_runtime"),
-        t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_3"),
-        rv_editor_text("catalog_status.log_source_disc"),
-        rv_editor_severity::warning,
-        rv_editor_text("catalog_status.log_msg_missing_texture"),
-        t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_4"),
-        rv_editor_text("catalog_status.log_source_mppc"),
-        rv_editor_severity::error,
-        rv_editor_text("catalog_status.log_msg_error"),
-        t);
-    rv_editor_log_end(t);
-}
-
-void rv_editor_catalog_transport(const rv_editor_theme &t)
-{
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_stopped"));
-    ImGui::SameLine();
-    const char *transport_nothing = rv_editor_text("catalog_status.transport_nothing_running");
-    rv_editor_transport_bar({ nullptr, nullptr, transport_nothing, transport_nothing, transport_nothing, transport_nothing },
-        t);
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_paused"));
-    ImGui::SameLine();
-    // Run is also Resume, so a paused session can run again.
-    rv_editor_transport_bar(
-        { nullptr, nullptr, rv_editor_text("catalog_status.transport_already_paused"), nullptr, nullptr, nullptr },
-        t);
-    const char *const status_fields[] = { rv_editor_text("catalog_status.status_bar_ready"),
-        rv_editor_text("catalog_status.status_bar_runtime"),
-        rv_editor_text("catalog_status.status_bar_position") };
-    rv_editor_status_bar(status_fields, static_cast<int>(std::size(status_fields)), t);
+    const struct {
+        const char *text;
+        rv_editor_status_kind kind;
+    } lamps[] = { { "catalog_status.status_stopped", rv_editor_status_kind::idle },
+        { "catalog_status.status_building", rv_editor_status_kind::busy },
+        { "catalog_status.status_running", rv_editor_status_kind::active },
+        { "catalog_status.status_reload_rejected", rv_editor_status_kind::warning },
+        { "catalog_status.status_crashed", rv_editor_status_kind::error } };
+    bool first = true;
+    for (const auto &lamp : lamps) {
+        const char *text = rv_editor_text(lamp.text);
+        if (!first) {
+            rv_editor_flow(rv_editor_status_width(text, lamp.kind, t));
+        }
+        rv_editor_status(text, lamp.kind, t);
+        first = false;
+    }
 }
 
 } // namespace
 
-void rv_editor_catalog_menus_dialogs(const rv_editor_theme &theme)
+void rv_editor_catalog_menu_samples()
 {
     rv_editor_catalog_menus();
-    rv_editor_catalog_dialog(theme);
 }
 
 void rv_editor_catalog_lamps(const rv_editor_theme &theme)
 {
     rv_editor_catalog_indicators(theme);
-}
-
-void rv_editor_catalog_logs(const rv_editor_theme &theme)
-{
-    rv_editor_catalog_log(theme);
-}
-
-void rv_editor_catalog_transports(const rv_editor_theme &theme)
-{
-    rv_editor_catalog_transport(theme);
 }
 
 } // namespace rv_editor

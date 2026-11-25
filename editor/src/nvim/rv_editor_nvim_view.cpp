@@ -20,6 +20,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_mode.hpp"
 
 namespace rv_editor
 {
@@ -88,32 +89,26 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
         tabs.names.push_back(shown);
     }
 
-    std::vector<std::string> text;
+    const std::string root = app.project.open ? app.project.root.string() : std::string();
+    std::vector<rv_editor_code_tab_file> files;
     int active = -1;
     for (const std::string &name : tabs.names) {
         if (name == shown) {
-            active = static_cast<int>(text.size());
+            active = static_cast<int>(files.size());
         }
-        const std::string marker = held(name)->modified ? rv_editor_text("pane_code.file_modified_marker") : "";
-        text.push_back(std::filesystem::path(name).filename().string() + marker + "##" + name);
+        files.push_back({ name, held(name)->modified });
     }
     if (front != nullptr && shown.empty()) {
-        active = static_cast<int>(text.size());
-        text.push_back(std::string(rv_editor_text("pane_code.untitled_document")) +
-            (front->modified ? rv_editor_text("pane_code.file_modified_marker") : ""));
+        active = static_cast<int>(files.size());
+        files.push_back({ std::string(), front->modified });
     }
-    if (text.empty()) {
+    if (files.empty()) {
         return;
-    }
-    std::vector<const char *> labels;
-    for (const std::string &t : text) {
-        labels.push_back(t.c_str());
     }
     ImGui::SameLine();
     const ImVec2 row_min = ImGui::GetCursorScreenPos();
     int picked = active;
-    if (rv_editor_tab_strip("##files", labels.data(), static_cast<int>(labels.size()), &picked, theme) &&
-        picked < static_cast<int>(tabs.names.size())) {
+    if (rv_editor_code_tab_strip(files, root, &picked, theme) && picked < static_cast<int>(tabs.names.size())) {
         nvim.open(win, tabs.names[static_cast<size_t>(picked)], 0);
     }
 
@@ -181,16 +176,7 @@ void rv_editor_pane_code_body(rv_editor_app &app,
             rv_editor_label_layout::wrap);
         return;
     }
-    if (!nvim.problem.empty()) {
-        rv_editor_label(nvim.problem.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        if (rv_editor_button(rv_editor_text("pane_code.start_nvim_again"), theme)) {
-            nvim.problem.clear();
-        }
-        return;
-    }
-    const int64_t win = nvim.window_for(pane);
-    const int32_t grid_id = nvim.screen().grid_of_window(win);
-    const rv_editor_nvim_grid *grid = nvim.screen().grid(grid_id);
+    const int64_t win = nvim.problem.empty() ? nvim.window_for(pane) : 0;
 
     // The tile's own row, in the interface font: Vim or the ordinary editor (the
     // switch F2 also makes), then the tile's files as tabs.
@@ -204,35 +190,44 @@ void rv_editor_pane_code_body(rv_editor_app &app,
     rv_editor_item_tooltip(rv_editor_text("pane_code.vim_mode_tooltip"));
     rv_editor_code_tab_row(app, pane, win, theme);
     rv_editor_shelf_end();
-    // Swap recovery UI when nvim opened a file read-only due to a crashed nvim.
+    // A start that failed says so in a card under the shelf, and offers another.
+    if (!nvim.problem.empty()) {
+        rv_editor_mode_card_spec failed;
+        failed.title = rv_editor_text("pane_code.start_failed_title");
+        failed.text = nvim.problem;
+        failed.buttons = { rv_editor_text("pane_code.start_nvim_again") };
+        if (rv_editor_mode_card_begin("##nvim_failed", failed, theme) == 0) {
+            nvim.problem.clear();
+        }
+        rv_editor_mode_card_end();
+        rv_editor_font_code_push();
+        return;
+    }
+    const int32_t grid_id = nvim.screen().grid_of_window(win);
+    const rv_editor_nvim_grid *grid = nvim.screen().grid(grid_id);
+    // Swap recovery takes the tile in place of the grid; nvim keeps its size meanwhile.
+    rv_editor_swap_view swap_view = rv_editor_swap_view::none;
+    long long swap_pid = 0;
+    std::string swap_name;
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); buf != nullptr && !buf->name.empty()) {
         if (const rv_editor_nvim_swap *swap = nvim.swap_for(buf->name)) {
-            rv_editor_shelf_begin("##swap", theme);
+            swap_name = buf->name;
+            swap_pid = static_cast<long long>(swap->pid);
             if (swap->state == nvim_swap_state_recoverable) {
-                ImGui::AlignTextToFramePadding();
-                rv_editor_label(rv_editor_text("pane_code.swap_recovery_message"), rv_editor_label_kind::normal, theme);
-                ImGui::SameLine();
-                std::string name = buf->name;
-                if (rv_editor_button(rv_editor_text("pane_code.swap_recover_button"), theme)) {
-                    nvim.swap_resolve(win, name, true);
-                }
-                rv_editor_item_tooltip(rv_editor_text("pane_code.swap_recover_button_tooltip"));
-                ImGui::SameLine();
-                if (rv_editor_button(rv_editor_text("pane_code.swap_discard_button"), theme)) {
-                    nvim.swap_resolve(win, name, false);
-                }
-                rv_editor_item_tooltip(rv_editor_text("pane_code.swap_discard_button_tooltip"));
+                swap_view = rv_editor_swap_view::recoverable;
             } else if (swap->state == nvim_swap_state_in_use) {
-                ImGui::AlignTextToFramePadding();
-                const long long pid = static_cast<long long>(swap->pid);
-                const std::string readonly_msg =
-                    rv_editor_text_format("pane_code.readonly_process_editing", std::make_format_args(pid));
-                rv_editor_label(readonly_msg.c_str(), rv_editor_label_kind::normal, theme);
+                swap_view = rv_editor_swap_view::in_use;
             }
-            rv_editor_shelf_end();
         }
     }
+    const rv_editor_swap_action swap_action = rv_editor_code_swap_place(swap_view, swap_pid, theme);
+    if (swap_action.recover || swap_action.discard) {
+        nvim.swap_resolve(win, swap_name, swap_action.recover);
+    }
     rv_editor_font_code_push();
+    if (swap_view != rv_editor_swap_view::none) {
+        return;
+    }
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     // The code area fills the tile in whole cells, two rows kept under it: the
@@ -295,29 +290,33 @@ void rv_editor_pane_code_body(rv_editor_app &app,
     // Floating windows (hover, diagnostics) above the main grid.
     rv_editor_nvim_draw_floats(nvim.screen(), grid_id, at, cell, cols, rows, focused);
 
-    // The tile's status line: the file, and whether it is saved.
+    // The tile's status line: the file, and whether it is saved; all of it clipped to the grid's width.
     const ImVec2 status(at.x, at.y + rows * cell.y);
-    dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), rv_editor_col(rv_editor_mocha_surface1));
-    std::string label = rv_editor_text("pane_code.untitled_document");
-    if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win)) {
-        std::error_code ec;
-        const std::filesystem::path rel = app.project.open && !buf->name.empty() ?
-            std::filesystem::relative(buf->name, app.project.root, ec) :
-            std::filesystem::path(buf->name);
-        if (buf->name.empty()) {
-            label = rv_editor_text("pane_code.untitled_document");
-        } else if (ec || rel.empty()) {
-            label = buf->name;
-        } else {
-            label = rel.string();
+    const float grid_right = at.x + cols * cell.x;
+    dl->AddRectFilled(status, ImVec2(grid_right, status.y + cell.y), rv_editor_col(rv_editor_mocha_surface1));
+    dl->PushClipRect(status, ImVec2(grid_right, status.y + cell.y), true);
+    // A text on the status line at `x`, its tooltip over the part that is inside the grid.
+    const auto note_at = [&](float x, const std::string &text, ImU32 color, const std::string &tip, const char *id) {
+        dl->AddText(ImVec2(x, status.y), color, text.c_str());
+        const float w = std::min(ImGui::CalcTextSize(text.c_str()).x, grid_right - x);
+        if (!tip.empty() && w > 0.0f) {
+            ImGui::SetCursorScreenPos(ImVec2(x, status.y));
+            ImGui::PushID(static_cast<int>(win));
+            ImGui::InvisibleButton(id, ImVec2(w, cell.y));
+            ImGui::PopID();
+            rv_editor_item_tooltip(tip.c_str());
         }
-        label += buf->modified ? rv_editor_text("pane_code.file_modified_marker") : "";
-    }
-    dl->AddText(ImVec2(status.x + cell.x, status.y), rv_editor_col(rv_editor_mocha_text), label.c_str());
+    };
+    const rv_editor_nvim_buffer *status_buf = nvim.buffer_in(win);
+    const rv_editor_code_text file = rv_editor_code_status_text(status_buf != nullptr ? status_buf->name : std::string(),
+        app.project.open ? app.project.root.string() : std::string(),
+        status_buf != nullptr && status_buf->modified,
+        std::max(0.0f, cols * cell.x - cell.x * status_line_text_offset_cells));
+    note_at(status.x + cell.x, file.shown, rv_editor_col(rv_editor_mocha_text), file.tooltip, "##file_name");
 
     // LSP note: nothing when running, otherwise why diagnostics are absent
     // for this file type, with the exact reason as a tooltip.
-    float note_x = status.x + cell.x * status_line_text_offset_cells + ImGui::CalcTextSize(label.c_str()).x;
+    float note_x = status.x + cell.x * status_line_text_offset_cells + ImGui::CalcTextSize(file.shown.c_str()).x;
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); buf != nullptr && !buf->name.empty()) {
         const std::string server = nvim.lsp_server_for(buf->name);
         const rv_editor_nvim_lsp *lsp = server.empty() ? nullptr : nvim.lsp_status(server);
@@ -330,15 +329,7 @@ void rv_editor_pane_code_body(rv_editor_app &app,
             }
             const std::string note =
                 rv_editor_text_format("pane_code.lsp_status_format", std::make_format_args(server, lsp_state));
-            const ImVec2 note_pos(note_x, status.y);
-            dl->AddText(note_pos, rv_editor_rgb(theme.code_yellow), note.c_str());
-            if (!lsp->reason.empty()) {
-                ImGui::SetCursorScreenPos(note_pos);
-                ImGui::PushID(static_cast<int>(win));
-                ImGui::InvisibleButton("##lsp_note", ImGui::CalcTextSize(note.c_str()));
-                ImGui::PopID();
-                rv_editor_item_tooltip(lsp->reason.c_str());
-            }
+            note_at(note_x, note, rv_editor_rgb(theme.code_yellow), lsp->reason.empty() ? note : lsp->reason, "##lsp_note");
             note_x += ImGui::CalcTextSize(note.c_str()).x + cell.x;
         }
     }
@@ -374,17 +365,14 @@ void rv_editor_pane_code_body(rv_editor_app &app,
             break;
         }
         if (text != nullptr) {
-            const ImVec2 note_pos(note_x, status.y);
-            dl->AddText(note_pos, rv_editor_rgb(warn ? theme.code_yellow : theme.code_blue), text);
-            if (!plan.reason.empty()) {
-                ImGui::SetCursorScreenPos(note_pos);
-                ImGui::PushID(static_cast<int>(win));
-                ImGui::InvisibleButton("##save_note", ImGui::CalcTextSize(text));
-                ImGui::PopID();
-                rv_editor_item_tooltip(plan.reason.c_str());
-            }
+            note_at(note_x,
+                text,
+                rv_editor_rgb(warn ? theme.code_yellow : theme.code_blue),
+                plan.reason.empty() ? std::string(text) : plan.reason,
+                "##save_note");
         }
     }
+    dl->PopClipRect();
 
     if (!focused) {
         rv_editor_well_end();

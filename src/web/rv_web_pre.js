@@ -22,6 +22,13 @@ if (rvJspiStub) {
     };
 }
 
+// rv_log_emit writes every level to stderr, and Emscripten without printErr sends stderr to console.error.
+Module.printErr = Module.printErr || function(text) {
+    var tag = /^\[[^\]]*\]\[(DBG|INF|WRN)\]/.exec(text);
+    var level = tag ? {DBG : 'debug', INF : 'info', WRN : 'warn'}[tag[1]] : 'error';
+    console[level](text);
+};
+
 // Emscripten --pre-js: mounts /save on IndexedDB and loads it before main() runs,
 // so the memory card saved by an earlier page session is already there.
 // The run dependency holds main() back until the load finishes.
@@ -39,7 +46,7 @@ Module.preRun.push(function() {
     if (Module.rvWebhidUsable) {
         console.log('webhid: HIDAPI joysticks on, WebHID and JSPI present');
     } else {
-        console.warn('webhid: HIDAPI off, pads come through the Gamepad API; WebHID ' +
+        console.info('webhid: HIDAPI off, pads come through the Gamepad API; WebHID ' +
                      (navigator.hid ? 'present' : 'missing') + ', JSPI ' + (rvJspiStub ? 'missing' : 'present'));
     }
     var loadDependency = 'rv_save_load';

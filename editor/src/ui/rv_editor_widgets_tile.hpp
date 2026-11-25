@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "layout/rv_editor_tile.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widget_item.hpp"
 
@@ -27,6 +28,10 @@ struct rv_editor_tile {
     const char *name = nullptr;
     const char *shortcut = nullptr;
     bool selected = false;
+    // The least width of a medium tile: a tile whose label changes takes the widest one's.
+    float min_width = 0.0f;
+    // A large tile's side when it must be smaller than the natural one; 0 is the natural side.
+    float side = 0.0f;
 };
 
 // A tile of `size`, drawn in the current window; a disabled tile dims the code and
@@ -38,5 +43,8 @@ bool rv_editor_tile_button(const rv_editor_tile &tile,
 
 // Width a tile of `size` takes. Large is a square; medium and small are frame height tall.
 float rv_editor_tile_width(const rv_editor_tile &tile, rv_editor_tile_size size);
+
+// The side of a large tile for `font` at `size`, measured without a frame or a current font.
+float rv_editor_tile_large_side(ImFont *font, float size);
 
 } // namespace rv_editor

@@ -8,6 +8,7 @@
 #include "text/rv_editor_text.hpp"
 
 #include <charconv>
+#include <chrono>
 #include <fstream>
 #include <system_error>
 
@@ -64,15 +65,16 @@ std::string rv_editor_line_text(const rv_editor_log_line &line)
         line.text + "\n";
 }
 
-// The log lines seq `from`..`to` (0: to the end), and a note when older ones were dropped.
-std::string rv_editor_lines(const rv_editor_log &log, uint64_t from, uint64_t to)
+// The log lines seq `from`..`to` (0: to the end), restricted to the session when supplied.
+std::string rv_editor_lines(const rv_editor_log &log, uint64_t from, uint64_t to, const rv_editor_session *session = nullptr)
 {
     std::string out;
     if (!log.lines().empty() && log.lines().front().seq > from) {
         out += "(lines before this were dropped from the editor's bounded log)\n";
     }
     for (const rv_editor_log_line &line : log.lines()) {
-        if (line.seq >= from && (to == 0 || line.seq <= to) && line.source != rv_editor_log_source::protocol) {
+        const bool own = session == nullptr || (line.run == session->number() && line.pid == session->pid());
+        if (own && line.seq >= from && (to == 0 || line.seq <= to) && line.source != rv_editor_log_source::protocol) {
             out += rv_editor_line_text(line);
         }
     }
@@ -80,6 +82,26 @@ std::string rv_editor_lines(const rv_editor_log &log, uint64_t from, uint64_t to
 }
 
 bool g_build_ended = false;
+
+bool rv_editor_playtest_image_unchanged(const rv_editor_playtest &playtest)
+{
+    struct stat current{};
+    const auto &original = playtest.image_stat;
+    return ::stat(playtest.image.c_str(), &current) == 0 && current.st_dev == original.st_dev &&
+        current.st_ino == original.st_ino && current.st_size == original.st_size &&
+        current.st_mtim.tv_sec == original.st_mtim.tv_sec && current.st_mtim.tv_nsec == original.st_mtim.tv_nsec &&
+        current.st_ctim.tv_sec == original.st_ctim.tv_sec && current.st_ctim.tv_nsec == original.st_ctim.tv_nsec;
+}
+
+void rv_editor_playtest_check_set(rv_editor_candidate &c,
+    const rv_editor_playtest &playtest,
+    rv_editor_check_state state,
+    const std::string &note,
+    const std::string &env)
+{
+    rv_editor_check_set(c, rv_editor_check_loads, state, note, env);
+    c.checks[rv_editor_check_loads].hash = playtest.hash;
+}
 
 } // namespace
 
@@ -158,6 +180,7 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
     const char *why = rv_editor_app_why_not_build(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        rv_editor_app_build_alert_refused(app, why);
         return RV_ERR_BUSY;
     }
     // A candidate records the tools' versions; a check still running would leave them empty.
@@ -173,14 +196,17 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
     std::filesystem::create_directories(dir, ec);
     const uint32_t number = rv_editor_candidate_next(dir);
     std::string error;
-    r.build_first_seq = app.log.revision() + 1;
-    app.build_first_seq = r.build_first_seq;
+    const auto first_seq = app.log.revision() + 1;
     const int err =
         app.build.start(app.project, app.tools, app.log, error, dir / (std::to_string(number) + std::string(disc_image_ext)));
     if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build a candidate: " + error);
+        rv_editor_app_build_alert_refused(app, error);
         return err;
     }
+    rv_editor_app_build_alert_clear(app);
+    app.build_first_seq = first_seq;
+    r.build_first_seq = first_seq;
     r.building = true;
     r.building_number = number;
     // No check runs here (refused above), so the versions are final.
@@ -202,11 +228,14 @@ const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app)
     if (c.bytes_changed) {
         return rv_editor_text("app_release.image_bytes_changed");
     }
-    if (c.sha256.empty()) {
+    if (c.sha256.empty() || c.hashing.valid()) {
         return rv_editor_text("app_release.hashing_image");
     }
     if (app.session.live()) {
         return rv_editor_text("app_release.session_running");
+    }
+    if (r.playing >= 0) {
+        return rv_editor_text("app_release.finishing_playtest");
     }
     if (!app.tools.console.problem.empty()) {
         return app.tools.console.problem.c_str();
@@ -216,6 +245,7 @@ const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app)
 
 int rv_editor_app_run_candidate(rv_editor_app &app)
 {
+    rv_editor_app_release_update_playtest(app);
     const char *why = rv_editor_app_why_not_run_candidate(app);
     if (why != nullptr) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
@@ -223,22 +253,35 @@ int rv_editor_app_run_candidate(rv_editor_app &app)
     }
     rv_editor_release &r = app.release;
     rv_editor_candidate &c = r.candidates[r.selected];
-    // The bytes are read again while it runs; a difference voids the results.
+    rv_editor_playtest playtest;
+    playtest.candidate = c.number;
+    playtest.image = c.image;
+    playtest.hash = c.sha256;
+    if (::stat(playtest.image.c_str(), &playtest.image_stat) != 0 || !S_ISREG(playtest.image_stat.st_mode)) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "cannot read candidate image: " + c.image.string());
+        return RV_ERR_IO;
+    }
+    // Read the image asynchronously and wait for its hash before setting a successful verdict.
     rv_editor_candidate_hash(c);
     // Its own memory card, so no save of the development builds reaches it.
     std::filesystem::path card = c.image;
     card.replace_extension(memory_card_ext);
-    r.playtest_first_seq = app.log.revision() + 1;
+    playtest.first_seq = app.log.revision() + 1;
     const int err = rv_editor_app_run_session(app, rv_editor_artifact{ c.image, c.number }, card);
     if (err != RV_OK) {
         return err;
     }
-    r.playing = static_cast<int>(r.selected);
-    rv_editor_check_set(c,
-        rv_editor_check_loads,
+    playtest.session = app.session.number();
+    playtest.console = app.session.console();
+    rv_editor_playtest_check_set(c,
+        playtest,
         rv_editor_check_state::running,
-        "session #" + std::to_string(app.session.number()),
-        app.tools.console.path.string());
+        "session #" + std::to_string(playtest.session),
+        playtest.console.string());
+    r.playing = static_cast<int>(r.selected);
+    r.playtest = std::move(playtest);
     return RV_OK;
 }
 
@@ -261,81 +304,95 @@ int rv_editor_app_release_save_candidate(rv_editor_app &app, rv_editor_candidate
     return RV_OK;
 }
 
-bool rv_editor_app_release_playing(const rv_editor_app &app)
-{
-    return app.release.playing >= 0 && static_cast<size_t>(app.release.playing) < app.release.candidates.size();
-}
-
-// A live session plays this candidate only while its disc is still the candidate's
-// image; a build number can coincide with a later development build's, the disc cannot.
 bool rv_editor_app_release_still_playing(const rv_editor_app &app)
 {
-    return rv_editor_app_release_playing(app) && app.session.live() &&
-        app.session.disc_dir() == app.release.candidates[static_cast<size_t>(app.release.playing)].image;
+    const auto &release = app.release;
+    return static_cast<size_t>(release.playing) < release.candidates.size() && app.session.live() &&
+        release.playtest.session == app.session.number() && release.playtest.candidate == app.session.build_number() &&
+        release.playtest.image == app.session.disc_dir();
 }
 
-bool rv_editor_app_release_loads_running(const rv_editor_app &app)
+void rv_editor_app_release_update_playtest(rv_editor_app &app)
 {
-    return rv_editor_app_release_playing(app) &&
-        app.release.candidates[static_cast<size_t>(app.release.playing)].checks[rv_editor_check_loads].state ==
-        rv_editor_check_state::running;
-}
-
-int rv_editor_app_release_playtest_verdict(rv_editor_app &app)
-{
-    if (!rv_editor_app_release_still_playing(app)) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "playtest verdict not set: the session no longer plays the candidate");
-        return RV_ERR_INVAL;
-    }
-    rv_editor_candidate &c = app.release.candidates[static_cast<size_t>(app.release.playing)];
-    const rv_editor_session &s = app.session;
-    // Still playing, so the PDK is this candidate's session's, not a takeover's.
-    const std::string env = app.tools.console.path.string() + ", PDK " + s.facts().pdk;
-    // Mounted as an image (medium fixed) and answering: the claim of this check, no more.
-    const bool image = s.facts().medium == medium_fixed;
-    rv_editor_check_set(c,
-        rv_editor_check_loads,
-        image ? rv_editor_check_state::passed : rv_editor_check_state::failed,
-        image ? "mounted as an image, disc " + s.facts().disc : "the console did not mount it as an image",
-        env);
-    return RV_OK;
-}
-
-int rv_editor_app_release_playtest_end(rv_editor_app &app)
-{
-    if (!rv_editor_app_release_playing(app)) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "playtest not ended: no candidate is playing");
-        return RV_ERR_INVAL;
-    }
     rv_editor_release &r = app.release;
+    if (r.playing < 0 || static_cast<size_t>(r.playing) >= r.candidates.size()) {
+        return;
+    }
     rv_editor_candidate &c = r.candidates[static_cast<size_t>(r.playing)];
-    rv_editor_check &loads = c.checks[rv_editor_check_loads];
+    auto &playtest = r.playtest;
+    if (c.number != playtest.candidate || c.image != playtest.image || c.sha256 != playtest.hash) {
+        r.playing = -1;
+        r.playtest = {};
+        return;
+    }
+
+    const rv_editor_check &loads = c.checks[rv_editor_check_loads];
     const rv_editor_session &s = app.session;
-    // A different session (development or another candidate) took over before this one
-    // was seen to end: its own end reason is gone by now, so this says why the playtest closed.
-    const std::string end_reason = s.live() ? "a different session started before this one closed" : s.end_reason();
-    // A takeover's PDK is the other session's, not this candidate's: leave it out.
-    const std::string env =
-        !s.live() ? app.tools.console.path.string() + ", PDK " + s.facts().pdk : app.tools.console.path.string();
+    const bool still_playing = rv_editor_app_release_still_playing(app);
+    if (!still_playing && !playtest.ended) {
+        auto &ended = playtest.ended.emplace();
+        if (s.number() == playtest.session) {
+            ended.facts = s.facts();
+            ended.reason = s.end_reason();
+            ended.log = rv_editor_lines(app.log, playtest.first_seq, app.log.revision(), &s);
+            ended.clean = s.state() == rv_editor_run_state::exited && !ended.reason.starts_with(end_reason_force_stopped);
+        } else {
+            ended.reason = "a different session started before this one closed";
+        }
+    }
+    const auto &facts = playtest.ended ? playtest.ended->facts : s.facts();
+    const auto env = [&] {
+        return playtest.console.string() + (!facts.pdk.empty() ? ", PDK " + facts.pdk : "");
+    };
+    // A replacement or write voids the result, including a verdict set before the change.
+    if (loads.state != rv_editor_check_state::blocked && (c.bytes_changed || !rv_editor_playtest_image_unchanged(playtest))) {
+        rv_editor_playtest_check_set(c,
+            playtest,
+            rv_editor_check_state::blocked,
+            "candidate image changed during playtest",
+            env());
+        rv_editor_candidate_hash(c);
+    }
+    const bool answered = still_playing ? s.connected() : facts.at != std::chrono::system_clock::time_point{};
+    if (loads.state == rv_editor_check_state::running && answered) {
+        if (c.hashing.valid()) {
+            return;
+        }
+        if (c.verified_hash == playtest.hash) {
+            const bool image = facts.medium == medium_fixed;
+            rv_editor_playtest_check_set(c,
+                playtest,
+                image ? rv_editor_check_state::passed : rv_editor_check_state::failed,
+                image ? "mounted as an image, disc " + facts.disc : "the console did not mount it as an image",
+                env());
+        }
+    }
+    if (still_playing || c.hashing.valid()) {
+        return;
+    }
+
+    // If an earlier read overlapped a replacement, verify the current file after that read finishes.
+    const bool image_changed = loads.state == rv_editor_check_state::blocked;
+    if (image_changed && !c.bytes_changed) {
+        rv_editor_candidate_hash(c);
+    }
+    const auto &ended = *playtest.ended;
     if (loads.state == rv_editor_check_state::running) {
-        rv_editor_check_set(c, rv_editor_check_loads, rv_editor_check_state::failed, end_reason, env);
+        rv_editor_playtest_check_set(c, playtest, rv_editor_check_state::failed, ended.reason, env());
     }
     ++c.playtests;
     std::string error;
     if (rv_editor_file_replace(
             rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, "playtest-" + std::to_string(c.playtests)),
-            rv_editor_lines(app.log, r.playtest_first_seq, app.log.revision()),
+            ended.log,
             error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "playtest log not kept: " + error);
     }
     c.dirty = true;
-    c.last_run_end = end_reason;
-    c.last_run_clean =
-        !s.live() && s.state() == rv_editor_run_state::exited && s.end_reason().rfind(end_reason_force_stopped, 0) != 0;
+    c.last_run_end = ended.reason;
+    c.last_run_clean = ended.clean && !image_changed;
     r.playing = -1;
-    return RV_OK;
+    r.playtest = {};
 }
 
 void rv_editor_app_release_changed(rv_editor_app &app)

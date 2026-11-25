@@ -5,13 +5,24 @@ var rvTouchpad = (function() {
     var CANVAS_ID = 'touchpad';
     // Phone or tablet: coarse main pointer without hover. Laptops with touch and desktops stay false.
     var PHONE_QUERY = '(pointer: coarse) and (hover: none)';
+    // Firefox for Android and Samsung or stylus browsers do not always report coarse/no-hover, so the user agent backs it up.
+    var MOBILE_UA = /Android|iPhone|iPad|iPod|Mobi/;
+    // Computed once. iPadOS sends a Macintosh UA, told by its touch points; a desktop UA with touch (a touch laptop) stays
+    // false.
+    function isPhone() {
+        var nav = typeof navigator === 'object' ? navigator : {}, ua = nav.userAgent || '';
+        return (typeof matchMedia === 'function' && matchMedia(PHONE_QUERY).matches) ||
+               (nav.userAgentData && nav.userAgentData.mobile === true) || MOBILE_UA.test(ua) ||
+               (ua.indexOf('Macintosh') >= 0 && nav.maxTouchPoints > 1);
+    }
     // Dataset key prefix for the labels data-label-<id> on the pad canvas; see labelOf.
     var LABEL_PREFIX = 'label';
-    Module.rvTouchpadWanted = matchMedia(PHONE_QUERY).matches;
+    Module.rvTouchpadWanted = !!isPhone();
 
     var shown = false, groups = 0, frame = null, outW = 0, outH = 0;
-    // pressed: id -> bool. warned: ids already reported for a missing label. noCanvasWarned: one-time flag.
-    var pressed = {}, warned = {}, noCanvasWarned = false;
+    // pressed: id -> bool. at: id -> {x, y} cap or finger point of a stick or trackpad. warned: ids already reported for a
+    // missing label. noCanvasWarned: one-time flag.
+    var pressed = {}, at = {}, warned = {}, noCanvasWarned = false;
 
     // A missing canvas means a broken page build (shell and this script ship together): one warning, then silent.
     function canvas() {
@@ -76,9 +87,9 @@ var rvTouchpad = (function() {
         ctx.setTransform(model.scale, 0, 0, model.scale, 0, 0);
         ctx.imageSmoothingEnabled = false;
         model.elements.forEach(function(el) {
-            // Well has no id and no label; null at centres the stick and pad caps.
+            // Well has no id and no label; no point centres the stick cap and hides the pad finger.
             var text = el.id ? labelOf(cv, el.id) : '';
-            rvTouchDraw.control(ctx, el, text, !!pressed[el.id], null);
+            rvTouchDraw.control(ctx, el, text, !!pressed[el.id], at[el.id] || null);
         });
     }
 
@@ -114,6 +125,15 @@ var rvTouchpad = (function() {
         controls : controls,
         press : function(id, down) {
             pressed[id] = !!down;
+            redraw();
+        },
+        // at = {x, y} in -1..1, +y up, as rvTouchDraw.control takes it; null removes the point.
+        point : function(id, p) {
+            if (p) {
+                at[id] = p;
+            } else {
+                delete at[id];
+            }
             redraw();
         }
     };

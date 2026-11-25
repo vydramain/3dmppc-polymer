@@ -36,7 +36,7 @@ constexpr std::string_view kind_names[] = { "empty",
     "run_config",
     "output",
     "terminal",
-    "problems",
+    "inspector_report",
     "search",
     "toolchest",
     "runtime_log",
@@ -49,6 +49,7 @@ constexpr std::string_view kind_names[] = { "empty",
     "checks",
     "session",
     "test_case",
+    "new_project",
     "open_project",
     "settings",
     "help",
@@ -271,6 +272,11 @@ int kind_from_name(std::string_view s, rv_editor_pane_kind &k)
     // A layout saved by an earlier editor names this pane "console"; it loads as output.
     if (s == layout_pane_legacy_console) {
         k = rv_editor_pane_kind::output;
+        return RV_OK;
+    }
+    // Likewise "problems" loads as the Inspector Report.
+    if (s == layout_pane_legacy_problems) {
+        k = rv_editor_pane_kind::inspector_report;
         return RV_OK;
     }
     for (int i = 0; i < static_cast<int>(std::size(kind_names)); ++i) {

@@ -14,6 +14,7 @@
 #include "app/rv_editor_app_parts.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 #include "build/rv_editor_build.hpp"
+#include "build/rv_editor_build_alert.hpp"
 #include "build/rv_editor_build_map.hpp"
 #include "build/rv_editor_export.hpp"
 #include "files/rv_editor_files.hpp"
@@ -23,6 +24,7 @@
 #include "nvim/rv_editor_nvim.hpp"
 #include "project/rv_editor_change.hpp"
 #include "project/rv_editor_descriptions.hpp"
+#include "project/rv_editor_inspect.hpp"
 #include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
 #include "project/rv_editor_run_profile.hpp"
@@ -48,6 +50,12 @@ struct rv_editor_app_descriptions {
     std::string shown_text;    // the state text last logged; empty when no text applies
 };
 
+// One Mark Moment: when it was made and what Notes says of it, "frame 812: the door opens late".
+struct rv_editor_mark {
+    std::chrono::system_clock::time_point at;
+    std::string text;
+};
+
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them.
 struct rv_editor_app {
@@ -57,6 +65,8 @@ struct rv_editor_app {
     // Writes the chosen processes' lines to files; the app decides which (rv_editor_app_logs.cpp).
     rv_editor_log_file log_files;
     rv_editor_build build;
+    // mppcinspector's findings on the open project: one run per open.
+    rv_editor_inspect inspect;
     // The export job (mppcburner writes a disc, a player or a web page); the Export pane starts it.
     rv_editor_export exporter;
     rv_editor_session session;
@@ -97,9 +107,12 @@ struct rv_editor_app {
     // The session in Debug: the profile it started with, and Mark Moment's marks,
     // "frame 812: the door opens late".
     std::string session_profile;
-    std::vector<std::string> marks;
+    uint32_t candidate_session = 0;
+    std::vector<rv_editor_mark> marks;
     // The first log line of the latest build job, for its diagnostics.
     uint64_t build_first_seq = 0;
+    // Why the last build did not start or failed, for the ask area at the top of Problems; none otherwise.
+    rv_editor_build_alert build_alert;
     // What that job's lines name, re-read when the log changes; and when the job ended.
     std::vector<rv_editor_problem> problems;
     uint64_t problems_revision = 0;
@@ -210,18 +223,25 @@ int rv_editor_app_profile_apply_restart(rv_editor_app &app, const rv_editor_run_
 // Looks for the tools and says what it found.
 void rv_editor_app_init(rv_editor_app &app);
 
-// Opens a game directory or its disc.toml. A running session and build keep
-// running on the project they started with until they end. RV_OK on success, RV_ERR_* on failure.
-int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target);
+// Opens a prepared project. A running session and build keep the project they started with.
+void rv_editor_app_open(rv_editor_app &app, rv_editor_project project);
 
 // Why each action cannot run now, or nullptr when it can. The text
 // lives until the next change to `app`.
 const char *rv_editor_app_why_not_build(const rv_editor_app &app);
+// The editor did not start a build: the alert says "did not start" with `reason`, and Problems is asked for.
+void rv_editor_app_build_alert_refused(rv_editor_app &app, const std::string &reason);
+// A build job ended in `ended`: failed sets the alert (reason from the job's log, else `exit_text`) and asks for
+// Problems; cancelled and succeeded change nothing.
+void rv_editor_app_build_alert_ended(rv_editor_app &app, rv_editor_build_state ended, const std::string &exit_text);
+// A build starts: the alert goes away.
+void rv_editor_app_build_alert_clear(rv_editor_app &app);
 const char *rv_editor_app_why_not_run(const rv_editor_app &app);
 const char *rv_editor_app_why_not_run_last(const rv_editor_app &app);
 const char *rv_editor_app_why_not_pause(const rv_editor_app &app);
 const char *rv_editor_app_why_not_step(const rv_editor_app &app);
 const char *rv_editor_app_why_not_stop(const rv_editor_app &app);
+const char *rv_editor_app_why_not_force_stop(const rv_editor_app &app);
 // Why Reload cannot run now; nullptr when it can. Only asked when the session can reload at all.
 const char *rv_editor_app_why_not_reload(const rv_editor_app &app);
 // The running console can reload its entry script: a directory medium and a Lua entry.
@@ -306,6 +326,8 @@ std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app);
 // Runs a session on `artifact` with memory card `card` (empty: the project's): state directory,
 // launch, runtime start, build map, session log. Returns RV_OK on success or RV_ERR_* on failure.
 int rv_editor_app_run_session(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card = {});
+std::string rv_editor_app_session_target(const rv_editor_app &app);
+std::string rv_editor_app_live_session_status(const rv_editor_app &app);
 
 // Release (editor/src/app/rv_editor_app_release.cpp): Build Candidate writes a new
 // numbered image; Run Candidate runs the one shown on the development console.
@@ -349,17 +371,10 @@ int rv_editor_app_release_revision_poll(rv_editor_app &app);
 int rv_editor_app_release_finish_build(rv_editor_app &app);
 // Saves one candidate's record. RV_OK, or the save's RV_ERR_*; the first failure of a run is logged.
 int rv_editor_app_release_save_candidate(rv_editor_app &app, rv_editor_candidate &c);
-// Questions: a candidate runs on the development console; that session is live and still
-// runs its image; the running candidate's loads check is running.
-bool rv_editor_app_release_playing(const rv_editor_app &app);
+// True while the session launched for a candidate is still live.
 bool rv_editor_app_release_still_playing(const rv_editor_app &app);
-bool rv_editor_app_release_loads_running(const rv_editor_app &app);
-// The loads verdict of the playing candidate, asked while it is still playing and connected.
-// RV_OK; RV_ERR_INVAL when the session no longer plays the candidate (logged).
-int rv_editor_app_release_playtest_verdict(rv_editor_app &app);
-// The playtest's end, asked when the session no longer runs the playing candidate. RV_OK; RV_ERR_INVAL
-// when none plays (logged).
-int rv_editor_app_release_playtest_end(rv_editor_app &app);
+// Checks the running candidate's image, records its verdict, and closes a finished playtest.
+void rv_editor_app_release_update_playtest(rv_editor_app &app);
 // A project file changed: every candidate's sources now differ from the tree.
 void rv_editor_app_release_changed(rv_editor_app &app);
 

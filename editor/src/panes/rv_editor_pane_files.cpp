@@ -4,7 +4,9 @@
 #include <cmath>
 #include <cstring>
 #include <iterator>
+#include <span>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 #include "imgui.h"
@@ -12,12 +14,18 @@
 #include "pdk/rv_err.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "panes/rv_editor_pane_files.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "rv_editor_catppuccin_mocha.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
-#include "text/rv_editor_text.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
+#include "ui/rv_editor_widgets_mode.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 
 namespace rv_editor
 {
@@ -34,103 +42,16 @@ constexpr const char *disc_manifest_filename = "disc.toml";
 // String appended to symlink names in file tree.
 constexpr const char *symlink_indicator = " ->";
 
-// Input field width for dialogs, in font size units.
-constexpr float dialog_field_width_em = 24.0f;
-
 // Divisor for vertical center calculation in file tree rows.
 constexpr float vertical_center_divisor = 2.0f;
 
 // Width of space character for indentation alignment in file tree.
 constexpr const char *indent_space_probe = " ";
 
-const char *rv_editor_files_dialog_title(rv_editor_files_view::rv_editor_files_dialog dialog)
-{
-    switch (dialog) {
-    case rv_editor_files_view::rv_editor_files_dialog::new_file:
-        return rv_editor_text("pane_files.dialog_title_new_file");
-    case rv_editor_files_view::rv_editor_files_dialog::new_dir:
-        return rv_editor_text("pane_files.dialog_title_new_dir");
-    case rv_editor_files_view::rv_editor_files_dialog::rename:
-        return rv_editor_text("pane_files.dialog_title_rename");
-    case rv_editor_files_view::rv_editor_files_dialog::remove:
-        return rv_editor_text("pane_files.dialog_title_remove");
-    default:
-        return "";
-    }
-}
-
-struct rv_editor_files_request_row {
-    rv_editor_files_view::rv_editor_files_dialog dialog;
-    rv_editor_pane_request_kind kind;
-};
-
-// The request a dialog's confirm leaves for the app.
-constexpr rv_editor_files_request_row files_request_rows[] = {
-    { rv_editor_files_view::rv_editor_files_dialog::new_file, rv_editor_pane_request_kind::create_file },
-    { rv_editor_files_view::rv_editor_files_dialog::new_dir, rv_editor_pane_request_kind::create_dir },
-    { rv_editor_files_view::rv_editor_files_dialog::rename, rv_editor_pane_request_kind::rename },
-    { rv_editor_files_view::rv_editor_files_dialog::remove, rv_editor_pane_request_kind::remove },
-};
-
-// The row of a dialog's request; nullptr for none and for a dialog without a row.
-const rv_editor_files_request_row *rv_editor_files_request_find(rv_editor_files_view::rv_editor_files_dialog dialog)
-{
-    const auto row = std::ranges::find(files_request_rows, dialog, &rv_editor_files_request_row::dialog);
-    return row == std::end(files_request_rows) ? nullptr : row;
-}
-
-// The directory a new entry goes into: `sel` when it is a directory,
-// its parent when it is a file, the root otherwise.
-std::filesystem::path rv_editor_files_target_dir(rv_editor_app &app, const std::filesystem::path &sel)
-{
-    if (sel.empty()) {
-        return app.files.root().path;
-    }
-    std::error_code ec;
-    return std::filesystem::is_directory(std::filesystem::symlink_status(sel, ec)) ? sel : sel.parent_path();
-}
-
 // Asks the shell to select `path` in Files; the selection moves next frame.
 void rv_editor_files_select(const rv_editor_ui_port &ui, const std::filesystem::path &path)
 {
     ui.requests.push_back({ .kind = rv_editor_ui_request_kind::select_file, .path = path });
-}
-
-void rv_editor_files_ask(rv_editor_files_view &view,
-    rv_editor_files_view::rv_editor_files_dialog dialog,
-    const std::filesystem::path &target,
-    const std::string &name)
-{
-    view.dialog = dialog;
-    view.target = target;
-    view.error.clear();
-    std::memset(view.name, 0, sizeof(view.name));
-    std::strncpy(view.name, name.c_str(), sizeof(view.name) - 1);
-    view.opening = true;
-    view.doomed.clear();
-    view.doomed_total = 0;
-    if (dialog != rv_editor_files_view::rv_editor_files_dialog::remove) {
-        return;
-    }
-    // Listed once, when asked: the first entries by name and how many there are.
-    // At most this many doomed entries are listed by name in the Delete dialog.
-    constexpr size_t shown = 12;
-    const std::filesystem::path base = target.parent_path();
-    const auto note = [&](const std::filesystem::path &p) {
-        if (view.doomed.size() < shown) {
-            std::error_code ec;
-            view.doomed.push_back(std::filesystem::relative(p, base, ec).generic_string());
-        }
-        ++view.doomed_total;
-    };
-    note(target);
-    std::error_code ec;
-    if (!std::filesystem::is_directory(std::filesystem::symlink_status(target, ec))) {
-        return;
-    }
-    for (std::filesystem::recursive_directory_iterator it(target, ec), end; !ec && it != end; it.increment(ec)) {
-        note(it->path());
-    }
 }
 
 void rv_editor_files_menu(rv_editor_app &app,
@@ -182,41 +103,93 @@ void rv_editor_files_chip(const rv_editor_file_node &node, const char *&code, ui
 
 } // namespace
 
-void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, uint32_t &color)
+namespace
 {
-    const std::string ext = path.extension().string();
-    struct kind {
-        const char *ext;
-        const char *code;
-        uint32_t color;
-    };
-    // File extension -> list glyph and colour.
-    static constexpr kind kinds[] = { { ".lua", rv_editor_glyph::lua, rv_editor_mocha_mauve },
-        { ".cpp", rv_editor_glyph::cpp, rv_editor_mocha_blue },
-        { ".c", rv_editor_glyph::cpp, rv_editor_mocha_blue },
-        { ".cc", rv_editor_glyph::cpp, rv_editor_mocha_blue },
-        { ".hpp", rv_editor_glyph::header, rv_editor_mocha_sapphire },
-        { ".h", rv_editor_glyph::header, rv_editor_mocha_sapphire },
-        { ".toml", rv_editor_glyph::toml, rv_editor_mocha_peach },
-        { ".png", rv_editor_glyph::image, rv_editor_mocha_green },
-        { ".pcm", rv_editor_glyph::sound, rv_editor_mocha_teal },
-        { ".wav", rv_editor_glyph::sound, rv_editor_mocha_teal },
-        { ".md", rv_editor_glyph::text, rv_editor_mocha_text },
-        { ".txt", rv_editor_glyph::text, rv_editor_mocha_text } };
-    code = rv_editor_glyph::other_file;
-    color = rv_editor_mocha_subtext0;
-    if (path.filename() == disc_manifest_filename) {
-        code = rv_editor_glyph::disc_toml;
-        color = rv_editor_mocha_peach;
-        return;
+
+// A kind of file: what the Files list and the Assets Type column show for it, by the end of its name.
+struct file_kind {
+    const char *suffix;
+    const char *code;
+    uint32_t color;
+    const char *key;
+};
+
+constexpr file_kind kind_manifest = { "", rv_editor_glyph::disc_toml, rv_editor_mocha_peach, "pane_assets.kind_manifest" };
+constexpr file_kind kind_other = { "", rv_editor_glyph::other_file, rv_editor_mocha_subtext0, "pane_assets.kind_other" };
+
+// Models have no code of their own in the glyphs, so they stay Fi.
+constexpr file_kind file_kinds[] = {
+    { ".scene.toml", rv_editor_glyph::toml, rv_editor_mocha_yellow, "pane_assets.kind_scene" },
+    { ".lua", rv_editor_glyph::lua, rv_editor_mocha_mauve, "pane_assets.kind_script" },
+    { ".cpp", rv_editor_glyph::cpp, rv_editor_mocha_blue, "pane_assets.kind_code" },
+    { ".cc", rv_editor_glyph::cpp, rv_editor_mocha_blue, "pane_assets.kind_code" },
+    { ".c", rv_editor_glyph::cpp, rv_editor_mocha_blue, "pane_assets.kind_code" },
+    { ".hpp", rv_editor_glyph::header, rv_editor_mocha_sapphire, "pane_assets.kind_header" },
+    { ".h", rv_editor_glyph::header, rv_editor_mocha_sapphire, "pane_assets.kind_header" },
+    { ".toml", rv_editor_glyph::toml, rv_editor_mocha_peach, "pane_assets.kind_text" },
+    { ".png", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".jpg", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".jpeg", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".bmp", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".tga", rv_editor_glyph::image, rv_editor_mocha_green, "pane_assets.kind_image" },
+    { ".pcm", rv_editor_glyph::sound, rv_editor_mocha_teal, "pane_assets.kind_sound" },
+    { ".wav", rv_editor_glyph::sound, rv_editor_mocha_teal, "pane_assets.kind_sound" },
+    { ".gltf", rv_editor_glyph::other_file, rv_editor_mocha_pink, "pane_assets.kind_model" },
+    { ".glb", rv_editor_glyph::other_file, rv_editor_mocha_pink, "pane_assets.kind_model" },
+    { ".bin", rv_editor_glyph::other_file, rv_editor_mocha_pink, "pane_assets.kind_model" },
+    { ".md", rv_editor_glyph::text, rv_editor_mocha_text, "pane_assets.kind_text" },
+    { ".txt", rv_editor_glyph::text, rv_editor_mocha_text, "pane_assets.kind_text" },
+};
+
+const file_kind &rv_editor_file_kind(const std::filesystem::path &path)
+{
+    const std::string name = path.filename().string();
+    if (name == disc_manifest_filename) {
+        return kind_manifest;
     }
-    for (const kind &k : kinds) {
-        if (ext == k.ext) {
-            code = k.code;
-            color = k.color;
-            return;
+    for (const file_kind &k : file_kinds) {
+        const std::string_view suffix = k.suffix;
+        if (name.size() >= suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+            return k;
         }
     }
+    return kind_other;
+}
+
+} // namespace
+
+const char *rv_editor_file_kind_word(const std::filesystem::path &path)
+{
+    return rv_editor_text(rv_editor_file_kind(path).key);
+}
+
+uint32_t rv_editor_file_kind_color(const std::filesystem::path &path)
+{
+    return rv_editor_file_kind(path).color;
+}
+
+std::span<const char *const> rv_editor_file_kind_keys()
+{
+    static constexpr const char *keys[] = { "pane_assets.kind_image",
+        "pane_assets.kind_sound",
+        "pane_assets.kind_model",
+        "pane_assets.kind_scene",
+        "pane_assets.kind_code",
+        "pane_assets.kind_header",
+        "pane_assets.kind_script",
+        "pane_assets.kind_manifest",
+        "pane_assets.kind_text",
+        "pane_assets.kind_folder",
+        "pane_assets.kind_link",
+        "pane_assets.kind_other" };
+    return keys;
+}
+
+void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, uint32_t &color)
+{
+    const file_kind &k = rv_editor_file_kind(path);
+    code = k.code;
+    color = k.color;
 }
 
 namespace
@@ -250,6 +223,10 @@ void rv_editor_files_node(rv_editor_app &app,
         const char *code = rv_editor_glyph::other_file;
         uint32_t color = 0;
         rv_editor_files_chip(node, code, color);
+        // The folder colour is the highlight's own, so on the picked row the glyph is drawn in the bright text colour.
+        if (node.dir && !node.symlink && style.selected) {
+            color = theme.text_bright;
+        }
         // A row is one cell high: the stand-in is the code itself, in its colour.
         const float cell = ImGui::GetTextLineHeight();
         const ImVec2 at(ImGui::GetItemRectMin().x + ImGui::GetTreeNodeToLabelSpacing(),
@@ -294,156 +271,43 @@ void rv_editor_files_node(rv_editor_app &app,
     ImGui::PopID();
 }
 
-void rv_editor_files_dialog(rv_editor_app &app,
-    rv_editor_pane_id pane,
-    rv_editor_files_view &view,
-    const rv_editor_theme &theme)
-{
-    using dialog_kind = rv_editor_files_view::rv_editor_files_dialog;
-    if (view.dialog == dialog_kind::none) {
-        return;
-    }
-    const rv_editor_files_request_row *row = rv_editor_files_request_find(view.dialog);
-    if (row == nullptr) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "files dialog without a request closed: impossible call");
-        view.dialog = dialog_kind::none;
-        return;
-    }
-    rv_editor_ask_begin(rv_editor_files_dialog_title(view.dialog), theme);
-
-    // While the dialog's request waits or runs, its confirm, name field and Cancel say so;
-    // the app closes the dialog on success.
-    const char *running_why =
-        rv_editor_app_request_pending(app, row->kind) ? rv_editor_text("app_why_not.files_pending") : nullptr;
-    const std::string what = view.target.filename().string();
-    bool confirm = false;
-    if (view.dialog == dialog_kind::remove) {
-        std::error_code ec;
-        const bool dir = std::filesystem::is_directory(std::filesystem::symlink_status(view.target, ec));
-        const std::string dir_suffix = dir ? rv_editor_text("pane_files.remove_with_contents") : "";
-        const std::string confirm_msg =
-            rv_editor_text_format("pane_files.remove_confirm", std::make_format_args(what, dir_suffix));
-        rv_editor_label(confirm_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        for (const std::string &entry : view.doomed) {
-            rv_editor_label(entry.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
-        }
-        if (view.doomed_total > view.doomed.size()) {
-            const size_t more_count = view.doomed_total - view.doomed.size();
-            const std::string more_text = rv_editor_text_format("pane_files.and_more_items", std::make_format_args(more_count));
-            rv_editor_label(more_text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-        }
-    } else {
-        const char *rename_label = rv_editor_text("pane_files.new_name");
-        const char *name_label = rv_editor_text("pane_files.name");
-        const char *label = view.dialog == dialog_kind::rename ? rename_label : name_label;
-        const std::string target_path = (view.dialog == dialog_kind::rename ? view.target.parent_path() : view.target).string();
-        const std::string header = rv_editor_text_format("pane_files.dialog_header", std::make_format_args(label, target_path));
-        rv_editor_label(header.c_str(), rv_editor_label_kind::normal, theme);
-        rv_editor_field field;
-        field.state = { rv_editor_look::live, running_why };
-        field.invalid = view.error.empty() ? nullptr : view.error.c_str();
-        if (view.opening) {
-            ImGui::SetKeyboardFocusHere();
-            view.opening = false;
-        }
-        ImGui::SetNextItemWidth(ImGui::GetFontSize() * dialog_field_width_em);
-        rv_editor_text_field("##name", view.name, sizeof(view.name), theme, field);
-        confirm = ImGui::IsItemDeactivatedAfterEdit() && ImGui::IsKeyPressed(ImGuiKey_Enter);
-    }
-    if (!view.error.empty()) {
-        rv_editor_label(view.error.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-    }
-    const char *delete_btn = rv_editor_text("pane_files.delete_button");
-    const char *ok_btn = rv_editor_text("pane_files.ok_button");
-    const char *confirm_button_text = view.dialog == dialog_kind::remove ? delete_btn : ok_btn;
-    confirm = rv_editor_button(confirm_button_text, theme, { rv_editor_look::live, running_why }) || confirm;
-    ImGui::SameLine();
-    const bool cancel =
-        rv_editor_button(rv_editor_text("pane_files.cancel_button"), theme, { rv_editor_look::live, running_why });
-
-    if (confirm && running_why == nullptr) {
-        // The app runs the request on the next frame and writes the outcome into this view.
-        (void)rv_editor_app_request(app, { row->kind, pane, view.target, std::string(view.name) });
-    } else if (cancel) {
-        view.dialog = dialog_kind::none;
-    }
-    rv_editor_ask_end();
-}
-
 } // namespace
+
+rv_editor_size rv_editor_files_minimum()
+{
+    // The tallest strip is the question with its name field in a row under the text.
+    rv_editor_size size = rv_editor_tiled_minimum(rv_editor_files_content_width(),
+        rv_editor_tiled_shelf_block() + rv_editor_tiled_strip_block(true));
+    // The card of a folder's delete replaces the content: the tile holds it whole too.
+    const ImVec2 card = rv_editor_files_card_min_size();
+    const ImGuiStyle &style = ImGui::GetStyle();
+    size.w = std::max(size.w, static_cast<int32_t>(std::ceil(card.x + style.WindowPadding.x)));
+    size.h = std::max(size.h, static_cast<int32_t>(std::ceil(card.y + style.WindowPadding.y)));
+    return size;
+}
 
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
-    if (!app.files.is_open()) {
-        rv_editor_label(rv_editor_text("pane_files.no_project_open"),
-            rv_editor_label_kind::normal,
-            theme,
-            rv_editor_label_layout::wrap);
+    rv_editor_files_view &view = app.files_views[pane];
+    if (rv_editor_files_card(app, pane, view, theme)) {
         return;
     }
-    rv_editor_files_view &view = app.files_views[pane];
-    using dialog_kind = rv_editor_files_view::rv_editor_files_dialog;
-
-    const bool has_sel = !ui.state.files_selected.empty() && ui.state.files_selected != app.files.root().path;
-    const char *select_hint = rv_editor_text("pane_files.select_first");
-    const rv_editor_state need_sel = has_sel ? rv_editor_state{} : rv_editor_state{ rv_editor_look::live, select_hint };
-    // Square buttons, a coloured code each until the icons are drawn.
-    const float side = ImGui::GetFrameHeight();
-    // A refresh waiting for the next frame blocks Refresh, saying so.
-    const bool refresh_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::refresh_files);
-    const rv_editor_state refresh_state{ rv_editor_look::live,
-        refresh_pending ? rv_editor_text("app_why_not.files_pending") : nullptr };
-    rv_editor_shelf_begin("##shelf", theme);
-    if (rv_editor_letter_button("##new_file",
-            rv_editor_glyph::new_,
-            theme.code_green,
-            rv_editor_text("pane_files.button_new_file"),
-            theme)) {
-        rv_editor_files_ask(view, dialog_kind::new_file, rv_editor_files_target_dir(app, ui.state.files_selected), "");
+    rv_editor_files_shelf(app, pane, view, ui, theme);
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_files_content_width());
+    (void)rv_editor_tiled_area_begin("##files_area",
+        rv_editor_files_content_width(),
+        theme,
+        {},
+        false,
+        0.0f,
+        rv_editor_files_strip_height(app, view, strip_w));
+    if (app.files.is_open()) {
+        rv_editor_files_node(app, view, app.files.root(), ui, theme);
+    } else {
+        rv_editor_content_empty_row(rv_editor_text("pane_files.no_project_open"), theme);
     }
-    rv_editor_flow(side);
-    if (rv_editor_letter_button("##new_dir",
-            rv_editor_glyph::new_folder,
-            theme.code_yellow,
-            rv_editor_text("pane_files.button_new_folder"),
-            theme)) {
-        rv_editor_files_ask(view, dialog_kind::new_dir, rv_editor_files_target_dir(app, ui.state.files_selected), "");
-    }
-    rv_editor_flow(side);
-    if (rv_editor_letter_button("##rename",
-            rv_editor_glyph::rename,
-            theme.code_blue,
-            rv_editor_text("pane_files.button_rename"),
-            theme,
-            need_sel)) {
-        rv_editor_files_ask(view, dialog_kind::rename, ui.state.files_selected, ui.state.files_selected.filename().string());
-    }
-    rv_editor_flow(side);
-    if (rv_editor_letter_button("##delete",
-            rv_editor_glyph::delete_,
-            theme.code_red,
-            rv_editor_text("pane_files.button_delete"),
-            theme,
-            need_sel)) {
-        rv_editor_files_ask(view, dialog_kind::remove, ui.state.files_selected, "");
-    }
-    rv_editor_flow(side);
-    if (rv_editor_letter_button("##refresh",
-            rv_editor_glyph::refresh,
-            rv_editor_mocha_teal,
-            rv_editor_text("pane_files.button_refresh"),
-            theme,
-            refresh_state)) {
-        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::refresh_files, pane });
-    }
-    rv_editor_shelf_end();
-
-    rv_editor_files_dialog(app, pane, view, theme);
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_HorizontalScrollbar);
-    rv_editor_files_node(app, view, app.files.root(), ui, theme);
-    rv_editor_well_end();
+    rv_editor_tiled_area_end(theme);
+    rv_editor_files_strip(app, pane, view, strip_w, theme);
 }
 
 } // namespace rv_editor

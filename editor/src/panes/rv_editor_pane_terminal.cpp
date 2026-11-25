@@ -15,11 +15,13 @@
 #include "app/rv_editor_shell.hpp"
 #include "font/rv_editor_font.hpp"
 
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
-#include "ui/rv_editor_widgets_text.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_message.hpp"
 
 namespace rv_editor
 {
@@ -51,8 +53,6 @@ constexpr int utf8_3byte_length = 3;
 constexpr int utf8_4byte_length = 4;
 // Grid cell width probe glyph for layout measurement (editor assumption: monospace font).
 constexpr const char *grid_cell_width_probe = "M";
-// Maximum preview lines in paste confirmation dialog.
-constexpr int max_paste_preview_lines = 8;
 // Minimum terminal grid columns.
 constexpr int min_terminal_cols = 2;
 // Minimum terminal grid rows.
@@ -95,9 +95,12 @@ void rv_editor_term_draw_line(ImDrawList *dl, const rv_editor_term_line &line, I
     }
 }
 
-// Named keys in libvterm's terms; F1, F5, F6 and F7 stay the editor's (section 12).
+// Named keys in libvterm's terms.
 VTermKey rv_editor_term_key(ImGuiKey key)
 {
+    if (key >= ImGuiKey_F1 && key <= ImGuiKey_F12) {
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(key - ImGuiKey_F1 + 1));
+    }
     switch (key) {
     case ImGuiKey_Enter:
     case ImGuiKey_KeypadEnter:
@@ -128,22 +131,6 @@ VTermKey rv_editor_term_key(ImGuiKey key)
         return VTERM_KEY_PAGEUP;
     case ImGuiKey_PageDown:
         return VTERM_KEY_PAGEDOWN;
-    case ImGuiKey_F2:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(2));
-    case ImGuiKey_F3:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(3));
-    case ImGuiKey_F4:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(4));
-    case ImGuiKey_F8:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(8));
-    case ImGuiKey_F9:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(9));
-    case ImGuiKey_F10:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(10));
-    case ImGuiKey_F11:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(11));
-    case ImGuiKey_F12:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(12));
     default:
         return VTERM_KEY_NONE;
     }
@@ -205,8 +192,8 @@ bool rv_editor_term_keys(rv_editor_terminal &term)
             continue;
         }
         // Ctrl or Alt with a letter or digit arrives as a key, not as text:
-        // Ctrl+C is the interrupt. Ctrl+B stays Build.
-        if ((io.KeyCtrl || io.KeyAlt) && !(io.KeyCtrl && key == ImGuiKey_B)) {
+        // Ctrl+C is the interrupt.
+        if (io.KeyCtrl || io.KeyAlt) {
             uint32_t ch = 0;
             if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
                 ch = 'a' + static_cast<uint32_t>(key - ImGuiKey_A);
@@ -228,60 +215,67 @@ bool rv_editor_term_keys(rv_editor_terminal &term)
     return typed;
 }
 
-void rv_editor_pane_terminal_body(rv_editor_app &app,
-    rv_editor_pane_id pane,
+// The widest row: the message box with the widest of its button rows.
+float rv_editor_terminal_content_width()
+{
+    return rv_editor_message_strip_min_width(
+        { { rv_editor_text("shell_menu.ask_terminal_end"), rv_editor_text("shell_menu.ask_terminal_keep") },
+            { rv_editor_text("pane_terminal.paste"), rv_editor_text("pane_terminal.cancel") },
+            { rv_editor_text("pane_terminal.start_again") } });
+}
+
+// What the terminal says in the strip under the screen, whatever it takes: the shell's end question, several pasted lines to
+// look at, or that the shell ended or never started. Each has its buttons; a running shell with nothing to ask says nothing
+// and has no strip.
+rv_editor_message_say rv_editor_terminal_say(const rv_editor_terminal_view &view)
+{
+    if (view.ending) {
+        return { rv_editor_text("shell_menu.ask_terminal_message"),
+            rv_editor_label_kind::normal,
+            { rv_editor_text("shell_menu.ask_terminal_end"), rv_editor_text("shell_menu.ask_terminal_keep") } };
+    }
+    if (!view.paste.empty() && view.term != nullptr) {
+        // Every pasted line is in the strip, to look at before it runs.
+        return { std::string(rv_editor_text("pane_terminal.paste_lines_info")) + "\n" + view.paste,
+            rv_editor_label_kind::normal,
+            { rv_editor_text("pane_terminal.paste"), rv_editor_text("pane_terminal.cancel") } };
+    }
+    std::string why;
+    if (!view.error.empty()) {
+        why = rv_editor_text_format("pane_terminal.shell_not_started", std::make_format_args(view.error));
+    } else if (view.term != nullptr && !view.term->running()) {
+        const std::string ended_msg = view.term->ended();
+        why = rv_editor_text_format("pane_terminal.shell_ended", std::make_format_args(ended_msg));
+    }
+    return { why,
+        view.error.empty() ? rv_editor_label_kind::normal : rv_editor_label_kind::error,
+        why.empty() ? std::vector<std::string>{} : std::vector<std::string>{ rv_editor_text("pane_terminal.start_again") } };
+}
+
+// What the pressed button of that strip does.
+void rv_editor_terminal_answer(rv_editor_terminal_view &view, int pressed)
+{
+    if (pressed < 0) {
+        return;
+    }
+    if (view.ending) {
+        view.end_answer = pressed == 0 ? rv_editor_terminal_end_answer::end : rv_editor_terminal_end_answer::keep;
+    } else if (!view.paste.empty() && view.term != nullptr) {
+        if (pressed == 0) {
+            rv_editor_term_type(*view.term, view.paste);
+        }
+        view.paste.clear();
+    } else if (pressed == 0) {
+        view = {};
+    }
+}
+
+// The shell's screen in the content area, in whole cells of the code font. Starts the shell at the area's size.
+void rv_editor_terminal_screen(rv_editor_app &app,
+    rv_editor_terminal_view &view,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui)
 {
-    rv_editor_terminal_view &view = app.terminals[pane];
-
-    // A shell that ended or never started says so above the screen it left.
-    if (view.term == nullptr || !view.term->running() || !view.error.empty()) {
-        std::string why;
-        if (!view.error.empty()) {
-            why = rv_editor_text_format("pane_terminal.shell_not_started", std::make_format_args(view.error));
-        } else if (view.term != nullptr && !view.term->running()) {
-            const std::string ended_msg = view.term->ended();
-            why = rv_editor_text_format("pane_terminal.shell_ended", std::make_format_args(ended_msg));
-        }
-        if (!why.empty()) {
-            rv_editor_font_code_pop();
-            rv_editor_label(why.c_str(), rv_editor_label_kind::normal, theme);
-            ImGui::SameLine();
-            if (rv_editor_button(rv_editor_text("pane_terminal.start_again"), theme)) {
-                view = {};
-            }
-            rv_editor_font_code_push();
-        }
-    }
-
-    // Several lines are shown over the screen before they reach the shell.
-    if (!view.paste.empty() && view.term != nullptr) {
-        rv_editor_font_code_pop();
-        rv_editor_ask_begin(rv_editor_text("pane_terminal.paste_dialog_title"), theme);
-        ImGui::AlignTextToFramePadding();
-        rv_editor_label(rv_editor_text("pane_terminal.paste_lines_info"), rv_editor_label_kind::normal, theme);
-        ImGui::SameLine();
-        const bool paste = rv_editor_button(rv_editor_text("pane_terminal.paste"), theme);
-        ImGui::SameLine();
-        const bool cancel = rv_editor_button(rv_editor_text("pane_terminal.cancel"), theme);
-        const float lines = static_cast<float>(
-            std::min<size_t>(max_paste_preview_lines, 1 + std::count(view.paste.begin(), view.paste.end(), '\n')));
-        rv_editor_font_code_push();
-        const rv_editor_field paste_field = { .state = {}, .read_only = true };
-        ImGui::SetNextItemWidth(-1.0f);
-        rv_editor_text_area("##paste", view.paste.data(), view.paste.size() + 1, lines, theme, paste_field);
-        rv_editor_font_code_pop();
-        if (paste) {
-            rv_editor_term_type(*view.term, view.paste);
-        }
-        if (paste || cancel) {
-            view.paste.clear();
-        }
-        rv_editor_ask_end();
-        rv_editor_font_code_push();
-    }
-
     // The screen fills the tile in whole cells: no permanent status row.
     const ImVec2 cell(ImGui::CalcTextSize(grid_cell_width_probe).x, ImGui::GetTextLineHeight());
     const ImVec2 at = ImGui::GetCursorScreenPos();
@@ -294,6 +288,9 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
         if (view.term->start(view.cwd, cols, rows, theme, view.error) != RV_OK && view.error.empty()) {
             view.error = rv_editor_text("pane_terminal.unknown_error");
         }
+    }
+    if (view.term == nullptr) {
+        return; // it did not start: the box says why
     }
     rv_editor_terminal &term = *view.term;
     if (term.running()) {
@@ -384,18 +381,27 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
 
 } // namespace
 
+rv_editor_size rv_editor_terminal_minimum()
+{
+    return rv_editor_tiled_minimum(rv_editor_terminal_content_width(), rv_editor_tiled_strip_block());
+}
+
 void rv_editor_pane_terminal(rv_editor_app &app,
     rv_editor_pane_id pane,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui)
 {
+    rv_editor_terminal_view &view = app.terminals[pane];
+    const rv_editor_message_say say = rv_editor_terminal_say(view);
+    const float strip_w = std::max(ImGui::GetContentRegionAvail().x, rv_editor_terminal_content_width());
+    const float strip_h = rv_editor_message_strip_height(say.text, say.buttons, strip_w);
+    // The area is measured in the UI font like the minimum; the screen in it is in the code font.
+    (void)rv_editor_tiled_area_begin("##screen", rv_editor_terminal_content_width(), theme, {}, false, 0.0f, strip_h);
     rv_editor_font_code_push();
-    // No controls row: the screen alone, in a well; it draws its own opaque
-    // background and scrolls by its own wheel handling.
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    rv_editor_pane_terminal_body(app, pane, theme, ui);
-    rv_editor_well_end();
+    rv_editor_terminal_screen(app, view, theme, ui);
     rv_editor_font_code_pop();
+    rv_editor_tiled_area_end(theme);
+    rv_editor_terminal_answer(view, rv_editor_message_strip("##strip", say.text, say.kind, say.buttons, theme, strip_w));
 }
 
 } // namespace rv_editor

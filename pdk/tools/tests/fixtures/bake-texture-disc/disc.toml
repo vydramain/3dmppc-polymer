@@ -1,0 +1,9 @@
+[disc]
+id = "bake-texture-fixture"
+title = "mppcburner bake-texture test fixture"
+
+[build]
+sources = ["src/*.cpp"]
+
+[assets]
+files = ["tex/*.png"]

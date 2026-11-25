@@ -1,9 +1,13 @@
 // Text fields, text areas, numeric spinners and dropdowns: ImGui edits the value, the
 // editor draws the sunken well, the state frame and the markers.
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <type_traits>
+
+#include "imgui_internal.h"
 
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -200,6 +204,11 @@ bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_ed
     return changed;
 }
 
+ImGuiInputTextFlags rv_editor_text_area_flags(const rv_editor_field &field)
+{
+    return ImGuiInputTextFlags_WordWrap | (field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None);
+}
+
 bool rv_editor_text_area(const char *label,
     char *buf,
     size_t size,
@@ -209,10 +218,11 @@ bool rv_editor_text_area(const char *label,
 {
     // Before the call: SetNextItemWidth applies to the next item only.
     const float width = ImGui::CalcItemWidth();
-    const float height = ImGui::GetTextLineHeight() * lines + ImGui::GetStyle().FramePadding.y * frame_padding_sides;
+    // Whole pixels: a fractional height renders a pixel apart in different positions.
+    const float height = static_cast<float>(
+        rv_editor_px_ceil(ImGui::GetTextLineHeight() * lines + ImGui::GetStyle().FramePadding.y * frame_padding_sides));
     rv_editor_field_begin(theme, field);
-    const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
-    const bool changed = ImGui::InputTextMultiline(label, buf, size, ImVec2(width, height), flags);
+    const bool changed = ImGui::InputTextMultiline(label, buf, size, ImVec2(width, height), rv_editor_text_area_flags(field));
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max = ImGui::GetItemRectMax();
     const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), ImGui::IsItemActive());
@@ -249,6 +259,8 @@ bool rv_editor_dropdown(const char *label,
     const char *preview = (*current >= 0 && *current < count) ? items[*current] : "";
     bool changed = false;
     const bool open = ImGui::BeginCombo(label, preview, ImGuiComboFlags_NoArrowButton);
+    ImGuiContext &g = *ImGui::GetCurrentContext();
+    IMGUI_TEST_ENGINE_ITEM_INFO(ImGui::GetItemID(), label, g.LastItemData.StatusFlags); // BeginCombo labels nothing itself
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max(min.x + width, ImGui::GetItemRectMax().y);
     const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), open);
@@ -281,38 +293,136 @@ bool rv_editor_dropdown(const char *label,
     return changed;
 }
 
+void rv_editor_text_item(const char *text, uint32_t colour, float pad_y)
+{
+    const ImVec2 size = ImGui::CalcTextSize(text);
+    const ImVec2 min = ImGui::GetCursorScreenPos();
+    ImGui::InvisibleButton("", ImVec2(std::max(size.x, 1.0f), size.y + pad_y * half_divisor));
+    ImGui::GetWindowDrawList()->AddText(ImVec2(min.x, min.y + pad_y),
+        colour != 0 ? rv_editor_col(colour) : ImGui::GetColorU32(ImGuiCol_Text),
+        text);
+}
+
 void rv_editor_path_row(const char *label, const std::string &path, const rv_editor_theme &theme)
 {
     ImGui::PushID(label);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label, rv_editor_label_end(label));
     ImGui::SameLine();
-    const char *copy_label = rv_editor_text("widgets_fields.button_copy");
-    const float room = ImGui::GetContentRegionAvail().x - rv_editor_button_width(copy_label) - ImGui::GetStyle().ItemSpacing.x;
-    std::string shown = path;
-    if (ImGui::CalcTextSize(path.c_str()).x > room) {
-        const char *path_ellipsis = rv_editor_text("widgets_fields.path_ellipsis");
-        // Drop whole UTF-8 characters from the front until "..." and the rest fit.
-        size_t start = 0;
-        do {
-            ++start;
-            while (start < path.size()) {
-                const auto byte = static_cast<unsigned char>(path[start]);
-                if ((byte & utf8_continuation_mask) != utf8_continuation_byte) {
-                    break;
-                }
-                ++start;
-            }
-            shown = std::string(path_ellipsis) + path.substr(start);
-        } while (start < path.size() && ImGui::CalcTextSize(shown.c_str()).x > room);
-    }
-    ImGui::TextUnformatted(shown.c_str());
+    rv_editor_text_item(path.c_str(), 0, ImGui::GetStyle().FramePadding.y);
     ImGui::SetItemTooltip("%s", path.c_str());
-    ImGui::SameLine();
-    if (rv_editor_button(copy_label, theme)) {
-        ImGui::SetClipboardText(path.c_str());
+    if (rv_editor_context_menu_begin("##path_menu")) {
+        if (rv_editor_menu_item(rv_editor_text("widgets_fields.button_copy"), nullptr, nullptr)) {
+            ImGui::SetClipboardText(path.c_str());
+        }
+        rv_editor_context_menu_end();
     }
     ImGui::PopID();
+    (void)theme;
+}
+
+std::string rv_editor_path_tail(const std::string &path, float width)
+{
+    if (path.empty() || ImGui::CalcTextSize(path.c_str()).x <= width) {
+        return path;
+    }
+    const std::string ellipsis = rv_editor_text("widgets_fields.path_ellipsis");
+    // Drop whole UTF-8 characters from the front until the ellipsis and the rest fit.
+    size_t start = 0;
+    std::string shown;
+    do {
+        ++start;
+        while (start < path.size() &&
+            (static_cast<unsigned char>(path[start]) & utf8_continuation_mask) == utf8_continuation_byte) {
+            ++start;
+        }
+        shown = ellipsis + path.substr(start);
+    } while (start < path.size() && ImGui::CalcTextSize(shown.c_str()).x > width);
+    return shown;
+}
+
+std::string rv_editor_path_relative(const std::string &path, const std::string &root)
+{
+    size_t len = root.size();
+    while (len > 0 && root[len - 1] == '/') {
+        --len;
+    }
+    if (len == 0 || path.size() <= len || path.compare(0, len, root, 0, len) != 0 || path[len] != '/') {
+        return path;
+    }
+    return path.substr(len + 1);
+}
+
+std::string rv_editor_pane_header_title(const char *title, float width)
+{
+    const char *end = rv_editor_label_end(title);
+    const std::string whole(title, end);
+    if (whole.find('/') != std::string::npos) {
+        return rv_editor_path_tail(whole, width);
+    }
+    const char *fit = rv_editor_text_fit(title, end, std::max(0.0f, width));
+    return fit == end ? whole : std::string(title, fit) + rv_editor_text("widgets_fields.path_ellipsis");
+}
+
+namespace
+{
+// What every path field drew last, by the item id of its InputText.
+std::map<uint32_t, rv_editor_path_probe> &path_probes()
+{
+    static std::map<uint32_t, rv_editor_path_probe> probes;
+    return probes;
+}
+} // namespace
+
+const rv_editor_path_probe *rv_editor_path_probe_of(uint32_t id)
+{
+    const auto it = path_probes().find(id);
+    return it == path_probes().end() ? nullptr : &it->second;
+}
+
+bool rv_editor_path_field(const char *label,
+    char *buf,
+    size_t size,
+    const std::string &root,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field,
+    rv_editor_path_probe *probe)
+{
+    // Before the call: SetNextItemWidth applies to the next item only.
+    const float width = ImGui::CalcItemWidth();
+    rv_editor_field_begin(theme, field);
+    const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
+    const bool changed = ImGui::InputText(label, buf, size, flags);
+    const uint32_t item_id = ImGui::GetItemID();
+    const ImVec2 min = ImGui::GetItemRectMin();
+    const ImVec2 max(min.x + width, ImGui::GetItemRectMax().y);
+    const bool hovered = ImGui::IsItemHovered();
+    const bool editing = ImGui::IsItemActive();
+    const rv_editor_field_look look = rv_editor_field_resolve(field, hovered, editing);
+    const ImVec2 pad = ImGui::GetStyle().FramePadding;
+    std::string shown = buf;
+    if (!editing) {
+        // The input shows the head of the value; cover it with the well and the relative path instead.
+        shown = rv_editor_path_relative(buf, root);
+        ImDrawList *dl = ImGui::GetWindowDrawList();
+        dl->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_FrameBg));
+        dl->PushClipRect(min, max, true);
+        dl->AddText(ImVec2(min.x + pad.x, min.y + pad.y), ImGui::GetColorU32(ImGuiCol_Text), shown.c_str());
+        dl->PopClipRect();
+        if (hovered && field.invalid == nullptr && field.state.disabled == nullptr) {
+            ImGui::SetTooltip("%s", buf);
+        }
+    }
+    rv_editor_field_end(field);
+    rv_editor_field_frame(ImGui::GetWindowDrawList(), min, max, theme, field, look, 0.0f);
+    rv_editor_path_probe &own = path_probes()[item_id];
+    own.shown = shown;
+    own.tooltip = buf;
+    own.editing = editing;
+    if (probe != nullptr) {
+        *probe = own;
+    }
+    return changed;
 }
 
 } // namespace rv_editor

@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "theme/rv_editor_theme.hpp"
+#include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 
 namespace rv_editor
@@ -59,5 +60,23 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
     const char *why_not,
     std::filesystem::path &out,
     const rv_editor_theme &theme);
+
+// The browser in parts, for pages that arrange them: Up and the path field in one row; the entries as rows for a content
+// area or a card's text area (picked: a double click on an executable, put in `out`); why the action is off now, `why_not`
+// first, else nullptr.
+void rv_editor_browser_path_row(rv_editor_browser &b, const rv_editor_theme &theme);
+rv_editor_browse_result
+rv_editor_browser_entries(rv_editor_browser &b, const char *why_not, std::filesystem::path &out, const rv_editor_theme &theme);
+const char *rv_editor_browser_why_not(const rv_editor_browser &b, const char *why_not);
+
+// The browser as the big ask's card over the content region: the purpose as its title, the path row and the entries in its
+// text area, the reason the action is off in its message line, the action and Cancel under it.
+rv_editor_browse_result rv_editor_browser_card(rv_editor_browser &b, std::filesystem::path &out, const rv_editor_theme &theme);
+
+// The least width the card draws whole with these purposes and this action. Call inside a frame.
+float rv_editor_browser_card_min_width(const std::vector<std::string> &purposes, const char *action);
+
+// What the browser's path field drew last, for tests.
+const rv_editor_path_probe &rv_editor_browser_path_probe();
 
 } // namespace rv_editor

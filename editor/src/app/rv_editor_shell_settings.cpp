@@ -1,22 +1,24 @@
 // Settings as a page: beside the Toolchest without a project, a tab with one.
-// Toolchain only for now. The fields are a draft until Apply rewrites settings.toml
-// [tools] section and looks the tools up again; Revert takes the file's values back.
+// Tool overrides and shortcut assignments are drafts until Apply writes settings.toml.
 
 #include <algorithm>
 #include <cstdio>
 #include <iterator>
 #include <optional>
-#include <type_traits>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "imgui.h"
 
 #include "pdk/rv_err.h"
 #include "app/rv_editor_shell.hpp"
+#include "panes/rv_editor_pane_tiled.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_settings.hpp"
 #include "text/rv_editor_text.hpp"
+#include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_form.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -25,32 +27,41 @@ namespace rv_editor
 namespace
 {
 
-// Path field minimum width in font size units.
-constexpr float path_field_min_em = 10.0f;
-
-// Browser height in font size units.
-constexpr float browser_height_em = 24.0f;
-
-// Window width from which labels get their own column.
-constexpr float label_column_min_width_em = 50.0f;
-
-// Label column width in font size units.
-constexpr float label_column_em = 15.0f;
+// The override path fields and the frame rate slider are at least this wide, in font sizes.
+constexpr float path_field_min_em = 14.0f;
+constexpr float slider_min_em = 8.0f;
 
 struct rv_editor_settings_row {
     const char *key;
     const char *label_text_id;
+    const char *name_text_id;      // the short name: the form's label, the browser's title
     const char *automatic_text_id; // what an empty field means
     rv_editor_tool rv_editor_toolchain::*tool;
 };
 
-// Pipeline order: the bakers bake textures, sounds and models, burner writes the disc image, console
-// runs it with devtools, player is the candidate's final check without them.
+// Pipeline order: the bakers bake textures, sounds and models, burner writes the disc image (the bakers' directory holds
+// mppcinspector too), console runs it with devtools, player is the candidate's final check without them.
 constexpr rv_editor_settings_row rv_editor_settings_rows[] = {
-    { "baker", "shell_settings.label_baker", "shell_settings.empty_auto_next", &rv_editor_toolchain::baker },
-    { "burner", "shell_settings.label_burner", "shell_settings.empty_auto_next", &rv_editor_toolchain::burner },
-    { "console", "shell_settings.label_console", "shell_settings.empty_auto_next", &rv_editor_toolchain::console },
-    { "player", "shell_settings.label_player", "shell_settings.empty_no_player", &rv_editor_toolchain::player },
+    { "baker",
+        "shell_settings.label_baker",
+        "shell_settings.name_baker",
+        "shell_settings.empty_auto_next",
+        &rv_editor_toolchain::baker },
+    { "burner",
+        "shell_settings.label_burner",
+        "shell_settings.name_burner",
+        "shell_settings.empty_auto_next",
+        &rv_editor_toolchain::burner },
+    { "console",
+        "shell_settings.label_console",
+        "shell_settings.name_console",
+        "shell_settings.empty_auto_next",
+        &rv_editor_toolchain::console },
+    { "player",
+        "shell_settings.label_player",
+        "shell_settings.name_player",
+        "shell_settings.empty_no_player",
+        &rv_editor_toolchain::player },
 };
 static_assert(std::size(rv_editor_settings_rows) == std::extent_v<decltype(rv_editor_shell::settings_paths)>);
 
@@ -66,19 +77,15 @@ void rv_editor_settings_load(rv_editor_shell &shell)
         shell.settings_checks[i].reset();
     }
     shell.settings_error.clear();
+    shell.settings_shortcuts.reset();
+    shell.settings_shortcut_capture.reset();
+    shell.settings_shortcut_error.clear();
     shell.settings_browse = -1;
     shell.settings_loaded = true;
 }
 
-// The label left of its value, or over it when label_w is 0 (a narrow tab).
-void rv_editor_settings_label(const char *label, float label_w, const rv_editor_theme &theme)
-{
-    ImGui::AlignTextToFramePadding();
-    rv_editor_label(label, rv_editor_label_kind::normal, theme);
-    if (label_w > 0.0f) {
-        ImGui::SameLine(label_w);
-    }
-}
+// What each override path field drew last, for tests.
+rv_editor_path_probe path_probes[std::extent_v<decltype(rv_editor_shell::settings_paths)>];
 
 void rv_editor_settings_status(const rv_editor_tool &tool, const rv_editor_theme &theme)
 {
@@ -112,76 +119,127 @@ void rv_editor_settings_poll_check(rv_editor_shell &shell, size_t i)
     (void)rv_editor_tool_version_poll(*checked, error);
 }
 
-void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, const rv_editor_theme &theme)
+// The form's labels: the tools, then the frame pacing.
+std::vector<rv_editor_form_row_desc> rv_editor_settings_form_rows()
+{
+    std::vector<rv_editor_form_row_desc> rows;
+    for (const rv_editor_settings_row &row : rv_editor_settings_rows) {
+        rows.push_back({ rv_editor_text(row.name_text_id), nullptr, nullptr, false });
+    }
+    rows.push_back({ rv_editor_text("shell_settings.pace_title"), nullptr, nullptr, false });
+    return rows;
+}
+
+float rv_editor_settings_label_column()
+{
+    float width = 0.0f;
+    for (const auto &row : rv_editor_settings_form_rows()) {
+        width = std::max(width, ImGui::CalcTextSize(row.label).x);
+    }
+    return width + ImGui::GetStyle().ItemSpacing.x;
+}
+
+float rv_editor_settings_buttons_width()
+{
+    return rv_editor_button_width(rv_editor_text("shell_settings.apply_button")) +
+        rv_editor_button_width(rv_editor_text("shell_settings.revert_button")) + ImGui::GetStyle().ItemSpacing.x;
+}
+
+// The widest row: a tool's path field at its floor with Browse and Check, the pacing row, the buttons, the box or the card.
+float rv_editor_settings_content_width()
+{
+    const ImGuiStyle &style = ImGui::GetStyle();
+    const float label = rv_editor_settings_label_column();
+    const float path = label + ImGui::GetFontSize() * path_field_min_em +
+        rv_editor_button_width(rv_editor_text("shell_settings.browse_button")) +
+        rv_editor_button_width(rv_editor_text("shell_settings.check_button")) + 2.0f * style.ItemSpacing.x;
+    const char *fps = rv_editor_text("shell_settings.fps_limit_label");
+    const float pace = label + rv_editor_checkbox_width(rv_editor_text("shell_settings.vsync_label")) + style.ItemSpacing.x +
+        ImGui::GetFontSize() * slider_min_em + style.ItemSpacing.x + ImGui::CalcTextSize(fps).x;
+    std::vector<std::string> purposes;
+    for (const rv_editor_settings_row &row : rv_editor_settings_rows) {
+        const std::string name = rv_editor_text(row.name_text_id);
+        purposes.push_back(rv_editor_text_format("shell_settings.select_executable_for", std::make_format_args(name)));
+    }
+    const float card = rv_editor_browser_card_min_width(purposes, rv_editor_text("shell_settings.select_executable_button"));
+    return std::max({ path, pace, rv_editor_settings_buttons_width(), card });
+}
+
+// The frame heights above the area and the row of buttons under it, each with its gap.
+float rv_editor_settings_rows_height()
+{
+    const float rows = static_cast<float>(std::size(rv_editor_settings_rows) + 1);
+    return (rows + 1.0f) * (ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y);
+}
+
+// One tool's lines in the content area: its name, where it was found, its status and what the field means.
+void rv_editor_settings_lines(rv_editor_shell &shell, size_t i, const rv_editor_theme &theme)
+{
+    const rv_editor_settings_row &row = rv_editor_settings_rows[i];
+    const rv_editor_tool &tool = shell.app.tools.*row.tool;
+    ImGui::PushID(static_cast<int>(i));
+    rv_editor_label(rv_editor_text(row.label_text_id), rv_editor_label_kind::bright, theme, rv_editor_label_layout::line);
+    std::string resolved = rv_editor_text("shell_settings.path_none");
+    if (!tool.path.empty()) {
+        const std::string path_str = tool.path.string();
+        const std::string &origin = tool.origin;
+        resolved = rv_editor_text_format("shell_settings.resolved_with_origin", std::make_format_args(path_str, origin));
+    }
+    const std::string where = std::string(rv_editor_text("shell_settings.resolved_path")) + ": " + resolved;
+    rv_editor_label(where.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::line);
+    const std::optional<rv_editor_tool> &checked = shell.settings_checks[i];
+    rv_editor_settings_status(checked ? *checked : tool, theme);
+    // What an empty field means, and that a Check ran on the field as it stands.
+    std::string note;
+    if (shell.settings_paths[i][0] == '\0') {
+        note = rv_editor_text(row.automatic_text_id);
+    }
+    if (checked) {
+        note += (note.empty() ? "" : " ") + std::string(rv_editor_text("shell_settings.not_yet_applied"));
+    }
+    if (!note.empty()) {
+        rv_editor_label(note.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::line);
+    }
+    ImGui::PopID();
+}
+
+// A tool's row: its name, the override path, Browse and Check.
+void rv_editor_settings_row_draw(rv_editor_shell &shell, size_t i, const rv_editor_theme &theme)
 {
     const rv_editor_settings_row &row = rv_editor_settings_rows[i];
     const rv_editor_tool &tool = shell.app.tools.*row.tool;
     rv_editor_settings_poll_check(shell, i);
     ImGui::PushID(static_cast<int>(i));
-    rv_editor_label(rv_editor_text(row.label_text_id), rv_editor_label_kind::bright, theme);
-
-    rv_editor_settings_label(rv_editor_text("shell_settings.override_path"), label_w, theme);
-    const float browse_btn_w = rv_editor_button_width(rv_editor_text("shell_settings.browse_button"));
-    const float buttons = browse_btn_w + ImGui::GetStyle().ItemSpacing.x;
-    ImGui::SetNextItemWidth(std::max(ImGui::GetFontSize() * path_field_min_em, ImGui::GetContentRegionAvail().x - buttons));
-    if (rv_editor_text_field("##path", shell.settings_paths[i], sizeof(shell.settings_paths[i]), theme)) {
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(rv_editor_text(row.name_text_id));
+    ImGui::SameLine(rv_editor_form_field_x());
+    const float buttons = rv_editor_button_width(rv_editor_text("shell_settings.browse_button")) +
+        rv_editor_button_width(rv_editor_text("shell_settings.check_button")) + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+    ImGui::SetNextItemWidth(std::max(ImGui::GetContentRegionAvail().x - buttons, ImGui::GetFontSize()));
+    if (rv_editor_path_field("##path",
+            shell.settings_paths[i],
+            sizeof(shell.settings_paths[i]),
+            "",
+            theme,
+            {},
+            &path_probes[i])) {
         shell.settings_checks[i].reset();
     }
     ImGui::SameLine();
-    const bool browsing = shell.settings_browse == static_cast<int>(i);
-    const char *browse_tooltip = browsing ? rv_editor_text("shell_settings.browser_open_tooltip") : nullptr;
-    if (rv_editor_button(rv_editor_text("shell_settings.browse_button"), theme, { rv_editor_look::live, browse_tooltip })) {
-        const char *label_text = rv_editor_text(row.label_text_id);
-        const std::string label_str = label_text;
-        std::string browser_title =
-            rv_editor_text_format("shell_settings.select_executable_for", std::make_format_args(label_str));
+    if (rv_editor_button(rv_editor_text("shell_settings.browse_button"), theme)) {
+        const std::string name = rv_editor_text(row.name_text_id);
         std::filesystem::path start_path = tool.path;
         if (shell.settings_paths[i][0] != '\0') {
             start_path = shell.settings_paths[i];
         }
         rv_editor_browser_start(shell.settings_browser,
-            browser_title,
+            rv_editor_text_format("shell_settings.select_executable_for", std::make_format_args(name)),
             rv_editor_text("shell_settings.select_executable_button"),
             rv_editor_browse_pick::executable,
             start_path);
         shell.settings_browse = static_cast<int>(i);
     }
-    if (shell.settings_paths[i][0] == '\0') {
-        ImGui::SetCursorPosX(label_w);
-        rv_editor_label(rv_editor_text(row.automatic_text_id), rv_editor_label_kind::dim, theme);
-    }
-    if (browsing) {
-        std::filesystem::path picked;
-        const rv_editor_browse_result r =
-            rv_editor_browser_draw(shell.settings_browser, ImGui::GetFontSize() * browser_height_em, nullptr, picked, theme);
-        if (r == rv_editor_browse_result::picked) {
-            std::snprintf(shell.settings_paths[i], sizeof(shell.settings_paths[i]), "%s", picked.c_str());
-            shell.settings_checks[i].reset();
-        }
-        if (r != rv_editor_browse_result::none) {
-            shell.settings_browse = -1;
-        }
-    }
-
-    rv_editor_settings_label(rv_editor_text("shell_settings.resolved_path"), label_w, theme);
-    std::string resolved;
-    if (tool.path.empty()) {
-        resolved = rv_editor_text("shell_settings.path_none");
-    } else {
-        const std::string path_str = tool.path.string();
-        const std::string &origin = tool.origin;
-        resolved = rv_editor_text_format("shell_settings.resolved_with_origin", std::make_format_args(path_str, origin));
-    }
-    rv_editor_label(resolved.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-
-    rv_editor_settings_label(rv_editor_text("shell_settings.status_label"), label_w, theme);
-    const std::optional<rv_editor_tool> &checked = shell.settings_checks[i];
-    rv_editor_settings_status(checked ? *checked : tool, theme);
-    if (checked) {
-        ImGui::SameLine();
-        rv_editor_label(rv_editor_text("shell_settings.not_yet_applied"), rv_editor_label_kind::dim, theme);
-    }
-    ImGui::SetCursorPosX(label_w);
+    ImGui::SameLine();
     if (rv_editor_button(rv_editor_text("shell_settings.check_button"), theme)) {
         shell.settings_checks[i] = rv_editor_tool_probe(row.key, shell.settings_paths[i]);
     }
@@ -193,19 +251,19 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
 void rv_editor_settings_pace(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pace draft = shell.pace;
-    rv_editor_label(rv_editor_text("shell_settings.pace_title"), rv_editor_label_kind::bright, theme);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(rv_editor_text("shell_settings.pace_title"));
+    ImGui::SameLine(rv_editor_form_field_x());
     bool changed = rv_editor_checkbox(rv_editor_text("shell_settings.vsync_label"), &draft.vsync, theme);
+    ImGui::SameLine();
     // The field follows what the window runs, not the request.
     ImGui::BeginDisabled(shell.vsync_active);
-    changed |=
-        ImGui::SliderInt(rv_editor_text("shell_settings.fps_limit_label"), &draft.fps_limit, fps_limit_min, fps_limit_max);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * slider_min_em);
+    changed |= ImGui::SliderInt("##fps", &draft.fps_limit, fps_limit_min, fps_limit_max);
+    ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(rv_editor_text("shell_settings.fps_limit_label"));
     ImGui::EndDisabled();
-    const bool refused = shell.pace.vsync && !shell.vsync_active;
-    if (shell.vsync_active || refused) {
-        ImGui::SameLine();
-        const char *note_key = refused ? "shell_settings.vsync_refused_note" : "shell_settings.fps_limit_note";
-        rv_editor_label(rv_editor_text(note_key), rv_editor_label_kind::dim, theme);
-    }
     if (changed) {
         shell.pace_request = draft;
     }
@@ -213,30 +271,74 @@ void rv_editor_settings_pace(rv_editor_shell &shell, const rv_editor_theme &them
 
 } // namespace
 
+rv_editor_size rv_editor_settings_minimum()
+{
+    return rv_editor_tiled_minimum(rv_editor_settings_content_width(), rv_editor_settings_rows_height());
+}
+
 void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_app &app = shell.app;
     if (!shell.settings_loaded) {
         rv_editor_settings_load(shell);
     }
-    rv_editor_pane_header(rv_editor_text("shell_settings.pane_header"), true, theme);
+    // Browsing is a mode of the page: the card takes the page's place and the form comes back after it.
+    if (shell.settings_browse >= 0) {
+        std::filesystem::path picked;
+        const rv_editor_browse_result r = rv_editor_browser_card(shell.settings_browser, picked, theme);
+        const size_t i = static_cast<size_t>(shell.settings_browse);
+        if (r == rv_editor_browse_result::picked) {
+            std::snprintf(shell.settings_paths[i], sizeof(shell.settings_paths[i]), "%s", picked.c_str());
+            shell.settings_checks[i].reset();
+        }
+        if (r != rv_editor_browse_result::none) {
+            shell.settings_browse = -1;
+        }
+        return;
+    }
     const bool nowhere = app.tools.settings_path.empty();
-    const char *file_info = nowhere ? rv_editor_text("shell_settings.no_file_desc") : app.tools.settings_path.c_str();
-    auto msg = rv_editor_text_format("shell_settings.settings_desc", std::make_format_args(file_info));
-    rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
-    rv_editor_separator();
-    const float font = ImGui::GetFontSize();
-    const float label_w = ImGui::GetContentRegionAvail().x >= font * label_column_min_width_em ? font * label_column_em : 0.0f;
-    for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
-        rv_editor_settings_block(shell, i, label_w, theme);
-        rv_editor_separator();
-    }
-    if (!shell.settings_error.empty()) {
-        rv_editor_status(shell.settings_error.c_str(), rv_editor_status_kind::error, theme);
-    }
     // Apply only asks; the frame after saves and looks up. Off while that or the version checks run.
     const bool searching =
         shell.settings_apply_request || app.tools.burner.version_check.running() || rv_editor_bakers_checking(app.tools);
+    const bool refused = shell.pace.vsync && !shell.vsync_active;
+    // What the page says besides a failed save: the search, a pacing note, else what the file is.
+    const char *file_info = nowhere ? rv_editor_text("shell_settings.no_file_desc") : app.tools.settings_path.c_str();
+    std::string said = rv_editor_text_format("shell_settings.settings_desc", std::make_format_args(file_info));
+    if (refused) {
+        said = rv_editor_text("shell_settings.vsync_refused_note");
+    } else if (shell.vsync_active) {
+        said = rv_editor_text("shell_settings.fps_limit_note");
+    }
+    if (searching) {
+        said = rv_editor_text("shell_settings.searching_tools");
+    }
+    const std::vector<rv_editor_form_row_desc> rows = rv_editor_settings_form_rows();
+    rv_editor_form_begin(rows, theme);
+    for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
+        rv_editor_settings_row_draw(shell, i, theme);
+    }
+    rv_editor_settings_pace(shell, theme);
+    rv_editor_form_end();
+
+    (void)rv_editor_tiled_area_begin("##settings_area",
+        rv_editor_settings_content_width(),
+        theme,
+        {},
+        false,
+        std::max(1.0f, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeight() - ImGui::GetStyle().ItemSpacing.y));
+    const bool show_shortcuts = rv_editor_collapsing_section(rv_editor_text("shell_menu.keyboard_shortcuts"));
+    if (!shell.settings_error.empty()) {
+        rv_editor_label(shell.settings_error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
+    }
+    if (show_shortcuts) {
+        rv_editor_settings_shortcuts(shell, theme);
+    }
+    rv_editor_label(said.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
+    for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
+        rv_editor_settings_lines(shell, i, theme);
+    }
+    rv_editor_tiled_area_end(theme);
+
     const char *no_dir_tooltip = nowhere ? rv_editor_text("shell_settings.no_dir_tooltip") : nullptr;
     const char *searching_text = searching ? rv_editor_text("shell_settings.searching_tools") : nullptr;
     const char *apply_block = searching_text != nullptr ? searching_text : no_dir_tooltip;
@@ -247,12 +349,6 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     if (rv_editor_button(rv_editor_text("shell_settings.revert_button"), theme, { rv_editor_look::live, searching_text })) {
         shell.settings_loaded = false;
     }
-    if (searching) {
-        ImGui::SameLine();
-        rv_editor_label(rv_editor_text("shell_settings.searching_tools"), rv_editor_label_kind::dim, theme);
-    }
-    rv_editor_separator();
-    rv_editor_settings_pace(shell, theme);
 }
 
 void rv_editor_shell_settings_apply(rv_editor_shell &shell)
@@ -262,15 +358,31 @@ void rv_editor_shell_settings_apply(rv_editor_shell &shell)
     }
     shell.settings_apply_request = false;
     rv_editor_app &app = shell.app;
-    std::vector<rv_editor_settings_tool> tools;
+    rv_editor_settings_entries tools;
     for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
-        tools.push_back({ rv_editor_settings_rows[i].key, shell.settings_paths[i] });
+        tools.emplace_back(rv_editor_settings_rows[i].key, shell.settings_paths[i]);
+    }
+    std::optional<rv_editor_settings_entries> shortcuts;
+    if (shell.settings_shortcuts) {
+        shortcuts.emplace();
+        const auto &chords = *shell.settings_shortcuts;
+        for (size_t i = 0; i < chords.size(); ++i) {
+            const auto &spec = rv_editor_shortcut_specs[i];
+            if (chords[i] != spec.default_chord) {
+                shortcuts->emplace_back(spec.key, rv_editor_shortcut_name(chords[i]));
+            }
+        }
     }
     std::string error;
-    if (rv_editor_settings_save_tools(app.tools.settings_path, tools, error) != RV_OK) {
+    if (rv_editor_settings_save(app.tools.settings_path, tools, shortcuts, error) != RV_OK) {
         shell.settings_error = error;
         return;
     }
+    if (shell.settings_shortcuts) {
+        shell.shortcuts = shell.settings_shortcuts;
+        shell.settings_shortcuts.reset();
+    }
+    shell.settings_error.clear();
     // Found again; a build or session already running keeps the tool it started with.
     app.tools = rv_editor_toolchain_find();
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "settings saved: " + app.tools.settings_path.string());
@@ -278,6 +390,11 @@ void rv_editor_shell_settings_apply(rv_editor_shell &shell)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, app.tools.settings_error);
     }
     shell.settings_loaded = false;
+}
+
+const rv_editor_path_probe &rv_editor_page_settings_path_probe(size_t i)
+{
+    return path_probes[i];
 }
 
 } // namespace rv_editor

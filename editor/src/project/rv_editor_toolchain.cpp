@@ -24,6 +24,7 @@ namespace
 // Tool executable names as they appear on the system or in next to the editor.
 constexpr std::string_view tool_console_name = "3dmppc";
 constexpr std::string_view tool_burner_name = "mppcburner";
+constexpr std::string_view tool_inspector_name = "mppcinspector";
 constexpr std::string_view tool_player_name = "player";
 // The firmware is the console the burner packs into a player: firmware/3dmppc beside the burner, never on PATH.
 constexpr std::string_view tool_firmware_name = "3dmppc";
@@ -174,7 +175,7 @@ std::filesystem::path rv_editor_bakers_dir(const std::filesystem::path &given, s
     return ec ? given : target.parent_path();
 }
 
-// Sets the three bakers in the bakers' directory record tc.baker (empty path: the editor's own
+// Sets the three bakers and mppcinspector in the bakers' directory record tc.baker (empty path: the editor's own
 // directory) and checks each. tc.baker.problem is the first problem found. Versions are left to the caller.
 void rv_editor_bakers_fill(rv_editor_toolchain &tc)
 {
@@ -190,6 +191,16 @@ void rv_editor_bakers_fill(rv_editor_toolchain &tc)
         if (tc.baker.problem.empty()) {
             tc.baker.problem = tool.problem;
         }
+    }
+    // The burner runs mppcinspector from the same directory, so it is found and checked like a baker (no version is asked).
+    tc.inspector = { dir.empty() ? std::filesystem::path() : dir / std::string(tool_inspector_name),
+        tc.baker.origin,
+        "",
+        "",
+        {} };
+    rv_editor_tool_check(tc.inspector, tool_inspector_name.data());
+    if (tc.baker.problem.empty()) {
+        tc.baker.problem = tc.inspector.problem;
     }
     if (ec) {
         // The directory itself cannot be read: that is the problem, whatever the bakers say.

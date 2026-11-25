@@ -57,6 +57,9 @@ public:
     // the kill failed, the reason is in `error`; the rest of the frame still runs.
     int update(rv_editor_log &log, std::string &error);
 
+    // Drops the completed build and last runnable artifact when leaving a project.
+    void clear_finished_result();
+
     rv_editor_build_state state() const
     {
         return state_;
@@ -79,6 +82,8 @@ public:
     {
         return number_;
     }
+    // The current or last job's number, taking the candidate number from its image path.
+    uint32_t target_number() const;
     const std::optional<rv_editor_artifact> &last_success() const
     {
         return last_success_;
@@ -86,17 +91,24 @@ public:
     // The burner's pid while a build runs; stale once it has ended.
     pid_t pid() const
     {
-        return job_.pid();
+        return state_ == rv_editor_build_state::idle ? -1 : job_.pid();
     }
     // How the burner ended; only meaningful once the job is no longer building.
     const rv_editor_process::rv_editor_exit &exit_status() const
     {
-        return job_.exit_status();
+        static const rv_editor_process::rv_editor_exit empty;
+        return state_ == rv_editor_build_state::idle ? empty : job_.exit_status();
+    }
+    // The progress lines of the current or last job as a tree.
+    const rv_editor_progress &progress() const
+    {
+        static const rv_editor_progress empty;
+        return state_ == rv_editor_build_state::idle ? empty : job_.progress();
     }
     // True once the burner's output was cut short of end of file.
     bool output_cut() const
     {
-        return job_.output_cut();
+        return state_ != rv_editor_build_state::idle && job_.output_cut();
     }
 
     // Deletes published builds except the newest few and `in_use`. Only numbered

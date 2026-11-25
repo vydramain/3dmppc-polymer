@@ -41,9 +41,10 @@ struct rv_editor_prefs {
     rv_editor_code_size code_size = rv_editor_code_size::small;
     rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
     std::string workspace = "code";    // the layout shown last: "code", "scene", "debug" or "burn"
-    float ui_scale = 1.0f;             // View > UI Scale: 1, 2 or 3
+    float ui_scale = 1.0f;             // View > UI Scale: 1, 1.5 or 2
     bool vsync = true;                 // the frame waits for the display's refresh
     int fps_limit = fps_limit_default; // the frame rate cap, in frames per second
+    rv_editor_main_size main_size = rv_editor_main_size::normal;
 };
 
 // "3dmppc-editor-view <PDK version>", then one "key value" line per setting.
