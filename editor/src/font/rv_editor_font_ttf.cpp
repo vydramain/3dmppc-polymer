@@ -1,4 +1,4 @@
-// A TrueType builder for pdklib's 5x7 font, in memory so ImGui loads it with
+// A TrueType builder for the UI pixel fonts, in memory so ImGui loads them with
 // AddFontFromMemoryTTF (0001: no imgui_internal.h).
 // Every lit pixel becomes a square outline on a whole-unit grid, as in PxPlus:
 // edges land on pixel boundaries and nothing is smoothed.
@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "font/rv_editor_font_fractional_data.hpp"
 #include "pdklib/rv_font/rv_font_cyrillic.hpp"
 #include "pdklib/rv_font/rv_font_data.hpp"
 
@@ -97,9 +98,6 @@ constexpr uint16_t ttf_header_size = 12;
 constexpr uint16_t ttf_catalog_entry_size = 16;
 // Tag length in table directory (OpenType spec 'Table Directory').
 constexpr int table_tag_bytes = 4;
-
-// Bytes per glyph in rv_pdklib.
-constexpr size_t glyph_data_stride = 8;
 
 // First code point: Unicode standard, Cyrillic block.
 constexpr uint32_t cyrillic_range_start = 0x0400;
@@ -405,20 +403,28 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
 
 int rv_editor_font_ttf_em(double scale)
 {
+    if (scale == rv_editor_ui_fractional_scale) {
+        return rv_editor_ui_fractional_height;
+    }
     return static_cast<int>(std::floor(rv_pdklib::rv_font_cell_height * scale + rounding_offset));
 }
 
 std::string rv_editor_font_ttf(double scale)
 {
+    const bool use_fractional_artwork = scale == rv_editor_ui_fractional_scale;
+    const uint8_t *ascii = use_fractional_artwork ? rv_editor_ui_fractional_ascii : rv_pdklib::rv_font_bits;
+    const uint8_t *cyrillic = use_fractional_artwork ? rv_editor_ui_fractional_cyrillic : rv_pdklib::rv_font_cyrillic_bits;
+    const int cell_height = use_fractional_artwork ? rv_editor_ui_fractional_height : rv_pdklib::rv_font_cell_height;
+
     // Glyph 0 is notdef; then ASCII 32..126, then the Cyrillic block by slot.
     std::vector<rv_editor_ttf_glyph> glyphs;
-    glyphs.push_back({ &rv_pdklib::rv_font_bits[rv_pdklib::rv_font_notdef_index * glyph_data_stride] });
+    glyphs.push_back({ &ascii[rv_pdklib::rv_font_notdef_index * cell_height] });
     for (int code = rv_pdklib::rv_font_first_code; code <= rv_pdklib::rv_font_last_code; ++code) {
-        glyphs.push_back({ &rv_pdklib::rv_font_bits[(code - rv_pdklib::rv_font_first_code) * glyph_data_stride] });
+        glyphs.push_back({ &ascii[(code - rv_pdklib::rv_font_first_code) * cell_height] });
     }
     const size_t cyrillic_first = glyphs.size();
     for (int slot = 0; slot < rv_pdklib::rv_font_cyrillic_glyph_count; ++slot) {
-        glyphs.push_back({ &rv_pdklib::rv_font_cyrillic_bits[slot * glyph_data_stride] });
+        glyphs.push_back({ &cyrillic[slot * cell_height] });
     }
 
     // Code point -> glyph, in code point order, for cmap format 4.
@@ -433,9 +439,11 @@ std::string rv_editor_font_ttf(double scale)
         }
     }
 
-    // Every glyph but notdef keeps its ink in the cell's left five columns: a
-    // 6 px advance leaves one column between letters instead of three.
-    return rv_editor_ttf_build(glyphs, map, rv_editor_font_ui_advance, rv_pdklib::rv_font_cell_height, scale);
+    // The 150% drawings are already on the target grid. Both designs leave
+    // room for letter spacing between the ink and the cell's advance.
+    const int advance = use_fractional_artwork ? rv_editor_ui_fractional_advance : rv_editor_font_ui_advance;
+    const double grid_scale = use_fractional_artwork ? 1.0 : scale;
+    return rv_editor_ttf_build(glyphs, map, advance, cell_height, grid_scale);
 }
 
 } // namespace rv_editor
