@@ -11,7 +11,6 @@
 #include "panes/rv_editor_panes.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
-#include "ui/rv_editor_widgets_steps.hpp"
 #include "ui/rv_editor_widgets_strip_status.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
@@ -267,40 +266,33 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::EndChild();
     ImGui::PopStyleColor();
 
-    const rv_editor_controls_message_text message = rv_editor_controls_message({ action == rv_editor_action_kind::force_stop,
+    const rv_editor_controls_message_input message_input{ action == rv_editor_action_kind::force_stop,
         s.hung(),
         s.uncertain(),
         detail,
         outcome,
         offer_build_restart,
         !can_reload,
-        plan.reason });
+        plan.reason };
+    const rv_editor_controls_message_text message = rv_editor_controls_message(message_input);
     ImGui::EndGroup();
-    // The status under the buttons and the slot, as wide as the tile; its minimum width wraps the longest status into two
-    // lines.
-    const bool build_shown = app.build.busy() || app.build.state() == rv_editor_build_state::failed;
-    // A build without a step to name (failed, even at one) says its state instead.
-    std::string step = app.build.busy() ? rv_editor_steps_compact(app.build.progress()) : std::string();
-    if (build_shown && step.empty()) {
-        step = rv_editor_build_state_name(app.build.state());
+    const float status_width = std::max(rv_editor_transport_status_min_width(), ImGui::GetContentRegionAvail().x);
+    const std::string build = app.project.open ? rv_editor_build_status(app.build) : std::string();
+    std::string status = rv_editor_controls_status({ app.project.open, s.state(), s.number(), 0, {}, {} });
+    std::string tip;
+    if (!build.empty()) {
+        status = rv_editor_text_format("panes.status_join", std::make_format_args(status, build));
+        tip = status;
     }
-    const std::string status = rv_editor_controls_status({ app.project.open,
-        s.state(),
-        s.number(),
-        build_shown ? app.build.number() : 0,
-        step,
-        { action == rv_editor_action_kind::force_stop,
-            s.hung(),
-            s.uncertain(),
-            detail,
-            outcome,
-            offer_build_restart,
-            !can_reload,
-            plan.reason } });
-    rv_editor_strip_status(status,
-        std::max(rv_editor_transport_status_min_width(), ImGui::GetContentRegionAvail().x),
-        theme,
-        app.project.open ? message.full : std::string());
+    if (app.project.open && !message.brief.empty()) {
+        const std::string combined = rv_editor_text_format("panes.status_join", std::make_format_args(status, message.brief));
+        if (build.empty() ||
+            ImGui::CalcTextSize(combined.c_str(), nullptr, false, status_width).y <= rv_editor_strip_status_height()) {
+            status = combined;
+        }
+        tip += tip.empty() ? message.full : "\n" + message.full;
+    }
+    rv_editor_strip_status(status, status_width, theme, tip);
     rv_editor_shelf_end();
     // The shelf ends the tile: no spacing after it, as the height says.
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);

@@ -174,8 +174,7 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
     std::filesystem::create_directories(dir, ec);
     const uint32_t number = rv_editor_candidate_next(dir);
     std::string error;
-    r.build_first_seq = app.log.revision() + 1;
-    app.build_first_seq = r.build_first_seq;
+    const auto first_seq = app.log.revision() + 1;
     const int err =
         app.build.start(app.project, app.tools, app.log, error, dir / (std::to_string(number) + std::string(disc_image_ext)));
     if (err != RV_OK) {
@@ -184,6 +183,8 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
         return err;
     }
     rv_editor_app_build_alert_clear(app);
+    app.build_first_seq = first_seq;
+    r.build_first_seq = first_seq;
     r.building = true;
     r.building_number = number;
     // No check runs here (refused above), so the versions are final.

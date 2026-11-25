@@ -9,13 +9,12 @@
 #include <utility>
 
 #include "imgui.h"
-#include "build/rv_editor_build.hpp"
+#include "panes/rv_editor_panes.hpp"
 #include "pdklib/rv_progress/rv_progress.hpp"
 #include "session/rv_editor_session.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
-#include "ui/rv_editor_widgets_steps.hpp"
 
 namespace rv_editor
 {
@@ -62,17 +61,10 @@ rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app)
     }
 
     // Build and runtime are separate facts, each with the job or session it is about.
-    const char *const build_state = rv_editor_build_state_name(app.build.state());
-    const auto build_number = app.build.number();
-    std::string build = rv_editor_text_format("shell_status.build_no_number", std::make_format_args(build_state));
-    if (build_number != 0) {
-        // The step line while the build runs; the state's name otherwise (done, failed, cancelled).
-        std::string detail = build_state;
-        if (app.build.busy()) {
-            const std::string steps = rv_editor_steps_compact(app.build.progress());
-            detail = steps.empty() ? detail : steps;
-        }
-        build = rv_editor_text_format("shell_status.build_with_number", std::make_format_args(build_number, detail));
+    std::string build = rv_editor_build_status(app.build);
+    if (build.empty()) {
+        const char *const build_state = rv_editor_build_state_name(app.build.state());
+        build = rv_editor_text_format("shell_status.build_no_number", std::make_format_args(build_state));
     }
 
     const char *const runtime_state = rv_editor_run_state_name(app.session.state());

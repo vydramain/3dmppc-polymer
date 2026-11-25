@@ -184,7 +184,7 @@ int rv_editor_app_build_saved(rv_editor_app &app)
         return RV_ERR_BUSY;
     }
     std::string error;
-    app.build_first_seq = app.log.revision() + 1;
+    const auto first_seq = app.log.revision() + 1;
     app.run_after_build = false;
     app.restart_after_build = false;
     app.restart_after_stop = false;
@@ -195,6 +195,7 @@ int rv_editor_app_build_saved(rv_editor_app &app)
         return err;
     }
     rv_editor_app_build_alert_clear(app);
+    app.build_first_seq = first_seq;
     // The build goes on without its file log; the reason is already in the log.
     [[maybe_unused]] const int build_log_err = rv_editor_app_attach_build_log(app);
     app.inputs_changed = false;

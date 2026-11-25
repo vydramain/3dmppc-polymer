@@ -126,12 +126,6 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
         error = argv.empty() ? "nothing to run" : "already running";
         return RV_ERR_INVAL;
     }
-    close_fds();
-    pending_.clear();
-    exit_ = {};
-    pid_ = -1;
-    cut_ = false;
-
     int in[2] = { -1, -1 };
     int out[2] = { -1, -1 };
     int err[2] = { -1, -1 };
@@ -187,26 +181,24 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
     ::close(in[0]);
     ::close(out[1]);
     ::close(err[1]);
-    if (rc != RV_OK) {
+    const auto close_new_fds = [&] {
         ::close(in[1]);
         ::close(out[0]);
         ::close(err[0]);
+    };
+    if (rc != RV_OK) {
+        close_new_fds();
         return rc;
     }
 
-    pid_ = pid;
-    in_ = in[1];
-    out_ = out[0];
-    err_ = err[0];
     std::string guard_error;
     if (rv_editor_guard_add(pid, guard_error) != RV_OK) {
         error = "process guard: " + guard_error;
         rv_editor_kill_reap(pid);
-        pid_ = -1;
-        close_fds();
+        close_new_fds();
         return RV_ERR_IO;
     }
-    for (int fd : { in_, out_, err_ }) {
+    for (const int fd : { in[1], out[0], err[0] }) {
         const int flags = ::fcntl(fd, F_GETFL);
         if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
             // A blocking pipe would stall the UI thread: this child is not kept.
@@ -216,11 +208,20 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
             if (rv_editor_guard_remove(pid, remove_error) != RV_OK) {
                 error += "; process guard: " + remove_error;
             }
-            pid_ = -1;
-            close_fds();
+            close_new_fds();
             return RV_ERR_IO;
         }
     }
+
+    // Keep the previous run's status and pipes until the new child is ready.
+    close_fds();
+    pending_.clear();
+    exit_ = {};
+    cut_ = false;
+    pid_ = pid;
+    in_ = in[1];
+    out_ = out[0];
+    err_ = err[0];
     return RV_OK;
 }
 

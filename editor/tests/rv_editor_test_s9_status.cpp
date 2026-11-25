@@ -337,7 +337,10 @@ RV_EDITOR_TEST(rv_editor_test_s9_release_controls_says_the_candidate)
     draw_status(gui, at("all passed"), kind, 1000.0f, text);
     RV_EDITOR_CHECK(text == "Candidate #3 | Ready | 8/8 checks");
     draw_status(gui, at("building"), kind, 1000.0f, text);
-    RV_EDITOR_CHECK(text.rfind("Building candidate | Candidate #999999 | Not ready", 0) == 0);
+    if (!has(text, "Candidate #999999 ")) {
+        std::fprintf(stderr, "  active candidate #999999: got status '%s'\n", text.c_str());
+    }
+    RV_EDITOR_CHECK(has(text, "Candidate #999999 "));
     draw_status(gui, at("hung"), kind, 1000.0f, text);
     RV_EDITOR_CHECK(text.rfind("Candidate #3 | Not ready | 0/8 checks | Not passed: ", 0) == 0);
 }

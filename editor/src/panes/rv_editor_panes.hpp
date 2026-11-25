@@ -40,6 +40,9 @@ void rv_editor_fact(const char *label, const std::string &value, const rv_editor
 // wraps when narrow; Open Project without a project.
 void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme);
 
+// The current or last build's target and step or outcome. Empty before the first job.
+std::string rv_editor_build_status(const rv_editor_build &build);
+
 // "No project is open." and an Open Project button, for a pane's empty state.
 void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme);
 

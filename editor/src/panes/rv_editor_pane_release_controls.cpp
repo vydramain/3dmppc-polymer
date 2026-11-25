@@ -66,14 +66,6 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         theme.code_blue,
         rv_editor_text("pane_candidate.export_report_tooltip") };
 
-    const bool has_candidate = !app.release.candidates.empty();
-    const rv_editor_candidate *shown = has_candidate ? &app.release.candidates[app.release.selected] : nullptr;
-    rv_editor_release_building building = rv_editor_release_building::none;
-    if (app.build.busy()) {
-        building = app.release.building ? rv_editor_release_building::candidate : rv_editor_release_building::development;
-    }
-    const rv_editor_release_facts facts = rv_editor_release_facts_make(shown, building);
-
     // One row of five squares whose size follows the window's width alone (as Runtime Controls'), so no state moves one.
     const float width = ImGui::GetWindowWidth();
     const rv_editor_tile_size size =
@@ -144,9 +136,27 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     ImGui::EndGroup();
     // The status under the squares and the slot, as wide as the tile; its minimum width wraps the longest facts into its two
     // lines.
-    const std::string text = app.project.open ? facts.first_line : rv_editor_text("panes.status_no_project");
-    const std::string tip = shown != nullptr && app.project.open ? rv_editor_release_number_tooltip(*shown) : std::string();
-    rv_editor_strip_status(text, std::max(rv_editor_release_status_min_width(), ImGui::GetContentRegionAvail().x), theme, tip);
+    const float status_width = std::max(rv_editor_release_status_min_width(), ImGui::GetContentRegionAvail().x);
+    std::string status = rv_editor_text("panes.status_no_project");
+    std::string tip;
+    if (app.project.open) {
+        const auto &release = app.release;
+        const rv_editor_candidate *shown = release.candidates.empty() ? nullptr : &release.candidates[release.selected];
+        const std::string facts = rv_editor_release_facts_make(shown, rv_editor_release_building::none).first_line;
+        const std::string build = rv_editor_build_status(app.build);
+        status = build.empty() ? facts : build;
+        if (!build.empty() && shown != nullptr) {
+            const std::string combined = rv_editor_text_format("panes.status_join", std::make_format_args(build, facts));
+            if (ImGui::CalcTextSize(combined.c_str(), nullptr, false, status_width).y <= rv_editor_strip_status_height()) {
+                status = combined;
+            }
+            tip = build + "\n" + facts + "\n";
+        }
+        if (shown != nullptr) {
+            tip += rv_editor_release_number_tooltip(*shown);
+        }
+    }
+    rv_editor_strip_status(status, status_width, theme, tip);
     rv_editor_shelf_end();
     // The shelf ends the tile: no spacing after it, as the height says.
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);

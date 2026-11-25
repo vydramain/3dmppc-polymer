@@ -16,6 +16,7 @@
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_content.hpp"
 #include "ui/rv_editor_widgets_message.hpp"
+#include "ui/rv_editor_widgets_steps.hpp"
 
 namespace rv_editor
 {
@@ -28,6 +29,14 @@ constexpr const char *state_separator = ": ";
 
 // Log source name for build and candidate build diagnostics
 constexpr const char *log_source_build = "build";
+
+// Progress for a running job, and its state once it starts cancelling or ends.
+std::string rv_editor_build_detail(const rv_editor_build &build)
+{
+    const std::string step =
+        build.state() == rv_editor_build_state::building ? rv_editor_steps_compact(build.progress()) : std::string();
+    return step.empty() ? rv_editor_build_state_name(build.state()) : step;
+}
 
 // The label kind of a build's outcome.
 rv_editor_label_kind rv_editor_build_outcome_kind(rv_editor_build_state state)
@@ -122,13 +131,30 @@ rv_editor_message_say rv_editor_build_result_say(const rv_editor_app &app, size_
         second = exit_line + "; " + second;
         file = app.log_files.path_for(b.pid());
     }
-    return { what + state_separator + rv_editor_build_state_name(b.state()) + "\n" + second,
+    return { what + state_separator + rv_editor_build_detail(b) + "\n" + second,
         rv_editor_build_outcome_kind(b.state()),
         file.empty() ? std::vector<std::string>{} :
                        std::vector<std::string>{ rv_editor_text("pane_build_result.open_log_button") } };
 }
 
 } // namespace
+
+std::string rv_editor_build_status(const rv_editor_build &build)
+{
+    if (build.state() == rv_editor_build_state::idle) {
+        return {};
+    }
+    const auto number = build.target_number();
+    const std::string detail = rv_editor_build_detail(build);
+    if (build.image().empty()) {
+        return rv_editor_text_format("panes.status_build", std::make_format_args(number, detail));
+    }
+    const auto filename = build.image().filename().string();
+    const std::string candidate = number != 0 ?
+        rv_editor_text_format("pane_candidate.facts_title", std::make_format_args(number)) :
+        rv_editor_text_format("pane_build_result.candidate_image", std::make_format_args(filename));
+    return candidate + " " + detail;
+}
 
 rv_editor_size rv_editor_build_result_minimum()
 {

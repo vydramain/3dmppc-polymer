@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "app/rv_editor_shell.hpp"
@@ -112,7 +113,7 @@ inline bool start_hung_session(rv_editor_app &app, const fs::path &where)
     return app.session.hung();
 }
 
-inline void script_build(rv_editor_app &app, const fs::path &where, const std::string &body)
+inline void set_build_script(rv_editor_app &app, const fs::path &where, const std::string &body)
 {
     std::string guard_error;
     rv_editor_guard_start(guard_error);
@@ -122,6 +123,11 @@ inline void script_build(rv_editor_app &app, const fs::path &where, const std::s
     chmod(script.c_str(), 0700);
     app.tools.burner.path = script;
     app.tools.baker.path = script;
+}
+
+inline void script_build(rv_editor_app &app, const fs::path &where, const std::string &body)
+{
+    set_build_script(app, where, body);
     std::string error;
     RV_EDITOR_CHECK(app.build.start(app.project, app.tools, app.log, error) == RV_OK);
 }
@@ -242,9 +248,13 @@ struct states {
         add("no candidate");
         add("candidate").app.release.candidates.push_back(candidate(999999, false));
         auto &building = add("building").app;
-        building.release.candidates.push_back(candidate(999999, false));
-        script_build(building, where, "sleep 30\n");
-        building.release.building = true;
+        auto previous = candidate(999998, false);
+        previous.image = building.project.cache_dir / "candidates" / "999998.mppcdisc";
+        fs::create_directories(previous.image.parent_path());
+        std::ofstream(previous.image) << "previous image";
+        building.release.candidates.push_back(std::move(previous));
+        set_build_script(building, where, "sleep 30\n");
+        RV_EDITOR_CHECK(rv_editor_app_build_candidate(building) == RV_OK);
         auto &hung = add("hung").app;
         hung.release.candidates.push_back(candidate(3, false));
         RV_EDITOR_CHECK(start_hung_session(hung, where / "hung"));

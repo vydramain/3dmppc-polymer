@@ -79,6 +79,8 @@ public:
     {
         return number_;
     }
+    // The current or last job's number, taking the candidate number from its image path.
+    uint32_t target_number() const;
     const std::optional<rv_editor_artifact> &last_success() const
     {
         return last_success_;
