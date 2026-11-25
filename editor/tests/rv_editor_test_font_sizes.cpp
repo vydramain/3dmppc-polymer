@@ -1,9 +1,11 @@
+#include "app/rv_editor_shell.hpp"
 #include "imgui_internal.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_version/rv_version.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -107,4 +109,39 @@ RV_EDITOR_TEST(main_and_code_font_sizes_change_independently_at_each_ui_scale)
 
     RV_EDITOR_CHECK(rv_editor_fonts_add(*ImGui::GetIO().Fonts, 1.0f) == RV_OK);
     rv_editor_font_code_size_set(previous_code);
+}
+
+RV_EDITOR_TEST(main_font_switch_survives_pane_measurement_between_frames)
+{
+    std::string error;
+    RV_EDITOR_CHECK(rv_editor_text_load({}, error) == RV_OK);
+    rv_editor_test_imgui gui(true);
+    rv_editor_shell shell;
+    rv_editor_layout_preset_make(rv_editor_layout_preset::code, shell.ws.panes, shell.ws.layout);
+    rv_editor_theme theme = rv_editor_theme_olive;
+    theme.scale = 1.5f;
+    const rv_editor_code_size code_size = rv_editor_font_code_size();
+    const auto normal = measure_fonts(gui, theme.scale, rv_editor_main_size::normal, code_size);
+
+    ImFontAtlas &atlas = *ImGui::GetIO().Fonts;
+    RV_EDITOR_CHECK(rv_editor_fonts_add(atlas, theme.scale, rv_editor_main_size::large) == RV_OK);
+    rv_editor_theme_apply(theme, ImGui::GetStyle());
+    ImGui::GetStyle().FontSizeBase = rv_editor_font_ui()->LegacySize;
+    const float large_height = rv_editor_font_ui()->LegacySize;
+    ImFontAtlasUpdateNewFrame(&atlas, atlas.Builder->FrameCount + 1, true);
+
+    // The editor measures the current layout before beginning the next frame.
+    rv_editor_shell_update(shell, false);
+
+    gui.frame([&] {
+        RV_EDITOR_CHECK(ImGui::GetFontSize() == large_height);
+        rv_editor_button("Project settings", theme);
+        const ImVec2 large_button = ImGui::GetItemRectSize();
+        RV_EDITOR_CHECK(large_button.x > normal.button.x && large_button.y > normal.button.y);
+
+        rv_editor_font_code_push();
+        RV_EDITOR_CHECK(ImGui::GetFontSize() == normal.code_height);
+        rv_editor_font_code_pop();
+    });
+    RV_EDITOR_CHECK(rv_editor_fonts_add(atlas, 1.0f) == RV_OK);
 }

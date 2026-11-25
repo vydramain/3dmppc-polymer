@@ -251,7 +251,11 @@ void rv_editor_shell_set_minimum(rv_editor_shell &shell,
     rv_editor_pane_kind kind,
     rv_editor_size /*game_need*/)
 {
+    // Measuring between frames can restore the old font size through ImGui::PopFont.
+    ImGuiStyle &style = ImGui::GetStyle();
+    const float font_size_base = style.FontSizeBase;
     const rv_editor_size need = rv_editor_shell_pane_minimum(kind);
+    style.FontSizeBase = font_size_base;
     if (need.w > 0 || need.h > 0) {
         shell.ws.minimums[pane] = need;
     }
