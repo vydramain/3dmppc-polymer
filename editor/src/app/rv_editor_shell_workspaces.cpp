@@ -251,6 +251,9 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
 {
     shell.ws.layout = rv_editor_workspace_start(shell.ws.panes, preset);
     shell.ws.focused_leaf = rv_editor_tile_none;
+    shell.ws.focus_request = rv_editor_tile_none;
+    shell.ws.rects.clear();
+    shell.ws.dragged = false;
     shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
     shell.layout_untouched[rv_editor_workspace_slot(preset)] = true;
     shell.ui.game_area = { 0, 0 };

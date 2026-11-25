@@ -214,7 +214,7 @@ struct rv_editor_shell {
     rv_editor_browser open_browser;
     // A terminal tile with a live shell waiting for End Shell or Keep.
     rv_editor_pane_id closing_terminal = rv_editor_tile_none;
-    // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
+    // The UI scale shown, and one Editor > UI Scale asked for, applied between frames (0: none).
     float ui_scale = 1.0f;
     float ui_scale_request = 0.0f;
     // The main font size shown, and one menu request to apply between frames.
@@ -246,7 +246,7 @@ struct rv_editor_shell {
     std::string settings_shortcut_error;
 };
 
-// Every tree a window keeps, as the switcher and Window > Reference Layouts offer them.
+// Every tree a window keeps, as the switcher and Editor > Layout offer them.
 inline constexpr rv_editor_layout_preset rv_editor_workspaces[] = { rv_editor_layout_preset::code,
     rv_editor_layout_preset::scene,
     rv_editor_layout_preset::debug,
@@ -258,7 +258,7 @@ bool rv_editor_preset_fits_game(rv_editor_layout_preset preset);
 // Shows layout `to` as the user left it. Nothing else changes.
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to);
 
-// Layout > Reset Layout: the chosen layout's tree becomes its starting one; the
+// Editor > Reset Current Layout: the active layout's tree becomes its starting one; the
 // others keep theirs.
 void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_preset preset);
 
@@ -306,7 +306,7 @@ bool rv_editor_shell_pane_kept(const rv_editor_shell &shell, rv_editor_pane_id p
 
 // The menu bar (rv_editor_shell_menu.cpp). Runs before the workspace is drawn, so
 // a change here never lands under a reference the drawing holds.
-void rv_editor_shell_menu(rv_editor_shell &shell);
+void rv_editor_shell_menu(rv_editor_shell &shell, const rv_editor_theme &theme = rv_editor_theme_olive);
 void rv_editor_menu_document_open(rv_editor_shell &shell, uint32_t menu);
 void rv_editor_menu_document_save(rv_editor_shell &shell);
 void rv_editor_menu_document_history(rv_editor_shell &shell);
@@ -327,13 +327,13 @@ void rv_editor_shell_manual_start(rv_editor_shell &shell, rv_editor_manual_step 
 void rv_editor_shell_manual_update(rv_editor_shell &shell);
 float rv_editor_shell_manual_draw(rv_editor_shell &shell, const rv_editor_theme &theme, ImVec2 top, float width);
 
-// The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
-void rv_editor_menu_scene(rv_editor_shell &shell);
+// Scene tab's New Scene and Open Scene commands (rv_editor_shell_menu_scene.cpp).
+void rv_editor_scene_file_menu(rv_editor_app &app);
 // Save Scene: the menu item and Ctrl+S; does nothing when the item would be disabled.
 void rv_editor_shell_scene_save(rv_editor_shell &shell);
 const char *rv_editor_scene_why_not_save(const rv_editor_app &app);
 bool rv_editor_scene_document_pane(rv_editor_pane_kind kind);
-// Opens the New Scene area with today's free name (Scene > New Scene, the
+// Opens the New Scene area with today's free name (the Scene tab menu or the
 // empty Scene pane's Create Scene).
 void rv_editor_shell_new_scene_request(const rv_editor_app &app);
 
@@ -410,13 +410,13 @@ rv_editor_size rv_editor_settings_minimum();
 rv_editor_size rv_editor_help_minimum();
 rv_editor_size rv_editor_manual_minimum();
 
-// Window > Terminal: the terminal in front, with the keyboard.
+// The terminal in front, with the keyboard.
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell);
 void rv_editor_shell_stop_terminal(rv_editor_app &app, rv_editor_terminal_view &view);
 // A build that did not start or failed: Problems in front with the keyboard, in the tile of the Output when it is
 // not in the layout yet (rv_editor_shell.cpp).
 void rv_editor_shell_focus_problems(rv_editor_shell &shell);
-// Window > Focus Next / Previous Pane: the next tile in reading order takes the keyboard.
+// Focus Next / Previous Pane: the next tile in reading order takes the keyboard.
 void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back);
 
 // A live shell's tile closes only after this question; drawn after the workspace.
@@ -428,7 +428,7 @@ void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind);
 // A new Untitled buffer in the code tile used last.
 void rv_editor_shell_new_file(rv_editor_shell &shell);
 
-// File > Save All: every modified buffer.
+// Project > Save All: every modified buffer and the scene.
 void rv_editor_shell_save_all(rv_editor_shell &shell);
 
 // Once a frame before drawing. With finish_save disabled, the caller finishes saves after drawing.
@@ -465,7 +465,7 @@ float rv_editor_review_content_width();
 // Once a frame: Review Changes is a tab while something waits on unsaved files and
 // goes when nothing does; Save As whose code tile has gone is dropped.
 void rv_editor_shell_review_tab(rv_editor_shell &shell);
-// File > Settings: the tool paths of settings.toml.
+// Editor > Editor Settings: the tool paths of settings.toml.
 void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &theme);
 // What the override path field of tool `i` drew last, for tests.
 const rv_editor_path_probe &rv_editor_page_settings_path_probe(size_t i);

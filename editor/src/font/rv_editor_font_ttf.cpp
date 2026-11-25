@@ -42,6 +42,14 @@ constexpr int shift_word_to_halfword = 16;
 // Bits from halfword to byte
 constexpr int shift_halfword_to_byte = 8;
 
+// Menu punctuation on the 8 px base and 12 px fractional grids.
+constexpr uint32_t multiplication_sign = 0x00D7;
+constexpr uint32_t horizontal_ellipsis = 0x2026;
+constexpr uint8_t multiplication_rows[] = { 0x00, 0x88, 0x50, 0x20, 0x50, 0x88, 0x00, 0x00 };
+constexpr uint8_t ellipsis_rows[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0xA8, 0x00, 0x00 };
+constexpr uint8_t fractional_multiplication_rows[] = { 0x00, 0x00, 0x82, 0x44, 0x28, 0x10, 0x28, 0x44, 0x82, 0x00, 0x00, 0x00 };
+constexpr uint8_t fractional_ellipsis_rows[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xDB, 0xDB, 0x00, 0x00 };
+
 // Floating-point rounding: coordinate conversion from double scale.
 // Add before floor() for round-half-up
 constexpr double rounding_offset = 0.5;
@@ -429,12 +437,17 @@ std::string rv_editor_font_ttf(double scale)
     for (int code = rv_pdklib::rv_font_first_code; code <= rv_pdklib::rv_font_last_code; ++code) {
         map.push_back({ static_cast<uint32_t>(code), static_cast<uint16_t>(code - rv_pdklib::rv_font_first_code + 1) });
     }
+    map.emplace_back(multiplication_sign, static_cast<uint16_t>(glyphs.size()));
+    glyphs.push_back({ use_fractional_artwork ? fractional_multiplication_rows : multiplication_rows });
     for (uint32_t code = cyrillic_range_start; code <= cyrillic_range_end; ++code) {
         const int slot = rv_pdklib::rv_font_cyrillic_slot(code);
         if (slot >= 0) {
             map.push_back({ code, static_cast<uint16_t>(cyrillic_first + static_cast<size_t>(slot)) });
         }
     }
+
+    map.emplace_back(horizontal_ellipsis, static_cast<uint16_t>(glyphs.size()));
+    glyphs.push_back({ use_fractional_artwork ? fractional_ellipsis_rows : ellipsis_rows });
 
     // The fractional drawings are already at 150%. Scale from their native grid for larger text.
     const int advance = use_fractional_artwork ? rv_editor_ui_fractional_advance : rv_editor_font_ui_advance;

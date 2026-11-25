@@ -35,7 +35,7 @@ constexpr std::string_view console_flag_scale_short = "-s"; // short form of --s
 
 // File header comment written to project configuration file.
 constexpr std::string_view run_config_header =
-    "# Run profiles of 3dmppc-editor (Run > Run Configuration); the editor rewrites this file.\n\n";
+    "# Run profiles of 3dmppc-editor (Editor > New Tile > Run Configuration); the editor rewrites this file.\n\n";
 
 // TOML keys for run profile string fields.
 constexpr std::string_view key_runtime = "runtime";

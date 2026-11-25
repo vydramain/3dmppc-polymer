@@ -165,7 +165,7 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     // The background list is rendered first, and the backend resets sampling only
     // at the start of a render: one request here keeps the whole frame unsmoothed.
     ImGui::GetBackgroundDrawList()->AddCallback(ImGui::GetPlatformIO().DrawCallback_SetSamplerNearest, nullptr);
-    rv_editor::rv_editor_shell_menu(shell);
+    rv_editor::rv_editor_shell_menu(shell, theme);
     rv_editor::rv_editor_shell_shortcuts(shell);
 
     // The status bar takes a row; the tiles get the rest.

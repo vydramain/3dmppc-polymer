@@ -191,7 +191,7 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
     const rv_editor_ui_port &ui)
 {
     const rv_editor_scene_tabs &st = ui.state.scene_tabs;
-    if (st.tabs.empty()) {
+    if (st.tabs.empty() && app.scene == nullptr) {
         return true;
     }
     std::vector<std::string> text;
@@ -212,14 +212,14 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
         ui.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = front });
     }
 
-    // A right click on the tabs: Close Tab; the scene tab (index 0) has none.
+    // The scene tab opens scene files. Asset tabs can be closed.
     if (ImGui::IsMouseHoveringRect(row_min, ImGui::GetItemRectMax()) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
         ImGui::OpenPopup("##scene_tabmenu");
     }
     if (rv_editor_popup_begin("##scene_tabmenu")) {
-        const bool closable = front > 0;
-        const char *why_not = closable ? nullptr : rv_editor_text("pane_scene_tabs.tooltip_scene_stays_front");
-        if (rv_editor_menu_item(rv_editor_text("pane_scene_tabs.menu_close_tab"), nullptr, why_not)) {
+        if (front == 0) {
+            rv_editor_scene_file_menu(app);
+        } else if (rv_editor_menu_item(rv_editor_text("pane_scene_tabs.menu_close_tab"), nullptr, nullptr)) {
             rv_editor_scene_tab_stop_sound(st.tabs[static_cast<size_t>(front - 1)]);
             ui.requests.push_back({ .kind = rv_editor_ui_request_kind::close_scene_tab, .scene_tab_index = front });
             front = 0; // the scene shows this frame, as the close is applied after the draw

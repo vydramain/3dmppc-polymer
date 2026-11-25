@@ -185,7 +185,7 @@ int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &pa
         const std::string current_label = rv_editor_app_scene_name(app);
         const std::string other_label = rv_editor_scene_label(app, path);
         app.scene_error = current_label +
-            " has unsaved changes: save it (Scene > Save Scene) or undo them "
+            " has unsaved changes: focus the scene and choose Project > Save or undo the changes "
             "before opening " +
             other_label;
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.scene_error);
@@ -228,8 +228,8 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
 {
     if (rv_editor_app_scene_dirty(app)) {
         error = rv_editor_app_scene_name(app) +
-            " has unsaved changes: save it (Scene > Save Scene) or undo "
-            "them before creating a new scene";
+            " has unsaved changes: focus the scene and choose Project > Save or undo the changes "
+            "before creating a new scene";
         return RV_ERR_INVAL;
     }
     if (!rv_editor_app_scene_name_valid(name)) {
