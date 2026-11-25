@@ -1,13 +1,12 @@
 // Settings as a page: beside the Toolchest without a project, a tab with one.
-// Toolchain only for now. The fields are a draft until Apply rewrites settings.toml
-// [tools] section and looks the tools up again; Revert takes the file's values back.
+// Tool overrides and shortcut assignments are drafts until Apply writes settings.toml.
 
 #include <algorithm>
 #include <cstdio>
 #include <iterator>
 #include <optional>
-#include <type_traits>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "imgui.h"
@@ -78,6 +77,9 @@ void rv_editor_settings_load(rv_editor_shell &shell)
         shell.settings_checks[i].reset();
     }
     shell.settings_error.clear();
+    shell.settings_shortcuts.reset();
+    shell.settings_shortcut_capture.reset();
+    shell.settings_shortcut_error.clear();
     shell.settings_browse = -1;
     shell.settings_loaded = true;
 }
@@ -324,9 +326,12 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
         {},
         false,
         std::max(1.0f, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeight() - ImGui::GetStyle().ItemSpacing.y));
-    // The most pressing first: a failed save, then what the page says.
+    const bool show_shortcuts = rv_editor_collapsing_section(rv_editor_text("shell_menu.keyboard_shortcuts"));
     if (!shell.settings_error.empty()) {
         rv_editor_label(shell.settings_error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
+    }
+    if (show_shortcuts) {
+        rv_editor_settings_shortcuts(shell, theme);
     }
     rv_editor_label(said.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
     for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
@@ -353,15 +358,31 @@ void rv_editor_shell_settings_apply(rv_editor_shell &shell)
     }
     shell.settings_apply_request = false;
     rv_editor_app &app = shell.app;
-    std::vector<rv_editor_settings_tool> tools;
+    rv_editor_settings_entries tools;
     for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
-        tools.push_back({ rv_editor_settings_rows[i].key, shell.settings_paths[i] });
+        tools.emplace_back(rv_editor_settings_rows[i].key, shell.settings_paths[i]);
+    }
+    std::optional<rv_editor_settings_entries> shortcuts;
+    if (shell.settings_shortcuts) {
+        shortcuts.emplace();
+        const auto &chords = *shell.settings_shortcuts;
+        for (size_t i = 0; i < chords.size(); ++i) {
+            const auto &spec = rv_editor_shortcut_specs[i];
+            if (chords[i] != spec.default_chord) {
+                shortcuts->emplace_back(spec.key, rv_editor_shortcut_name(chords[i]));
+            }
+        }
     }
     std::string error;
-    if (rv_editor_settings_save_tools(app.tools.settings_path, tools, error) != RV_OK) {
+    if (rv_editor_settings_save(app.tools.settings_path, tools, shortcuts, error) != RV_OK) {
         shell.settings_error = error;
         return;
     }
+    if (shell.settings_shortcuts) {
+        shell.shortcuts = shell.settings_shortcuts;
+        shell.settings_shortcuts.reset();
+    }
+    shell.settings_error.clear();
     // Found again; a build or session already running keeps the tool it started with.
     app.tools = rv_editor_toolchain_find();
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "settings saved: " + app.tools.settings_path.string());

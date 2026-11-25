@@ -1,9 +1,10 @@
-// settings.toml written back: only the [tools] section changes, so what the user
-// wrote by hand elsewhere in the file stays.
+// settings.toml section updates preserve the other sections.
 
 #include "project/rv_editor_settings.hpp"
 
-#include "pdk/rv_err.h"
+#include <string_view>
+
+#include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
 #include "project/rv_editor_toml.hpp"
 
 namespace rv_editor
@@ -13,7 +14,8 @@ namespace
 {
 
 constexpr std::string_view leading_blanks_chars = " \t"; // whitespace to trim
-constexpr std::string_view section_name_tools = "tools"; // the [tools] section name
+constexpr std::string_view section_name_tools = "tools";
+constexpr std::string_view section_name_shortcuts = "shortcuts";
 
 // True for a "[name]" header line, with the name between the brackets.
 bool rv_editor_settings_header(std::string_view line, std::string_view &name)
@@ -37,18 +39,17 @@ bool rv_editor_settings_header(std::string_view line, std::string_view &name)
     return true;
 }
 
-} // namespace
-
-std::string rv_editor_settings_with_tools(std::string_view text, const std::vector<rv_editor_settings_tool> &tools)
+std::string
+rv_editor_settings_with_section(std::string_view text, std::string_view section_name, const rv_editor_settings_entries &entries)
 {
-    std::string section = "[" + std::string(section_name_tools) + "]\n";
-    for (const auto &[key, path] : tools) {
-        if (!path.empty()) {
-            section += key + " = " + rv_editor_toml_quote(path) + "\n";
+    std::string section = "[" + std::string(section_name) + "]\n";
+    for (const auto &[key, value] : entries) {
+        if (!value.empty()) {
+            section += key + " = " + rv_editor_toml_quote(value) + "\n";
         }
     }
     std::string out;
-    bool in_tools = false;
+    bool in_section = false;
     bool written = false;
     size_t at = 0;
     while (at < text.size()) {
@@ -58,13 +59,13 @@ std::string rv_editor_settings_with_tools(std::string_view text, const std::vect
         at = end;
         std::string_view name;
         if (rv_editor_settings_header(line, name)) {
-            in_tools = name == section_name_tools;
-            if (in_tools && !written) {
+            in_section = name == section_name;
+            if (in_section && !written) {
                 out += section + "\n";
                 written = true;
             }
         }
-        if (in_tools) {
+        if (in_section) {
             continue;
         }
         out += line;
@@ -78,15 +79,39 @@ std::string rv_editor_settings_with_tools(std::string_view text, const std::vect
     return out;
 }
 
-int rv_editor_settings_save_tools(const std::filesystem::path &path,
-    const std::vector<rv_editor_settings_tool> &tools,
+} // namespace
+
+rv_editor_settings_entries rv_editor_settings_read_shortcuts(const std::filesystem::path &path)
+{
+    const std::string text = rv_editor_file_text(path);
+    rv_pdklib::rv_manifest_tree tree;
+    std::string error;
+    if (text.empty() || rv_pdklib::rv_manifest_read_tree(text, path.string(), tree, error) != 0) {
+        return {};
+    }
+    rv_editor_settings_entries entries;
+    for (const auto &section : tree.sections) {
+        if (section.name == section_name_shortcuts) {
+            for (const auto &entry : section.entries) {
+                if (entry.value.kind == rv_pdklib::rv_manifest_value_kind::string) {
+                    entries.emplace_back(entry.key, entry.value.str);
+                }
+            }
+        }
+    }
+    return entries;
+}
+
+int rv_editor_settings_save(const std::filesystem::path &path,
+    const rv_editor_settings_entries &tools,
+    const std::optional<rv_editor_settings_entries> &shortcuts,
     std::string &error)
 {
-    const int code = rv_editor_file_replace(path, rv_editor_settings_with_tools(rv_editor_file_text(path), tools), error);
-    if (code != RV_OK) {
-        return code;
+    std::string text = rv_editor_settings_with_section(rv_editor_file_text(path), section_name_tools, tools);
+    if (shortcuts) {
+        text = rv_editor_settings_with_section(text, section_name_shortcuts, *shortcuts);
     }
-    return RV_OK;
+    return rv_editor_file_replace(path, text, error);
 }
 
 } // namespace rv_editor

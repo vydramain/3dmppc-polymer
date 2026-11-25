@@ -14,6 +14,7 @@
 #include "app/rv_editor_app.hpp"
 #include "app/rv_editor_browser.hpp"
 #include "app/rv_editor_scene_tabs.hpp"
+#include "app/rv_editor_shell_shortcut_settings.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -212,6 +213,10 @@ struct rv_editor_shell {
     // The UI state, and the requests the panes queued for rv_editor_shell_ui_apply.
     rv_editor_ui ui;
     std::vector<rv_editor_ui_request> ui_requests;
+    std::optional<rv_editor_shortcut_chords> shortcuts;
+    std::optional<rv_editor_shortcut_chords> settings_shortcuts;
+    std::optional<rv_editor_shortcut_action> settings_shortcut_capture;
+    std::string settings_shortcut_error;
 };
 
 // Every tree a window keeps, as the switcher and Window > Reference Layouts offer them.

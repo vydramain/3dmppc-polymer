@@ -265,7 +265,7 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     }
     const char *no_scene =
         bare != nullptr ? bare : (app.scene == nullptr ? rv_editor_text("shell_menu_scene.no_scene_open") : nullptr);
-    const auto save_shortcut = rv_editor_text("shell_menu_scene.save_scene_shortcut");
+    const char *save_shortcut = rv_editor_shell_shortcut_label(shell, rv_editor_shortcut_action::save_scene);
     if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.save_scene"), save_shortcut, rv_editor_scene_why_not_save(app))) {
         rv_editor_shell_scene_save(shell);
     }

@@ -95,9 +95,12 @@ void rv_editor_term_draw_line(ImDrawList *dl, const rv_editor_term_line &line, I
     }
 }
 
-// Named keys in libvterm's terms; F1, F5, F6 and F7 stay the editor's (section 12).
+// Named keys in libvterm's terms.
 VTermKey rv_editor_term_key(ImGuiKey key)
 {
+    if (key >= ImGuiKey_F1 && key <= ImGuiKey_F12) {
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(key - ImGuiKey_F1 + 1));
+    }
     switch (key) {
     case ImGuiKey_Enter:
     case ImGuiKey_KeypadEnter:
@@ -128,22 +131,6 @@ VTermKey rv_editor_term_key(ImGuiKey key)
         return VTERM_KEY_PAGEUP;
     case ImGuiKey_PageDown:
         return VTERM_KEY_PAGEDOWN;
-    case ImGuiKey_F2:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(2));
-    case ImGuiKey_F3:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(3));
-    case ImGuiKey_F4:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(4));
-    case ImGuiKey_F8:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(8));
-    case ImGuiKey_F9:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(9));
-    case ImGuiKey_F10:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(10));
-    case ImGuiKey_F11:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(11));
-    case ImGuiKey_F12:
-        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(12));
     default:
         return VTERM_KEY_NONE;
     }
@@ -205,9 +192,8 @@ bool rv_editor_term_keys(rv_editor_terminal &term)
             continue;
         }
         // Ctrl or Alt with a letter or digit arrives as a key, not as text:
-        // Ctrl+C is the interrupt. Ctrl+B stays Build, Ctrl+Shift+S Save All.
-        const bool is_save_all = io.KeyCtrl && io.KeyShift && key == ImGuiKey_S;
-        if ((io.KeyCtrl || io.KeyAlt) && !(io.KeyCtrl && key == ImGuiKey_B) && !is_save_all) {
+        // Ctrl+C is the interrupt.
+        if (io.KeyCtrl || io.KeyAlt) {
             uint32_t ch = 0;
             if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
                 ch = 'a' + static_cast<uint32_t>(key - ImGuiKey_A);

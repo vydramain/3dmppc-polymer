@@ -40,14 +40,6 @@ constexpr const char *nvim_key_left = "Left";
 constexpr const char *nvim_key_right = "Right";
 constexpr const char *nvim_key_up = "Up";
 constexpr const char *nvim_key_down = "Down";
-constexpr const char *nvim_key_f2 = "F2";
-constexpr const char *nvim_key_f3 = "F3";
-constexpr const char *nvim_key_f4 = "F4";
-constexpr const char *nvim_key_f8 = "F8";
-constexpr const char *nvim_key_f9 = "F9";
-constexpr const char *nvim_key_f10 = "F10";
-constexpr const char *nvim_key_f11 = "F11";
-constexpr const char *nvim_key_f12 = "F12";
 constexpr const char *nvim_key_space = "Space";
 
 // nvim_input modifier prefixes: :help <C-...>.
@@ -94,6 +86,9 @@ char rv_editor_key_char(ImGuiKey key)
 // Key name in nvim_input notation, or nullptr for keys typed as text.
 const char *rv_editor_nvim_key(ImGuiKey key)
 {
+    if (key >= ImGuiKey_F1 && key <= ImGuiKey_F12) {
+        return ImGui::GetKeyName(key);
+    }
     switch (key) {
     case ImGuiKey_Enter:
     case ImGuiKey_KeypadEnter:
@@ -124,22 +119,6 @@ const char *rv_editor_nvim_key(ImGuiKey key)
         return nvim_key_up;
     case ImGuiKey_DownArrow:
         return nvim_key_down;
-    case ImGuiKey_F2:
-        return nvim_key_f2;
-    case ImGuiKey_F3:
-        return nvim_key_f3;
-    case ImGuiKey_F4:
-        return nvim_key_f4;
-    case ImGuiKey_F8:
-        return nvim_key_f8;
-    case ImGuiKey_F9:
-        return nvim_key_f9;
-    case ImGuiKey_F10:
-        return nvim_key_f10;
-    case ImGuiKey_F11:
-        return nvim_key_f11;
-    case ImGuiKey_F12:
-        return nvim_key_f12;
     default:
         return nullptr;
     }
@@ -147,8 +126,7 @@ const char *rv_editor_nvim_key(ImGuiKey key)
 
 } // namespace
 
-// This frame's keyboard as nvim keys. F1, F5, F6, F7 and Ctrl+B stay the editor's
-// own (section 12); everything else typed into a focused code tile is nvim's.
+// Translate keys left by the shell shortcut dispatcher for the focused code tile.
 std::string rv_editor_nvim_keys()
 {
     const ImGuiIO &io = ImGui::GetIO();
@@ -175,11 +153,7 @@ std::string rv_editor_nvim_keys()
             continue;
         }
         // Letters and digits with Ctrl or Alt arrive as keys, not as text.
-        const bool has_ctrl_or_alt = io.KeyCtrl || io.KeyAlt;
-        // Ctrl+B (Build) and Ctrl+Shift+S (Save All) stay with the editor.
-        const bool is_ctrl_b = io.KeyCtrl && key == ImGuiKey_B;
-        const bool is_save_all = io.KeyCtrl && io.KeyShift && key == ImGuiKey_S;
-        if (!has_ctrl_or_alt || is_ctrl_b || is_save_all) {
+        if (!io.KeyCtrl && !io.KeyAlt) {
             continue;
         }
         if (key == ImGuiKey_Space) {
