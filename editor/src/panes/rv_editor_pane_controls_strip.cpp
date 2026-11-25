@@ -46,6 +46,7 @@ float rv_editor_status_min_width()
 // The UI font is current while measuring: main sets the minimums outside a frame, where ImGui has no current font.
 struct ui_font_scope {
     ui_font_scope()
+        : font_size_base(ImGui::GetStyle().FontSizeBase)
     {
         ImFont *font = ImGui::GetIO().Fonts->Fonts[0];
         ImGui::PushFont(font, font->LegacySize);
@@ -53,9 +54,14 @@ struct ui_font_scope {
     ~ui_font_scope()
     {
         ImGui::PopFont();
+        // Between frames PopFont can restore the previous frame's size after a font change.
+        ImGui::GetStyle().FontSizeBase = font_size_base;
     }
     ui_font_scope(const ui_font_scope &) = delete;
     ui_font_scope &operator=(const ui_font_scope &) = delete;
+
+private:
+    const float font_size_base;
 };
 
 } // namespace

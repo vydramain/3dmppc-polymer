@@ -111,7 +111,10 @@ RV_EDITOR_TEST(main_and_code_font_sizes_change_independently_at_each_ui_scale)
     rv_editor_font_code_size_set(previous_code);
 }
 
-RV_EDITOR_TEST(main_font_switch_survives_pane_measurement_between_frames)
+namespace
+{
+
+void check_main_font_switch_between_frames(bool workspace_drawn)
 {
     std::string error;
     RV_EDITOR_CHECK(rv_editor_text_load({}, error) == RV_OK);
@@ -122,6 +125,24 @@ RV_EDITOR_TEST(main_font_switch_survives_pane_measurement_between_frames)
     theme.scale = 1.5f;
     const rv_editor_code_size code_size = rv_editor_font_code_size();
     const auto normal = measure_fonts(gui, theme.scale, rv_editor_main_size::normal, code_size);
+
+    if (workspace_drawn) {
+        rv_editor_shell_update(shell, false);
+        gui.frame(
+            [&] {
+                RV_EDITOR_CHECK(rv_editor_workspace_draw(
+                                    shell.ws,
+                                    theme,
+                                    [](void *, rv_editor_pane_id, rv_editor_pane_kind, const rv_editor_theme &) {},
+                                    nullptr,
+                                    nullptr,
+                                    { 0, 24, 1920, 1032 },
+                                    error) == RV_OK);
+            },
+            1920.0f,
+            1080.0f);
+        RV_EDITOR_CHECK(shell.ws.body_chrome.w > 0);
+    }
 
     ImFontAtlas &atlas = *ImGui::GetIO().Fonts;
     RV_EDITOR_CHECK(rv_editor_fonts_add(atlas, theme.scale, rv_editor_main_size::large) == RV_OK);
@@ -144,4 +165,16 @@ RV_EDITOR_TEST(main_font_switch_survives_pane_measurement_between_frames)
         rv_editor_font_code_pop();
     });
     RV_EDITOR_CHECK(rv_editor_fonts_add(atlas, 1.0f) == RV_OK);
+}
+
+} // namespace
+
+RV_EDITOR_TEST(main_font_switch_survives_pane_measurement_between_frames)
+{
+    check_main_font_switch_between_frames(false);
+}
+
+RV_EDITOR_TEST(main_font_switch_survives_refitting_visible_control_strips)
+{
+    check_main_font_switch_between_frames(true);
 }
