@@ -1,7 +1,10 @@
 // Saving and switching projects in the code editor's nvim, each with nvim's own
 // answer: a request is not a write.
 
+#include <algorithm>
+
 #include "nvim/rv_editor_nvim.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -38,9 +41,12 @@ end
 -- A write that raised no error but left the buffer modified was refused another
 -- way (a question nobody could answer): say the best reason nvim left behind.
 local function write(b, name)
-    -- 'readonly' nvim set while the file could not be written stays after the
-    -- permission came back; the user asked for this write, and the system allows it.
-    if vim.bo[b].readonly and vim.fn.filewritable(name) == 1 then vim.bo[b].readonly = false end
+    -- 'readonly' can outlast an unwritable path. A write can also recreate a
+    -- missing file when its directory is writable.
+    if vim.bo[b].readonly then
+        local can_create = vim.fn.getftype(name) == '' and vim.fn.filewritable(vim.fn.fnamemodify(name, ':h')) == 2
+        if vim.fn.filewritable(name) == 1 or can_create then vim.bo[b].readonly = false end
+    end
     vim.v.errmsg = ''
     local ok, res = pcall(vim.api.nvim_buf_call, b, function()
         return vim.api.nvim_exec2('write', { output = true })
@@ -77,6 +83,29 @@ if ok and vim.bo[b].modified then ok, err = false, 'still modified after the wri
 local s = tostring(err)
 local reason = ok and '' or (s:match('([EW]%d+:[^\n]*)') or s:match('^[^\n]*'))
 return { { id = b, name = vim.api.nvim_buf_get_name(b), ok = ok, error = reason } }
+)lua";
+
+// The current head marks the next redo block on the active branch. It has a
+// preceding undo block unless it is the first entry in that branch.
+constexpr const char *rv_editor_lua_history = R"lua(
+local b = tonumber(...)
+if not vim.api.nvim_buf_is_loaded(b) or not vim.bo[b].modifiable then return { false, false } end
+return vim.api.nvim_buf_call(b, function()
+    local entries = vim.fn.undotree().entries
+    for i, entry in ipairs(entries) do
+        if entry.curhead then return { i > 1, true } end
+    end
+    return { #entries > 0, false }
+end)
+)lua";
+
+constexpr const char *rv_editor_lua_history_step = R"lua(
+local id, action = ...
+local b = tonumber(id)
+if vim.api.nvim_buf_is_loaded(b) then
+    vim.api.nvim_buf_call(b, function() vim.cmd('silent ' .. action) end)
+    return vim.bo[b].modified
+end
 )lua";
 
 // The new root: nothing may be modified; then every window shows a fresh empty
@@ -145,7 +174,7 @@ rv_editor_nvim_rpc::rv_editor_nvim_reply rv_editor_save_reply(rv_editor_nvim_sav
 void rv_editor_nvim::save(const std::vector<int64_t> &ids, rv_editor_nvim_save_done done)
 {
     if (!running()) {
-        done({}, "the code editor is not running");
+        done({}, rv_editor_text("nvim_rpc.not_running"));
         return;
     }
     std::string list;
@@ -158,10 +187,39 @@ void rv_editor_nvim::save(const std::vector<int64_t> &ids, rv_editor_nvim_save_d
 void rv_editor_nvim::save_as(int64_t id, const std::filesystem::path &path, rv_editor_nvim_save_done done)
 {
     if (!running()) {
-        done({}, "the code editor is not running");
+        done({}, rv_editor_text("nvim_rpc.not_running"));
         return;
     }
     exec_lua(rv_editor_lua_save_as, { std::to_string(id), path.string() }, rv_editor_save_reply(std::move(done)));
+}
+
+void rv_editor_nvim::history(int64_t buffer, std::function<void(const rv_editor_nvim_history &)> done)
+{
+    exec_lua(rv_editor_lua_history,
+        { std::to_string(buffer) },
+        [done = std::move(done)](const rv_editor_mpack &error, const rv_editor_mpack &result) {
+            if (error.is(mtype::nil) && result.items.size() == 2) {
+                done({ result.items.front().b, result.items.back().b });
+            } else {
+                done({});
+            }
+        });
+}
+
+void rv_editor_nvim::history_step(int64_t buffer, bool redo)
+{
+    exec_lua(rv_editor_lua_history_step,
+        { std::to_string(buffer), redo ? "redo" : "undo" },
+        [this, buffer](const rv_editor_mpack &error, const rv_editor_mpack &result) {
+            if (!error.is(mtype::nil) || !result.is(mtype::boolean)) {
+                return;
+            }
+            // A background buffer need not emit BufModifiedSet until it gets focus.
+            const auto found = std::ranges::find(buffers_, buffer, &rv_editor_nvim_buffer::id);
+            if (found != buffers_.end()) {
+                found->modified = result.b;
+            }
+        });
 }
 
 void rv_editor_nvim::switch_root(const std::filesystem::path &root, std::function<void(const std::string &)> done)

@@ -28,11 +28,7 @@ namespace
 constexpr float menu_centering_divisor = 2.0f;
 constexpr float item_spacings_per_name = 2.0f;
 
-// nvim key sequences sent from Edit/File menus to the focused code tile
 constexpr const char *code_keys_new_buffer = "<Cmd>enew<CR>";
-constexpr const char *code_keys_save = "<C-s>";
-constexpr const char *code_keys_undo = "<C-z>";
-constexpr const char *code_keys_redo = "<C-S-z>";
 
 // A top-level menu with its mnemonic, the first letter, underlined. Alt
 // moves the keyboard into the bar; the arrows walk it.
@@ -52,8 +48,7 @@ bool rv_editor_top_menu_begin(const char *label)
     return open;
 }
 
-// The code tile used last, and its nvim window, for Save, Undo and Redo; 0 when
-// there is none.
+// The code tile used last, and its nvim window, for New File.
 int64_t rv_editor_menu_code_window(rv_editor_shell &shell)
 {
     if (shell.last_code == rv_editor_tile_none || !shell.app.nvim.running()) {
@@ -90,17 +85,7 @@ void rv_editor_menu_file(rv_editor_shell &shell)
         rv_editor_shell_open_project(shell);
     }
     rv_editor_separator();
-    if (rv_editor_menu_item(rv_editor_text("shell_menu.save"), rv_editor_text("shell_menu.shortcut_save"), no_code)) {
-        rv_editor_menu_code_keys(shell, code_keys_save);
-    }
-    if (rv_editor_menu_item(rv_editor_text("catalog_status.menu_save_all"),
-            rv_editor_shell_shortcut_label(shell, rv_editor_shortcut_action::save_all),
-            nullptr)) {
-        rv_editor_shell_save_all(shell);
-    }
-    if (rv_editor_menu_item(rv_editor_text("shell_menu.save_as"), nullptr, nullptr)) {
-        rv_editor_shell_save_as_start(shell);
-    }
+    rv_editor_menu_document_save(shell);
     rv_editor_separator();
     if (rv_editor_menu_item(rv_editor_text("shell_menu.settings"), nullptr, nullptr)) {
         rv_editor_shell_page(shell, rv_editor_start_page::settings);
@@ -115,13 +100,7 @@ void rv_editor_menu_file(rv_editor_shell &shell)
 
 void rv_editor_menu_edit(rv_editor_shell &shell)
 {
-    const char *no_code = rv_editor_menu_code_window(shell) == 0 ? rv_editor_text("shell_menu.why_no_code_edit") : nullptr;
-    if (rv_editor_menu_item(rv_editor_text("shell_menu.undo"), rv_editor_text("shell_menu.shortcut_undo"), no_code)) {
-        rv_editor_menu_code_keys(shell, code_keys_undo);
-    }
-    if (rv_editor_menu_item(rv_editor_text("shell_menu.redo"), rv_editor_text("shell_menu.shortcut_redo"), no_code)) {
-        rv_editor_menu_code_keys(shell, code_keys_redo);
-    }
+    rv_editor_menu_document_history(shell);
     rv_editor_separator();
     if (rv_editor_menu_item(rv_editor_text("shell_menu.find_in_project"),
             rv_editor_shell_shortcut_label(shell, rv_editor_shortcut_action::find),
@@ -359,11 +338,19 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         { "catalog_status.menu_run", rv_editor_menu_run },
         { "shell_menu.window", rv_editor_menu_window },
         { "shell_menu.help", rv_editor_menu_help } };
+    bool menu_open = false;
     for (const auto &m : menus) {
-        if (rv_editor_top_menu_begin(rv_editor_text(m.text_key))) {
+        const char *label = rv_editor_text(m.text_key);
+        const ImGuiID id = ImGui::GetID(label);
+        if (rv_editor_top_menu_begin(label)) {
+            rv_editor_menu_document_open(shell, id);
             m.draw(shell);
             rv_editor_menu_end();
         }
+        menu_open |= ImGui::IsPopupOpen(label);
+    }
+    if (!menu_open) {
+        shell.menu_document.menu = 0;
     }
     // The layout switch at the bar's right end, as in the references: one place, once a project is open.
     float names = 0.0f;

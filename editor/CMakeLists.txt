@@ -237,11 +237,16 @@ add_executable(3dmppc-editor-tests ${RV_EDITOR_TEST_SOURCES})
 set_target_properties(3dmppc-editor-tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(3dmppc-editor-tests PRIVATE tests)
 target_link_libraries(3dmppc-editor-tests PRIVATE 3dmppc_editor_core)
-# Tests that draw panes need the editor fonts, which are found beside the executable (editor/fonts).
+# Tests that draw panes or edit buffers need the matching editor resources beside the executable.
 add_custom_command(TARGET 3dmppc-editor-tests POST_BUILD VERBATIM
   COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:3dmppc-editor-tests>/editor/fonts
   COMMAND ${CMAKE_COMMAND} -E copy
     ${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf
     ${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_EGA_8x14.ttf
-    $<TARGET_FILE_DIR:3dmppc-editor-tests>/editor/fonts)
+    $<TARGET_FILE_DIR:3dmppc-editor-tests>/editor/fonts
+  COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:3dmppc-editor-tests>/editor/nvim
+  COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/nvim/rv_editor_init.lua
+    ${RV_PALETTE_LUA}
+    $<TARGET_FILE_DIR:3dmppc-editor-tests>/editor/nvim)
 add_test(NAME 3dmppc-editor-tests COMMAND 3dmppc-editor-tests)

@@ -118,6 +118,18 @@ struct rv_editor_ui_port {
     std::vector<rv_editor_ui_request> &requests;
 };
 
+// The focused document when a top-level menu opened.
+struct rv_editor_menu_document {
+    uint32_t menu = 0;
+    uint64_t generation = 0;
+    rv_editor_pane_id pane = rv_editor_tile_none;
+    rv_editor_pane_kind kind = rv_editor_pane_kind::empty;
+    int64_t buffer = 0;
+    std::filesystem::path scene_path;
+    bool history_requested = false;
+    std::optional<rv_editor_nvim_history> history;
+};
+
 // One editor window: its tiles, its models, and the commands that reach them
 // from the menus and the keyboard.
 struct rv_editor_shell {
@@ -175,6 +187,7 @@ struct rv_editor_shell {
     std::string revealed;
     // The code tile used last: what Files opens goes there while Files has the focus.
     rv_editor_pane_id last_code = rv_editor_tile_none;
+    rv_editor_menu_document menu_document;
     // Help's filter as typed, kept while other pages or tabs are in front.
     char help_filter[short_text_field_size] = {};
     rv_editor_start start;
@@ -280,6 +293,9 @@ bool rv_editor_shell_pane_kept(const rv_editor_shell &shell, rv_editor_pane_id p
 // The menu bar (rv_editor_shell_menu.cpp). Runs before the workspace is drawn, so
 // a change here never lands under a reference the drawing holds.
 void rv_editor_shell_menu(rv_editor_shell &shell);
+void rv_editor_menu_document_open(rv_editor_shell &shell, uint32_t menu);
+void rv_editor_menu_document_save(rv_editor_shell &shell);
+void rv_editor_menu_document_history(rv_editor_shell &shell);
 
 // The shortcuts of the spec's section 13 that have a command today.
 void rv_editor_shell_shortcuts(rv_editor_shell &shell);
@@ -296,6 +312,8 @@ void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme)
 void rv_editor_menu_scene(rv_editor_shell &shell);
 // Save Scene: the menu item and Ctrl+S; does nothing when the item would be disabled.
 void rv_editor_shell_scene_save(rv_editor_shell &shell);
+const char *rv_editor_scene_why_not_save(const rv_editor_app &app);
+bool rv_editor_scene_document_pane(rv_editor_pane_kind kind);
 // Opens the New Scene area with today's free name (Scene > New Scene, the
 // empty Scene pane's Create Scene).
 void rv_editor_shell_new_scene_request(const rv_editor_app &app);
@@ -416,8 +434,10 @@ void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &the
 // build or candidate; nothing when the plain kind says it all.
 void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_editor_pane_kind kind);
 
-// File > Save As for the buffer in the focused code tile.
-void rv_editor_shell_save_as_start(rv_editor_shell &shell);
+// Save for a particular code buffer and Save As in the tile chosen by the menu.
+void rv_editor_shell_save_buffer(rv_editor_shell &shell, int64_t buffer);
+void rv_editor_shell_save_as_start(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_nvim_buffer &buffer);
+const char *rv_editor_shell_why_not_save(const rv_editor_shell &shell);
 
 // rv_editor_pane_close_fn for the window's workspace: a code tile whose buffer
 // is modified and shown nowhere else asks first.

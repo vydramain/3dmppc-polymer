@@ -97,6 +97,14 @@ const char *rv_editor_scene_bare_reason(const rv_editor_app &app)
     return app.project.open && app.project.sdk == rv_editor_sdk_state::bare ? rv_editor_text(no_pdkkit_text_id) : nullptr;
 }
 
+} // namespace
+
+bool rv_editor_scene_document_pane(rv_editor_pane_kind kind)
+{
+    return kind == rv_editor_pane_kind::scene || kind == rv_editor_pane_kind::hierarchy ||
+        kind == rv_editor_pane_kind::inspector;
+}
+
 const char *rv_editor_scene_why_not_save(const rv_editor_app &app)
 {
     const char *bare = rv_editor_scene_bare_reason(app);
@@ -111,8 +119,6 @@ const char *rv_editor_scene_why_not_save(const rv_editor_app &app)
     }
     return app.scene->dirty ? nullptr : rv_editor_text("shell_menu_scene.nothing_to_save");
 }
-
-} // namespace
 
 void rv_editor_shell_scene_save(rv_editor_shell &shell)
 {

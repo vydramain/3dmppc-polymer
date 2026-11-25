@@ -395,7 +395,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     if (focused_is_code) {
         rv_editor_shell_set_last_code(shell, focused_code);
     }
-    // Until one is used, the first code tile is the one Save, Undo and Redo act on.
+    // Until one is used, the first code tile receives New File and file opens from the other panes.
     const bool last_lost = shell.last_code == rv_editor_tile_none || !rv_editor_shell_pane_kept(shell, shell.last_code);
     if (last_lost) {
         rv_editor_shell_first_code(shell);

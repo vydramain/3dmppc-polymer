@@ -24,6 +24,11 @@ struct rv_editor_nvim_buffer {
     std::vector<int64_t> windows; // windows showing it
 };
 
+struct rv_editor_nvim_history {
+    bool undo = false;
+    bool redo = false;
+};
+
 // What one buffer's save came to, as nvim reports it after the write.
 struct rv_editor_nvim_saved {
     int64_t id = 0;   // 0: nvim itself did not answer
@@ -151,6 +156,10 @@ public:
 
     // The buffer `win` shows, or nullptr before nvim has reported it.
     const rv_editor_nvim_buffer *buffer_in(int64_t win) const;
+    // Query and use the undo history of a particular buffer without switching windows.
+    void history(int64_t buffer, std::function<void(const rv_editor_nvim_history &)> done);
+    void history_step(int64_t buffer, bool redo);
+
     // Every buffer nvim holds, loaded and backed by a file or Untitled.
     const std::vector<rv_editor_nvim_buffer> &buffers() const
     {

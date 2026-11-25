@@ -3,6 +3,7 @@
 // Nothing is dropped unless the user says Discard, and nothing counts as saved
 // until nvim says the write happened.
 
+#include <algorithm>
 #include <cstdio>
 #include <string>
 #include <system_error>
@@ -67,23 +68,24 @@ void rv_editor_shell_open_now(rv_editor_shell &shell, const std::filesystem::pat
     });
 }
 
-} // namespace
-
-// Saves `ids` (every modified buffer when empty). The outcome lands in
-// shell.save_failed, or shell.save_done when every file was written.
-void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &ids)
+// A save that answers a close or leave question can complete that question.
+void rv_editor_save_buffers(rv_editor_shell &shell, const std::vector<int64_t> &ids, bool answer_question)
 {
-    // No code editor running, no buffers of its to write: done (a scene may have been saved).
+    shell.save_done = false;
+    // A disconnected code editor can still have modified buffers in its cache.
     if (!shell.app.nvim.running()) {
-        shell.save_failed.clear();
-        shell.save_done = true;
-        return;
+        const auto modified = shell.app.nvim.modified();
+        const bool requested = std::ranges::any_of(modified, [&ids](const rv_editor_nvim_buffer &buffer) {
+            return ids.empty() || std::ranges::find(ids, buffer.id) != ids.end();
+        });
+        if (!requested) {
+            shell.save_done = answer_question && shell.save_failed.empty();
+            return;
+        }
     }
     shell.saving = true;
-    shell.save_failed.clear();
-    shell.save_done = false;
     rv_editor_shell *s = &shell;
-    shell.app.nvim.save(ids, [s](const std::vector<rv_editor_nvim_saved> &saved, const std::string &failure) {
+    shell.app.nvim.save(ids, [s, answer_question](const std::vector<rv_editor_nvim_saved> &saved, const std::string &failure) {
         s->saving = false;
         for (const rv_editor_nvim_saved &f : saved) {
             const std::string label = rv_editor_buffer_label(s->app, f.name);
@@ -98,8 +100,22 @@ void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &id
             s->save_failed.push_back({ 0, {}, false, failure });
             s->app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "nothing saved: " + failure);
         }
-        s->save_done = s->save_failed.empty();
+        s->save_done = answer_question && s->save_failed.empty();
     });
+}
+
+} // namespace
+
+void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &ids)
+{
+    shell.save_failed.clear();
+    rv_editor_save_buffers(shell, ids, true);
+}
+
+void rv_editor_shell_save_buffer(rv_editor_shell &shell, int64_t buffer)
+{
+    shell.save_failed.clear();
+    rv_editor_save_buffers(shell, { buffer }, false);
 }
 
 // Save As under a question or on its own: a card whose text area holds the path field and its error, with Save and
@@ -162,6 +178,7 @@ void rv_editor_shell_save_as_card(rv_editor_shell &shell, const rv_editor_theme 
         }
         if (!failure.empty()) {
             s->save_as_error = failure;
+            s->app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "nothing saved: " + failure);
         } else if (saved.empty()) {
             s->save_as_error = rv_editor_text("shell_save.nvim_not_said");
         } else {
@@ -273,33 +290,39 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
     shell.app.unsaved_open = rv_editor_unsaved_ask::none;
 }
 
-void rv_editor_shell_save_all(rv_editor_shell &shell)
+const char *rv_editor_shell_why_not_save(const rv_editor_shell &shell)
 {
-    std::string error;
-    const int code = rv_editor_app_scene_save(shell.app, error);
-    if (rv_editor_scene_save_failed(code)) {
-        shell.app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not saved: " + error);
+    if (shell.saving) {
+        return rv_editor_text("shell_save.waiting_for_nvim");
     }
-    rv_editor_shell_save(shell, {});
+    if (shell.save_as_buffer != 0 || shell.leaving != leave::none || shell.closing != rv_editor_tile_none) {
+        return rv_editor_text("shell_document.finish_save_question");
+    }
+    return nullptr;
 }
 
-void rv_editor_shell_save_as_start(rv_editor_shell &shell)
+void rv_editor_shell_save_all(rv_editor_shell &shell)
 {
-    const rv_editor_workspace &ws = shell.ws;
-    if (ws.focused_leaf >= ws.layout.nodes.size() || ws.layout.nodes[ws.focused_leaf].kind != rv_editor_tile_kind::leaf) {
+    if (rv_editor_shell_why_not_save(shell) != nullptr) {
         return;
     }
-    const rv_editor_tile_leaf &leaf = ws.layout.nodes[ws.focused_leaf].leaf;
-    if (leaf.tabs.empty() || ws.panes.panes[leaf.tabs[leaf.active]].kind != rv_editor_pane_kind::code) {
+    shell.save_failed.clear();
+    if (rv_editor_shell_save_scene(shell) != RV_OK) {
+        shell.app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "scene not saved: " + shell.save_failed.back().error);
+    }
+    rv_editor_save_buffers(shell, {}, false);
+}
+
+void rv_editor_shell_save_as_start(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_nvim_buffer &buffer)
+{
+    if (rv_editor_tile_activate(shell.ws.layout, pane) != RV_OK) {
         return;
     }
-    const rv_editor_nvim_buffer *buf = shell.app.nvim.buffer_in(shell.app.nvim.window_for(leaf.tabs[leaf.active]));
-    if (buf == nullptr) {
-        return;
-    }
-    shell.save_as_buffer = buf->id;
-    shell.save_as_pane = leaf.tabs[leaf.active];
-    const std::string label = buf->name.empty() ? std::string() : rv_editor_buffer_label(shell.app, buf->name);
+    shell.save_as_buffer = buffer.id;
+    shell.save_as_pane = pane;
+    const std::string label = buffer.name.empty() ? std::string() : rv_editor_buffer_label(shell.app, buffer.name);
     std::snprintf(shell.save_as_path, sizeof(shell.save_as_path), "%s", label.c_str());
     shell.save_as_error.clear();
 }

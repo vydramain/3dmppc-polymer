@@ -941,6 +941,18 @@ duplicate = "Duplicate"
 delete = "Delete"
 move_to_root = "Move to Root"
 
+[shell_document]
+save_tip = "Save changes in {}"
+save_all_tip = "Save changed code buffers and the scene"
+save_as_tip = "Save the code buffer {} to a path you choose"
+undo_tip = "Undo a change in {}"
+redo_tip = "Redo a change in {}"
+no_document = "Focus a code buffer or a scene to choose a document"
+no_code_buffer = "No code buffer is open in the tile"
+save_as_code_only = "Save As is available for a code buffer"
+name_with_save_as = "This buffer has no file name. Use Save As to give it one"
+finish_save_question = "Finish the current save or unsaved changes question first"
+
 [shell_menu]
 edit = "Edit"
 view = "View"
@@ -1095,6 +1107,7 @@ build_restart = "Build and Restart"
 not_on_running_disc = "Not on the running disc"
 
 [nvim_rpc]
+not_running = "the code editor is not running"
 sent_not_msgpack = "nvim sent something that is not msgpack"
 not_reading_input = "nvim is not reading its input"
 input_closed = "nvim's input is closed"

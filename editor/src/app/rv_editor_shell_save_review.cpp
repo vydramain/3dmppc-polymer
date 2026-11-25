@@ -156,16 +156,20 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
         shell.save_failed.clear();
         return;
     }
-    if (ahead) {
-        if (pressed == 0) {
-            const std::vector<int64_t> ids = rv_editor_app_unsaved(app);
-            if (rv_editor_shell_save_scene(shell) == RV_OK && ids.empty()) {
-                shell.save_done = true;
-            } else if (shell.save_failed.empty()) {
-                rv_editor_shell_save(shell, ids);
-            }
+    if (pressed == 0) {
+        shell.save_failed.clear();
+        if (rv_editor_shell_save_scene(shell) != RV_OK) {
             return;
         }
+        const std::vector<int64_t> ids = ahead ? rv_editor_app_unsaved(app) : std::vector<int64_t>{};
+        if (ahead && ids.empty()) {
+            shell.save_done = true;
+        } else {
+            rv_editor_shell_save(shell, ids);
+        }
+        return;
+    }
+    if (ahead) {
         shell.leaving = leave::none;
         app.unsaved_open = rv_editor_unsaved_ask::none;
         shell.save_failed.clear();
@@ -177,9 +181,6 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
             rv_editor_app_build_restart_saved(app);
         }
         return;
-    }
-    if (pressed == 0 && rv_editor_shell_save_scene(shell) == RV_OK) {
-        rv_editor_shell_save(shell, {});
     }
     if (pressed == 1) {
         // The user's word: the changes go, then what waited goes ahead.
@@ -210,7 +211,10 @@ void rv_editor_shell_review_tab(rv_editor_shell &shell)
         (void)rv_editor_tile_remove(shell.ws.layout, shown);
     }
     const bool alone = shell.save_as_buffer != 0 && shell.closing == rv_editor_tile_none && !waits;
-    if (alone && rv_editor_tile_find(shell.ws.layout, shell.save_as_pane) == rv_editor_tile_none) {
+    const rv_editor_pane_id pane = shell.save_as_pane;
+    const bool kept = pane < shell.ws.panes.panes.size() && shell.ws.panes.panes[pane].kind == rv_editor_pane_kind::code &&
+        rv_editor_tile_find(shell.ws.layout, pane) != rv_editor_tile_none;
+    if (alone && !kept) {
         shell.save_as_buffer = 0;
         shell.save_as_error.clear();
     }

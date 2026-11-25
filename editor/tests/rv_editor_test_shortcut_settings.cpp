@@ -18,6 +18,7 @@
 #include "platform/rv_editor_process.hpp"
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
+#include "scene/rv_editor_scene_edit.hpp"
 #include "text/rv_editor_text.hpp"
 
 using namespace rv_editor;
@@ -283,16 +284,30 @@ RV_EDITOR_TEST(rv_editor_test_shortcut_settings_reassigned_chords_route_to_code)
     RV_EDITOR_CHECK(code_input(save_all_default).empty());
     remap_build_and_save_all(gui, shell);
 
+    const auto scene_path = config.dir / "courtyard.scene.toml";
+    shell.app.project.root = config.dir;
+    shell.app.scene = std::make_unique<rv_editor_scene_doc>();
+    auto &scene = *shell.app.scene;
+    scene.scene.path = scene_path;
+    std::string error;
+    RV_EDITOR_CHECK(rv_editor_scene_save(scene.scene, error) == RV_OK);
+    rv_editor_scene_object tree;
+    tree.id = "tree";
+    rv_editor_scene_step(scene);
+    scene.scene.objects.push_back(tree);
+
     shell.app.build_alert = {};
-    shell.save_done = false;
     RV_EDITOR_CHECK(code_input(build_default) == "<C-b>");
     RV_EDITOR_CHECK(code_input(save_all_default) == "<S-C-s>");
     RV_EDITOR_CHECK(shell.app.build_alert.kind == rv_editor_build_alert_kind::none);
-    RV_EDITOR_CHECK(!shell.save_done);
+    rv_editor_scene saved_scene;
+    RV_EDITOR_CHECK(rv_editor_scene_load(scene_path, saved_scene, error) == RV_OK);
+    RV_EDITOR_CHECK(saved_scene.objects.empty());
+    RV_EDITOR_CHECK(code_input(ImGuiKey_F11).empty());
+    RV_EDITOR_CHECK(rv_editor_scene_load(scene_path, saved_scene, error) == RV_OK);
+    RV_EDITOR_CHECK(rv_editor_scene_find(saved_scene, tree.id) >= 0);
     RV_EDITOR_CHECK(code_input(ImGuiKey_F10).empty());
     RV_EDITOR_CHECK(shell.app.build_alert.kind == rv_editor_build_alert_kind::not_started);
-    RV_EDITOR_CHECK(code_input(ImGuiKey_F11).empty());
-    RV_EDITOR_CHECK(shell.save_done);
 }
 
 RV_EDITOR_TEST(rv_editor_test_shortcut_settings_reassigned_chords_route_to_terminal)

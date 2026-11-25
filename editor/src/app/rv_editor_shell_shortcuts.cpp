@@ -43,7 +43,7 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
         if (text_input && (spec.scope != rv_editor_shortcut_scope::global || (remapped && !function))) {
             return false;
         }
-        if (spec.scope == rv_editor_shortcut_scope::scene && focus != rv_editor_pane_kind::scene) {
+        if (spec.scope == rv_editor_shortcut_scope::scene && !rv_editor_scene_document_pane(focus)) {
             return false;
         }
         if (spec.scope == rv_editor_shortcut_scope::outside_code_and_terminal &&
@@ -62,7 +62,7 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     if (pressed(action::build)) {
         rv_editor_app_build(app);
     }
-    if (pressed(action::save_scene)) {
+    if (rv_editor_shell_why_not_save(shell) == nullptr && pressed(action::save_scene)) {
         rv_editor_shell_scene_save(shell);
     }
     if (pressed(action::save_all)) {

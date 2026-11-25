@@ -392,6 +392,17 @@ bool rv_editor_nvim_rpc::poll(const rv_editor_nvim_notify &on_notify, std::strin
                 why = rv_editor_text("nvim_rpc.closed_channel");
             }
         }
+        // Queued replies have been delivered. The closed channel cannot answer the rest.
+        rv_editor_mpack error;
+        error.type = mtype::string;
+        error.s = why;
+        decltype(pending_) pending;
+        pending.swap(pending_);
+        for (const auto &entry : pending) {
+            if (entry.second) {
+                entry.second(error, {});
+            }
+        }
         return false;
     }
     return true;
