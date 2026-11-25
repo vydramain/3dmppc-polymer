@@ -5,8 +5,7 @@
 namespace rv_editor
 {
 
-// The editor's fonts: the interface draws in pdklib's
-// 5x7 font in an 8 px line; code and logs in one of three code sizes.
+// The interface uses an 8 px baseline line height before UI scaling.
 inline constexpr int rv_editor_font_ui_height = 8;
 
 // small: PxPlus IBM EGA 8x14 at 14 px; normal and large: PxPlus IBM VGA 9x16 at
@@ -17,11 +16,19 @@ enum class rv_editor_code_size {
     large,
 };
 
-// Adds the fonts at their heights times `scale` (1, 1.5, 2; code sizes round to whole pixels, the
-// interface font is rebuilt on the scaled pixel grid so it stays unsmoothed); the interface font becomes
-// ImGui's default. Returns RV_OK on success or RV_ERR_NOENT when ImGui refuses the interface font or both code
-// fonts; a code font file that does not load leaves the other's sizes, and says so.
-int rv_editor_fonts_add(ImFontAtlas &atlas, float scale);
+enum class rv_editor_main_size {
+    normal,
+    large,
+};
+
+// "normal" and "large", as stored in the view file.
+const char *rv_editor_main_size_name(rv_editor_main_size size);
+int rv_editor_main_size_parse(const char *name, rv_editor_main_size &size);
+
+// Adds the fonts for UI scale 1, 1.5 or 2. Main size affects only the interface font,
+// which is rebuilt on the target pixel grid and becomes ImGui's default.
+// Returns RV_OK, or RV_ERR_NOENT when the interface font or both code fonts fail to load.
+int rv_editor_fonts_add(ImFontAtlas &atlas, float scale, rv_editor_main_size main_size = rv_editor_main_size::normal);
 
 // The scale the code sizes are multiplied by, after View > UI Scale.
 void rv_editor_font_scale_set(float scale);

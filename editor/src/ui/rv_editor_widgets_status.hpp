@@ -30,9 +30,9 @@ enum class rv_editor_severity {
     error,
 };
 
-// Status bar: one sunken field per text, left to right; a text is always shown whole.
+// Status bar: one sunken field per text, left to right.
 // What rv_editor_status_bar drew, for tests. The segments' widths depend on the bar's width and the widest texts only,
-// never on the shown texts; `tooltip` stays empty.
+// never on the shown texts. Shortened text has its full text in `tooltip`.
 struct rv_editor_status_probe {
     struct segment {
         float x0 = 0, x1 = 0;
@@ -43,7 +43,8 @@ struct rv_editor_status_probe {
 };
 
 // `widest[i]` is the longest text field i can ever show (its template with fields at their limits); segment i is as wide
-// as that text plus an equal share of the free width. Returns the index of the segment clicked this frame, else -1.
+// as that text plus an equal share of the free width. If space is tight, the widest segments yield room first.
+// Returns the index of the segment clicked this frame, else -1.
 int rv_editor_status_bar(const char *const fields[],
     const char *const widest[],
     int count,

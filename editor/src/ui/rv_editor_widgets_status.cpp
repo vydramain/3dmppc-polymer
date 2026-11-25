@@ -341,11 +341,28 @@ int rv_editor_status_bar(const char *const fields[],
     const float free_width =
         width - (rv_editor_status_bar_min_width(widest, count, theme) - 2.0f * ImGui::GetStyle().WindowPadding.x);
     const float share = std::max(0.0f, std::floor(free_width / static_cast<float>(count)));
+    float width_cap = FLT_MAX;
+    if (free_width < 0.0f) {
+        // Fit the short fields first, then divide the remaining space evenly among the wider ones.
+        std::vector<float> base_widths;
+        for (int i = 0; i < count; ++i) {
+            base_widths.push_back(status_segment_base(widest[i], theme));
+        }
+        std::sort(base_widths.begin(), base_widths.end());
+        float remaining = width - gap * static_cast<float>(count - 1);
+        for (int i = 0; i < count; ++i) {
+            width_cap = std::floor(remaining / static_cast<float>(count - i));
+            if (base_widths[i] >= width_cap) {
+                break;
+            }
+            remaining -= base_widths[i];
+        }
+    }
     ImDrawList *dl = ImGui::GetWindowDrawList();
     int clicked = -1;
     float x = origin.x;
     for (int i = 0; i < count; ++i) {
-        const float w = status_segment_base(widest[i], theme) + share;
+        const float w = std::max(1.0f, std::min(status_segment_base(widest[i], theme), width_cap) + share);
         const ImVec2 min(x, origin.y);
         const ImVec2 max(x + w, origin.y + h);
         ImGui::SetCursorScreenPos(min);
@@ -356,9 +373,18 @@ int rv_editor_status_bar(const char *const fields[],
         const ImVec2 text = ImGui::CalcTextSize(fields[i]);
         const float text_x = std::floor(min.x + pad * status_bar_text_inset_pads);
         const float text_y = std::floor((min.y + max.y - text.y) / half_divisor);
-        dl->AddText(ImVec2(text_x, text_y), rv_editor_col(theme.text), fields[i]);
+        const float text_room = max.x - text_x - pad * status_bar_text_inset_pads;
+        const std::string shown = rv_editor_ellipsize(fields[i], text_room);
+        const bool shortened = shown != fields[i];
+        dl->AddText(ImVec2(text_x, text_y), rv_editor_col(theme.text), shown.c_str());
+        if (shortened && ImGui::BeginItemTooltip()) {
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + width / half_divisor);
+            ImGui::TextUnformatted(fields[i]);
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
         if (probe != nullptr) {
-            probe->segments.push_back({ min.x, max.x, fields[i], "" });
+            probe->segments.push_back({ min.x, max.x, shown, shortened ? fields[i] : "" });
         }
         x = max.x + gap;
     }

@@ -233,14 +233,16 @@ void rv_editor_display_pixels(SDL_Window *window)
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 }
 
-// Fonts for a scale replace the current ones only when all are built; the style takes the interface size.
-int rv_editor_fonts_build(ImGuiIO &io, float scale)
+// Apply the new style after the matching fonts are ready.
+int rv_editor_style_build(ImGuiIO &io, const rv_editor::rv_editor_theme &theme, rv_editor::rv_editor_main_size main_size)
 {
-    const int err = rv_editor::rv_editor_fonts_add(*io.Fonts, scale);
+    const int err = rv_editor::rv_editor_fonts_add(*io.Fonts, theme.scale, main_size);
     if (err != RV_OK) {
         return err;
     }
-    ImGui::GetStyle().FontSizeBase = rv_editor::rv_editor_font_ui()->LegacySize;
+    ImGuiStyle &style = ImGui::GetStyle();
+    rv_editor::rv_editor_theme_apply(theme, style);
+    style.FontSizeBase = rv_editor::rv_editor_font_ui()->LegacySize;
     return RV_OK;
 }
 
@@ -307,7 +309,7 @@ int main(int argc, char **argv)
             text_error.c_str());
     }
 
-    // The view the user chose last time: code text size, Game scale, layout, UI scale.
+    // Restore the view the user chose last time.
     const std::filesystem::path prefs_path = rv_editor::rv_editor_prefs_file_path();
     const rv_editor::rv_editor_prefs prefs = rv_editor::rv_editor_prefs_load(prefs_path);
 
@@ -344,8 +346,7 @@ int main(int argc, char **argv)
         }
     }
 
-    rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
-    if (rv_editor_fonts_build(io, theme.scale) != RV_OK) {
+    if (rv_editor_style_build(io, theme, prefs.main_size) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot build the fonts\n");
         ImGui::DestroyContext();
         SDL_DestroyRenderer(renderer);
@@ -365,6 +366,7 @@ int main(int argc, char **argv)
     shell->renderer = renderer;
     rv_editor::rv_editor_app_init(shell->app);
     shell->ui_scale = theme.scale;
+    shell->main_size = prefs.main_size;
     // The loop waits for no event: without vsync or a cap it would take a whole core.
     shell->pace = { prefs.vsync, prefs.fps_limit };
     (void)rv_editor::rv_editor_shell_pace_apply(*shell);
@@ -395,21 +397,25 @@ int main(int argc, char **argv)
             io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         }
         shell->ui.text_focus = false;
-        // View > UI Scale between frames: the style and every size follow.
-        if (shell->ui_scale_request > 0.0f) {
-            const float previous = theme.scale;
-            theme.scale = shell->ui_scale_request;
+        // Rebuild the fonts and control metrics between frames.
+        if (shell->ui_scale_request > 0.0f || shell->main_size_request) {
+            rv_editor::rv_editor_theme requested_theme = theme;
+            if (shell->ui_scale_request > 0.0f) {
+                requested_theme.scale = shell->ui_scale_request;
+            }
+            const rv_editor::rv_editor_main_size main_size = shell->main_size_request.value_or(shell->main_size);
             shell->ui_scale_request = 0.0f;
-            // Rebuilt, not resized: the same pixels as a start at this scale.
-            if (rv_editor_fonts_build(io, theme.scale) != RV_OK) {
-                std::fprintf(stderr, "3dmppc-editor: cannot build the fonts for scale %g; keeping %g\n", theme.scale, previous);
+            shell->main_size_request.reset();
+            if (rv_editor_style_build(io, requested_theme, main_size) == RV_OK) {
+                theme = requested_theme;
+                shell->ui_scale = theme.scale;
+                shell->main_size = main_size;
+            } else {
+                std::fprintf(stderr, "3dmppc-editor: cannot build the fonts for the requested UI settings\n");
                 shell->app.log.add(rv_editor::rv_editor_log_source::editor,
                     rv_editor::rv_editor_log_level::error,
-                    "cannot build the fonts for the new UI scale; the previous scale stays");
-                theme.scale = previous;
+                    "cannot build the fonts for the requested UI settings");
             }
-            shell->ui_scale = theme.scale;
-            rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
         }
         // Settings' vsync and frame rate limit, applied between frames.
         if (shell->pace_request) {
@@ -417,7 +423,7 @@ int main(int argc, char **argv)
             shell->pace_request.reset();
             (void)rv_editor::rv_editor_shell_pace_apply(*shell);
         }
-        // The status bar's least width follows the project's name and the scale: checked before every frame.
+        // The window minimum follows the status text, the scale and the display.
         if (!rv_editor::rv_editor_window_min_sync(window, *shell, theme)) {
             std::fprintf(stderr, "3dmppc-editor: SetWindowMinimumSize/SetWindowSize: %s\n", SDL_GetError());
         }
@@ -458,7 +464,8 @@ int main(int argc, char **argv)
         rv_editor::rv_editor_shell_workspace_key(*shell),
         shell->ui_scale,
         pace.vsync,
-        pace.fps_limit };
+        pace.fps_limit,
+        shell->main_size_request.value_or(shell->main_size) };
     if (!prefs_path.empty() && rv_editor::rv_editor_prefs_save(prefs_path, chosen, error) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the view settings: %s\n", error.c_str());
     }

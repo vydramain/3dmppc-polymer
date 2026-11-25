@@ -189,6 +189,9 @@ struct rv_editor_shell {
     // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
     float ui_scale = 1.0f;
     float ui_scale_request = 0.0f;
+    // The main font size shown, and one menu request to apply between frames.
+    rv_editor_main_size main_size = rv_editor_main_size::normal;
+    std::optional<rv_editor_main_size> main_size_request;
     // The window minimum width the last rv_editor_shell_window_min_changed returned; 0 before the first call.
     int window_min_last = 0;
     // The pacing in use, and one Settings change asked for, applied between frames (empty: none).
@@ -332,8 +335,8 @@ int rv_editor_window_min_width_for(float scale, float status_min);
 // every frame, outside a frame too.
 bool rv_editor_shell_window_min_changed(rv_editor_shell &shell, const rv_editor_theme &theme, int &min_out);
 
-// Sets the SDL window's least size to the 1280x720 scaled minimum, the width more if the status bar needs it, and enlarges
-// the window when it is smaller; does nothing while the minimum is as at the last call. False when SDL refused.
+// Sets the SDL window's least size to the scaled layout minimum, with room for the status bar up to the display width,
+// and enlarges the window when it is smaller. False when SDL refused.
 bool rv_editor_window_min_sync(SDL_Window *window, rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // Draws the status bar's texts with the theme; a click on the Tools segment opens Settings (Toolchain list).

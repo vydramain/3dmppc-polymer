@@ -403,15 +403,12 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
 
 int rv_editor_font_ttf_em(double scale)
 {
-    if (scale == rv_editor_ui_fractional_scale) {
-        return rv_editor_ui_fractional_height;
-    }
     return static_cast<int>(std::floor(rv_pdklib::rv_font_cell_height * scale + rounding_offset));
 }
 
 std::string rv_editor_font_ttf(double scale)
 {
-    const bool use_fractional_artwork = scale == rv_editor_ui_fractional_scale;
+    const bool use_fractional_artwork = scale >= rv_editor_ui_fractional_scale && scale != std::floor(scale);
     const uint8_t *ascii = use_fractional_artwork ? rv_editor_ui_fractional_ascii : rv_pdklib::rv_font_bits;
     const uint8_t *cyrillic = use_fractional_artwork ? rv_editor_ui_fractional_cyrillic : rv_pdklib::rv_font_cyrillic_bits;
     const int cell_height = use_fractional_artwork ? rv_editor_ui_fractional_height : rv_pdklib::rv_font_cell_height;
@@ -439,10 +436,9 @@ std::string rv_editor_font_ttf(double scale)
         }
     }
 
-    // The 150% drawings are already on the target grid. Both designs leave
-    // room for letter spacing between the ink and the cell's advance.
+    // The fractional drawings are already at 150%. Scale from their native grid for larger text.
     const int advance = use_fractional_artwork ? rv_editor_ui_fractional_advance : rv_editor_font_ui_advance;
-    const double grid_scale = use_fractional_artwork ? 1.0 : scale;
+    const double grid_scale = use_fractional_artwork ? scale / rv_editor_ui_fractional_scale : scale;
     return rv_editor_ttf_build(glyphs, map, advance, cell_height, grid_scale);
 }
 

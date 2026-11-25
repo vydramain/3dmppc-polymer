@@ -51,10 +51,13 @@ constexpr std::string_view ega_font_config_name = "PxPlus IBM EGA 8x14";
 // VGA font configuration name (PxPlus IBM VGA 9x16)
 constexpr std::string_view vga_font_config_name = "PxPlus IBM VGA 9x16";
 
-// Code size names as stored in view preferences file
-constexpr std::string_view code_size_name_small = "small";
-constexpr std::string_view code_size_name_normal = "normal";
-constexpr std::string_view code_size_name_large = "large";
+// The large interface text is 50% taller at each UI scale.
+constexpr float large_main_size_multiplier = 1.5f;
+
+// Font size names as stored in view preferences file
+constexpr std::string_view font_size_name_small = "small";
+constexpr std::string_view font_size_name_normal = "normal";
+constexpr std::string_view font_size_name_large = "large";
 
 // Multiplier for large code size relative to VGA normal size
 constexpr int large_code_size_multiplier = 2;
@@ -78,7 +81,23 @@ ImFontConfig rv_editor_font_config(const char *name)
 
 } // namespace
 
-int rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
+const char *rv_editor_main_size_name(rv_editor_main_size size)
+{
+    return size == rv_editor_main_size::large ? font_size_name_large.data() : font_size_name_normal.data();
+}
+
+int rv_editor_main_size_parse(const char *name, rv_editor_main_size &size)
+{
+    for (const rv_editor_main_size s : { rv_editor_main_size::normal, rv_editor_main_size::large }) {
+        if (std::strcmp(name, rv_editor_main_size_name(s)) == 0) {
+            size = s;
+            return RV_OK;
+        }
+    }
+    return RV_ERR_INVAL;
+}
+
+int rv_editor_fonts_add(ImFontAtlas &atlas, float scale, rv_editor_main_size main_size)
 {
     ImFont *const old_ui = rv_editor_ui;
     ImFont *const old_small = rv_editor_code_small;
@@ -88,18 +107,17 @@ int rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
     rv_editor_font_scale = k;
     // Whole scales load the 1:1 grid at a multiple of its size; a fraction needs its own scaled grid.
     // The atlas keeps a pointer to the bytes for as long as it lives, so they are kept per grid.
-    const bool whole = k == std::floor(k);
-    const double grid = whole ? 1.0 : static_cast<double>(k);
+    const float main_scale = main_size == rv_editor_main_size::large ? k * large_main_size_multiplier : k;
+    const bool whole = main_scale == std::floor(main_scale);
+    const double grid = whole ? 1.0 : static_cast<double>(main_scale);
     const int grid_key = static_cast<int>(std::floor(grid * grid_key_scale_multiplier + grid_key_rounding_adjustment));
     static std::map<int, std::string> ui_ttfs;
     if (!ui_ttfs.contains(grid_key)) {
         ui_ttfs.emplace(grid_key, rv_editor_font_ttf(grid));
     }
     const std::string &ui_ttf = ui_ttfs.at(grid_key);
-    float ui_size = static_cast<float>(rv_editor_font_ui_height) * k;
-    if (!whole) {
-        ui_size = static_cast<float>(rv_editor_font_ttf_em(grid));
-    }
+    const float ui_size =
+        whole ? static_cast<float>(rv_editor_font_ui_height) * main_scale : static_cast<float>(rv_editor_font_ttf_em(grid));
     ImFontConfig ui = rv_editor_font_config(ui_font_config_name.data());
     ui.FontDataOwnedByAtlas = false;
     rv_editor_ui = atlas.AddFontFromMemoryTTF(const_cast<char *>(ui_ttf.data()), static_cast<int>(ui_ttf.size()), ui_size, &ui);
@@ -165,13 +183,13 @@ const char *rv_editor_code_size_name(rv_editor_code_size size)
 {
     switch (size) {
     case rv_editor_code_size::small:
-        return code_size_name_small.data();
+        return font_size_name_small.data();
     case rv_editor_code_size::normal:
-        return code_size_name_normal.data();
+        return font_size_name_normal.data();
     case rv_editor_code_size::large:
-        return code_size_name_large.data();
+        return font_size_name_large.data();
     }
-    return code_size_name_normal.data();
+    return font_size_name_normal.data();
 }
 
 int rv_editor_code_size_parse(const char *name, rv_editor_code_size &size)
