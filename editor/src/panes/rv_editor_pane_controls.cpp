@@ -278,7 +278,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::EndGroup();
     const float status_width = std::max(rv_editor_transport_status_min_width(), ImGui::GetContentRegionAvail().x);
     const std::string build = app.project.open ? rv_editor_build_status(app.build) : std::string();
-    std::string status = rv_editor_controls_status({ app.project.open, s.state(), s.number(), 0, {}, {} });
+    std::string status = s.live() ? rv_editor_app_live_session_status(app) :
+                                    rv_editor_controls_status({ app.project.open, s.state(), s.number(), 0, {}, {} });
     std::string tip;
     if (!build.empty()) {
         status = rv_editor_text_format("panes.status_join", std::make_format_args(status, build));

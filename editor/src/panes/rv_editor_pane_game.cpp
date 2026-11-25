@@ -290,9 +290,7 @@ std::pair<const char *, rv_editor_game_line> rv_editor_game_state_status(const r
     }
 }
 
-// Burn's tile: the shelf without Run and, once a candidate's image runs, its
-// own frame. The unpacked development build never stands in for it (README),
-// whether stopped or a development session is live.
+// Burn's stopped preview names the image that Release Controls will run.
 void rv_editor_game_candidate_tile(rv_editor_app &app,
     const rv_editor_theme &theme,
     const rv_editor_ui_port &ui,
@@ -414,13 +412,12 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             return;
         }
 
-        // A development session (Code/Debug/Scene) can be live while Burn is open: its
-        // frame is not a candidate's image, so Burn still shows the stopped tile.
-        if (app.release_view && app.release.playing < 0) {
-            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::release_keyboard });
-            rv_editor_game_candidate_tile(app, theme, ui, ui.state.game_scale);
-            return;
-        }
+        const std::string target = rv_editor_app_session_target(app);
+        const auto number = s.number();
+        const std::string session = rv_editor_text_format("panes.status_session", std::make_format_args(target, number));
+        const auto session_status = [&](const std::string &state) {
+            return rv_editor_text_format("panes.status_join", std::make_format_args(session, state));
+        };
 
         // A new session's frames count from 1 again.
         if (s.number() != rv_editor_game_session) {
@@ -459,7 +456,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0) {
             rv_editor_game_picture(ui,
                 theme,
-                rv_editor_text("pane_game.frame_waiting"),
+                session_status(rv_editor_text("pane_game.frame_waiting")),
                 rv_editor_game_line::muted,
                 false,
                 ui.state.game_scale);
@@ -475,7 +472,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         const auto frame = s.frame();
         rv_editor_game_picture(ui,
             theme,
-            rv_editor_text_format("pane_game.frame_status", std::make_format_args(frame, state)),
+            session_status(rv_editor_text_format("pane_game.frame_status", std::make_format_args(frame, state))),
             line,
             s.state() != rv_editor_run_state::disconnected,
             ui.state.game_scale);

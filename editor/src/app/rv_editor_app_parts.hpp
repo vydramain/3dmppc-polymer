@@ -5,8 +5,11 @@
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
+
+#include <sys/stat.h>
 
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
@@ -15,6 +18,7 @@
 #include "project/rv_editor_run_profile.hpp"
 #include "release/rv_editor_candidate.hpp"
 #include "scene/rv_editor_scene.hpp"
+#include "session/rv_editor_session.hpp"
 #include "terminal/rv_editor_terminal.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 
@@ -233,6 +237,24 @@ struct rv_editor_findings {
     std::vector<std::string> results;
 };
 
+struct rv_editor_playtest_end {
+    rv_editor_session_facts facts;
+    std::string reason;
+    std::string log;
+    bool clean = false;
+};
+
+struct rv_editor_playtest {
+    uint32_t session = 0;
+    uint32_t candidate = 0;
+    uint64_t first_seq = 0;
+    std::filesystem::path image;
+    std::filesystem::path console;
+    std::string hash;
+    struct stat image_stat{};
+    std::optional<rv_editor_playtest_end> ended;
+};
+
 // The project's release candidates, oldest first, and the one shown; their records
 // are read back when the project opens.
 struct rv_editor_release {
@@ -242,12 +264,12 @@ struct rv_editor_release {
     uint32_t building_number = 0;
     uint64_t build_first_seq = 0;
     bool tree_changed_during = false;
-    std::string building_revision;   // the sources' version when that build started
-    std::string building_burner;     // the tools' versions when that build started,
-    std::string building_baker;      // so Apply during a build cannot blank the record
-    std::string last_failure;        // the newest candidate build did not make one
-    int playing = -1;                // the candidate the session runs, or -1
-    uint64_t playtest_first_seq = 0; // the first log line of that playtest
+    std::string building_revision; // the sources' version when that build started
+    std::string building_burner;   // the tools' versions when that build started,
+    std::string building_baker;    // so Apply during a build cannot blank the record
+    std::string last_failure;      // the newest candidate build did not make one
+    int playing = -1;              // the candidate whose playtest is live or being verified, or -1
+    rv_editor_playtest playtest;
     // The player playing a candidate in its own window: the process, which
     // candidate, since when, whether the operator stopped it, what it printed.
     std::unique_ptr<rv_editor_process> player;

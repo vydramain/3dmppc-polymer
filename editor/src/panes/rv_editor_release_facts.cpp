@@ -7,6 +7,7 @@
 
 #include "imgui.h"
 
+#include "panes/rv_editor_pane_controls.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_status.hpp"
@@ -88,7 +89,7 @@ float rv_editor_release_status_min_width()
     }
     cached_font = font;
     cached_size = font->LegacySize;
-    cached_width = facts;
+    cached_width = std::max(facts, rv_editor_playback_build_status_min_width());
     return cached_width;
 }
 

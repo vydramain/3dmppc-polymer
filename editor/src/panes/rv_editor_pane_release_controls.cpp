@@ -141,16 +141,34 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     std::string tip;
     if (app.project.open) {
         const auto &release = app.release;
-        const rv_editor_candidate *shown = release.candidates.empty() ? nullptr : &release.candidates[release.selected];
+        const size_t described =
+            rv_editor_app_release_still_playing(app) ? static_cast<size_t>(release.playing) : release.selected;
+        const rv_editor_candidate *shown = release.candidates.empty() ? nullptr : &release.candidates[described];
         const std::string facts = rv_editor_release_facts_make(shown, rv_editor_release_building::none).first_line;
         const std::string build = rv_editor_build_status(app.build);
-        status = build.empty() ? facts : build;
-        if (!build.empty() && shown != nullptr) {
-            const std::string combined = rv_editor_text_format("panes.status_join", std::make_format_args(build, facts));
+        const auto join_status = [&](const std::string &first, const std::string &second) {
+            const std::string combined = rv_editor_text_format("panes.status_join", std::make_format_args(first, second));
             if (ImGui::CalcTextSize(combined.c_str(), nullptr, false, status_width).y <= rv_editor_strip_status_height()) {
                 status = combined;
             }
-            tip = build + "\n" + facts + "\n";
+        };
+        if (app.session.live()) {
+            status = rv_editor_app_live_session_status(app);
+            tip = status + "\n";
+            if (!build.empty()) {
+                status = rv_editor_text_format("panes.status_join", std::make_format_args(status, build));
+                tip += build + "\n";
+            }
+            if (shown != nullptr && app.candidate_session != app.session.number()) {
+                join_status(facts, status);
+            }
+            tip += facts + "\n";
+        } else {
+            status = build.empty() ? facts : build;
+            if (!build.empty() && shown != nullptr) {
+                join_status(build, facts);
+                tip = build + "\n" + facts + "\n";
+            }
         }
         if (shown != nullptr) {
             tip += rv_editor_release_number_tooltip(*shown);

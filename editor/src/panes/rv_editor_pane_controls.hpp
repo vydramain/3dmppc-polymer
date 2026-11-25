@@ -61,6 +61,7 @@ float rv_editor_controls_action_slot_width(const rv_editor_theme &theme);
 // note, or the longest message, whichever is wider) and its height at a tile `width` wide. Both measure with the current font.
 float rv_editor_transport_column_min_width();
 // The width the longest status needs to wrap into its two lines; the status is never narrower.
+float rv_editor_playback_build_status_min_width();
 float rv_editor_transport_status_min_width();
 float rv_editor_transport_min_width();
 float rv_editor_transport_height(float width);

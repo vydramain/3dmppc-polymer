@@ -4,6 +4,8 @@
 
 #include "imgui.h"
 #include "panes/rv_editor_pane_controls.hpp"
+#include "pdklib/rv_progress/rv_progress.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_strip_status.hpp"
@@ -64,6 +66,22 @@ float rv_editor_transport_column_min_width()
     return rv_editor_controls_action_slot_width(rv_editor_theme_olive);
 }
 
+float rv_editor_playback_build_status_min_width()
+{
+    constexpr uint32_t number = 999999;
+    const std::string target = rv_editor_text_format("panes.status_target_candidate", std::make_format_args(number));
+    const std::string build = target + " step 99/99: " + std::string(rv_pdklib::rv_progress_step_name_max, 'W');
+    float width = 0.0f;
+    for (int i = 0; i <= static_cast<int>(rv_editor_run_state::refused); ++i) {
+        const char *state = rv_editor_run_state_name(static_cast<rv_editor_run_state>(i));
+        const std::string session = rv_editor_text_format("panes.status_session", std::make_format_args(state, number));
+        const std::string playback = rv_editor_text_format("panes.status_join", std::make_format_args(session, target));
+        const std::string status = rv_editor_text_format("panes.status_join", std::make_format_args(playback, build));
+        width = std::max(width, rv_editor_strip_status_width_for(status));
+    }
+    return width + 1.0f; // the last glyph must lie inside the child's clip rectangle
+}
+
 float rv_editor_transport_status_min_width()
 {
     const ui_font_scope font;
@@ -73,7 +91,7 @@ float rv_editor_transport_status_min_width()
     static float cached = 0.0f;
     const ImFont *ui = ImGui::GetIO().Fonts->Fonts[0];
     if (ui != cached_font || ui->LegacySize != cached_size) {
-        cached = rv_editor_status_min_width();
+        cached = std::max(rv_editor_status_min_width(), rv_editor_playback_build_status_min_width());
         cached_font = ui;
         cached_size = ui->LegacySize;
     }

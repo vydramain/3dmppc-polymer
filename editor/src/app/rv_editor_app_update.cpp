@@ -206,13 +206,15 @@ void rv_editor_app_collect_problems(rv_editor_app &app)
     }
 }
 
-// Each candidate is polled; a dirty one is saved. Every candidate is tried; each failure is logged
-// by the save; the first is returned.
+// Poll hashes before verifying the playtest, then save the resulting candidate records.
 int rv_editor_app_update_candidates(rv_editor_app &app)
 {
-    int result = RV_OK;
     for (rv_editor_candidate &c : app.release.candidates) {
         rv_editor_candidate_poll(c);
+    }
+    rv_editor_app_release_update_playtest(app);
+    int result = RV_OK;
+    for (rv_editor_candidate &c : app.release.candidates) {
         if (c.dirty) {
             const int save_result = rv_editor_app_release_save_candidate(app, c);
             result = result == RV_OK ? save_result : result;
@@ -336,16 +338,6 @@ void rv_editor_app_update(rv_editor_app &app)
         (void)rv_editor_app_release_finish_build(app);
     }
     (void)rv_editor_app_update_candidates(app);
-    const bool playing = rv_editor_app_release_playing(app);
-    const bool still_playing = rv_editor_app_release_still_playing(app);
-    const bool verdict_due = still_playing && app.session.connected() && rv_editor_app_release_loads_running(app);
-    if (verdict_due) {
-        (void)rv_editor_app_release_playtest_verdict(app);
-    }
-    const bool playtest_over = playing && !still_playing;
-    if (playtest_over) {
-        (void)rv_editor_app_release_playtest_end(app);
-    }
 
     const bool run_after_stop_due = app.run_after_stop && !app.session.live();
     if (run_after_stop_due) {

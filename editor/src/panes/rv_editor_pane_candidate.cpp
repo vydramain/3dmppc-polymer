@@ -63,13 +63,16 @@ const char *rv_editor_why_not_pass(const rv_editor_app &app, const rv_editor_can
     if (c.bytes_changed || c.sha256.empty()) {
         return rv_editor_text("pane_candidate.bytes_not_ones_built");
     }
+    if (c.hashing.valid()) {
+        return rv_editor_text("app_release.hashing_image");
+    }
     if (c.playtests == 0) {
         return rv_editor_text("pane_candidate.run_candidate_first");
     }
     if (id != rv_editor_check_exit) {
         return nullptr;
     }
-    if (app.session.live() && app.release.playing >= 0) {
+    if (rv_editor_app_release_still_playing(app)) {
         return rv_editor_text("pane_candidate.leave_game_first");
     }
     if (!c.last_run_clean) {
@@ -110,8 +113,8 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
         ImGui::PopID();
         return;
     }
-    const std::string env =
-        app.tools.console.path.string() + (app.session.facts().pdk.empty() ? "" : ", PDK " + app.session.facts().pdk);
+    const auto &loads = c.checks[rv_editor_check_loads];
+    const std::string env = loads.env.empty() ? app.tools.console.path.string() : loads.env;
     const char *why_not_pass = rv_editor_why_not_pass(app, c, id);
     const char *why_not_any = c.bytes_changed ? rv_editor_text("pane_candidate.bytes_not_ones_built") : nullptr;
     // A double click or Enter on a check that is not set does what Pass does, when Pass is allowed.
@@ -363,7 +366,7 @@ void rv_editor_candidate_facts(const rv_editor_app &app, const rv_editor_candida
     fact(rv_editor_text("pane_candidate.sources_row"),
         rv_editor_text(c.tree_changed ? "pane_candidate.sources_changed" : "pane_candidate.sources_unchanged"));
     std::string playtest;
-    if (app.session.live() && r.playing >= 0 && static_cast<size_t>(r.playing) == r.selected) {
+    if (rv_editor_app_release_still_playing(app) && static_cast<size_t>(r.playing) == r.selected) {
         const auto session_num = std::to_string(app.session.number());
         const auto state = rv_editor_run_state_name(app.session.state());
         playtest = rv_editor_text_format("pane_candidate.playtest_live", std::make_format_args(session_num, state));
