@@ -121,7 +121,7 @@ const char *rv_editor_menu_why_not_history(const rv_editor_shell &shell, const r
         return rv_editor_menu_document_missing(shell);
     }
     const auto &history = shell.menu_document.history;
-    if (!history) {
+    if (!history || shell.app.nvim.switching_root()) {
         return rv_editor_text("shell_save.waiting_for_nvim");
     }
     return (redo ? history->redo : history->undo) ? nullptr : empty;
@@ -186,7 +186,7 @@ void rv_editor_menu_document_history(rv_editor_shell &shell)
 {
     const rv_editor_nvim_buffer *buffer = rv_editor_menu_buffer(shell);
     rv_editor_menu_document &document = shell.menu_document;
-    if (buffer != nullptr && !document.history_requested) {
+    if (buffer != nullptr && !document.history_requested && !shell.app.nvim.switching_root()) {
         document.history_requested = true;
         shell.app.nvim.history(buffer->id,
             [&document, generation = document.generation](const rv_editor_nvim_history &history) {

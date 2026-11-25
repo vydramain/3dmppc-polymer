@@ -56,7 +56,10 @@ public:
 
     // Sends `method(args...)`; `args` must be one encoded msgpack array.
     // `reply` runs on the UI thread in poll(); it may be empty.
-    void request(const std::string &method, const std::string &args, rv_editor_nvim_reply reply = {});
+    void request(const std::string &method,
+        const std::string &args,
+        rv_editor_nvim_reply reply = {},
+        std::chrono::milliseconds timeout = {});
     // Returns RV_OK or RV_ERR_* (RV_ERR_IO if write fails).
     int notify(const std::string &method, const std::string &args);
 
@@ -75,6 +78,7 @@ private:
     void handle_response(const rv_editor_mpack &m);
     void handle_notification(const rv_editor_mpack &m, const rv_editor_nvim_notify &on_notify);
     void handle_request(const rv_editor_mpack &m);
+    void expire_requests();
 
     rv_editor_process proc_;
     std::thread thread_;
@@ -85,9 +89,13 @@ private:
     bool quit_ = false;
     bool eof_ = false;
     bool reader_done_ = false; // reader() has returned, so its thread may be joined
-    std::string broken_; // the stream stopped being msgpack
+    std::string broken_;       // the stream stopped being msgpack
     uint32_t next_id_ = 1;
-    std::map<uint32_t, rv_editor_nvim_reply> pending_;
+    struct pending_request {
+        rv_editor_nvim_reply reply;
+        std::chrono::steady_clock::time_point deadline;
+    };
+    std::map<uint32_t, pending_request> pending_;
     bool stopping_ = false;
     bool stop_failure_reported_ = false; // a failing stop step is reported once per stop
     bool kill_sent_ = false;             // SIGKILL past the deadline is sent once per stop

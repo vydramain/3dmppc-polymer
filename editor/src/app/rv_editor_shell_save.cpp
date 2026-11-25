@@ -25,8 +25,6 @@ namespace rv_editor
 namespace
 {
 
-using leave = rv_editor_shell::rv_editor_leave;
-
 // A buffer's file as the project sees it: relative to the root when inside it.
 std::string rv_editor_buffer_label(const rv_editor_app &app, const std::string &name)
 {
@@ -39,69 +37,57 @@ std::string rv_editor_buffer_label(const rv_editor_app &app, const std::string &
     return inside ? rel.string() : name;
 }
 
-// Opens `path` now: nvim's buffers of the old project go (none is modified by
-// now) and it moves to the new root.
-void rv_editor_shell_open_now(rv_editor_shell &shell, const std::filesystem::path &path)
-{
-    rv_editor_app &app = shell.app;
-    if (rv_editor_app_open(app, path) != RV_OK) {
-        return;
-    }
-    const std::string project_name =
-        app.project.disc_title.empty() ? app.project.root.filename().string() : app.project.disc_title;
-    const auto title = rv_editor_text_format("shell_save.window_title", std::make_format_args(project_name));
-    SDL_SetWindowTitle(shell.window, title.c_str());
-    app.open_requests.clear();
-    shell.revealed.clear();
-    // Another project takes the keyboard back from the game.
-    shell.ui.game_captured = false;
-    // The old project's entry is not in the new tree.
-    shell.ui.files_selected.clear();
-    shell.ui.scene_tabs = {};
-    rv_editor_log *log = &app.log;
-    app.nvim.switch_root(app.project.root, [log](const std::string &failure) {
-        if (!failure.empty()) {
-            log->add(rv_editor_log_source::editor,
-                rv_editor_log_level::error,
-                "the code editor keeps the old project's files: " + failure);
-        }
-    });
-}
+enum class save_answer {
+    none,
+    pane,
+    review,
+};
 
-// A save that answers a close or leave question can complete that question.
-void rv_editor_save_buffers(rv_editor_shell &shell, const std::vector<int64_t> &ids, bool answer_question)
+void rv_editor_save_buffers(rv_editor_shell &shell, const std::vector<int64_t> &ids, save_answer answer)
 {
     shell.save_done = false;
-    // A disconnected code editor can still have modified buffers in its cache.
-    if (!shell.app.nvim.running()) {
-        const auto modified = shell.app.nvim.modified();
-        const bool requested = std::ranges::any_of(modified, [&ids](const rv_editor_nvim_buffer &buffer) {
-            return ids.empty() || std::ranges::find(ids, buffer.id) != ids.end();
-        });
-        if (!requested) {
-            shell.save_done = answer_question && shell.save_failed.empty();
-            return;
-        }
-    }
-    shell.saving = true;
     rv_editor_shell *s = &shell;
-    shell.app.nvim.save(ids, [s, answer_question](const std::vector<rv_editor_nvim_saved> &saved, const std::string &failure) {
+    const auto generation = shell.review.generation;
+    auto done = [s, answer, generation](const std::vector<rv_editor_nvim_saved> &saved, const std::string &failure) {
         s->saving = false;
+        const bool current = answer != save_answer::review || s->review.generation == generation;
         for (const rv_editor_nvim_saved &f : saved) {
             const std::string label = rv_editor_buffer_label(s->app, f.name);
             if (f.ok) {
                 s->app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "saved " + label);
                 continue;
             }
-            s->save_failed.push_back(f);
+            if (current) {
+                s->save_failed.push_back(f);
+            }
             s->app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "not saved: " + label + ": " + f.error);
         }
         if (!failure.empty()) {
-            s->save_failed.push_back({ 0, {}, false, failure });
+            if (current) {
+                s->save_failed.push_back({ 0, {}, false, failure });
+            }
             s->app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "nothing saved: " + failure);
         }
-        s->save_done = answer_question && s->save_failed.empty();
-    });
+        if (!current || !s->save_failed.empty()) {
+            return;
+        }
+        s->save_done = answer == save_answer::pane;
+        if (answer == save_answer::review) {
+            s->review.step =
+                rv_editor_review_leaves_project(s->leaving) ? rv_editor_review_step::check : rv_editor_review_step::authorized;
+        }
+    };
+    // A scene-only review can save without an embedded editor. A disconnected
+    // editor with edits still needs to report a failure.
+    const auto requested = [&ids](const rv_editor_nvim_buffer &buffer) {
+        return buffer.modified && (ids.empty() || std::ranges::find(ids, buffer.id) != ids.end());
+    };
+    if (!shell.app.nvim.running() && !std::ranges::any_of(shell.app.nvim.buffers(), requested)) {
+        done({}, {});
+        return;
+    }
+    shell.saving = true;
+    shell.app.nvim.save(ids, std::move(done));
 }
 
 } // namespace
@@ -109,13 +95,13 @@ void rv_editor_save_buffers(rv_editor_shell &shell, const std::vector<int64_t> &
 void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &ids)
 {
     shell.save_failed.clear();
-    rv_editor_save_buffers(shell, ids, true);
+    rv_editor_save_buffers(shell, ids, save_answer::pane);
 }
 
 void rv_editor_shell_save_buffer(rv_editor_shell &shell, int64_t buffer)
 {
     shell.save_failed.clear();
-    rv_editor_save_buffers(shell, { buffer }, false);
+    rv_editor_save_buffers(shell, { buffer }, save_answer::none);
 }
 
 // Save As under a question or on its own: a card whose text area holds the path field and its error, with Save and
@@ -250,52 +236,103 @@ std::string rv_editor_shell_buffer_label(const rv_editor_app &app, const std::st
     return rv_editor_buffer_label(app, name);
 }
 
-void rv_editor_shell_request_open(rv_editor_shell &shell, const std::filesystem::path &path)
+namespace
 {
-    if ((shell.app.nvim.running() && !shell.app.nvim.modified().empty()) || rv_editor_app_scene_dirty(shell.app)) {
-        shell.leaving = leave::open;
-        shell.leaving_to = path;
-        return;
+
+void rv_editor_shell_project_switch_failed(rv_editor_shell &shell, const std::string &failure)
+{
+    shell.review.step = rv_editor_review_step::idle;
+    if (!failure.empty()) {
+        shell.review.error = rv_editor_text_format("shell_save.project_switch_failed", std::make_format_args(failure));
+        shell.app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, shell.review.error);
     }
-    rv_editor_shell_open_now(shell, path);
 }
 
-void rv_editor_shell_after_save(rv_editor_shell &shell)
+void rv_editor_shell_apply_project(rv_editor_shell &shell, rv_editor_project project)
 {
-    if (!shell.save_done) {
+    auto &app = shell.app;
+    rv_editor_app_open(app, std::move(project));
+    const std::string project_name =
+        app.project.disc_title.empty() ? app.project.root.filename().string() : app.project.disc_title;
+    const auto title = rv_editor_text_format("shell_save.window_title", std::make_format_args(project_name));
+    SDL_SetWindowTitle(shell.window, title.c_str());
+    app.open_requests.clear();
+    shell.revealed.clear();
+    // Another project takes the keyboard back from the game.
+    shell.ui.game_captured = false;
+    // The old project's entry is not in the new tree.
+    shell.ui.files_selected.clear();
+    shell.ui.scene_tabs = {};
+}
+
+} // namespace
+
+void rv_editor_shell_open_project(rv_editor_shell &shell, const std::filesystem::path &path, bool discard)
+{
+    auto &app = shell.app;
+    rv_editor_project project;
+    std::string error;
+    if (rv_editor_project_open(path, project, error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot open: " + error);
+        rv_editor_shell_cancel_review(shell);
         return;
     }
-    shell.save_done = false;
-    if (shell.closing != rv_editor_tile_none) {
-        (void)rv_editor_tile_remove(shell.ws.layout, shell.closing);
-        shell.closing = rv_editor_tile_none;
+
+    const auto root = project.root;
+    const auto generation = shell.review.generation;
+    const auto input_generation = app.nvim.input_generation();
+    shell.review.step = rv_editor_review_step::opening;
+    shell.review.error.clear();
+    app.nvim.switch_root(root,
+        discard,
+        [&shell, project = std::move(project), discard, generation, input_generation](const std::string &failure) mutable {
+            if (shell.review.generation != generation || shell.review.step != rv_editor_review_step::opening) {
+                return;
+            }
+            auto &nvim = shell.app.nvim;
+            const bool needs_review = !discard &&
+                (nvim.buffer_state_lost() || rv_editor_app_scene_dirty(shell.app) ||
+                    nvim.input_generation() != input_generation ||
+                    std::ranges::any_of(nvim.buffers(), &rv_editor_nvim_buffer::modified));
+            if (!failure.empty() || needs_review) {
+                // Queue the restore behind the directory change even if its reply timed out.
+                nvim.restore_root([&shell, generation, failure](const std::string &why) {
+                    if (shell.review.generation == generation) {
+                        rv_editor_shell_project_switch_failed(shell, why.empty() ? failure : why);
+                    }
+                });
+                return;
+            }
+            nvim.finish_switch_root(discard);
+            rv_editor_shell_apply_project(shell, std::move(project));
+            rv_editor_shell_cancel_review(shell);
+        });
+}
+
+void rv_editor_shell_review_save(rv_editor_shell &shell)
+{
+    ++shell.review.generation;
+    shell.review.step = rv_editor_review_step::idle;
+    shell.review.error.clear();
+    shell.save_failed.clear();
+    if (rv_editor_shell_save_scene(shell) != RV_OK) {
         return;
     }
-    if (shell.leaving == leave::quit) {
-        shell.quit_now = true;
-    } else if (shell.leaving == leave::open) {
-        rv_editor_shell_open_now(shell, shell.leaving_to);
-    } else if (shell.leaving == leave::build || shell.leaving == leave::run || shell.leaving == leave::build_restart) {
-        // Just written: the watcher may not have said so yet.
-        shell.app.inputs_changed = true;
-        if (shell.leaving == leave::build) {
-            rv_editor_app_build_saved(shell.app);
-        } else if (shell.leaving == leave::run) {
-            rv_editor_app_run_saved(shell.app);
-        } else {
-            rv_editor_app_build_restart_saved(shell.app);
-        }
+    const bool leaves = rv_editor_review_leaves_project(shell.leaving);
+    const auto ids = leaves ? std::vector<int64_t>{} : rv_editor_app_unsaved(shell.app);
+    if (!leaves && ids.empty()) {
+        shell.review.step = rv_editor_review_step::authorized;
+        return;
     }
-    shell.leaving = leave::none;
-    shell.app.unsaved_open = rv_editor_unsaved_ask::none;
+    rv_editor_save_buffers(shell, ids, save_answer::review);
 }
 
 const char *rv_editor_shell_why_not_save(const rv_editor_shell &shell)
 {
-    if (shell.saving) {
+    if (shell.saving || shell.app.nvim.switching_root()) {
         return rv_editor_text("shell_save.waiting_for_nvim");
     }
-    if (shell.save_as_buffer != 0 || shell.leaving != leave::none || shell.closing != rv_editor_tile_none) {
+    if (shell.save_as_buffer != 0 || shell.leaving != rv_editor_review_action::none || shell.closing != rv_editor_tile_none) {
         return rv_editor_text("shell_document.finish_save_question");
     }
     return nullptr;
@@ -312,7 +349,7 @@ void rv_editor_shell_save_all(rv_editor_shell &shell)
             rv_editor_log_level::error,
             "scene not saved: " + shell.save_failed.back().error);
     }
-    rv_editor_save_buffers(shell, {}, false);
+    rv_editor_save_buffers(shell, {}, save_answer::none);
 }
 
 void rv_editor_shell_save_as_start(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_nvim_buffer &buffer)
@@ -345,29 +382,23 @@ bool rv_editor_shell_close_pane(void *context, rv_editor_pane_id pane)
     }
     // Closing Review Changes is Return: what waited does not happen.
     if (shell.ws.panes.panes[pane].kind == rv_editor_pane_kind::review_changes) {
-        shell.leaving = rv_editor_shell::rv_editor_leave::none;
-        shell.app.unsaved_open = rv_editor_unsaved_ask::none;
-        shell.save_failed.clear();
+        if (shell.review.step == rv_editor_review_step::opening) {
+            return false;
+        }
+        rv_editor_shell_cancel_review(shell);
         return true;
     }
     if (shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::code || !shell.app.nvim.running()) {
         return true;
+    }
+    if (shell.app.nvim.switching_root()) {
+        return false;
     }
     const int64_t win = shell.app.nvim.window_for(pane);
     if (win == 0 || !shell.app.nvim.modified_only_in(win)) {
         return true;
     }
     shell.closing = pane;
-    return false;
-}
-
-bool rv_editor_shell_may_quit(rv_editor_shell &shell)
-{
-    const bool code = shell.app.nvim.running() && !shell.app.nvim.modified().empty();
-    if (shell.quit_now || (!code && !rv_editor_app_scene_dirty(shell.app))) {
-        return true;
-    }
-    shell.leaving = leave::quit;
     return false;
 }
 
@@ -421,6 +452,13 @@ void rv_editor_shell_ask_save_as(rv_editor_shell &shell, const rv_editor_theme &
 
 bool rv_editor_shell_code_asks(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_theme &theme)
 {
+    if (shell.app.nvim.switching_root()) {
+        rv_editor_label(rv_editor_text("shell_save.waiting_for_nvim"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::wrap);
+        return true;
+    }
     if (pane == shell.closing) {
         rv_editor_shell_ask_close(shell, theme);
         return true;

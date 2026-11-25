@@ -49,15 +49,8 @@ void rv_editor_app_init(rv_editor_app &app)
     rv_editor_app_tool_note(app, "modbaker", app.tools.modbaker);
 }
 
-int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
+void rv_editor_app_open(rv_editor_app &app, rv_editor_project project)
 {
-    std::string error;
-    rv_editor_project project;
-    const int err = rv_editor_project_open(target, project, error);
-    if (err != RV_OK) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot open: " + error);
-        return err;
-    }
     // The old project's scene and pending models go before its root is replaced: the cleanup works in that root.
     (void)rv_editor_app_scene_close(app);
     app.project = std::move(project);
@@ -120,7 +113,6 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
             rv_editor_log_level::warning,
             rv_editor_text_format("inspect.not_started", std::make_format_args(inspect_error)));
     }
-    return RV_OK;
 }
 
 std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app)
@@ -419,6 +411,13 @@ int rv_editor_app_build_cancel(rv_editor_app &app)
 
 void rv_editor_app_shutdown(rv_editor_app &app)
 {
+    // The shell has just confirmed the documents can close. End nvim before waiting on other jobs.
+    std::string nvim_error;
+    if (app.nvim.stop(nvim_error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "code editor did not end cleanly at shutdown: " + nvim_error);
+    }
     // The window closes with the scene, saved or not: its leftover pending models go while the project is open.
     (void)rv_editor_app_scene_close(app);
     const bool cancel_needed = app.build.state() == rv_editor_build_state::building;
@@ -457,12 +456,6 @@ void rv_editor_app_shutdown(rv_editor_app &app)
         app.log.add(rv_editor_log_source::editor,
             rv_editor_log_level::error,
             "runtime did not end cleanly at shutdown: " + session_error);
-    }
-    std::string nvim_error;
-    if (app.nvim.stop(nvim_error) != RV_OK) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "code editor did not end cleanly at shutdown: " + nvim_error);
     }
     // Every shell ends before the editor does: a background job that ignores the hang-up
     // would outlive the editor, as the guard only signals its own group. All are hung up

@@ -165,6 +165,10 @@ bool rv_editor_nvim::modified_only_in(int64_t win) const
 void rv_editor_nvim::discard(int64_t win)
 {
     if (!running()) {
+        if (win == 0) {
+            buffers_.clear();
+            buffer_state_lost_ = false;
+        }
         return;
     }
     if (win == 0) {

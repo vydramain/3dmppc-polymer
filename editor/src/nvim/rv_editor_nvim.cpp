@@ -165,6 +165,8 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
         return err;
     }
     started_ = true;
+    switching_root_ = false;
+    buffer_state_lost_ = false;
     attached_ = false;
     windows_.clear();
     asked_.clear();
@@ -221,7 +223,8 @@ void rv_editor_nvim::attach()
 
 void rv_editor_nvim::exec_lua(const std::string &code,
     const std::vector<std::string> &args,
-    rv_editor_nvim_rpc::rv_editor_nvim_reply reply)
+    rv_editor_nvim_rpc::rv_editor_nvim_reply reply,
+    std::chrono::milliseconds timeout)
 {
     rpc_.request(rpc_exec_lua.data(),
         rv_editor_args([&](rv_editor_mpack_writer &w) {
@@ -232,7 +235,8 @@ void rv_editor_nvim::exec_lua(const std::string &code,
                 w.string(a);
             }
         }),
-        std::move(reply));
+        std::move(reply),
+        timeout);
 }
 
 void rv_editor_nvim::update(rv_editor_log &log)
@@ -258,6 +262,7 @@ void rv_editor_nvim::update(rv_editor_log &log)
         log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "nvim: " + err);
     }
     if (!alive) {
+        buffer_state_lost_ = true;
         started_ = false;
         attached_ = false;
         problem = why + ". Unsaved text is in nvim's swap files (:recover)";
@@ -292,7 +297,7 @@ int64_t rv_editor_nvim::window_for(uint32_t pane)
         sizes_.erase(win);
         windows_.erase(it);
     }
-    if (!running() || !attached_) {
+    if (!running() || !attached_ || switching_root_) {
         return 0;
     }
     if (!spare_.empty()) {
@@ -376,7 +381,7 @@ void rv_editor_nvim::focus(int64_t win)
 {
     // Only a real switch: the cursor already in this window's grid needs none.
     // A cursor on the message grid or grid 1 is a prompt or command line: keys must reach it.
-    if (!running() || win == 0) {
+    if (!running() || win == 0 || switching_root_) {
         return;
     }
     const int32_t cursor = screen_.cursor_grid();
@@ -393,9 +398,10 @@ void rv_editor_nvim::focus(int64_t win)
 
 void rv_editor_nvim::mouse(const char *button, const char *action, int32_t grid, int32_t row, int32_t col)
 {
-    if (!running()) {
+    if (!running() || switching_root_) {
         return;
     }
+    ++input_generation_;
     rpc_.notify(rpc_input_mouse.data(), rv_editor_args([&](rv_editor_mpack_writer &w) {
         w.array(input_mouse_args_count);
         w.string(button);
@@ -409,9 +415,10 @@ void rv_editor_nvim::mouse(const char *button, const char *action, int32_t grid,
 
 void rv_editor_nvim::input(const std::string &keys)
 {
-    if (!running()) {
+    if (!running() || switching_root_) {
         return;
     }
+    input_generation_ += keys.size();
     held_ += keys;
     if (switching_ != 0) {
         const bool arrived = screen_.cursor_grid() == screen_.grid_of_window(switching_);

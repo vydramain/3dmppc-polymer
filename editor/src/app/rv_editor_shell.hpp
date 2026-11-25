@@ -14,6 +14,7 @@
 #include "app/rv_editor_app.hpp"
 #include "app/rv_editor_browser.hpp"
 #include "app/rv_editor_scene_tabs.hpp"
+#include "app/rv_editor_shell_review.hpp"
 #include "app/rv_editor_shell_shortcut_settings.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "theme/rv_editor_theme.hpp"
@@ -157,19 +158,10 @@ struct rv_editor_shell {
 
     // A code tile with unsaved changes waiting for Save, Discard or Cancel.
     rv_editor_pane_id closing = rv_editor_tile_none;
-    // Unsaved buffers stand between the user and leaving: the window closing or
-    // another project opening. Nothing leaves until they are saved or discarded.
-    enum class rv_editor_leave {
-        none,
-        quit,
-        open,
-        build, // Build met unsaved files
-        run,
-        build_restart, // Build and Restart met unsaved files
-    };
+    using rv_editor_leave = rv_editor_review_action;
     rv_editor_leave leaving = rv_editor_leave::none;
-    std::filesystem::path leaving_to; // the project Open waits to open
-    bool quit_now = false;            // answered: the window closes
+    rv_editor_review review;
+    bool quit_now = false; // answered: the window closes
     // A save is out to nvim; what came back failed, file by file; and a save
     // that succeeded whole, for the next frame to act on.
     bool saving = false;
@@ -410,27 +402,8 @@ void rv_editor_shell_new_file(rv_editor_shell &shell);
 // File > Save All: every modified buffer.
 void rv_editor_shell_save_all(rv_editor_shell &shell);
 
-// Once a frame before drawing: opens what a dialog picked and updates the models.
-void rv_editor_shell_update(rv_editor_shell &shell);
-
-// Opens a picked project, or asks first when buffers are unsaved (the question
-// is Review Changes).
-void rv_editor_shell_request_open(rv_editor_shell &shell, const std::filesystem::path &path);
-// What waits for a finished save: the tile closes, the window closes, the
-// project opens. Once a frame, from rv_editor_shell_update.
-void rv_editor_shell_after_save(rv_editor_shell &shell);
-// A buffer's file as the project sees it: relative to the root when inside it,
-// "Untitled" without a name.
-std::string rv_editor_shell_buffer_label(const rv_editor_app &app, const std::string &name);
-// Saves `ids` (every modified buffer when empty). The outcome lands in
-// shell.save_failed, or shell.save_done when every file was written.
-void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &ids);
-// The scene first, as it saves at once; RV_OK on success or when already saved, RV_ERR_* on failure.
-int rv_editor_shell_save_scene(rv_editor_shell &shell);
-// Save As under a question or on its own: a card over the tile with the path field in its text area, Save and Cancel.
-void rv_editor_shell_save_as_card(rv_editor_shell &shell, const rv_editor_theme &theme);
-// What did not save, and why, as lines of the area it is drawn in; a Save As for each Untitled file among them.
-void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &theme);
+// Once a frame before drawing. With finish_save disabled, the caller finishes saves after drawing.
+void rv_editor_shell_update(rv_editor_shell &shell, bool finish_save = true);
 
 // A pane's title with its context (spec 6.1): what it shows, from which session,
 // build or candidate; nothing when the plain kind says it all.

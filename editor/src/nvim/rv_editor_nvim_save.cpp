@@ -14,6 +14,8 @@ namespace
 
 using mtype = rv_editor_mpack::rv_editor_mpack_type;
 
+constexpr auto rv_editor_state_reply_timeout = std::chrono::seconds(2);
+
 // nvim error reply format: [type, message] (msgpack-rpc spec)
 constexpr size_t error_message_index = 1;
 constexpr size_t error_array_min_size = 2;
@@ -108,23 +110,41 @@ if vim.api.nvim_buf_is_loaded(b) then
 end
 )lua";
 
-// The new root: nothing may be modified; then every window shows a fresh empty
-// buffer, the buffers no window shows go, and nvim moves there.
+// The directory change can fail. Remember the old cwd until the shell applies
+// the project so a failed or unanswered request can restore it without losing buffers.
 constexpr const char *rv_editor_lua_switch_root = R"lua(
-local root = ...
-for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
-        return 'a buffer still has unsaved changes'
+local root, discard = ...
+if discard == '' then
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
+            return 'a buffer still has unsaved changes'
+        end
     end
 end
+_G.rv_project_previous_dir = vim.fn.getcwd()
+vim.cmd('noautocmd call chdir(' .. vim.fn.string(root) .. ')')
+return ''
+)lua";
+
+constexpr const char *rv_editor_lua_restore_root = R"lua(
+local previous = _G.rv_project_previous_dir
+if previous ~= nil then
+    vim.cmd('noautocmd call chdir(' .. vim.fn.string(previous) .. ')')
+    _G.rv_project_previous_dir = nil
+end
+)lua";
+
+constexpr const char *rv_editor_lua_finish_switch_root = R"lua(
+local discard = ... ~= ''
+_G.rv_project_previous_dir = nil
 for _, w in ipairs(vim.api.nvim_list_wins()) do
-    vim.api.nvim_win_call(w, function() vim.cmd('enew') end)
+    if discard or not vim.bo[vim.api.nvim_win_get_buf(w)].modified then
+        vim.api.nvim_win_call(w, function() vim.cmd(discard and 'enew!' or 'enew') end)
+    end
 end
 for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.fn.bufwinid(b) == -1 then pcall(vim.api.nvim_buf_delete, b, {}) end
+    if vim.fn.bufwinid(b) == -1 then pcall(vim.api.nvim_buf_delete, b, {force = discard}) end
 end
-vim.fn.chdir(root)
-return ''
 )lua";
 
 // nvim's error reply is [type, message].
@@ -171,6 +191,27 @@ rv_editor_nvim_rpc::rv_editor_nvim_reply rv_editor_save_reply(rv_editor_nvim_sav
 
 } // namespace
 
+void rv_editor_nvim::check_modified(std::function<void(bool dirty, const std::string &failure)> done)
+{
+    if (!running()) {
+        done(false, rv_editor_text("nvim_rpc.not_running"));
+        return;
+    }
+    exec_lua(
+        "return _G.rv_buffer_state()",
+        {},
+        [this, done = std::move(done)](const rv_editor_mpack &error, const rv_editor_mpack &result) {
+            if (!error.is(mtype::nil)) {
+                done(false, rv_editor_reply_error(error));
+            } else if (!read_buffer_state(result)) {
+                done(false, rv_editor_text("nvim_rpc.bad_buffer_state"));
+            } else {
+                done(std::ranges::any_of(buffers_, &rv_editor_nvim_buffer::modified), {});
+            }
+        },
+        rv_editor_state_reply_timeout);
+}
+
 void rv_editor_nvim::save(const std::vector<int64_t> &ids, rv_editor_nvim_save_done done)
 {
     if (!running()) {
@@ -208,6 +249,10 @@ void rv_editor_nvim::history(int64_t buffer, std::function<void(const rv_editor_
 
 void rv_editor_nvim::history_step(int64_t buffer, bool redo)
 {
+    if (switching_root_) {
+        return;
+    }
+    ++input_generation_;
     exec_lua(rv_editor_lua_history_step,
         { std::to_string(buffer), redo ? "redo" : "undo" },
         [this, buffer](const rv_editor_mpack &error, const rv_editor_mpack &result) {
@@ -222,17 +267,62 @@ void rv_editor_nvim::history_step(int64_t buffer, bool redo)
         });
 }
 
-void rv_editor_nvim::switch_root(const std::filesystem::path &root, std::function<void(const std::string &)> done)
+void rv_editor_nvim::switch_root(const std::filesystem::path &root, bool discard, std::function<void(const std::string &)> done)
 {
     if (!running()) {
         done({});
         return;
     }
-    exec_lua(rv_editor_lua_switch_root,
-        { root.string() },
+    switching_root_ = true;
+    exec_lua(
+        rv_editor_lua_switch_root,
+        { root.string(), discard ? "discard" : "" },
         [done = std::move(done)](const rv_editor_mpack &error, const rv_editor_mpack &result) {
-            done(error.is(mtype::nil) ? result.s : rv_editor_reply_error(error));
-        });
+            if (!error.is(mtype::nil)) {
+                done(rv_editor_reply_error(error));
+            } else {
+                done(result.is(mtype::string) ? result.s : rv_editor_text("shell_save.nvim_not_said"));
+            }
+        },
+        rv_editor_state_reply_timeout);
+}
+
+void rv_editor_nvim::finish_switch_root(bool discard)
+{
+    if (running()) {
+        held_.clear();
+        exec_lua(rv_editor_lua_finish_switch_root,
+            { discard ? "discard" : "" },
+            [this](const rv_editor_mpack &error, const rv_editor_mpack &) {
+                // A Lua error still means the cleanup request has finished in the committed directory.
+                if (error.is(mtype::nil) || error.is(mtype::array)) {
+                    switching_root_ = false;
+                }
+            });
+    } else if (discard) {
+        this->discard(0);
+    }
+}
+
+void rv_editor_nvim::restore_root(std::function<void(const std::string &)> done)
+{
+    exec_lua(
+        rv_editor_lua_restore_root,
+        {},
+        [this, done = std::move(done)](const rv_editor_mpack &error, const rv_editor_mpack &) {
+            if (error.is(mtype::nil)) {
+                switching_root_ = false;
+            } else if (error.is(mtype::string) && error.s == rv_editor_text("nvim_rpc.reply_timeout")) {
+                // Report the timeout to the shell, but keep Code paused until a queued rollback is confirmed.
+                exec_lua(rv_editor_lua_restore_root, {}, [this](const rv_editor_mpack &late_error, const rv_editor_mpack &) {
+                    if (late_error.is(mtype::nil)) {
+                        switching_root_ = false;
+                    }
+                });
+            }
+            done(error.is(mtype::nil) ? std::string{} : rv_editor_reply_error(error));
+        },
+        rv_editor_state_reply_timeout);
 }
 
 } // namespace rv_editor

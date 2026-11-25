@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -107,6 +108,11 @@ public:
     void focus(int64_t win);
     // Keys in nvim_input notation ("<C-s>", "a", "<lt>").
     void input(const std::string &keys);
+    // A buffer check must wait for input held while a window is switching.
+    std::optional<uint64_t> input_generation() const
+    {
+        return held_.empty() ? std::optional{ input_generation_ } : std::nullopt;
+    }
     // A mouse event in `grid` at cell (row, col), as nvim_input_mouse takes it:
     // button "left" with "press", "drag" or "release", or "wheel" with "up",
     // "down", "left" or "right".
@@ -124,6 +130,12 @@ public:
     // Buffers with unsaved changes, and those only `win` shows.
     std::vector<rv_editor_nvim_buffer> modified() const;
     bool modified_only_in(int64_t win) const;
+    bool buffer_state_lost() const
+    {
+        return buffer_state_lost_ || (started_ && !running());
+    }
+    // Refresh the mirror from a direct reply and report whether any buffers are modified.
+    void check_modified(std::function<void(bool dirty, const std::string &failure)> done);
     // Writes the modified buffers `ids`, or every modified one when `ids` is
     // empty, and reports each to `done` once nvim has answered. A buffer counts
     // as saved only when its write returned and nvim no longer marks it
@@ -135,10 +147,15 @@ public:
     // Discard, on the user's word only: `:bdelete!` for the buffer `win` shows,
     // or for every modified buffer when `win` is 0.
     void discard(int64_t win);
-    // Another project: every window gets an empty buffer, the old buffers go,
-    // and nvim's directory becomes `root`. Refused, with the reason in `done`,
-    // while any buffer is modified.
-    void switch_root(const std::filesystem::path &root, std::function<void(const std::string &failure)> done);
+    // Keep document actions paused until Neovim confirms either cleanup or rollback.
+    bool switching_root() const
+    {
+        return switching_root_ && running();
+    }
+    // Stage the directory change while preserving all buffers.
+    void switch_root(const std::filesystem::path &root, bool discard, std::function<void(const std::string &failure)> done);
+    void finish_switch_root(bool discard);
+    void restore_root(std::function<void(const std::string &failure)> done);
 
     // File operations on buffers: check for modified buffers and adjust them
     // to match disk changes (rename, delete).
@@ -205,9 +222,14 @@ private:
     bool swap_notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log);
     void exec_lua(const std::string &code,
         const std::vector<std::string> &args,
-        rv_editor_nvim_rpc::rv_editor_nvim_reply reply = {});
+        rv_editor_nvim_rpc::rv_editor_nvim_reply reply = {},
+        std::chrono::milliseconds timeout = {});
+    bool read_buffer_state(const rv_editor_mpack &state);
 
     rv_editor_nvim_rpc rpc_;
+    bool buffer_state_lost_ = false;
+    bool switching_root_ = false;
+    uint64_t input_generation_ = 0;
     rv_editor_nvim_screen screen_;
     bool started_ = false;
     int last_error_ = 0; // RV_OK if started, RV_ERR_NOENT/IO on failure

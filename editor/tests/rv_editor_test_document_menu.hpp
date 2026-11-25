@@ -37,6 +37,7 @@ struct menu_fixture {
     rv_editor_pane_id scene = rv_editor_pane_add(shell.ws.panes, rv_editor_pane_kind::scene);
     rv_editor_pane_id first = rv_editor_pane_add(shell.ws.panes, rv_editor_pane_kind::code);
     rv_editor_pane_id second = rv_editor_pane_add(shell.ws.panes, rv_editor_pane_kind::code);
+    bool poll_nvim = true;
 
     menu_fixture()
     {
@@ -87,7 +88,9 @@ struct menu_fixture {
     {
         const auto until = std::chrono::steady_clock::now() + 3s;
         do {
-            shell.app.nvim.update(shell.app.log);
+            if (poll_nvim) {
+                shell.app.nvim.update(shell.app.log);
+            }
             if (done()) {
                 return true;
             }
@@ -159,7 +162,9 @@ struct menu_fixture {
 
     rv_editor_probe_record draw(std::string *rendered_text = nullptr)
     {
-        shell.app.nvim.update(shell.app.log);
+        if (poll_nvim) {
+            shell.app.nvim.update(shell.app.log);
+        }
         rv_editor_probe_record record;
         rv_editor_probe_detail::sink sink(&record);
         rv_editor_item_sink_set(&sink);

@@ -427,12 +427,13 @@ int main(int argc, char **argv)
         if (!rv_editor::rv_editor_window_min_sync(window, *shell, theme)) {
             std::fprintf(stderr, "3dmppc-editor: SetWindowMinimumSize/SetWindowSize: %s\n", SDL_GetError());
         }
-        rv_editor::rv_editor_shell_update(*shell);
+        rv_editor::rv_editor_shell_update(*shell, false);
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         rv_editor_display_pixels(window);
         ImGui::NewFrame();
         rv_editor_frame(*shell, theme);
+        rv_editor::rv_editor_shell_after_save(*shell);
         ImGui::Render();
 
         SDL_SetRenderDrawColor(renderer,
