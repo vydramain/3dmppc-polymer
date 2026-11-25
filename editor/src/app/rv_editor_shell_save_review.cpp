@@ -182,7 +182,7 @@ void rv_editor_shell_begin_review(rv_editor_shell &shell, leave action)
 
 void rv_editor_shell_request_leave(rv_editor_shell &shell, leave action, std::filesystem::path target)
 {
-    if (!rv_editor_review_leaves_project(action) || shell.leaving != leave::none) {
+    if (!rv_editor_review_leaves_project(action)) {
         return;
     }
     if (rv_editor_review_switches_project(action)) {
@@ -190,6 +190,8 @@ void rv_editor_shell_request_leave(rv_editor_shell &shell, leave action, std::fi
             shell.app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, reason);
             return;
         }
+    } else if (shell.leaving != leave::none) {
+        return;
     }
     if (!shell.saving && !rv_editor_has_buffer_state(shell.app.nvim) && !rv_editor_app_scene_dirty(shell.app)) {
         rv_editor_leave_project(shell, action, target, false);
@@ -261,7 +263,7 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
     }
 
     if (rv_editor_review_switches_project(action)) {
-        if (const char *reason = rv_editor_shell_why_not_project_switch(shell)) {
+        if (const char *reason = rv_editor_shell_why_not_finish_project_switch(shell)) {
             shell.review.step = step::idle;
             shell.review.error = reason;
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, reason);

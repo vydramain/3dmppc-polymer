@@ -46,6 +46,7 @@ void rv_editor_shell_begin_review(rv_editor_shell &shell, rv_editor_review_actio
 void rv_editor_shell_cancel_review(rv_editor_shell &shell);
 void rv_editor_shell_request_leave(rv_editor_shell &shell, rv_editor_review_action action, std::filesystem::path target = {});
 void rv_editor_shell_review_save(rv_editor_shell &shell);
+const char *rv_editor_shell_why_not_finish_project_switch(const rv_editor_shell &shell);
 void rv_editor_shell_open_project(rv_editor_shell &shell, const std::filesystem::path &path, bool discard);
 void rv_editor_shell_close_project(rv_editor_shell &shell);
 

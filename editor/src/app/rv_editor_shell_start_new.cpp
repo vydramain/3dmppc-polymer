@@ -194,9 +194,11 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
     }
 
     rv_editor_form_buttons_begin(theme);
-    if (rv_editor_button(rv_editor_text("shell_start_new.create_project"),
-            theme,
-            { rv_editor_look::live, problem.empty() ? nullptr : problem.c_str() })) {
+    const char *why_not = rv_editor_shell_why_not_project_switch(shell);
+    if (why_not == nullptr && !problem.empty()) {
+        why_not = problem.c_str();
+    }
+    if (rv_editor_button(rv_editor_text("shell_start_new.create_project"), theme, { rv_editor_look::live, why_not })) {
         if (rv_editor_new_project_create(p, templates[f.template_index], f.error) == RV_OK) {
             const std::filesystem::path created = std::filesystem::path(f.dir) / p.disc_id;
             f = {};

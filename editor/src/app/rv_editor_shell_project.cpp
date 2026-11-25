@@ -60,6 +60,10 @@ void rv_editor_shell_clear_project_state(rv_editor_shell &shell)
     app.code_tabs.clear();
     app.files_views.clear();
     app.open_as_text.clear();
+    for (auto &[pane, view] : app.outputs) {
+        view.run_pid = 0;
+        view.run_label.clear();
+    }
     app.code_file.clear();
     app.files_select.reset();
     app.layout_request.reset();
@@ -187,6 +191,14 @@ void rv_editor_shell_open_project(rv_editor_shell &shell, const std::filesystem:
 }
 
 const char *rv_editor_shell_why_not_project_switch(const rv_editor_shell &shell)
+{
+    if (shell.leaving != rv_editor_review_action::none) {
+        return rv_editor_text("shell_save.waiting_for_review");
+    }
+    return rv_editor_shell_why_not_finish_project_switch(shell);
+}
+
+const char *rv_editor_shell_why_not_finish_project_switch(const rv_editor_shell &shell)
 {
     if (shell.app.nvim.switching_root() || shell.closing != rv_editor_tile_none) {
         return rv_editor_text("shell_save.waiting_for_nvim");

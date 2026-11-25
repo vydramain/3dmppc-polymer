@@ -86,13 +86,14 @@ rv_editor_size review_minimum()
 {
     const ImGuiStyle &style = ImGui::GetStyle();
     const ImVec2 card = ask_card_size();
-    // The strip is the tallest of the three things the page says, in the width it keeps.
+    // The strip is as tall as the longest message at the minimum content width.
+    const float width = rv_editor_review_content_width();
     float strip = 0.0f;
-    for (const char *key : { "shell_save.editor_closes", "shell_save.project_opens", "shell_save.build_saves" }) {
-        strip = std::max(strip, rv_editor_message_strip_height(rv_editor_text(key), {}, rv_editor_review_content_width()));
+    for (const char *key :
+        { "shell_save.editor_closes", "shell_save.project_opens", "shell_save.project_closes", "shell_save.build_saves" }) {
+        strip = std::max(strip, rv_editor_message_strip_height(rv_editor_text(key), {}, width));
     }
-    const rv_editor_size min =
-        rv_editor_tiled_minimum(rv_editor_review_content_width(), rv_editor_tiled_shelf_block() + strip + style.ItemSpacing.y);
+    const rv_editor_size min = rv_editor_tiled_minimum(width, rv_editor_tiled_shelf_block() + strip + style.ItemSpacing.y);
     return { std::max(min.w, static_cast<int32_t>(std::ceil(style.WindowPadding.x + card.x))),
         std::max(min.h, static_cast<int32_t>(std::ceil(2.0f * style.WindowPadding.y + card.y))) };
 }

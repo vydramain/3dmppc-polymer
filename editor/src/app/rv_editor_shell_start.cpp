@@ -150,7 +150,10 @@ void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &
     const std::string found_msg = rv_editor_text_format("shell_start.disc_found_with_path", std::make_format_args(target_path));
     const std::string notfound_msg = rv_editor_text_format("shell_start.no_disc_in_path", std::make_format_args(target_path));
     rv_editor_browser_path_row(b, theme);
-    const char *why_not = found ? nullptr : rv_editor_text("shell_start.no_disc_in_this_dir");
+    const char *why_not = rv_editor_shell_why_not_project_switch(shell);
+    if (why_not == nullptr && !found) {
+        why_not = rv_editor_text("shell_start.no_disc_in_this_dir");
+    }
     std::filesystem::path picked;
     // The area is as tall as the listing, up to what the tile has; the buttons follow it.
     const ImGuiStyle &style = ImGui::GetStyle();
