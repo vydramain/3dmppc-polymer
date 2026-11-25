@@ -302,6 +302,20 @@ int rv_editor_build::update(rv_editor_log &log, std::string &error)
     return result;
 }
 
+void rv_editor_build::clear_finished_result()
+{
+    if (busy()) {
+        return;
+    }
+    state_ = rv_editor_build_state::idle;
+    dev_state_ = rv_editor_build_state::idle;
+    image_.clear();
+    builds_.clear();
+    dir_.clear();
+    number_ = 0;
+    last_success_.reset();
+}
+
 void rv_editor_build::prune(const std::filesystem::path &in_use)
 {
     constexpr size_t keep = 3;

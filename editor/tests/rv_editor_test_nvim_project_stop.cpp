@@ -155,3 +155,68 @@ RV_EDITOR_TEST(rv_editor_test_nvim_project_stop_releases_its_pipes)
         return remaining_pipes.contains(pipe);
     }));
 }
+
+RV_EDITOR_TEST(rv_editor_test_project_lifecycle_close_shows_picker_while_neovim_drains)
+{
+    menu_fixture fixture;
+    auto &shell = fixture.shell;
+    auto &nvim = shell.app.nvim;
+    const auto first = fixture.root / "first.txt";
+    std::ofstream(first) << "first\n";
+    if (!fixture.start_code() || !fixture.open_code(fixture.first, first)) {
+        return;
+    }
+
+    // Keep the client responsive for the unsaved-document check and delay its exit after authorization.
+    nvim.input("<Cmd>lua vim.api.nvim_create_autocmd('VimLeavePre', {once = true, callback = function() "
+               "vim.fn.writefile({'draining'}, 'exit-started'); vim.loop.sleep(1500) end}); "
+               "vim.fn.writefile({'ready'}, 'exit-hook-ready')<CR>");
+    const bool hook_ready = fixture.wait_for([&] {
+        return fs::exists(fixture.root / "exit-hook-ready");
+    });
+    RV_EDITOR_CHECK(hook_ready);
+    if (!hook_ready) {
+        return;
+    }
+
+    shell.start_page = rv_editor_start_page::manual;
+    const auto close_started = std::chrono::steady_clock::now();
+    rv_editor_shell_request_close_project(shell);
+    fixture.poll_nvim = false;
+    const auto frame = [&] {
+        rv_editor_shell_update(shell, true);
+    };
+    const bool showed_picker = fixture.wait_for([&] {
+        frame();
+        return !shell.app.project.open &&
+            (shell.start_page == rv_editor_start_page::recent || shell.start_page == rv_editor_start_page::open_project);
+    });
+    RV_EDITOR_CHECK(showed_picker);
+    if (!showed_picker) {
+        return;
+    }
+    RV_EDITOR_CHECK(std::chrono::steady_clock::now() - close_started < 1s);
+    RV_EDITOR_CHECK(nvim.stopping() && !nvim.running());
+    RV_EDITOR_CHECK(fixture.wait_for([&] {
+        frame();
+        return fs::exists(fixture.root / "exit-started");
+    }));
+    RV_EDITOR_CHECK(nvim.stopping());
+    const bool stopped = fixture.wait_for([&] {
+        frame();
+        return !nvim.stopping();
+    });
+    RV_EDITOR_CHECK(stopped);
+    if (!stopped) {
+        return;
+    }
+
+    const auto next = fixture.root / "next-project";
+    fs::create_directory(next);
+    std::ofstream(next / "disc.toml") << "[disc]\nid = \"next\"\ntitle = \"Next Project\"\n";
+    rv_editor_shell_request_open(shell, next);
+    frame();
+    RV_EDITOR_CHECK(shell.app.project.open && shell.app.project.root == next);
+    std::string error;
+    RV_EDITOR_CHECK(nvim.start(next, shell.app.log, error) == RV_OK);
+}

@@ -12,11 +12,12 @@ struct rv_editor_app;
 struct rv_editor_shell;
 struct rv_editor_theme;
 
-// Open and Quit require a fresh check. Build and Run only need the saved files.
+// Closing, opening and quitting require a fresh check. Build and Run only need the saved files.
 enum class rv_editor_review_action {
     none,
     quit,
     open,
+    close_project,
     build,
     run,
     build_restart,
@@ -46,11 +47,11 @@ void rv_editor_shell_cancel_review(rv_editor_shell &shell);
 void rv_editor_shell_request_leave(rv_editor_shell &shell, rv_editor_review_action action, std::filesystem::path target = {});
 void rv_editor_shell_review_save(rv_editor_shell &shell);
 void rv_editor_shell_open_project(rv_editor_shell &shell, const std::filesystem::path &path, bool discard);
+void rv_editor_shell_close_project(rv_editor_shell &shell);
 
 // Checks for unsaved code and scene changes before opening a picked project.
 void rv_editor_shell_request_open(rv_editor_shell &shell, const std::filesystem::path &path);
-// What waits for a finished save: the tile closes, the window closes, the
-// project opens. Run after drawing so Return goes first.
+// Applies a finished save or an authorized transition. Run after drawing so Return goes first.
 void rv_editor_shell_after_save(rv_editor_shell &shell);
 // A buffer's file as the project sees it: relative to the root when inside it,
 // "Untitled" without a name.

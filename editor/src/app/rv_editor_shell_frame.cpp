@@ -12,6 +12,17 @@
 namespace rv_editor
 {
 
+// A closed tile's shell is hung up here and ended by the frame steps; nothing waits.
+void rv_editor_shell_stop_terminal(rv_editor_app &app, rv_editor_terminal_view &view)
+{
+    std::unique_ptr<rv_editor_pty> pty = view.term->release_pty();
+    std::string error;
+    if (pty->begin_stop(error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "terminal: " + error);
+    }
+    app.stopping_ptys.push_back(std::move(pty));
+}
+
 namespace
 {
 
@@ -68,17 +79,6 @@ rv_editor_pane_id rv_editor_code_target(rv_editor_workspace &ws, rv_editor_pane_
     rv_editor_tile_insert(ws.layout, focused_leaf ? ws.focused_leaf : ws.layout.root, pane, rv_editor_tile_dock::tab);
     (void)rv_editor_tile_activate(ws.layout, pane);
     return pane;
-}
-
-// A closed tile's shell is hung up here and ended by the frame steps; nothing waits.
-void rv_editor_shell_stop_terminal(rv_editor_app &app, rv_editor_terminal_view &view)
-{
-    std::unique_ptr<rv_editor_pty> pty = view.term->release_pty();
-    std::string error;
-    if (pty->begin_stop(error) != RV_OK) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "terminal: " + error);
-    }
-    app.stopping_ptys.push_back(std::move(pty));
 }
 
 // The action an unsaved ask stands for, and the question it opens on the shell.

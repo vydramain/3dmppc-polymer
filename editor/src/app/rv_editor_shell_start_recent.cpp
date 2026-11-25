@@ -16,6 +16,7 @@
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 #include "ui/rv_editor_widgets_content.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -237,6 +238,28 @@ void rv_editor_page_recent(rv_editor_shell &shell, const rv_editor_theme &theme)
     rv_editor_recent_records(shell, rows, theme);
     rv_editor_tiled_area_end(theme);
     rv_editor_recent_card(shell, rows.empty() ? nullptr : &rows[index], theme);
+}
+
+void rv_editor_shell_recent_menu(rv_editor_shell &shell)
+{
+    const auto rows = rv_editor_recent_rows();
+    if (rows.empty()) {
+        rv_editor_menu_item(rv_editor_text("shell_start.no_recent"), nullptr, rv_editor_text("shell_start.no_recent_hint"));
+        return;
+    }
+    const char *blocked = rv_editor_shell_why_not_project_switch(shell);
+    for (const rv_editor_recent_row &row : rows) {
+        ImGui::PushID(row.root.c_str());
+        const std::string name = rv_editor_recent_name(row);
+        const char *why = row.there ? blocked : rv_editor_text("shell_start.not_there");
+        if (rv_editor_menu_item(name.c_str(), nullptr, why)) {
+            rv_editor_shell_request_open(shell, row.root);
+        }
+        if (why == nullptr) {
+            rv_editor_item_tooltip(row.root.c_str());
+        }
+        ImGui::PopID();
+    }
 }
 
 } // namespace rv_editor

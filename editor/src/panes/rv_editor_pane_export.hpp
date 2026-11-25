@@ -61,6 +61,9 @@ const char *rv_editor_export_web_tools_disabled_text(rv_editor_export_kind kind)
 void rv_editor_pane_export_select_kind(rv_editor_export_kind kind);
 int rv_editor_pane_export_start(rv_editor_app &app);
 
+// The draft lasts until the project closes or is replaced.
+void rv_editor_pane_export_reset_form();
+
 // What the Directory field drew last: the text on screen and the full path.
 const rv_editor_path_probe &rv_editor_pane_export_dest_probe();
 

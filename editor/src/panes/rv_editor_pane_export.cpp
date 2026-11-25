@@ -492,6 +492,11 @@ int rv_editor_pane_export_start(rv_editor_app &app)
     return rv_editor_export_start(app, export_form_draft);
 }
 
+void rv_editor_pane_export_reset_form()
+{
+    export_form_draft = {};
+}
+
 const rv_editor_path_probe &rv_editor_pane_export_dest_probe()
 {
     return export_form_draft.dest_probe;

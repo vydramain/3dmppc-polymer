@@ -26,6 +26,11 @@ namespace
 using leave = rv_editor_shell::rv_editor_leave;
 using step = rv_editor_review_step;
 
+bool rv_editor_review_switches_project(leave action)
+{
+    return action == leave::open || action == leave::close_project;
+}
+
 bool rv_editor_has_buffer_state(const rv_editor_nvim &nvim)
 {
     return nvim.running() || nvim.buffer_state_lost() || std::ranges::any_of(nvim.buffers(), &rv_editor_nvim_buffer::modified);
@@ -84,6 +89,8 @@ void rv_editor_leave_project(rv_editor_shell &shell, leave action, const std::fi
         rv_editor_shell_cancel_review(shell);
     } else if (action == leave::open) {
         rv_editor_shell_open_project(shell, target, discard);
+    } else if (action == leave::close_project) {
+        rv_editor_shell_close_project(shell);
     }
 }
 
@@ -154,7 +161,7 @@ void rv_editor_review_list(rv_editor_shell &shell, const rv_editor_theme &theme,
 
 bool rv_editor_review_leaves_project(leave action)
 {
-    return action == leave::quit || action == leave::open;
+    return action == leave::quit || rv_editor_review_switches_project(action);
 }
 
 void rv_editor_shell_cancel_review(rv_editor_shell &shell)
@@ -175,9 +182,14 @@ void rv_editor_shell_begin_review(rv_editor_shell &shell, leave action)
 
 void rv_editor_shell_request_leave(rv_editor_shell &shell, leave action, std::filesystem::path target)
 {
-    if (!rv_editor_review_leaves_project(action) || shell.leaving != leave::none ||
-        (action == leave::open && shell.app.nvim.switching_root())) {
+    if (!rv_editor_review_leaves_project(action) || shell.leaving != leave::none) {
         return;
+    }
+    if (rv_editor_review_switches_project(action)) {
+        if (const char *reason = rv_editor_shell_why_not_project_switch(shell)) {
+            shell.app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, reason);
+            return;
+        }
     }
     if (!shell.saving && !rv_editor_has_buffer_state(shell.app.nvim) && !rv_editor_app_scene_dirty(shell.app)) {
         rv_editor_leave_project(shell, action, target, false);
@@ -208,7 +220,8 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
         shell.closing = rv_editor_tile_none;
     }
     if (shell.saving ||
-        (shell.leaving == leave::open && (shell.app.nvim.switching_root() || shell.closing != rv_editor_tile_none))) {
+        (rv_editor_review_switches_project(shell.leaving) &&
+            (shell.app.nvim.switching_root() || shell.closing != rv_editor_tile_none))) {
         return;
     }
     if (shell.review.step == step::check) {
@@ -247,6 +260,14 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
         return;
     }
 
+    if (rv_editor_review_switches_project(action)) {
+        if (const char *reason = rv_editor_shell_why_not_project_switch(shell)) {
+            shell.review.step = step::idle;
+            shell.review.error = reason;
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, reason);
+            return;
+        }
+    }
     rv_editor_leave_project(shell, action, shell.review.target, discard);
 }
 
@@ -298,6 +319,8 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
         message = rv_editor_text("shell_save.editor_closes");
     } else if (what == leave::open) {
         message = rv_editor_text("shell_save.project_opens");
+    } else if (what == leave::close_project) {
+        message = rv_editor_text("shell_save.project_closes");
     } else if (ahead) {
         message = rv_editor_text("shell_save.build_saves");
     }

@@ -104,6 +104,9 @@ public:
     // being cancelled. RV_ERR_IO: SIGTERM was not delivered; the reason is in `error`.
     int cancel(std::string &error);
 
+    // Drops a completed project export. Web setup belongs to the editor.
+    void clear_finished_result();
+
     rv_editor_build_state state() const
     {
         return state_;
@@ -128,10 +131,10 @@ public:
     {
         return failure_reason_;
     }
-    // The number of the current or last run (an export or a web setup); 0 before the first one.
+    // The number of the current or last run (an export or a web setup); 0 when idle.
     uint32_t run() const
     {
-        return runs_;
+        return state_ == rv_editor_build_state::idle ? 0 : runs_;
     }
     // Whole seconds the current run has lasted, or the last one lasted.
     int64_t seconds() const
@@ -139,10 +142,11 @@ public:
         const auto end = busy() ? std::chrono::steady_clock::now() : ended_at_;
         return std::chrono::duration_cast<std::chrono::seconds>(end - started_at_).count();
     }
-    // The progress lines of the current or last run (an export or the web setup) as a tree; no runs before the first one.
+    // The progress lines of the current or last run (an export or the web setup) as a tree.
     const rv_editor_progress &progress() const
     {
-        return job_.progress();
+        static const rv_editor_progress empty;
+        return state_ == rv_editor_build_state::idle ? empty : job_.progress();
     }
 
 private:

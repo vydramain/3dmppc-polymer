@@ -346,6 +346,19 @@ int rv_editor_export::update(rv_editor_log &log, std::string &error)
     return rc;
 }
 
+void rv_editor_export::clear_finished_result()
+{
+    if (busy() || setup_job()) {
+        return;
+    }
+    state_ = rv_editor_build_state::idle;
+    result_.clear();
+    failure_reason_.clear();
+    label_.clear();
+    started_at_ = {};
+    ended_at_ = {};
+}
+
 std::span<const rv_editor_export_kind_info> rv_editor_export_kinds()
 {
     return export_rows;

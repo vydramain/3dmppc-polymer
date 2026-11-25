@@ -317,6 +317,8 @@ void rv_editor_shell_new_scene_request(const rv_editor_app &app);
 void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page);
 // Open Project...: rv_editor_shell_page for its page.
 void rv_editor_shell_open_project(rv_editor_shell &shell);
+void rv_editor_shell_request_close_project(rv_editor_shell &shell);
+const char *rv_editor_shell_why_not_project_switch(const rv_editor_shell &shell);
 
 // A pane of `kind` in front: the one the tree shows, or a new tab of the focused
 // tile, or of the first tile when none is focused; `roomy`: of the biggest tile.
@@ -372,6 +374,7 @@ void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &
 // The Recent Projects page of the start screen (records with a status, the selected project's card) and the least tile
 // it draws whole in every state.
 void rv_editor_page_recent(rv_editor_shell &shell, const rv_editor_theme &theme);
+void rv_editor_shell_recent_menu(rv_editor_shell &shell);
 rv_editor_size rv_editor_recent_minimum();
 
 // The least tile each of the other pages of the start screen draws whole in every state. Call inside a frame or with the
@@ -384,6 +387,7 @@ rv_editor_size rv_editor_manual_minimum();
 
 // Window > Terminal: the terminal in front, with the keyboard.
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell);
+void rv_editor_shell_stop_terminal(rv_editor_app &app, rv_editor_terminal_view &view);
 // A build that did not start or failed: Problems in front with the keyboard, in the tile of the Output when it is
 // not in the layout yet (rv_editor_shell.cpp).
 void rv_editor_shell_focus_problems(rv_editor_shell &shell);

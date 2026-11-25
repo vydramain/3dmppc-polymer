@@ -312,6 +312,11 @@ void rv_editor_game_candidate_tile(rv_editor_app &app,
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     rv_editor_session &s = app.session;
+    // A new session counts frames from 1 and a closed project has no frame.
+    if (s.number() != rv_editor_game_session) {
+        rv_editor_game_session = s.number();
+        rv_editor_game_frame = 0;
+    }
     ui.requests.push_back({ .kind = rv_editor_ui_request_kind::game_drawn });
     // Chrome this pane adds around the picture: the shelf, the status line, measured rather than listed, from the
     // leaf's content region before the shelf and this frame's picture area below.
@@ -418,12 +423,6 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         const auto session_status = [&](const std::string &state) {
             return rv_editor_text_format("panes.status_join", std::make_format_args(session, state));
         };
-
-        // A new session's frames count from 1 again.
-        if (s.number() != rv_editor_game_session) {
-            rv_editor_game_session = s.number();
-            rv_editor_game_frame = 0;
-        }
 
         uint64_t f = rv_editor_game_frame;
         uint32_t w = 0, h = 0;

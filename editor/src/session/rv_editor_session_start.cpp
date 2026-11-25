@@ -90,7 +90,16 @@ int rv_editor_session::spawn(const std::vector<std::string> &argv, const rv_edit
     return proc_.start(argv, launch.cwd, error, frame_mem_.fd(), launch.env);
 }
 
-void rv_editor_session::reset_state(const rv_editor_session_launch &launch)
+void rv_editor_session::clear_finished_session()
+{
+    if (live()) {
+        return;
+    }
+    frame_mem_.close();
+    clear_state();
+}
+
+void rv_editor_session::clear_state()
 {
     parser_ = {};
     pending_.clear();
@@ -105,19 +114,21 @@ void rv_editor_session::reset_state(const rv_editor_session_launch &launch)
     follow_up_code_ = RV_OK;
     follow_up_error_.clear();
     handshake_done_ = false;
-    channel_open_ = true;
-    build_number_ = launch.build_number;
-    ++number_;
+    channel_open_ = false;
+    build_number_ = 0;
     reloading_ = false;
     reload_id_ = 0;
     reload_result_.clear();
+    reload_ok_ = false;
+    reload_target_.clear();
+    reload_kind_ = rv_editor_reload_kind::entry;
     facts_ = {};
     answers_.clear();
     scenes_read_.clear();
-    started_wall_ = std::chrono::system_clock::now();
+    started_wall_ = {};
     ended_wall_ = {};
-    disc_dir_ = launch.disc_dir;
-    console_ = launch.console;
+    disc_dir_.clear();
+    console_.clear();
     last_confirmed_ = {};
     in_flight_.clear();
     end_reason_.clear();
@@ -125,6 +136,20 @@ void rv_editor_session::reset_state(const rv_editor_session_launch &launch)
     eof_at_ = {};
     err_partial_.clear();
     out_partial_.clear();
+    started_ = {};
+    stop_sent_ = {};
+    state_ = rv_editor_run_state::stopped;
+}
+
+void rv_editor_session::reset_state(const rv_editor_session_launch &launch)
+{
+    clear_state();
+    channel_open_ = true;
+    build_number_ = launch.build_number;
+    ++number_;
+    started_wall_ = std::chrono::system_clock::now();
+    disc_dir_ = launch.disc_dir;
+    console_ = launch.console;
     started_ = std::chrono::steady_clock::now();
     state_ = rv_editor_run_state::starting;
     active_ = true;
