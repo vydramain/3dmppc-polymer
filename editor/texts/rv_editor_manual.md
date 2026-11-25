@@ -10,31 +10,39 @@ The editor builds and runs games for the 3dmppc console. It works on a game dire
 - the bakers mppctexbaker, mppcmusbaker and mppcmodbaker, for PNG, WAV and glTF files
 - a player, 3dmppc built without devtools, only for a candidate's last check
 
-A development build puts all of them but the player beside the editor, so you need to set nothing up. The window needs 1280x720 times the UI scale or more.
+A development build puts all of them but the player beside the editor, so you need to set nothing up. The window needs 1280x720 times the UI scale or more. If a display is too small for a scale, that choice is disabled and its tooltip gives the required display size.
+
+## Main menu and appearance
+
+The menu bar has three menus, in order: **Project · Editor · Help**. Project is ordered as New Project…, Open Project…, Open Recent submenu; Save, Save All, Save As…; Undo, Redo; Project Settings…; Close Project, Quit. Editor is ordered as New Tile submenu; Layout submenu, Reset Current Layout; UI Scale submenu, Main Font Size submenu, Code Font Size submenu; Editor Settings…. Help contains Interactive Manual, then About 3dmppc Editor. The semicolons mark separator lines. Save and Undo / Redo act on the focused code buffer or scene; Save All writes all changed code buffers and the scene, while Save As applies to the focused code buffer. Menu descriptions identify the target. About shows the editor name and version.
+
+Editor > UI Scale offers ×1, ×1.5 and ×2. Main Font Size changes interface text size; Code Font Size changes code text size independently. Change the game picture size with Game Scale in the Game preview tile, not in the menu bar. With a project open, Code, Scene, Debug and Burn quick buttons remain at the right end of the menu bar.
+
+For shortcuts, open Editor > Editor Settings… and expand Keyboard Shortcuts. Select a shortcut to capture a replacement key, then press the desired key combination. A conflict is reported before the change is accepted. Apply saves the settings; Restore Default Shortcuts resets the assignments. A shortcut must be a function key or use Ctrl, Alt or Super, and reserved editor and pane shortcuts cannot be assigned.
 
 ## First start: open or create a project
 
-Without a project the Project Toolchest on the left shows Recent Projects, New Project, Open Project, Settings and Help.
+Without a project the Project Catalog on the left shows Recent Projects, New Project and Open Project. Settings is available from Editor > Editor Settings…; Help is in the menu bar.
 
-To open a project, choose File > Open Project... or Open Project in the Toolchest, and pick the game directory. To open one you used lately, select it in Recent Projects and press Enter or double click.
+To open a project, choose Project > Open Project… or Open Project in the catalog, and pick the game directory. To open one you used lately, choose Project > Open Recent or select it in Recent Projects and press Enter or double click.
 
-To start a new game, choose New Project, pick a template (Demo (C++) or Demo (Lua)), give a Name and a Disc ID, choose the Directory and press Create Project. Reset clears the form.
+To start a new game, choose Project > New Project…, pick a template (Demo (C++) or Demo (Lua)), give a Name and a Disc ID, choose the Directory and press Create Project. Reset clears the form.
 
 The editor never opens a modal window. A form, a question or a setting is a page next to the Toolchest, a tab in a tile or an area inside a pane.
 
 ## Build and run
 
-To build, choose Project > Build or press Ctrl+B. To cancel it, choose Project > Cancel Build.
+To build, press Ctrl+B or use Build in Runtime Controls. Cancel a running build with Cancel Build in that tile.
 
-To play, press F5 or choose Run > Run. Run builds first if the last build did not succeed or a file changed since, then starts the game. A build uses the files as saved, so if a file has unsaved changes the editor asks first. The picture appears in the Game tile.
+To play, press F5 or use Run in Runtime Controls. Run builds first if the last build did not succeed or a file changed since, then starts the game. A build uses the files as saved, so if a file has unsaved changes the editor asks first. The picture appears in the Game tile.
 
-To pause, press F6. To run one frame of a paused game, press F7. To stop, press Shift+F5.
+To pause, press F6. To run one frame of a paused game, press F7. To stop normally, press Shift+F5 or use Stop in Runtime Controls. Force Stop is available for any active session, including a responsive or hung runtime, and ends it immediately. Ordinary Stop requests normal shutdown.
 
-To change a Lua script or a texture in a running game without a rebuild, save it and press F8. Choose Run > Build and Restart when a change needs a new build.
+To change a Lua script or a texture in a running game without a rebuild, save it and press F8. Use Build and Restart in Runtime Controls when a change needs a new build.
 
-To run the last build that succeeded with your current scripts and assets, choose Run > Run Last Successful Build.
+Run Last Successful Build is in the Build Result tile. It runs the native data from the last successful build with the current scripts and plain assets. Baked data still comes from that last build; rebuild when a baked asset changes.
 
-To change how Run starts the game, choose Run > Run Configuration... Profiles are kept in the project folder. They hold the runtime, the working directory, Start Paused, Fixed Step, Reload On Save, Mute and the Memory card.
+To change how Run starts the game, open the Run Configuration tile from Editor > New Tile. Run profiles are kept in the project folder. They hold the runtime, the working directory, Start Paused, Fixed Step, Reload On Save, Mute and the Memory card.
 
 While a build runs, the status bar and Runtime Controls show its steps in a compact strip, for example [v][v][>][ ][ ] compile: one bracket for each step and then the name of the running step. The mark in a bracket is v for done, > for running, a space for waiting, x for failed and ! for interrupted. The same strip is in the status bar after a build that failed.
 
@@ -62,9 +70,9 @@ Compiler errors and warnings from the build are in Inspector Report too, with th
 
 ## Layouts and panes
 
-There are four layouts: Code, Scene, Debug and Burn. To switch, click one at the right end of the menu bar or choose Window > Reference Layouts. Each keeps its own tiles. Window > Reset Layout puts the chosen one back to its standard tiles. Switching changes only what is shown, never what is built, running or edited.
+There are four layouts: Code, Scene, Debug and Burn. To switch, click one of the four buttons at the right end of the menu bar or choose Editor > Layout. Each keeps its own tiles. Editor > Reset Current Layout puts the active one back to its standard tiles. Switching changes only what is shown, never what is built, running or edited.
 
-A tile holds one pane or several as tabs. To move a pane, drag its tile header or tab to the edge of another tile; Escape cancels. To close a tile use the X in its header, and to maximize it use the M. Right click the header to split, change or close it. To add a pane, choose Window > New Tile. To move the keyboard to the next tile, press Ctrl+F6. When the tabs of a tile do not fit, the row gets the arrows < and > and a list v of all the tabs; the mouse wheel over the row also scrolls it, the open tab always stays in view and there is no scrollbar under the tabs. A single tab is still shown, and a tab title is shown whole.
+A tile holds one pane or several as tabs. To move a pane, drag its tile header or tab to the edge of another tile; Escape cancels. To close a tile use the X in its header, and to maximize it use the M. Right click the header to split, change or close it. To add a pane, choose Editor > New Tile. To move the keyboard to the next tile, press Ctrl+F6. When the tabs of a tile do not fit, the row gets the arrows < and > and a list v of all the tabs; the mouse wheel over the row also scrolls it, the open tab always stays in view and there is no scrollbar under the tabs. A single tab is still shown, and a tab title is shown whole.
 
 A tile does not change its look by state: buttons that cannot be used are dimmed and say why in their tooltip. A tile cannot be made smaller than the size at which everything in it is shown whole. Names, paths and messages are never cut with ...; a long one scrolls inside its list or text area, and a scrollbar shows only when the content really does not fit. A path inside the project is shown relative to the project.
 
@@ -76,7 +84,7 @@ One area. Each pane has one content area. A pane with several parts, Session and
 
 A bigger question covers the whole tile, under its header and tabs: Unsaved changes, Save As and what to do with a swap file in a Code tile, Browse in Settings, and the deletion of a folder in Files. It has a title, the text, a line for a message and its buttons. When you answer, the tile comes back as it was.
 
-The status bar at the bottom has four parts. A count is shown up to 999, and then as 999+. Click Tools, the missing-tools count, to open Settings.
+The status bar at the bottom has four parts. A count is shown up to 999, and then as 999+. Click Tools, the missing-tools count, to open Editor Settings. Status text stays whole at its natural width; only when the window is narrower than the combined natural width can a status label shorten, and hovering it shows the full label.
 
 Code layout. Files on the left, a Code tile in the middle and the Game with Runtime Controls on the right. Console Output, Inspector Report, Terminal and Search Results are tabs below. Files is 176 px wide in a 1280x720 window and 240 px in 1920x1080. To search the whole project, press Ctrl+Shift+F.
 
@@ -88,18 +96,18 @@ Game. To play, click the picture and the game gets the keyboard. To give it back
 
 Terminal. A shell in the project directory. To stop a running command, press Ctrl+C. To paste several lines, press Ctrl+Shift+V and confirm.
 
-Scene layout. Two columns. On the left the Scene view, and under it side by side, equal in width, Assets (with Files and Inspector Report as tabs) and Inspector. Assets has the tabs Assets, Files and Inspector Report; there is no Console Output in this layout. On the right, stacked from the top, are the Transform Toolchest, Runtime Controls, the Game and Hierarchy down to the bottom. To make a scene, choose Scene > New Scene or press Create Scene in the Scene pane. The file goes to scenes/ in the project. To open one, choose Scene > Open Scene. A scene is a list of objects. Each object has an id, a parent and an entity, and its data sits in components, the [[component]] blocks of the scene file, such as name, transform and model.
+Scene layout. Two columns. On the left the Scene view, and under it side by side, equal in width, Assets (with Files and Inspector Report as tabs) and Inspector. Assets has the tabs Assets, Files and Inspector Report; there is no Console Output in this layout. On the right, stacked from the top, are the Transform Toolchest, Runtime Controls, the Game and Hierarchy down to the bottom. To make a scene, right click the active Scene tab and choose New Scene; the file goes to scenes/ in the project. To open one, right click that tab and choose Open Scene, then select a listed scene file. A scene is a list of objects. Each object has an id, a parent and an entity, and its data sits in components, the [[component]] blocks of the scene file, such as name, transform and model.
 
 - Hierarchy lists the objects as a tree. Its one shelf holds the buttons, the search by name and the sort by File order, Name or Type; drag an object to move it under another. Right click for Duplicate, Delete and Move to Root.
 - Assets lists the files of the project in one table with the columns Name, Type, Size and Folder. Type shows the kind of file as a coloured square and a word: Image, Sound, Model, Scene, Code, Header, Script, Manifest, Text or Other. Select a row to see the asset. A filter that hides every file is named in the table's empty row, with a button to clear it.
 - Inspector shows the chosen object: Kind, Id, Name, Entity, Visible and its Components. To change a field, edit it; Reset puts it back. To add data, press Add component. Remove takes a component off.
 - The Scene view draws the objects. Shade: Wireframe, Filled or Textured. View: Persp, Top, Front or Right. Snap and Grid help to place things.
 - To work on an object, press Q to select, W to move, E to rotate or R to scale, and drag in the view. Press F to fill the view with the chosen object, and Home for the view the scene opened with. Escape takes back a drag.
-- Add in the Scene menu puts a Model, a Camera, a Volume or an Empty entity in the scene. To save, press Ctrl+S in the Scene pane or choose Scene > Save Scene.
+- Add in the Scene menu puts a Model, a Camera, a Volume or an Empty entity in the scene. To save, focus the Scene pane and press Ctrl+S, or choose Project > Save.
 
-A game shows a scene only if its code reads the scene file. After a change, save and choose Run > Build and Restart.
+A game shows a scene only if its code reads the scene file. After a change, save and use Build and Restart in Runtime Controls.
 
-Runtime Controls. A strip of transport buttons, the place of Cancel Build and under them a status line of two lines; the strip has a fixed height and no scrollbar. The buttons get their labels when the strip is at least 640 px wide. The status line is always there and says the state; after a failed build it says Build #N failed, and while a build runs, its step; for example "Running, session 1 | Can't reload this disc: Restart (loses state)". Without a project the strip keeps the same buttons and the line says that no project is open. The strip has no note field, no Mark, Capture or Report, no frame number and no Profile: the build and the session are in the status bar, the frame is over the Game and the profile is in Run Configuration. The note field with Mark Moment, Capture Frame and Report Issue is in the Notes of Session.
+Runtime Controls. A strip of transport buttons, the place of Cancel Build and under them a status line of two lines; the strip has a fixed height and no scrollbar. The full button labels fit when the strip is at least 640 px wide. The status line is always there and says the state; after a failed build it says Build #N failed, and while a build runs, its step; for example "Running, session 1 | Can't reload this disc: Restart (loses state)". Without a project the strip keeps the same buttons and the line says that no project is open. The strip has no note field, no Mark, Capture or Report, no frame number and no Profile: the build and the session are in the status bar, the frame is over the Game and the profile is in Editor Settings. The note field with Mark Moment, Capture Frame and Report Issue is in the Notes of Session.
 
 Debug layout. For playing and watching. On the left, Runtime Controls lie above the Game; to their right are Session, Observe and Test Case as tabs. Below, across the whole width, are Runtime Log, Findings, Inspector Report and Toolchest as tabs. Session is one list. Above are the facts of the run, and below them is the section Notes. Its title row has the note field and the buttons Mark Moment, Capture Frame and Report Issue. Notes lists in time order, each line with its HH:MM:SS: the start of the session (number, build and profile), your marks with the frame and the text, the end of the session with the exit code, and the lines the game wrote to stderr. Open Full Log is on the line of the end of the session. Without a session there are no facts, and Notes has one line, "No session yet: Run starts one". Restart is in the Toolchest tab, beside Runtime Log. A failed build opens Inspector Report there. Observe, titled Inspector: state, reads the game's Lua values and lets you Pin them. Test Case lists the test cases of the project, with New Test Case beside them; a labelled field takes a note, and a line under it says where a result appears. In Findings, fill in Title, Steps, Expected and Actual and press Record Finding.
 
@@ -114,13 +122,13 @@ Export. The tile has four framed blocks.
 
 ## Settings and tools
 
-To see and change the tools, choose File > Settings.... The page has a row for each tool: Runtime, Burner, Inspector, Bakers and Player. Each shows the path in use and its status. To use another file, type or Browse... the Override path, then press Check and Apply. Browse opens the file browser in place of the form; pick there, or cancel, and the form comes back. Revert drops the changes.
+To see and change the tools, choose Editor > Editor Settings…. The page has a row for each tool: Runtime, Burner, Inspector, Bakers and Player. Each shows the path in use and its status. To use another file, type or Browse... the Override path, then press Check and Apply. Browse opens the file browser in place of the form; pick there, or cancel, and the form comes back. Revert drops the changes.
 
 The editor looks for the console and burner next to itself. The Bakers row is a directory: it holds mppctexbaker, mppcmusbaker, mppcmodbaker and mppcinspector, and the editor looks for them in its own directory unless you name another. The player has no default place: name it if you want to run a candidate in it. Settings are kept in settings.toml, in its [tools] section.
 
 A missing tool turns off the commands that need it, and the status bar says Tools: N missing. A missing mppcinspector counts as a missing baker: Build, Run when it builds, Build and Restart and the exports are unavailable, and the tooltip of the button says why. The check of Inspector Report in the background needs it too. The burner runs mppcinspector from the bakers' directory, so keep it there next to the bakers.
 
-The same page sets Vsync and the Frame rate limit. To change the size of the text, choose View > Code Text Size, Game Scale or UI Scale. To see the tools of the open project, choose Project > Project Settings; Look for Tools Again searches again.
+Editor > Editor Settings… sets tool paths, Vsync, frame rate limit and keyboard shortcuts. Change UI Scale and Main Font Size in the Editor menu; Code Font Size is independent. Game Scale is in the Game preview tile. Project > Project Settings shows project toolchain details; Look for Tools Again searches again.
 
 ## Where things go
 
@@ -128,7 +136,7 @@ The editor uses the standard directories. XDG_CONFIG_HOME, XDG_CACHE_HOME and XD
 
 - Layouts in ~/.config/3dmppc-editor/: layout-code, layout-scene, layout-debug, layout-burn.
 - Settings and tool paths in ~/.config/3dmppc-editor/settings.toml.
-- Code text size, Game scale, UI scale and last layout in ~/.config/3dmppc-editor/view.
+- Code text size, Game scale, UI scale, main font size and last layout in ~/.config/3dmppc-editor/view.
 - Recent projects in ~/.config/3dmppc-editor/recent.
 - Builds in ~/.cache/3dmppc-editor/<hash>/builds/<n>, with the log <n>.log.
 - Burner maps beside them: <n>.map and <n>.mppcdisc.map.
@@ -141,6 +149,10 @@ The editor uses the standard directories. XDG_CONFIG_HOME, XDG_CACHE_HOME and XD
 - Run profiles in the project: .3dmppc-editor/project.toml.
 - Scenes in the project: scenes/.
 - Burner output in the project: .mppcburn/.
+
+## Interactive Manual and shortcuts
+
+Choose Help > Interactive Manual or press F1 to open the guide. Its three guided paths are Open a Project, Work with Tiles, and Build and Run. Each path gives the next action and tracks completion. Choose Reference Manual in the guide to read this manual. Help > About 3dmppc Editor displays the product name and running version.
 
 ## Keyboard shortcuts
 

@@ -24,6 +24,10 @@ console (`3dmppc --dev`) - it links none of their code.
 - Inspector - runs `mppcinspector` on the project when it opens, after a save and after
   each build, and shows each finding in Inspector Report (source `inspector`) with file, line,
   level and text
+- Main menu - Project, Editor and Help collect project, workspace, appearance, settings
+  and help commands; the four workspace buttons remain at the right of the menu bar
+- Interactive Manual - guided project, tile, build and run walkthroughs, plus a reference
+  manual; Help > About shows the editor version
 
 ## Limitations
 
@@ -46,7 +50,7 @@ The editor looks for the console and burner next to its own executable, where a 
 build puts them (`build-dev/pconsole/bin/`), and the three bakers in the same directory:
 `mppctexbaker` (PNG), `mppcmusbaker` (WAV) and `mppcmodbaker` (.glb), and `mppcinspector`
 beside them.
-Settings in File > Settings or `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml`
+Settings in Editor > Editor Settings… or `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml`
 override them. `baker` is the bakers' directory, not an executable. A file path, or a symlink
 to one, means the directory where that file really lies, as with `mppcburner --baker`.
 Empty means the editor's own directory. The editor checks the three bakers there (present,
@@ -85,7 +89,7 @@ cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev
 ```
 
 `PATH` is a game directory or its `disc.toml` file; both open the same project.
-The editor can also open projects from File > Open Project... in the menu.
+The editor can also open projects from Project > Open Project… in the menu.
 
 ## Tests
 
@@ -193,7 +197,7 @@ The four presets (`src/layout/rv_editor_layout_presets.cpp`) follow the approved
   shelf stays one row, and the tile minimum is sized for that.
 - Assets is a table with the columns Name, Type, Size and Folder; Folder takes the spare width. Type is a square in the colour of the kind and the kind as a word, from the same table as the Files chips (`file_kinds` in `rv_editor_pane_files.cpp`).
 
-Window > Reset Layout applies the preset. When a preset is applied and when the window is resized,
+Editor > Reset Current Layout applies the preset. When a preset is applied and when the window is resized,
 `rv_editor_shell_fit_game` sizes the Game tile in one step (a bisection on a copy of the tree) so that
 the picture area under its shelf has exactly the aspect of the project screen (4:3 for 320x240), with
 no side bands. The size is the largest one that keeps the other tiles at their minimums, up to a
@@ -202,7 +206,7 @@ target picture height from the work area's height `h` (the window less the menu 
 1280x720 the picture is 400x300 in Code, Debug and Burn and 320x240 in Scene; on 1920x1080 it is
 640x480 and 480x360. In Code the Files tile is `W / 10 + 48` wide (`rv_editor_shell_fit_files`:
 176 px at 1280, 240 at 1920). The fit and the Files width apply only to an untouched layout: they
-stop once the user has moved a splitter, until Window > Reset Layout.
+stop once the user has moved a splitter, until Editor > Reset Current Layout.
 
 ### Checking a new pane
 
@@ -234,7 +238,8 @@ display larger than any test window, so nothing is clipped.
 
 ## Manual
 
-The complete user manual is built into the editor: Help > Manual (F1). Its
+The complete user manual is built into the editor: Help > Interactive Manual (F1), then
+Reference Manual. Its
 source is in [`texts/rv_editor_manual.md`](texts/rv_editor_manual.md).
 
 ## Third-party
