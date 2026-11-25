@@ -157,6 +157,7 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
         config.string(),
         std::string(nvim_opt_shada_file),
         std::string(nvim_init_none) };
+    rpc_.take_stderr(); // The previous client has stopped and its reader has joined.
     const int err = rpc_.start(argv, cwd, error);
     if (err != RV_OK) {
         problem = "cannot start nvim: " + error;
@@ -164,19 +165,8 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
         error = problem;
         return err;
     }
+    reset_client_state();
     started_ = true;
-    switching_root_ = false;
-    buffer_state_lost_ = false;
-    attached_ = false;
-    windows_.clear();
-    asked_.clear();
-    spare_.clear();
-    buffers_.clear();
-    sizes_.clear();
-    shown_.clear();
-    switching_ = 0;
-    held_.clear();
-    screen_ = {};
     log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "code editor: " + nvim.string() + " --embed");
     attach();
     // Queued right after attach: nvim runs requests in order, so the variable exists before the first frame asks for a window.
@@ -495,17 +485,24 @@ const std::vector<rv_editor_nvim_diagnostic> &rv_editor_nvim::diagnostics_for(co
     return it != diagnostics_.end() ? it->second : empty;
 }
 
-int rv_editor_nvim::stop(std::string &error)
+int rv_editor_nvim::begin_stop_project(std::string &error)
 {
-    if (started_ && rpc_.running()) {
+    if (running()) {
         // Queued after any :write the user asked for, so those run first.
         rpc_.notify(rpc_command.data(), rv_editor_args([](rv_editor_mpack_writer &w) {
             w.array(1);
             w.string(nvim_cmd_quit_force.data());
         }));
     }
-    started_ = false;
-    attached_ = false;
+    reset_client_state();
+    problem.clear();
+    last_error_ = RV_OK;
+    return stopping() ? RV_OK : rpc_.begin_stop(error);
+}
+
+int rv_editor_nvim::stop(std::string &error)
+{
+    begin_stop_project(error);
     return rpc_.stop_now(error);
 }
 

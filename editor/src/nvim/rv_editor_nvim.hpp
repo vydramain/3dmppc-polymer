@@ -79,7 +79,7 @@ public:
     // Starts nvim once, with the editor's config, in `cwd`. RV_OK on success.
     // RV_ERR_ALREADY if running, RV_ERR_BUSY if it has just ended and update() has
     // not yet reported why, or while it is still stopping; the earlier failure again if
-    // `problem` is set (only "Start again" clears it). RV_ERR_NOENT if nvim not found,
+    // `problem` is set. RV_ERR_NOENT if nvim is not found,
     // RV_ERR_IO if startup failed; reason in `problem` and in `error` (only the code tiles lose).
     int start(const std::filesystem::path &cwd, rv_editor_log &log, std::string &error);
     bool running() const
@@ -215,6 +215,9 @@ public:
     // the stop deadline, then the SIGKILL reap wait, then the reader's exit.
     // RV_OK, or RV_ERR_IO with the reason in `error`.
     int stop(std::string &error);
+    // After the project-close decision, forget its buffers and begin stopping the client.
+    // Returns RV_OK if the stop has begun, is already running, or no client remains.
+    int begin_stop_project(std::string &error);
 
 private:
     void attach();
@@ -225,6 +228,27 @@ private:
         rv_editor_nvim_rpc::rv_editor_nvim_reply reply = {},
         std::chrono::milliseconds timeout = {});
     bool read_buffer_state(const rv_editor_mpack &state);
+    void reset_client_state()
+    {
+        started_ = false;
+        switching_root_ = false;
+        buffer_state_lost_ = false;
+        attached_ = false;
+        windows_.clear();
+        asked_.clear();
+        spare_.clear();
+        buffers_.clear();
+        lsp_.clear();
+        swaps_.clear();
+        diagnostics_.clear();
+        vim_mode_ = false;
+        sizes_.clear();
+        shown_.clear();
+        switching_ = 0;
+        switch_at_ = {};
+        held_.clear();
+        screen_ = {};
+    }
 
     rv_editor_nvim_rpc rpc_;
     bool buffer_state_lost_ = false;

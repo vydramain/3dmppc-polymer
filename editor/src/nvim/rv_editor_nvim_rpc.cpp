@@ -165,6 +165,9 @@ int rv_editor_nvim_rpc::stop_step(std::string &error)
         thread_.join();
     }
     if (!proc_.running() && !thread_.joinable()) {
+        proc_.close_fds();
+        queue_.clear();
+        pending_.clear();
         stopping_ = false;
     }
     // A failure persists until the stop ends: reported once, not on every frame.
