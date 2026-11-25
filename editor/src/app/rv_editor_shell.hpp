@@ -39,6 +39,26 @@ enum class rv_editor_start_page {
     manual,
 };
 
+enum class rv_editor_manual_step {
+    none,
+    open_picker,
+    pick_project,
+    new_tile,
+    close_tile,
+    build_project,
+    run_project,
+    complete,
+};
+
+struct rv_editor_manual_guide {
+    rv_editor_manual_step step = rv_editor_manual_step::none;
+    rv_editor_pane_id pane = rv_editor_tile_none;
+    rv_editor_layout_preset tile_layout = rv_editor_layout_preset::code;
+    uint64_t build_first_seq = 0;
+    uint32_t build_number = 0;
+    uint32_t session = 0;
+};
+
 // New Project's form as typed, kept while other pages are shown; Reset clears it.
 struct rv_editor_start {
     char name[identifier_field_size] = {};
@@ -182,6 +202,8 @@ struct rv_editor_shell {
     rv_editor_menu_document menu_document;
     // Help's filter as typed, kept while other pages or tabs are in front.
     char help_filter[short_text_field_size] = {};
+    rv_editor_manual_guide manual;
+    bool manual_reference = false;
     rv_editor_start start;
     rv_editor_start_page start_page = rv_editor_start_page::recent;
     std::filesystem::path start_selected; // the Project Catalog's selected project; kept while New Project resets start
@@ -299,8 +321,11 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 void rv_editor_page_about(const rv_editor_theme &theme);
 
-// The embedded user manual, as a page and a tab.
+// Guided workflows and the embedded reference, as a page and a tab.
 void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme);
+void rv_editor_shell_manual_start(rv_editor_shell &shell, rv_editor_manual_step first);
+void rv_editor_shell_manual_update(rv_editor_shell &shell);
+float rv_editor_shell_manual_draw(rv_editor_shell &shell, const rv_editor_theme &theme, ImVec2 top, float width);
 
 // The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
 void rv_editor_menu_scene(rv_editor_shell &shell);

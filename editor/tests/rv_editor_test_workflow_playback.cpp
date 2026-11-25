@@ -403,3 +403,51 @@ RV_EDITOR_TEST(editor_playback_and_build_progress_fit_at_both_controls_minima)
     RV_EDITOR_CHECK(app.build.cancel(error) == RV_OK);
     RV_EDITOR_CHECK(fixture.wait_until([&] { return !app.build.busy() && !app.release.building; }));
 }
+
+RV_EDITOR_TEST(rv_editor_test_interactive_manual_waits_for_a_successful_build_and_run)
+{
+    playback_fixture fixture;
+    auto &app = fixture.app;
+    using step = rv_editor_manual_step;
+    const bool built = rv_editor_app_build(app) == RV_OK && fixture.wait_until([&] {
+        return app.build.last_success().has_value();
+    });
+    RV_EDITOR_CHECK(built);
+    if (!built) {
+        return;
+    }
+    rv_editor_shell_manual_start(fixture.shell, step::build_project);
+    rv_editor_shell_update(fixture.shell);
+    RV_EDITOR_CHECK(fixture.shell.manual.step == step::build_project);
+
+    pane_state::write_script(app.tools.burner.path, "exit 1\n");
+    RV_EDITOR_CHECK(rv_editor_app_build(app) == RV_OK);
+    RV_EDITOR_CHECK(fixture.wait_until([&] {
+        return app.build.state() == rv_editor_build_state::failed;
+    }));
+    RV_EDITOR_CHECK(fixture.shell.manual.step == step::build_project);
+
+    pane_state::write_script(app.tools.burner.path, "mkdir -p \"$4\"\n");
+    RV_EDITOR_CHECK(rv_editor_app_build(app) == RV_OK);
+    RV_EDITOR_CHECK(fixture.shell.manual.step == step::build_project);
+    RV_EDITOR_CHECK(fixture.wait_until([&] {
+        return app.build.state() == rv_editor_build_state::succeeded;
+    }));
+    RV_EDITOR_CHECK(fixture.shell.manual.step == step::run_project);
+
+    fixture.add_candidate(42, "candidate");
+    fixture.switch_to(rv_editor_layout_preset::burn);
+    RV_EDITOR_CHECK(rv_editor_app_run_candidate(app) == RV_OK);
+    RV_EDITOR_CHECK(fixture.wait_until([&] {
+        return app.session.state() == rv_editor_run_state::running;
+    }));
+    RV_EDITOR_CHECK(fixture.shell.manual.step == step::run_project);
+    RV_EDITOR_CHECK(fixture.stop());
+
+    fixture.switch_to(rv_editor_layout_preset::code);
+    RV_EDITOR_CHECK(rv_editor_app_run(app) == RV_OK);
+    RV_EDITOR_CHECK(fixture.wait_until([&] {
+        return app.session.state() == rv_editor_run_state::running;
+    }));
+    RV_EDITOR_CHECK(fixture.shell.manual.step == step::complete);
+}

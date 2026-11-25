@@ -178,13 +178,16 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     }
     ImGui::End();
 
-    const rv_editor::rv_editor_rect area{ static_cast<int>(top.x),
-        static_cast<int>(top.y),
+    const float guide = rv_editor::rv_editor_shell_manual_draw(shell, theme, top, size.x);
+    const ImVec2 tiles_top(top.x, top.y + guide);
+    const float tiles_height = size.y - bar - guide;
+    const rv_editor::rv_editor_rect area{ static_cast<int>(tiles_top.x),
+        static_cast<int>(tiles_top.y),
         static_cast<int>(size.x),
-        static_cast<int>(size.y - bar) };
+        static_cast<int>(tiles_height) };
     // The tiles get a host strip of their own, like the bars around them.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    const bool host = rv_editor_bar_begin("##tiles", top, ImVec2(size.x, size.y - bar));
+    const bool host = rv_editor_bar_begin("##tiles", tiles_top, ImVec2(size.x, tiles_height));
     ImGui::PopStyleVar();
     // One screen per frame, picked from the shell's state.
     if (host) {

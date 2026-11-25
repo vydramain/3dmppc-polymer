@@ -112,6 +112,9 @@ void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page)
 void rv_editor_shell_open_project(rv_editor_shell &shell)
 {
     rv_editor_shell_page(shell, rv_editor_start_page::open_project);
+    if (shell.manual.step == rv_editor_manual_step::open_picker) {
+        shell.manual.step = rv_editor_manual_step::pick_project;
+    }
 }
 
 void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind, bool roomy)
@@ -220,6 +223,11 @@ void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
     if (leaf != rv_editor_tile_none) {
         (void)rv_editor_tile_set_ratio(ws.layout, ws.layout.nodes[leaf].parent, rv_editor_even_split);
         ws.focused_leaf = leaf;
+        if (shell.manual.step == rv_editor_manual_step::new_tile && kind == rv_editor_pane_kind::output) {
+            shell.manual.step = rv_editor_manual_step::close_tile;
+            shell.manual.pane = pane;
+            shell.manual.tile_layout = shell.active;
+        }
     }
 }
 

@@ -1,10 +1,8 @@
 // AC7: Close Project and Open Recent use the existing unsaved changes review.
 
 #include <chrono>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -16,6 +14,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_document_menu.hpp"
 #include "rv_editor_test_layout_probe.hpp"
+#include "rv_editor_test_project_directory.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 #include "text/rv_editor_text.hpp"
 
@@ -27,47 +26,6 @@ namespace
 
 namespace fs = std::filesystem;
 constexpr rv_editor_theme theme = rv_editor_theme_olive;
-
-struct project_directory {
-    fs::path root;
-    std::optional<std::string> old_config;
-
-    project_directory()
-    {
-        std::string pattern = (fs::temp_directory_path() / "rv_editor_project_lifecycle_XXXXXX").string();
-        char *directory = ::mkdtemp(pattern.data());
-        if (directory == nullptr) {
-            return;
-        }
-        root = fs::canonical(directory);
-        if (const char *config = std::getenv("XDG_CONFIG_HOME")) {
-            old_config = config;
-        }
-        ::setenv("XDG_CONFIG_HOME", (root / "config").c_str(), 1);
-    }
-
-    ~project_directory()
-    {
-        if (root.empty()) {
-            return;
-        }
-        if (old_config) {
-            ::setenv("XDG_CONFIG_HOME", old_config->c_str(), 1);
-        } else {
-            ::unsetenv("XDG_CONFIG_HOME");
-        }
-        std::error_code error;
-        fs::remove_all(root, error);
-    }
-
-    fs::path project(const char *name) const
-    {
-        const fs::path path = root / name;
-        fs::create_directories(path);
-        std::ofstream(path / "disc.toml") << "[disc]\nid = \"" << name << "\"\ntitle = \"" << name << "\"\n";
-        return path;
-    }
-};
 
 template <class Draw>
 bool click(rv_editor_test_imgui &gui, const Draw &draw, std::string_view label)

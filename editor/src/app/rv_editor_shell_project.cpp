@@ -128,6 +128,12 @@ void rv_editor_shell_apply_project(rv_editor_shell &shell, rv_editor_project pro
     auto &app = shell.app;
     rv_editor_shell_clear_project_state(shell);
     rv_editor_app_open(app, std::move(project));
+    using step = rv_editor_manual_step;
+    if (shell.manual.step == step::open_picker || shell.manual.step == step::pick_project) {
+        shell.manual.step = step::complete;
+    } else if (shell.manual.step != step::complete) {
+        shell.manual = {};
+    }
     const std::string project_name =
         app.project.disc_title.empty() ? app.project.root.filename().string() : app.project.disc_title;
     const auto title = rv_editor_text_format("shell_save.window_title", std::make_format_args(project_name));
@@ -209,6 +215,11 @@ void rv_editor_shell_close_project(rv_editor_shell &shell)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "file watch: " + error);
     }
     rv_editor_shell_clear_project_state(shell);
+    using step = rv_editor_manual_step;
+    if (shell.manual.step != step::open_picker && shell.manual.step != step::pick_project &&
+        shell.manual.step != step::complete) {
+        shell.manual = {};
+    }
     shell.start_selected = app.project.root;
     app.project = {};
     app.release = {};

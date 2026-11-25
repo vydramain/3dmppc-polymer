@@ -371,6 +371,7 @@ void rv_editor_shell_update(rv_editor_shell &shell, bool finish_save)
     if (finish_save) {
         rv_editor_shell_after_save(shell);
     }
+    rv_editor_shell_manual_update(shell);
     rv_editor_shell_review_tab(shell);
     rv_editor_shell_settings_apply(shell);
     rv_editor_shell_publish_layout(shell);

@@ -12,6 +12,7 @@
 #include "rv_editor_test.hpp"
 #include "rv_editor_test_imgui.hpp"
 #include "rv_editor_test_layout_probe.hpp"
+#include "rv_editor_test_project_directory.hpp"
 #include "rv_editor_test_s13.hpp"
 #include "rv_editor_test_stable_tiles.hpp"
 #include "text/rv_editor_text.hpp"
@@ -452,4 +453,52 @@ RV_EDITOR_TEST(rv_editor_test_start_manual_stays_inside_a_narrow_tile)
         rv_editor_page_manual(shell, theme);
     });
     RV_EDITOR_CHECK(inside(r, narrow).empty());
+}
+
+RV_EDITOR_TEST(rv_editor_test_interactive_manual_tracks_the_created_tile)
+{
+    rv_editor_shell shell;
+    rv_editor_shell_load_layouts(shell, {}, "code");
+    shell.app.project.open = true;
+    using step = rv_editor_manual_step;
+    shell.manual.step = step::new_tile;
+
+    rv_editor_shell_new_tile(shell, rv_editor_pane_kind::files);
+    RV_EDITOR_CHECK(shell.manual.step == step::new_tile);
+    rv_editor_shell_new_tile(shell, rv_editor_pane_kind::output);
+    RV_EDITOR_CHECK(shell.manual.step == step::close_tile);
+    const auto added = shell.manual.pane;
+    RV_EDITOR_CHECK(rv_editor_tile_find(shell.ws.layout, added) != rv_editor_tile_none);
+    rv_editor_shell_switch(shell, rv_editor_layout_preset::scene);
+    rv_editor_shell_manual_update(shell);
+    RV_EDITOR_CHECK(shell.manual.step == step::close_tile);
+    rv_editor_shell_switch(shell, rv_editor_layout_preset::code);
+    RV_EDITOR_CHECK(rv_editor_tile_remove(shell.ws.layout, added) == 0);
+    rv_editor_shell_manual_update(shell);
+    RV_EDITOR_CHECK(shell.manual.step == step::complete);
+}
+
+RV_EDITOR_TEST(rv_editor_test_interactive_manual_open_waits_for_a_project)
+{
+    load_texts();
+    project_directory directory;
+    rv_editor_shell shell;
+    RV_EDITOR_CHECK(!directory.root.empty());
+    if (directory.root.empty()) {
+        return;
+    }
+    using step = rv_editor_manual_step;
+    shell.manual.step = step::open_picker;
+    rv_editor_shell_open_project(shell);
+    RV_EDITOR_CHECK(shell.manual.step == step::pick_project);
+
+    rv_editor_shell_request_open(shell, directory.root / "missing");
+    rv_editor_shell_after_save(shell);
+    RV_EDITOR_CHECK(shell.manual.step == step::pick_project);
+
+    const fs::path project = directory.project("manual");
+    rv_editor_shell_request_open(shell, project);
+    rv_editor_shell_after_save(shell);
+    RV_EDITOR_CHECK(shell.app.project.open && shell.app.project.root == project);
+    RV_EDITOR_CHECK(shell.manual.step == step::complete);
 }

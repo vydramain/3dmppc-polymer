@@ -196,6 +196,8 @@ void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &
     }
     if (r == rv_editor_browse_result::picked) {
         rv_editor_shell_request_open(shell, picked);
+    } else if (shell.manual.step == rv_editor_manual_step::pick_project) {
+        shell.manual.step = rv_editor_manual_step::open_picker;
     }
 }
 
