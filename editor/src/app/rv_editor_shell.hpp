@@ -279,6 +279,8 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell);
 // Help as a page or a tab: the keyboard shortcuts, filtered by what is typed.
 void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 
+void rv_editor_page_about(const rv_editor_theme &theme);
+
 // The embedded user manual, as a page and a tab.
 void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme);
 
